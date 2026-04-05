@@ -1,0 +1,273 @@
+﻿@model BDSKhanhHoa.ViewModels.RegisterViewModel
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đăng ký thành viên | BĐS Khánh Hòa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #7c3aed;
+        }
+
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .reg-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            overflow: hidden;
+            display: flex;
+            max-width: 1000px;
+            width: 100%;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .reg-left {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            width: 35%;
+            padding: 50px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        .reg-right {
+            width: 65%;
+            padding: 50px;
+            background: white;
+        }
+
+        .form-control {
+            border-radius: 12px;
+            padding: 12px 15px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s;
+        }
+
+            .form-control:focus {
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+                border-color: var(--primary);
+            }
+
+        .avatar-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 25px;
+        }
+
+        .img-prev {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .btn-upload {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+
+        .btn-main {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: 0.3s;
+        }
+
+            .btn-main:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+            }
+
+        /* Loading overlay */
+        #loader {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @@media (max-width: 992px) {
+            .reg-left {
+                display: none;
+            }
+
+            .reg-right {
+                width: 100%;
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-3 fw-bold">Đang xử lý dữ liệu và gửi OTP...</p>
+    </div>
+
+    <div class="wrapper">
+        <div class="reg-card animate__animated animate__fadeIn">
+            <div class="reg-left">
+                <h2 class="fw-bold mb-4">Xin chào!</h2>
+                <p class="mb-4">Trở thành thành viên để trải nghiệm hệ thống Bất động sản tích hợp Chatbot AI thông minh nhất Khánh Hòa.</p>
+                <div class="mt-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check2-circle me-3 fs-4"></i> <span>Đăng tin miễn phí</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check2-circle me-3 fs-4"></i> <span>Tư vấn pháp lý AI</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reg-right">
+                <h3 class="fw-bold mb-4 text-dark text-center text-lg-start">Tạo tài khoản mới</h3>
+
+                <form asp-action="Register" method="post" enctype="multipart/form-data" id="registerForm">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger small"></div>
+
+                    <div class="text-center text-lg-start">
+                        <div class="avatar-wrapper">
+                            <img id="imgPreview" src="/images/avatars/default-user.png" class="img-prev">
+                            <label for="avatarInput" class="btn-upload"><i class="bi bi-camera"></i></label>
+                            <input asp-for="AvatarFile" type="file" id="avatarInput" class="d-none" accept="image/*">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                            <input asp-for="FullName" class="form-control" placeholder="Nhập Họ và Tên ">
+                            <span asp-validation-for="FullName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                            <input asp-for="Phone" class="form-control" placeholder="Nhập Số Điện Thoại">
+                            <span asp-validation-for="Phone" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email (Sử dụng để nhận mã OTP) <span class="text-danger">*</span></label>
+                        <input asp-for="Email" class="form-control" placeholder="tainguyen@gmail.com">
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Mật khẩu <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input asp-for="Password" type="password" id="pass" class="form-control" placeholder="••••••">
+                                <button type="button" class="input-group-text bg-light" onclick="togglePass('pass')">
+                                    <i class="bi bi-eye" id="icon-pass"></i>
+                                </button>
+                            </div>
+                            <span asp-validation-for="Password" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <label class="form-label">Xác nhận mật khẩu <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input asp-for="ConfirmPassword" type="password" id="repass" class="form-control" placeholder="••••••">
+                                <button type="button" class="input-group-text bg-light" onclick="togglePass('repass')">
+                                    <i class="bi bi-eye" id="icon-repass"></i>
+                                </button>
+                            </div>
+                            <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-main w-100 mb-4">
+                        <i class="bi bi-send-fill me-2"></i> ĐĂNG KÝ & NHẬN MÃ OTP
+                    </button>
+
+                    <div class="text-center">
+                        <p class="text-muted small">Đã có tài khoản? <a href="/Account/Login" class="text-primary fw-bold text-decoration-none">Đăng nhập ngay</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.3/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/3.2.12/jquery.validate.unobtrusive.min.js"></script>
+
+    <script>
+        // Preview ảnh
+        document.getElementById("avatarInput").onchange = function() {
+            const [file] = this.files;
+            if (file) {
+                document.getElementById("imgPreview").src = URL.createObjectURL(file);
+            }
+        };
+
+        // Hiện mật khẩu
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = "password";
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        // Hiển thị loader khi submit
+        $('#registerForm').on('submit', function() {
+            if ($(this).valid()) {
+                $('#loader').css('display', 'flex');
+            }
+        });
+    </script>
+</body>
+</html>
