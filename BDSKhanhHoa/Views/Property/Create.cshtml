@@ -1,0 +1,319 @@
+﻿@model BDSKhanhHoa.Models.Property
+@{
+    ViewData["Title"] = "Đăng tin bất động sản mới";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+}
+
+<style>
+    /* Radio Buttons Form */
+    .radio-toolbar input[type="radio"] {
+        display: none;
+    }
+
+    .radio-toolbar label {
+        display: inline-block;
+        background-color: #f8fafc;
+        border: 2px solid #e2e8f0;
+        padding: 10px 25px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: #64748b;
+    }
+
+    .radio-toolbar input[type="radio"]:checked + label {
+        background-color: #e0e7ff;
+        border-color: #0061f2;
+        color: #0061f2;
+    }
+
+    /* Tiện ích Pill Buttons (Thay thế Checkbox truyền thống) */
+    .amenity-checkbox input[type="checkbox"] {
+        display: none;
+    }
+
+    .amenity-checkbox label {
+        display: inline-block;
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        padding: 8px 18px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border-radius: 50px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #475569;
+        margin: 0 8px 10px 0;
+    }
+
+    .amenity-checkbox input[type="checkbox"]:checked + label {
+        background-color: #dcfce7;
+        border-color: #16a34a;
+        color: #16a34a;
+        box-shadow: 0 2px 5px rgba(22, 163, 74, 0.2);
+    }
+
+    /* Image Upload Zone */
+    .img-upload-zone {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        height: 220px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f8fafc;
+        cursor: pointer;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .img-upload-zone:hover {
+            border-color: #0061f2;
+            background: #f1f5f9;
+        }
+
+    #imgPreview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+</style>
+
+<form asp-action="Create" method="post" enctype="multipart/form-data">
+    <div class="row g-4">
+        <div class="col-lg-8">
+
+            <div class="card-custom p-4 mb-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-info-circle text-primary me-2"></i>1. Thông tin cơ bản</h5>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold d-block">Hình thức giao dịch <span class="text-danger">*</span></label>
+                    <div class="radio-toolbar" id="parentTypeContainer">
+                        @foreach (var parent in ViewBag.ParentTypes)
+                        {
+                            <input type="radio" id="parent_@parent.TypeID" name="ParentTypeSelector" value="@parent.TypeID" onchange="filterSubTypes(this.value)">
+                            <label for="parent_@parent.TypeID" class="me-2"><i class="bi bi-check-circle me-1"></i> @parent.TypeName</label>
+                        }
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Loại bất động sản <span class="text-danger">*</span></label>
+                        <select asp-for="TypeID" id="subTypeSelect" class="form-select form-select-lg bg-light" required>
+                            <option value="">-- Vui lòng chọn Hình thức trước --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Tiêu đề tin đăng <span class="text-danger">*</span></label>
+                        <input asp-for="Title" class="form-control form-control-lg bg-light" placeholder="Ví dụ: Bán nhà mặt tiền đường Trần Phú" required />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Mô tả chi tiết <span class="text-danger">*</span></label>
+                    <textarea asp-for="Description" class="form-control bg-light" rows="6" placeholder="Mô tả tiện ích xung quanh, kiến trúc, dân cư..." required></textarea>
+                </div>
+            </div>
+
+            <div class="card-custom p-4 mb-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-geo-alt text-primary me-2"></i>2. Địa điểm & Kích thước</h5>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Khu vực (Quận/Huyện) <span class="text-danger">*</span></label>
+                        <select id="areaSelect" class="form-select bg-light" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
+                            <option value="">-- Chọn khu vực --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Phường / Xã <span class="text-danger">*</span></label>
+                        <select asp-for="WardID" id="wardSelect" class="form-select bg-light" required>
+                            <option value="">-- Vui lòng chọn Khu vực trước --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label fw-bold">Địa chỉ chi tiết</label>
+                        <input asp-for="AddressDetail" class="form-control bg-light" placeholder="Ví dụ: Số 02 Nguyễn Đình Chiểu" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Mức giá (VNĐ)</label>
+                        <div class="input-group">
+                            <input asp-for="Price" type="number" class="form-control bg-light" placeholder="Để trống nếu muốn Thỏa thuận" />
+                            <span class="input-group-text bg-white">VNĐ</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Diện tích đất (m²)</label>
+                        <div class="input-group">
+                            <input asp-for="AreaSize" type="number" step="0.01" class="form-control bg-light" placeholder="Ví dụ: 100" />
+                            <span class="input-group-text bg-white">m²</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-custom p-4 mb-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-list-check text-primary me-2"></i>3. Thông tin chi tiết & Tiện ích</h5>
+
+                <div class="row mb-4">
+                    <div class="col-md-3 col-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Phòng ngủ</label>
+                        <input type="number" name="Bedrooms" class="form-control bg-light" placeholder="Số phòng..." min="1" max="20" />
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Phòng tắm</label>
+                        <input type="number" name="Bathrooms" class="form-control bg-light" placeholder="Số phòng..." min="1" max="20" />
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Hướng nhà</label>
+                        <select name="Direction" class="form-select bg-light">
+                            <option value="">-- Không rõ --</option>
+                            <option value="Đông">Đông</option>
+                            <option value="Tây">Tây</option>
+                            <option value="Nam">Nam</option>
+                            <option value="Bắc">Bắc</option>
+                            <option value="Đông Nam">Đông Nam</option>
+                            <option value="Tây Nam">Tây Nam</option>
+                            <option value="Đông Bắc">Đông Bắc</option>
+                            <option value="Tây Bắc">Tây Bắc</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <label class="form-label fw-bold text-muted small">Giấy tờ pháp lý</label>
+                        <select name="LegalStatus" class="form-select bg-light">
+                            <option value="">-- Trạng thái --</option>
+                            <option value="Sổ đỏ/ Sổ hồng">Sổ đỏ/ Sổ hồng</option>
+                            <option value="Hợp đồng mua bán">Hợp đồng mua bán</option>
+                            <option value="Đang chờ sổ">Đang chờ sổ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="form-label fw-bold mb-3 d-block">Tiện ích nổi bật (Chọn nhiều)</label>
+                <div class="amenity-checkbox">
+                    <input type="checkbox" id="am1" name="Amenities" value="Có chỗ để xe máy">
+                    <label for="am1"><i class="bi bi-bicycle me-1"></i> Để xe máy</label>
+
+                    <input type="checkbox" id="am2" name="Amenities" value="Gara ô tô">
+                    <label for="am2"><i class="bi bi-car-front me-1"></i> Gara Ô tô</label>
+
+                    <input type="checkbox" id="am3" name="Amenities" value="Hồ bơi">
+                    <label for="am3"><i class="bi bi-water me-1"></i> Hồ bơi</label>
+
+                    <input type="checkbox" id="am4" name="Amenities" value="Nội thất đầy đủ">
+                    <label for="am4"><i class="bi bi-tv me-1"></i> Nội thất đầy đủ</label>
+
+                    <input type="checkbox" id="am5" name="Amenities" value="Thang máy">
+                    <label for="am5"><i class="bi bi-elevator me-1"></i> Thang máy</label>
+
+                    <input type="checkbox" id="am6" name="Amenities" value="Bảo vệ 24/7">
+                    <label for="am6"><i class="bi bi-shield-check me-1"></i> Bảo vệ 24/7</label>
+
+                    <input type="checkbox" id="am7" name="Amenities" value="Ban công">
+                    <label for="am7"><i class="bi bi-wind me-1"></i> Ban công</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card-custom p-4 sticky-top" style="top: 20px;">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-camera text-primary me-2"></i>4. Media & Đăng tin</h5>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Hình ảnh đại diện <span class="text-danger">*</span></label>
+                    <label for="MainImageFile" class="img-upload-zone w-100 d-block">
+                        <div id="uploadPlaceholder" class="text-center text-muted mt-5 pt-3">
+                            <i class="bi bi-cloud-arrow-up display-4"></i>
+                            <p class="mt-2 fw-medium">Nhấn để tải ảnh lên</p>
+                        </div>
+                        <img id="imgPreview" src="" />
+                    </label>
+                    <input type="file" id="MainImageFile" name="MainImageFile" class="d-none" accept="image/*" onchange="previewImage(event)" required />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Gói dịch vụ <span class="text-danger">*</span></label>
+                    <select asp-for="PackageID" class="form-select border-warning shadow-sm" style="background-color: #fffbeb;" asp-items="ViewBag.Packages" required>
+                        <option value="">-- Chọn gói tin đăng --</option>
+                    </select>
+                </div>
+
+                <hr />
+                <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-success btn-lg fw-bold shadow-sm">
+                        <i class="bi bi-check2-circle me-2"></i> HOÀN TẤT ĐĂNG
+                    </button>
+                    <a href="/Property/MyAds" class="btn btn-light mt-2 text-secondary fw-medium">Hủy bỏ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        // --- 1. LOGIC LỌC LOẠI BẤT ĐỘNG SẢN ---
+        const subTypesData = @Html.Raw(ViewBag.SubTypesJson);
+        const subTypeSelect = document.getElementById('subTypeSelect');
+
+        function filterSubTypes(parentId) {
+            subTypeSelect.innerHTML = '<option value="">-- Chọn loại bất động sản --</option>';
+            const filteredTypes = subTypesData.filter(t => t.ParentID == parentId);
+            filteredTypes.forEach(t => {
+                let opt = new Option(t.TypeName, t.TypeID);
+                subTypeSelect.add(opt);
+            });
+        }
+
+        // Kích hoạt mặc định nút radio đầu tiên
+        document.addEventListener("DOMContentLoaded", function() {
+            const firstRadio = document.querySelector('input[name="ParentTypeSelector"]');
+            if(firstRadio) {
+                firstRadio.click();
+            }
+        });
+
+        // --- 2. LOGIC LỌC PHƯỜNG XÃ (AJAX) ---
+        async function loadWards(areaId) {
+            const wardSelect = document.getElementById('wardSelect');
+            wardSelect.innerHTML = '<option value="">Đang tải...</option>';
+            if (!areaId) {
+                wardSelect.innerHTML = '<option value="">-- Vui lòng chọn Khu vực trước --</option>';
+                return;
+            }
+            try {
+                const response = await fetch(`/Home/GetWardsByArea?areaId=${areaId}`);
+                if (!response.ok) throw new Error('Lỗi mạng');
+                const data = await response.json();
+                wardSelect.innerHTML = '<option value="">-- Chọn Phường / Xã --</option>';
+                data.forEach(ward => {
+                    let opt = new Option(ward.wardName, ward.wardId);
+                    wardSelect.add(opt);
+                });
+            } catch (error) {
+                wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>';
+            }
+        }
+
+        // --- 3. HIỆU ỨNG PREVIEW ẢNH ---
+        function previewImage(event) {
+            var reader = new FileReader();
+            reader.onload = function() {
+                var output = document.getElementById('imgPreview');
+                var placeholder = document.getElementById('uploadPlaceholder');
+                output.src = reader.result;
+                output.style.display = 'block';
+                placeholder.style.display = 'none';
+            };
+            if(event.target.files[0]){
+                reader.readAsDataURL(event.target.files[0]);
+            }
+        }
+    </script>
+}

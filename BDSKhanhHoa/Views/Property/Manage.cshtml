@@ -1,0 +1,102 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+@{
+    ViewData["Title"] = "Quản lý tin đăng của tôi";
+}
+
+<div class="container mt-5 pt-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-primary"><i class="bi bi-list-task me-2"></i>TIN ĐĂNG CỦA BẠN</h3>
+        <a href="/Property/Create" class="btn btn-success rounded-pill px-4 shadow-sm">
+            <i class="bi bi-plus-circle me-2"></i> Đăng tin mới
+        </a>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40%;">Bất động sản</th>
+                        <th>Loại hình</th>
+                        <th>Giá niêm yết</th>
+                        <th>Trạng thái</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)"
+                                             class="rounded-3 me-3" style="width: 80px; height: 60px; object-fit: cover;">
+                                        <div>
+                                            <div class="fw-bold text-truncate" style="max-width: 250px;">@item.Title</div>
+                                            <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> @item.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @* SỬA LỖI: Gọi qua PropertyType *@
+                                    <span class="badge bg-light text-dark border">@(item.PropertyType?.TypeName ?? "Chưa phân loại")</span>
+                                </td>
+                                <td>
+                                    <span class="text-danger fw-bold">
+                                        @(item.Price.HasValue? item.Price.Value.ToString("N0") : "Liên hệ")
+                                    </span>
+                                    <small class="text-muted small">VNĐ</small>
+                                </td>
+                                <td>
+                                    @if (item.Status == "Approved")
+                                    {
+                                        <span class="badge bg-success-subtle text-success px-3 rounded-pill">Đã duyệt</span>
+                                    }
+                                    else if (item.Status == "Pending")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning px-3 rounded-pill">Chờ duyệt</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger px-3 rounded-pill">Bị từ chối</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group">
+                                        <a href="/Property/Details/@item.PropertyID" class="btn btn-sm btn-outline-info" title="Xem">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="/Property/Edit/@item.PropertyID" class="btn btn-sm btn-outline-primary" title="Sửa">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger" title="Xóa" onclick="confirmDelete(@item.PropertyID)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <p class="text-muted mb-0">Bạn chưa có tin đăng nào trên hệ thống.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,391 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+@{
+    ViewData["Title"] = ViewBag.CurrentFilters.transactionType == "rent" ? "Cho thuê Bất động sản Khánh Hòa" : "Mua bán Bất động sản Khánh Hòa";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var filters = ViewBag.CurrentFilters;
+    bool isBuy = filters.transactionType == "buy";
+}
+
+<style>
+    body {
+        background-color: #f8fafc;
+    }
+
+    .filter-sidebar {
+        background: #fff;
+        padding: 25px;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        position: sticky;
+        top: 90px;
+    }
+
+    .filter-title {
+        font-weight: 800;
+        font-size: 1.1rem;
+        padding-bottom: 12px;
+        margin-bottom: 20px;
+        color: #0f172a;
+        border-bottom: 2px solid #f1f5f9;
+    }
+
+    .filter-label {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #334155;
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    /* Transaction Tabs */
+    .trans-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .trans-tab {
+        flex: 1;
+        padding: 12px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+        transition: 0.3s;
+    }
+
+        .trans-tab.active {
+            background: #e81c2e;
+            color: #fff;
+            border-color: #e81c2e;
+            box-shadow: 0 4px 10px rgba(232, 28, 46, 0.2);
+        }
+
+    .input-range-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .input-range-group input {
+            text-align: center;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+    /* Pills Radio */
+    .btn-group-pill {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+        .btn-group-pill .btn {
+            border-radius: 8px !important;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            font-weight: 600;
+            padding: 8px 12px;
+            flex-grow: 1;
+            font-size: 0.9rem;
+        }
+
+        .btn-group-pill .btn-check:checked + .btn {
+            background-color: #0061f2;
+            color: #fff;
+            border-color: #0061f2;
+        }
+
+    /* Property Card */
+    .property-card {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+        transition: 0.3s;
+        background: #fff;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #edf2f7;
+    }
+
+        .property-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+    .img-wrapper {
+        position: relative;
+        height: 230px;
+    }
+
+        .img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .badge-vip {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: linear-gradient(45deg, #e81c2e, #ff6b00);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 800;
+    }
+
+    .prop-price {
+        color: #e81c2e;
+        font-weight: 800;
+        font-size: 1.3rem;
+    }
+
+    .page-link {
+        border-radius: 8px;
+        margin: 0 5px;
+        font-weight: 600;
+        color: #475569;
+        border: none;
+    }
+
+    .page-item.active .page-link {
+        background-color: #0061f2;
+        color: white;
+    }
+</style>
+
+<div class="container my-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb bg-white p-3 rounded-4 shadow-sm border fw-medium">
+            <li class="breadcrumb-item"><a href="/" class="text-decoration-none"><i class="bi bi-house-door-fill"></i> Trang chủ</a></li>
+            <li class="breadcrumb-item active">@ViewData["Title"]</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        <div class="col-lg-3">
+            <div class="filter-sidebar">
+                <h5 class="filter-title"><i class="bi bi-funnel-fill text-primary me-2"></i>Bộ lọc nâng cao</h5>
+
+                <form id="filterForm" action="/Property/Search" method="get">
+                    <input type="hidden" name="transactionType" id="transTypeInput" value="@filters.transactionType" />
+                    <input type="hidden" name="page" id="pageInput" value="1" />
+                    <input type="hidden" name="sortOrder" id="sortInput" value="@filters.sortOrder" />
+
+                    <div class="trans-tabs">
+                        <div class="trans-tab @(isBuy ? "active" : "")" onclick="setTransaction('buy')">BÁN</div>
+                        <div class="trans-tab @(!isBuy ? "active" : "")" onclick="setTransaction('rent')">CHO THUÊ</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Loại BĐS</label>
+                        <select name="typeId" id="subTypeSelect" class="form-select bg-light fw-medium">
+                            <option value="">Tất cả loại hình</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Tỉnh/Thành & Phường/Xã</label>
+                        <select name="areaId" id="areaSelect" class="form-select bg-light fw-medium mb-2" onchange="loadWards(this.value)">
+                            <option value="">Toàn tỉnh Khánh Hòa</option>
+                            @foreach (var a in ViewBag.Areas)
+                            {
+                                <option value="@a.AreaID" selected="@(filters.areaId == a.AreaID ? "selected" : null)">@a.AreaName</option>
+                            }
+                        </select>
+                        <select name="wardId" id="wardSelect" class="form-select bg-light fw-medium">
+                            <option value="">Tất cả Phường / Xã</option>
+                            @if (filters.wardId != null)
+                            {
+                                <option value="@filters.wardId" selected>Đã chọn P/X</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Mức giá (Triệu VNĐ)</label>
+                        <div class="input-range-group">
+                            <input type="number" name="minPrice" class="form-control bg-light" placeholder="Từ" value="@filters.minPrice" min="0">
+                            <span class="text-muted fw-bold">-</span>
+                            <input type="number" name="maxPrice" class="form-control bg-light" placeholder="Đến" value="@filters.maxPrice" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Diện tích (m²)</label>
+                        <div class="input-range-group">
+                            <input type="number" name="minSize" class="form-control bg-light" placeholder="Từ" value="@filters.minSize" min="0">
+                            <span class="text-muted fw-bold">-</span>
+                            <input type="number" name="maxSize" class="form-control bg-light" placeholder="Đến" value="@filters.maxSize" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Phòng ngủ</label>
+                        <div class="btn-group-pill w-100">
+                            @foreach (var n in new[] { "1", "2", "3", "4", "5" })
+                            {
+                                <input type="radio" class="btn-check" name="bedrooms" id="bed_@n" value="@n" @(filters.bedrooms == n ? "checked" : "")>
+                                <label class="btn btn-outline-secondary" for="bed_@n">@(n == "5" ? "5+" : n)</label>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Phòng tắm</label>
+                        <div class="btn-group-pill w-100">
+                            @foreach (var n in new[] { "1", "2", "3", "4" })
+                            {
+                                <input type="radio" class="btn-check" name="bathrooms" id="bath_@n" value="@n" @(filters.bathrooms == n ? "checked" : "")>
+                                <label class="btn btn-outline-secondary" for="bath_@n">@(n == "4" ? "4+" : n)</label>
+                            }
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-3 mt-2 rounded-3 shadow-sm">
+                        <i class="bi bi-search me-2"></i> ÁP DỤNG BỘ LỌC
+                    </button>
+                    <a href="/Property/Search?transactionType=@filters.transactionType" class="btn btn-light border w-100 mt-2 text-secondary fw-bold py-2 rounded-3">Xóa lọc</a>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded-4 shadow-sm border mb-4">
+                <div>
+                    <h4 class="fw-bold mb-0 text-dark" style="font-size: 1.3rem;">@ViewData["Title"]</h4>
+                    <small class="text-muted">Đang hiển thị <strong class="text-primary fs-6">@ViewBag.TotalItems</strong> kết quả phù hợp</small>
+                </div>
+                <div class="d-flex align-items-center">
+                    <label class="text-muted fw-bold me-2 text-nowrap d-none d-md-block">Sắp xếp:</label>
+                    <select class="form-select fw-bold border bg-light text-dark" style="width: 190px;" onchange="changeSort(this.value)">
+                        <option value="" selected="@(string.IsNullOrEmpty(filters.sortOrder) ? "selected" : null)">Tin mới nhất</option>
+                        <option value="price_asc" selected="@(filters.sortOrder == "price_asc" ? "selected" : null)">Giá: Thấp đến Cao</option>
+                        <option value="price_desc" selected="@(filters.sortOrder == "price_desc" ? "selected" : null)">Giá: Cao đến Thấp</option>
+                        <option value="area_desc" selected="@(filters.sortOrder == "area_desc" ? "selected" : null)">Diện tích: Lớn nhất</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        <div class="col-md-6 col-xl-4">
+                            <a href="/Property/Details/@item.PropertyID" class="text-decoration-none text-dark">
+                                <div class="property-card">
+                                    <div class="img-wrapper">
+                                        <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.Title" onerror="this.src='/images/no-image.jpg'">
+                                        @if (item.PackageID > 1)
+                                        {
+                                            <span class="badge-vip"><i class="bi bi-star-fill text-warning me-1"></i> VIP</span>
+                                        }
+                                    </div>
+                                    <div class="card-body p-3 d-flex flex-column flex-grow-1">
+                                        <h6 class="fw-bold mb-2 lh-base text-dark" style="height: 44px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">@item.Title</h6>
+                                        <div class="prop-price mb-2">
+                                            @(item.Price.HasValue ? (item.Price.Value >= 1000000000 ? (item.Price.Value / 1000000000).ToString("0.##") + " Tỷ" : (item.Price.Value / 1000000).ToString("0.##") + " Triệu") : "Thỏa thuận")
+                                            <span class="text-muted fw-normal fs-6 ms-1">@(filters.transactionType == "rent" ? "/tháng" : "")</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between text-muted mt-auto pt-3 border-top small fw-bold">
+                                            <span><i class="bi bi-rulers text-secondary me-1"></i> @item.AreaSize m²</span>
+                                            <span class="text-truncate" style="max-width: 140px;"><i class="bi bi-geo-alt text-secondary me-1"></i> @(item.Ward?.Area?.AreaName ?? "Khánh Hòa")</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    }
+
+                    @if (ViewBag.TotalPages > 1)
+                    {
+                        <div class="col-12 mt-5">
+                            <nav>
+                                <ul class="pagination justify-content-center">
+                                    @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                                    {
+                                        <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                                            <button class="page-link shadow-sm" onclick="submitPage(@i)">@i</button>
+                                        </li>
+                                    }
+                                </ul>
+                            </nav>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="col-12 text-center py-5 bg-white rounded-4 border shadow-sm">
+                        <img src="/images/not-found.svg" alt="Not found" style="width: 150px; opacity: 0.6;" class="mb-4" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'">
+                        <h4 class="fw-bold text-dark mt-3">Không tìm thấy kết quả phù hợp</h4>
+                        <p class="text-secondary">Hãy thử thay đổi tiêu chí giá, diện tích hoặc khu vực để xem thêm.</p>
+                        <button onclick="document.getElementById('filterForm').reset(); document.getElementById('filterForm').submit();" class="btn btn-outline-primary mt-3 fw-bold px-4 rounded-pill">Xóa bộ lọc</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const subTypesData = @Html.Raw(ViewBag.SubTypesJson);
+        const currentTypeId = '@filters.typeId';
+
+        function setTransaction(type) {
+            document.getElementById('transTypeInput').value = type;
+            document.getElementById('pageInput').value = 1;
+
+            // Xử lý Giao diện Tab
+            const tabs = document.querySelectorAll('.trans-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Xử lý đổi Option Loại nhà đất
+            const parentId = type === 'buy' ? 1 : 2;
+            const select = document.getElementById('subTypeSelect');
+            select.innerHTML = '<option value="">Tất cả loại hình</option>';
+
+            subTypesData.filter(t => t.ParentID == parentId).forEach(t => {
+                let opt = new Option(t.TypeName, t.TypeID);
+                if (t.TypeID == currentTypeId) opt.selected = true;
+                select.add(opt);
+            });
+        }
+
+        // Chạy lần đầu khi load trang
+        document.addEventListener("DOMContentLoaded", function() {
+            setTransaction('@filters.transactionType');
+        });
+
+        function submitPage(pageNum) {
+            document.getElementById('pageInput').value = pageNum;
+            document.getElementById('filterForm').submit();
+        }
+
+        function changeSort(sortValue) {
+            document.getElementById('sortInput').value = sortValue;
+            document.getElementById('pageInput').value = 1;
+            document.getElementById('filterForm').submit();
+        }
+
+        async function loadWards(areaId) {
+            const wardSelect = document.getElementById('wardSelect');
+            wardSelect.innerHTML = '<option value="">Đang tải...</option>';
+            if (!areaId) { wardSelect.innerHTML = '<option value="">Tất cả Phường / Xã</option>'; return; }
+            try {
+                const response = await fetch(`/Home/GetWardsByArea?areaId=${areaId}`);
+                const data = await response.json();
+                wardSelect.innerHTML = '<option value="">Tất cả Phường / Xã</option>';
+                data.forEach(w => wardSelect.add(new Option(w.wardName, w.wardId)));
+            } catch (e) { wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>'; }
+        }
+    </script>
+}
