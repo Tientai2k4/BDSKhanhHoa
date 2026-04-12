@@ -1,0 +1,78 @@
+﻿@model BDSKhanhHoa.Models.ContactMessage
+@{
+    ViewData["Title"] = "Chi tiết Liên hệ";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Chi tiết Liên Hệ #@Model.ContactID</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/Admin/Contact">Quản lý Liên hệ</a></li>
+        <li class="breadcrumb-item active">Chi tiết</li>
+    </ol>
+
+    @if (TempData["SuccessMsg"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4 shadow-sm border-0">
+                <div class="card-header bg-white py-3 fw-bold">
+                    Nội dung tin nhắn
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-primary">@Model.Subject</h5>
+                    <p class="text-muted small mb-4">Gửi lúc: @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss")</p>
+
+                    <div class="bg-light p-4 rounded-3 border">
+                        @Html.Raw(Model.Message.Replace("\n", "<br/>"))
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-4 shadow-sm border-0">
+                <div class="card-header bg-white py-3 fw-bold">
+                    Thông tin người gửi
+                </div>
+                <div class="card-body">
+                    <p><strong><i class="bi bi-person me-2"></i>Họ tên:</strong> @Model.FullName</p>
+                    <p><strong><i class="bi bi-telephone me-2"></i>SĐT:</strong> @(string.IsNullOrEmpty(Model.Phone) ? "Không có" : Model.Phone)</p>
+                    <p><strong><i class="bi bi-envelope me-2"></i>Email:</strong> @(string.IsNullOrEmpty(Model.Email) ? "Không có" : Model.Email)</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 fw-bold">
+                    Xử lý trạng thái
+                </div>
+                <div class="card-body text-center">
+                    <p>
+                        Trạng thái hiện tại:
+                        <span class="badge @(Model.Status == "Chưa xử lý" ? "bg-danger" : (Model.Status == "Đang xử lý" ? "bg-warning text-dark" : "bg-success")) fs-6">
+                            @Model.Status
+                        </span>
+                    </p>
+
+                    <form action="/Admin/Contact/UpdateStatus" method="post" class="mt-3">
+                        <input type="hidden" name="id" value="@Model.ContactID" />
+                        <div class="input-group">
+                            <select name="status" class="form-select">
+                                <option value="Chưa xử lý" selected="@(Model.Status == "Chưa xử lý")">Chưa xử lý</option>
+                                <option value="Đang xử lý" selected="@(Model.Status == "Đang xử lý")">Đang xử lý</option>
+                                <option value="Đã xử lý" selected="@(Model.Status == "Đã xử lý")">Đã xử lý</option>
+                            </select>
+                            <button class="btn btn-primary" type="submit">Cập nhật</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

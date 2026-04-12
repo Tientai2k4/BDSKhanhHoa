@@ -1,0 +1,76 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Banner>
+@{
+    ViewData["Title"] = "Quản lý Banner Slider";
+    Layout = "_AdminLayout";
+}
+
+<div class="container-fluid">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-images me-2 text-primary"></i>QUẢN LÝ BANNER SLIDER</h5>
+            <a asp-action="Create" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Thêm mới
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Banner</th>
+                            <th>Thông tin chữ (Tùy chọn)</th>
+                            <th class="text-center">Thứ tự</th>
+                            <th class="text-center">Trạng thái</th>
+                            <th class="text-end pe-4">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="position-relative" style="width: 240px; height: 110px;">
+                                        <img src="@item.ImageURL" class="rounded-3 shadow-sm w-100 h-100" style="object-fit: cover;">
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
+                                    <small class="text-muted d-block text-truncate" style="max-width: 250px;">@item.SubTitle</small>
+                                    <small class="text-primary"><i class="bi bi-link-45deg"></i> @(item.LinkURL ?? "N/A")</small>
+                                </td>
+                                <td class="text-center fw-bold">@item.DisplayOrder</td>
+                                <td class="text-center">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success-subtle text-success px-3 rounded-pill border border-success-subtle">Đang hiện</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger px-3 rounded-pill border border-danger-subtle">Đang ẩn</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group shadow-sm rounded-3 overflow-hidden">
+                                        <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-white border-end"><i class="bi bi-pencil-fill text-info"></i></a>
+                                        <button onclick="confirmDelete(@item.BannerID)" class="btn btn-white"><i class="bi bi-trash3-fill text-danger"></i></button>
+                                    </div>
+                                    <form id="delete-form-@item.BannerID" asp-action="Delete" asp-route-id="@item.BannerID" method="post" style="display:none;"></form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function confirmDelete(id) {
+            if (confirm('Xác nhận xóa banner này?')) {
+                document.getElementById('delete-form-' + id).submit();
+            }
+        }
+    </script>
+}

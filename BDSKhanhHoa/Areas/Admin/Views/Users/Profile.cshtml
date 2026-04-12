@@ -1,0 +1,122 @@
+﻿@model BDSKhanhHoa.Models.User
+@{
+    ViewData["Title"] = "Hồ sơ của tôi";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-9">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="bg-primary p-5 text-center position-relative">
+                    <div class="d-inline-block position-relative">
+                        <img id="avatarPreview" src="@(string.IsNullOrEmpty(Model.Avatar) ? "/images/avatars/default.png" : Model.Avatar)"
+                             class="rounded-circle border border-4 border-white shadow"
+                             width="130" height="130" style="object-fit: cover;">
+
+                        <form id="formChangeAvatar" asp-action="UpdateAvatar" method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="UserID" value="@Model.UserID" />
+                            <label for="uploadAvatar" class="position-absolute bottom-0 end-0 bg-white text-primary rounded-circle shadow-sm d-flex align-items-center justify-content-center"
+                                   style="width: 35px; height: 35px; cursor: pointer; border: 2px solid #fff;">
+                                <i class="bi bi-camera-fill"></i>
+                            </label>
+                            <input type="file" id="uploadAvatar" name="AvatarFile" hidden accept="image/*" onchange="submitAvatar()">
+                        </form>
+                    </div>
+                    <h3 class="text-white fw-bold mt-3">@Model.FullName</h3>
+                    <p class="text-white-50 mb-0">Hệ thống Quản trị viên</p>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
+                    @if (TempData["Success"] != null)
+                    {
+                        <div class="alert alert-success border-0 shadow-sm mb-4">
+                            <i class="bi bi-check-circle me-2"></i> @TempData["Success"]
+                        </div>
+                    }
+
+                    <form asp-action="Edit" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="UserID" />
+                        <input type="hidden" asp-for="RoleID" />
+                        <input type="hidden" asp-for="IsActive" />
+
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Tên đăng nhập</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-0"><i class="bi bi-person-badge"></i></span>
+                                    <input asp-for="Username" class="form-control bg-light border-0" readonly />
+                                </div>
+                                <small class="text-muted italic">Tên tài khoản không thể thay đổi</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Email hệ thống</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-0"><i class="bi bi-envelope"></i></span>
+                                    <input asp-for="Email" class="form-control bg-light border-0" readonly />
+                                </div>
+                                <small class="text-muted italic">Liên hệ Admin tổng để đổi Email</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-primary text-uppercase mb-2 d-block">Họ và tên</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-person-fill"></i></span>
+                                    <input asp-for="FullName" class="form-control" placeholder="Nhập họ tên đầy đủ..." required />
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-primary text-uppercase mb-2 d-block">Số điện thoại</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-telephone-fill"></i></span>
+                                    <input asp-for="Phone" class="form-control" placeholder="Nhập số điện thoại cá nhân..." />
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="small fw-bold text-primary text-uppercase mb-2 d-block">Địa chỉ thường trú</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-geo-alt-fill"></i></span>
+                                    <textarea asp-for="Address" class="form-control" rows="2" placeholder="Số nhà, tên đường, Phường/Xã..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-muted text-uppercase mb-2 d-block">Ngày tham gia</label>
+                                <p class="form-control bg-light border-0">@Model.CreatedAt?.ToString("dd/MM/yyyy HH:mm")</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 pt-4 border-top d-flex justify-content-between align-items-center">
+                            <a href="/Account/ChangePassword" class="text-danger text-decoration-none fw-bold">
+                                <i class="bi bi-shield-lock me-1"></i> Đổi mật khẩu bảo mật?
+                            </a>
+                            <button type="submit" class="btn btn-primary px-5 py-2 fw-bold shadow-sm rounded-pill">
+                                <i class="bi bi-save me-2"></i> LƯU THÔNG TIN
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Tự động submit form khi chọn ảnh xong
+        function submitAvatar() {
+            const fileInput = document.getElementById('uploadAvatar');
+            if (fileInput.files && fileInput.files[0]) {
+                // Hiển thị loading nhẹ hoặc submit luôn
+                document.getElementById('formChangeAvatar').submit();
+            }
+        }
+    </script>
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

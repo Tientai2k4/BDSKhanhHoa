@@ -1,0 +1,81 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.ContactMessage>
+@{
+    ViewData["Title"] = "Quản lý Liên Hệ";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Danh sách Liên Hệ</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/Admin">Dashboard</a></li>
+        <li class="breadcrumb-item active">Liên hệ</li>
+    </ol>
+
+    @if (TempData["SuccessMsg"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card mb-4 shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <i class="fas fa-table me-1"></i>
+            Hộp thư khách hàng
+        </div>
+        <div class="card-body">
+            <table class="table table-hover table-bordered" id="datatablesSimple">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Khách hàng</th>
+                        <th>Số điện thoại</th>
+                        <th>Ngày gửi</th>
+                        <th>Trạng thái</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>#@item.ContactID</td>
+                            <td>
+                                <strong>@item.FullName</strong><br />
+                                <small class="text-muted">@item.Email</small>
+                            </td>
+                            <td>@item.Phone</td>
+                            <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>
+                                @if (item.Status == "Chưa xử lý")
+                                {
+                                    <span class="badge bg-danger">Chưa xử lý</span>
+                                }
+                                else if (item.Status == "Đang xử lý")
+                                {
+                                    <span class="badge bg-warning text-dark">Đang xử lý</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">Đã xử lý</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <a href="/Admin/Contact/Details/@item.ContactID" class="btn btn-sm btn-info text-white" title="Xem chi tiết">
+                                    <i class="bi bi-eye"></i> Xem
+                                </a>
+                                <form action="/Admin/Contact/Delete" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tin nhắn này?');">
+                                    <input type="hidden" name="id" value="@item.ContactID" />
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Xóa">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

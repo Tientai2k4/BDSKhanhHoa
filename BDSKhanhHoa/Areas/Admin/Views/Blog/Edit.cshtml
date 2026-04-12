@@ -1,0 +1,68 @@
+﻿@model BDSKhanhHoa.Models.Blog
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Chỉnh sửa bài viết";
+}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold text-primary">Chỉnh sửa: @Model.Title</h5>
+    </div>
+    <div class="card-body p-4">
+        <form asp-area="Admin" asp-controller="Blog" asp-action="Edit" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="BlogID" />
+            <input type="hidden" asp-for="ImageURL" />
+            <input type="hidden" asp-for="UserID" />
+            <input type="hidden" asp-for="CreatedAt" />
+            <input type="hidden" asp-for="Views" />
+
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tiêu đề bài viết</label>
+                        <input asp-for="Title" class="form-control" />
+                        <span asp-validation-for="Title" class="text-danger"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tóm tắt ngắn</label>
+                        <textarea asp-for="Summary" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ảnh đại diện hiện tại</label>
+                        <input type="file" name="imageFile" class="form-control mb-2" onchange="previewImage(this)" />
+                        <img id="preview" src="@(Model.ImageURL ?? "/images/no-image.png")"
+                             class="img-fluid rounded border" style="max-height: 180px; width: 100%; object-fit: cover;" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Nội dung chi tiết</label>
+                <textarea asp-for="Content" id="editor"></textarea>
+                <span asp-validation-for="Content" class="text-danger"></span>
+            </div>
+
+            <div class="mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-warning px-5">Cập nhật thay đổi</button>
+                <a asp-action="Index" class="btn btn-outline-secondary px-4">Quay lại</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.ckeditor.com/4.19.1/standard/ckeditor.js"></script>
+    <script>
+        CKEDITOR.replace('editor', { height: 500 });
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) { document.getElementById('preview').src = e.target.result; }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+}

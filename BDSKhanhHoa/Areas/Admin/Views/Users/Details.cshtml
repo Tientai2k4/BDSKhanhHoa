@@ -1,0 +1,155 @@
+﻿@model BDSKhanhHoa.Models.User
+@{
+    ViewData["Title"] = "Chi tiết người dùng";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    var trans = ViewBag.Transactions as List<BDSKhanhHoa.Models.Transaction>;
+    var logs = ViewBag.Logs as List<BDSKhanhHoa.Models.AuditLog>;
+    var violations = ViewBag.Violations as List<BDSKhanhHoa.Models.UserViolation>;
+}
+
+<div class="container-fluid px-4 mt-4">
+    <div class="row">
+        <div class="col-xl-4 col-lg-5">
+            <div class="card border-0 shadow-sm mb-4 rounded-3 overflow-hidden">
+                <div class="bg-primary py-5 text-center">
+                    <img src="@(string.IsNullOrEmpty(Model.Avatar) ? "/images/avatars/default.png" : Model.Avatar)"
+                         class="rounded-circle border border-4 border-white shadow mb-3" width="120" height="120" style="object-fit: cover;">
+                    <h4 class="text-white fw-bold mb-0">@Model.FullName</h4>
+                    <p class="text-white-50 small mb-0">@@@Model.Username</p>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-around text-center mb-4 border-bottom pb-3">
+                       
+                        <div>
+                            <p class="text-muted small mb-0">Trạng thái</p>
+                            <span class="badge @(Model.IsActive ? "bg-success" : "bg-danger")">
+                                @(Model.IsActive ? "Đang mở" : "Đã khóa")
+                            </span>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-uppercase small text-muted mb-3">Thông tin liên lạc</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-3 small d-flex align-items-center">
+                            <i class="bi bi-envelope text-primary me-3 fs-5"></i>
+                            <span>@Model.Email</span>
+                        </li>
+                        <li class="mb-3 small d-flex align-items-center">
+                            <i class="bi bi-telephone text-primary me-3 fs-5"></i>
+                            <span>@(Model.Phone ?? "Chưa cập nhật")</span>
+                        </li>
+                        <li class="mb-3 small d-flex align-items-center">
+                            <i class="bi bi-geo-alt text-primary me-3 fs-5"></i>
+                            <span>@(Model.Address ?? "Nha Trang, Khánh Hòa")</span>
+                        </li>
+                        <li class="mb-3 small d-flex align-items-center">
+                            <i class="bi bi-calendar-check text-primary me-3 fs-5"></i>
+                            <span>Tham gia: @Model.CreatedAt?.ToString("dd/MM/yyyy")</span>
+                        </li>
+                    </ul>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <a asp-action="Edit" asp-route-id="@Model.UserID" class="btn btn-warning fw-bold">
+                            <i class="bi bi-pencil-square me-2"></i>Chỉnh sửa quyền
+                        </a>
+                        <a asp-action="Index" class="btn btn-light border">Quay lại danh sách</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-8 col-lg-7">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white border-bottom-0 pt-3">
+                    <ul class="nav nav-pills nav-fill" id="pills-tab" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active fw-bold" data-bs-toggle="pill" data-bs-target="#tab-trans">
+                                <i class="bi bi-cash-stack me-2"></i>Giao dịch
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link fw-bold" data-bs-toggle="pill" data-bs-target="#tab-logs">
+                                <i class="bi bi-activity me-2"></i>Nhật ký
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link text-danger fw-bold" data-bs-toggle="pill" data-bs-target="#tab-violation">
+                                <i class="bi bi-exclamation-octagon me-2"></i>Vi phạm (@violations?.Count)
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body tab-content p-4">
+                    <div class="tab-pane fade show active" id="tab-trans">
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Ngày</th>
+                                        <th>Loại</th>
+                                        <th class="text-end">Số tiền</th>
+                                        <th>Nội dung</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var t in trans ?? new List<BDSKhanhHoa.Models.Transaction>())
+                                    {
+                                        <tr>
+                                            <td class="small">@t.CreatedAt.ToString("dd/MM/yy HH:mm")</td>
+                                            <td>
+                                                <span class="badge @(t.Type == "Deposit" ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger")">
+                                                    @t.Type
+                                                </span>
+                                            </td>
+                                            <td class="fw-bold text-end">@t.Amount.ToString("N0")đ</td>
+                                            <td class="small">@t.Description</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-logs">
+                        <div class="list-group list-group-flush">
+                            @foreach (var log in logs ?? new List<BDSKhanhHoa.Models.AuditLog>())
+                            {
+                                <div class="list-group-item px-0 py-3">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1 fw-bold text-primary">@log.Action</h6>
+                                        <small class="text-muted">@log.CreatedAt.ToString("G")</small>
+                                    </div>
+                                    <p class="mb-1 small text-dark">@log.Target</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-violation">
+                        @if (violations?.Count > 0)
+                        {
+                            @foreach (var v in violations)
+                            {
+                                <div class="alert alert-danger border-0 shadow-sm mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <strong class="text-uppercase"><i class="bi bi-bug me-2"></i>@v.Reason</strong>
+                                        <span class="small italic">@v.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                    </div>
+                                    <hr class="my-2">
+                                    <p class="mb-0 small">@v.Description</p>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <i class="bi bi-shield-check text-success display-1"></i>
+                                <p class="mt-3 text-muted">Người dùng này chưa có vi phạm nào.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

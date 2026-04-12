@@ -1,0 +1,83 @@
+﻿@model BDSKhanhHoa.Models.Area
+@{
+    ViewData["Title"] = "Cấu hình Khu vực & Xã";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="row">
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+            <div class="card-header bg-white py-3 border-0">
+                <h5 class="fw-bold text-primary m-0"><i class="bi bi-pencil-square me-2"></i>Thông tin Khu vực</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit">
+                    <input type="hidden" asp-for="AreaID" />
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Tên Khu vực</label>
+                        <input asp-for="AreaName" class="form-control form-control-lg rounded-3" />
+                        <span asp-validation-for="AreaName" class="text-danger small"></span>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Mô tả</label>
+                        <textarea asp-for="Description" class="form-control rounded-3" rows="3"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 border-top pt-3">
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Cập nhật</button>
+                        <a asp-action="Index" class="btn btn-light rounded-pill px-4 border">Quay lại</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+            <div class="card-header bg-light py-3 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold text-dark m-0"><i class="bi bi-geo-alt me-2"></i>Đơn vị Xã/Phường trực thuộc</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="AddWard" method="post" class="mb-4">
+                    <input type="hidden" name="AreaID" value="@Model.AreaID" />
+                    <div class="input-group">
+                        <input type="text" name="WardName" class="form-control" placeholder="Nhập tên Xã/Phường mới..." required />
+                        <button type="submit" class="btn btn-success px-4 fw-bold"><i class="bi bi-plus-lg me-1"></i> Thêm Xã</button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th>Tên Xã/Phường</th>
+                                <th class="text-end">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Wards != null && Model.Wards.Any())
+                            {
+                                foreach (var ward in Model.Wards)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@ward.WardName</td>
+                                        <td class="text-end">
+                                            <form asp-action="DeleteWard" asp-route-id="@ward.WardID" method="post" onsubmit="return confirm('Xóa xã này?')">
+                                                <button type="submit" class="btn btn-link text-danger p-0"><i class="bi bi-x-circle-fill fs-5"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted py-4">Chưa có xã nào thuộc khu vực này.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

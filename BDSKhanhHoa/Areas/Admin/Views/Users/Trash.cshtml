@@ -1,0 +1,55 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.User>
+@{
+    ViewData["Title"] = "Thùng rác thành viên";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4 mt-4">
+    <div class="mb-4">
+        <a asp-action="Index" class="text-decoration-none"><i class="bi bi-arrow-left"></i> Quay lại danh sách</a>
+        <h2 class="fw-bold text-danger mt-2">Danh sách đã xóa tạm thời</h2>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-dark text-white">
+                    <tr>
+                        <th class="ps-4">Người dùng</th>
+                        <th>Ngày tạo</th>
+                        <th class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr id="row-@item.UserID">
+                            <td class="ps-4">
+                                <div class="fw-bold">@item.FullName</div>
+                                <div class="small text-muted">@item.Email</div>
+                            </td>
+                            <td>@item.CreatedAt?.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                <button onclick="restore(@item.UserID)" class="btn btn-sm btn-success">Khôi phục</button>
+                                <button onclick="deleteForever(@item.UserID)" class="btn btn-sm btn-danger">Xóa vĩnh viễn</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function restore(id) {
+            $.post('/Admin/Users/Restore/' + id, function() { location.reload(); });
+        }
+        function deleteForever(id) {
+            if(confirm("Cảnh báo: Hành động này không thể hoàn tác! Bạn có chắc muốn xóa vĩnh viễn?")) {
+                $.post('/Admin/Users/DeleteForever/' + id, function() { $('#row-' + id).fadeOut(); });
+            }
+        }
+    </script>
+}

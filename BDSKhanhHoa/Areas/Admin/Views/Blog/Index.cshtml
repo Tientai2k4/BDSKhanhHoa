@@ -1,0 +1,100 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Blog>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Quản lý bài viết";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-dark mb-0">Quản lý bài viết</h3>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/Admin/Home/Index">Admin</a></li>
+                <li class="breadcrumb-item active">Blog</li>
+            </ol>
+        </nav>
+    </div>
+
+    <a href="/Admin/Blog/Create" class="btn btn-primary shadow-sm px-4 py-2 fw-bold">
+        <i class="bi bi-plus-circle-fill me-2"></i> Viết bài mới
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4 text-uppercase small fw-bold text-muted" style="width: 100px;">Hình ảnh</th>
+                        <th class="text-uppercase small fw-bold text-muted">Thông tin bài viết</th>
+                        <th class="text-uppercase small fw-bold text-muted">Tác giả</th>
+                        <th class="text-uppercase small fw-bold text-muted">Ngày đăng</th>
+                        <th class="text-center text-uppercase small fw-bold text-muted">Lượt xem</th>
+                        <th class="text-end pe-4 text-uppercase small fw-bold text-muted">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="ps-4">
+                                    <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.png" : item.ImageURL)"
+                                         class="rounded-3 border shadow-sm" style="width: 80px; height: 55px; object-fit: cover;"
+                                         onerror="this.src='/images/no-image.png'">
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark mb-1">@item.Title</div>
+                                    <small class="text-muted d-block text-truncate" style="max-width:300px">@item.Summary</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        <i class="bi bi-person-fill text-primary"></i> @(item.User?.FullName ?? "Admin")
+                                    </span>
+                                </td>
+                                <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="text-center">
+                                    <span class="badge rounded-pill bg-secondary">@item.Views</span>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group">
+                                        <a href="/Admin/Blog/Edit/@item.BlogID" class="btn btn-sm btn-outline-warning" title="Sửa bài viết">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(@item.BlogID)" title="Xóa bài viết">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </div>
+                                    <form id="deleteForm-@item.BlogID" action="/Admin/Blog/Delete/@item.BlogID" method="post" style="display:none;">
+                                        @Html.AntiForgeryToken()
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <i class="bi bi-journal-x fs-1 text-muted d-block mb-2"></i>
+                                <p class="text-muted mb-0">Chưa có bài viết nào được đăng.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function confirmDelete(id) {
+            if (confirm("Bạn có chắc chắn muốn xóa bài viết này vĩnh viễn không?")) {
+                document.getElementById('deleteForm-' + id).submit();
+            }
+        }
+    </script>
+}

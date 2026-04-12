@@ -1,0 +1,167 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Quản Lý & Kiểm Duyệt Dự Án BĐS";
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+}
+
+<style>
+    .doc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        background-color: #fef2f2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        text-decoration: none;
+        transition: 0.2s;
+    }
+
+        .doc-link:hover {
+            background-color: #fee2e2;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+        }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="row align-items-center mb-4 g-3">
+        <div class="col-md-6">
+            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-building-fill-check text-primary me-2"></i>Thẩm định Hồ sơ Dự án</h3>
+            <p class="text-muted small mb-0">Quản lý và xét duyệt các hồ sơ dự án do Chủ đầu tư/Sàn giao dịch gửi lên.</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <div class="btn-group shadow-sm bg-white rounded-3">
+                <a href="/Admin/Projects/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "btn-primary" : "btn-white border") fw-bold px-3">Tất cả</a>
+                <a href="/Admin/Projects/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "btn-warning text-dark" : "btn-white border") fw-bold px-3">
+                    Chờ duyệt <span class="badge bg-danger ms-1">@ViewBag.PendingCount</span>
+                </a>
+                <a href="/Admin/Projects/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "btn-success" : "btn-white border") fw-bold px-3">
+                    Đã duyệt <span class="badge bg-light text-success ms-1 border">@ViewBag.ApprovedCount</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 bg-white">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Thông tin dự án</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold">Đơn vị yêu cầu</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hồ sơ pháp lý</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Trạng thái</th>
+                        <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <img src="/images/not-found.svg" width="100" class="opacity-25 mb-3" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'" />
+                                <h6 class="text-muted fw-bold">Chưa có hồ sơ dự án nào trong mục này.</h6>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="ps-4 py-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm object-fit-cover" width="70" height="70" />
+                                    <div>
+                                        <div class="fw-bold text-dark text-truncate" style="max-width: 250px; font-size: 1rem;" title="@item.ProjectName">@item.ProjectName</div>
+                                        <div class="small text-muted mt-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@item.Ward?.Area?.AreaName</div>
+                                        <div class="badge bg-light text-dark border mt-1 fw-medium">@item.ProjectStatus</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <span class="d-block fw-bold text-primary mb-1">@item.Investor</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="@(item.User?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border" width="24" height="24">
+                                    <span class="small text-muted fw-medium">@item.User?.FullName</span>
+                                </div>
+                            </td>
+                            <td class="py-3 text-center">
+                                <a href="@item.LegalDocs" target="_blank" class="doc-link">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i> Xem bản Scan
+                                </a>
+                            </td>
+                            <td class="py-3 text-center">
+                                @if (item.ApprovalStatus == "Approved")
+                                {
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fw-bold">Đã duyệt</span>
+                                }
+                                else if (item.ApprovalStatus == "Pending")
+                                {
+
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill px-3 py-2 fw-bold">Chờ duyệt</span>
+                                }
+                                else if (item.ApprovalStatus == "Rejected")
+                                {
+
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill px-3 py-2 fw-bold">Từ chối</span>
+                                }
+                            </td>
+                            <td class="text-end pe-4 py-3">
+                                <div class="d-flex justify-content-end gap-1">
+                                    @if (item.ApprovalStatus == "Approved")
+                                    {
+                                        <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-outline-info rounded-3 fw-bold" title="Xem trên Web">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    }
+
+                                    <form action="/Admin/Projects/UpdateStatus" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.ProjectID" />
+                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Rejected")
+                                        {
+                                            <button type="submit" name="newStatus" value="Approved" class="btn btn-sm btn-success rounded-3 fw-bold shadow-sm" title="Duyệt Hồ Sơ">
+                                                <i class="bi bi-check-lg"></i> Duyệt
+                                            </button>
+                                        }
+                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Approved")
+                                        {
+                                            <button type="submit" name="newStatus" value="Rejected" class="btn btn-sm btn-danger rounded-3 fw-bold shadow-sm" title="Từ chối Hồ Sơ">
+                                                <i class="bi bi-x-lg"></i> Cấm
+                                            </button>
+                                        }
+                                    </form>
+
+                                    <form action="/Admin/Projects/Delete" method="post" onsubmit="return confirm('Chú ý: Xóa dự án này sẽ gỡ bỏ liên kết của tất cả các Bất động sản đang thuộc dự án. Bạn có chắc chắn không?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.ProjectID" />
+                                        <button type="submit" class="btn btn-sm btn-light border text-secondary rounded-3" title="Xóa bỏ">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

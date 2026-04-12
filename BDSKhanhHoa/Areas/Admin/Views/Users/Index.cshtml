@@ -1,0 +1,147 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.User>
+@{
+    ViewData["Title"] = "Quản lý thành viên";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4 mt-4">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-6">
+            <nav aria-label="breadcrumb">
+               
+            </nav>
+        </div>
+        <div class="col-md-6 text-end">
+            <a asp-action="Trash" class="btn btn-outline-danger shadow-sm px-4">
+                <i class="bi bi-trash3 me-1"></i> Thùng rác (@ViewBag.TrashCount)
+            </a>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="searchString" value="@ViewContext.HttpContext.Request.Query["searchString"]"
+                               class="form-control border-start-0" placeholder="Tìm kiếm theo tên, email hoặc username...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="roleId" class="form-select">
+                        <option value="">-- Tất cả vai trò --</option>
+                        <option value="1">Quản trị viên</option>
+                        <option value="2">Nhân viên</option>
+                        <option value="3">Thành viên</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Lọc dữ liệu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-uppercase">
+                        <tr>
+                            <th class="ps-4 py-3" style="font-size: 0.75rem;">Thông tin thành viên</th>
+                            <th style="font-size: 0.75rem;">Vai trò</th>
+                            <th style="font-size: 0.75rem;">Ngày tạo</th>
+                            <th style="font-size: 0.75rem;">Trạng thái</th>
+                            <th class="text-center pe-4" style="font-size: 0.75rem;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr id="user-row-@item.UserID">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <img src="@(string.IsNullOrEmpty(item.Avatar) ? "/images/avatars/default.png" : item.Avatar)"
+                                             class="rounded-circle border me-3 shadow-sm" width="48" height="48">
+                                        <div>
+                                            <div class="fw-bold text-dark">@(item.FullName ?? "Chưa cập nhật")</div>
+                                            <div class="small text-muted">@item.Email</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    @switch (item.RoleID)
+                                    {
+                                        case 1:
+                                            <span class="badge bg-danger-subtle text-danger px-3 rounded-pill">ADMIN</span>
+                                            break;
+                                        case 2:
+
+                                            <span class="badge bg-warning-subtle text-warning px-3 rounded-pill text-dark">STAFF</span>
+                                            break;
+                                        default:
+
+                                            <span class="badge bg-info-subtle text-info px-3 rounded-pill">MEMBER</span>
+                                            break;
+                                    }
+                                </td>
+                                <td class="text-muted small">@item.CreatedAt?.ToString("dd/MM/yyyy")</td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch"
+                                               id="switch-@item.UserID" @(item.IsActive ? "checked" : "")
+                                               onchange="toggleUserStatus(@item.UserID)">
+                                        <label class="form-check-label small" for="switch-@item.UserID" id="status-text-@item.UserID">
+                                            @(item.IsActive ? "Mở" : "Khóa")
+                                        </label>
+                                    </div>
+                                </td>
+                                <td class="text-center pe-4">
+                                    <div class="btn-group shadow-sm border rounded">
+                                        <a asp-action="Details" asp-route-id="@item.UserID" class="btn btn-sm btn-light text-primary" title="Hồ sơ"><i class="bi bi-person-badge"></i></a>
+                                        <a asp-action="Edit" asp-route-id="@item.UserID" class="btn btn-sm btn-light text-warning" title="Sửa quyền"><i class="bi bi-pencil-square"></i></a>
+                                        <button type="button" class="btn btn-sm btn-light text-danger" onclick="confirmSoftDelete(@item.UserID)" title="Xóa tạm thời"><i class="bi bi-trash3"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function toggleUserStatus(id) {
+            $.post('/Admin/Users/ToggleStatus/' + id, function(res) {
+                if(res.success) {
+                    $('#status-text-' + id).text(res.isActive ? "Mở" : "Khóa");
+                }
+            });
+        }
+
+        function confirmSoftDelete(id) {
+            Swal.fire({
+                title: 'Đưa vào thùng rác?',
+                text: "Bạn có thể khôi phục người dùng này sau trong mục Thùng rác.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Đồng ý xóa',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post('/Admin/Users/SoftDelete/' + id, function(res) {
+                        if(res.success) {
+                            $('#user-row-' + id).fadeOut();
+                        }
+                    });
+                }
+            })
+        }
+    </script>
+}
