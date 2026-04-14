@@ -1,0 +1,137 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Dự Án Bất Động Sản Nổi Bật";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .project-card-large {
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #edf2f7;
+        transition: 0.3s;
+        position: relative;
+    }
+
+        .project-card-large:hover {
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            transform: translateY(-5px);
+        }
+
+    .pj-img-box {
+        height: 320px;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .pj-img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: 0.5s;
+        }
+
+    .project-card-large:hover .pj-img-box img {
+        transform: scale(1.05);
+    }
+
+    .status-badge {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        padding: 6px 15px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    .status-Sắp.mở.bán {
+        background: #f59e0b;
+    }
+
+    .status-Đang.mở.bán {
+        background: #e81c2e;
+    }
+
+    .status-Đang.bàn.giao {
+        background: #0061f2;
+    }
+
+    .status-Đã.bàn.giao {
+        background: #16a34a;
+    }
+</style>
+
+<div class="bg-dark py-5 text-white text-center" style="background: linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.8)), url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1920&q=80') center/cover;">
+    <div class="container py-4">
+        <h1 class="fw-bold display-5 mb-3">KHÁM PHÁ DỰ ÁN TIỀM NĂNG</h1>
+        <p class="fs-5 opacity-75 mb-0">Các dự án đã được xác thực pháp lý, chủ đầu tư uy tín tại Khánh Hòa</p>
+    </div>
+</div>
+
+<div class="container my-5">
+    <div class="bg-white p-4 rounded-4 shadow-sm border mb-5">
+        <form action="/Project/Search" method="get" class="row g-3">
+            <div class="col-md-4">
+                <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control form-control-lg bg-light" placeholder="Nhập tên dự án, chủ đầu tư...">
+            </div>
+            <div class="col-md-3">
+                <select name="areaId" class="form-select form-select-lg bg-light">
+                    <option value="">Tất cả khu vực</option>
+                    @foreach (var a in ViewBag.Areas)
+                    {
+                        <option value="@a.AreaID" selected="@(ViewBag.AreaId == a.AreaID ? "selected" : null)">@a.AreaName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select form-select-lg bg-light">
+                    <option value="">Tất cả tiến độ</option>
+                    <option value="Sắp mở bán" selected="@(ViewBag.Status == "Sắp mở bán" ? "selected" : null)">Sắp mở bán</option>
+                    <option value="Đang mở bán" selected="@(ViewBag.Status == "Đang mở bán" ? "selected" : null)">Đang mở bán</option>
+                    <option value="Đã bàn giao" selected="@(ViewBag.Status == "Đã bàn giao" ? "selected" : null)">Đã bàn giao</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold"><i class="bi bi-search"></i> LỌC</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-5">
+        @if (Model != null && Model.Any())
+        {
+            foreach (var item in Model)
+            {
+                string badgeClass = item.ProjectStatus?.Replace(" ", ".");
+                <div class="col-lg-6">
+                    <a href="/Project/Details/@item.ProjectID" class="text-decoration-none text-dark">
+                        <div class="project-card-large">
+                            <div class="pj-img-box">
+                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)">
+                                <span class="status-badge status-@badgeClass">@item.ProjectStatus</span>
+                            </div>
+                            <div class="p-4">
+                                <h3 class="fw-bold text-dark mb-1">@item.ProjectName</h3>
+                                <p class="text-primary fw-bold mb-3"><i class="bi bi-building-fill-check me-1"></i> Chủ đầu tư: @item.Investor</p>
+                                <p class="text-muted mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @item.Ward?.WardName, @item.Ward?.Area?.AreaName</p>
+                                <div class="bg-light p-3 rounded-3 text-secondary small" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                    @item.Description
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12 text-center py-5">
+                <h4 class="text-muted fw-bold">Không tìm thấy dự án nào phù hợp!</h4>
+            </div>
+        }
+    </div>
+</div>

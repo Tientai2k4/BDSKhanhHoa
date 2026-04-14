@@ -1,0 +1,120 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Quản lý Dự án của tôi";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+}
+
+<style>
+    .project-list-card {
+        border: 1px solid #edf2f7;
+        border-radius: 16px;
+        transition: all 0.3s ease;
+        background: #fff;
+    }
+
+        .project-list-card:hover {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border-color: #cbd5e1;
+        }
+
+    .project-img-thumb {
+        width: 140px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 12px;
+    }
+
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.8rem;
+    }
+
+    .btn-action-icon {
+        width: 35px;
+        height: 35px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: 0.2s;
+    }
+</style>
+
+<div class="card-custom p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+        <div>
+            <h4 class="fw-bold mb-1 text-dark"><i class="bi bi-buildings-fill text-primary me-2"></i>Dự án Bất động sản của tôi</h4>
+            <p class="text-muted small mb-0">Theo dõi tiến độ phê duyệt và quản lý hồ sơ dự án bạn đã gửi lên hệ thống.</p>
+        </div>
+        <a href="/Project/Create" class="btn btn-primary fw-bold rounded-pill px-4 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Nộp hồ sơ dự án mới
+        </a>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5 my-4 bg-light rounded-4 border border-dashed">
+            <i class="bi bi-folder-x text-muted display-1 opacity-50 mb-3 d-block"></i>
+            <h5 class="fw-bold text-dark">Bạn chưa đăng ký dự án nào</h5>
+            <p class="text-secondary mb-4">Các dự án do bạn đề xuất sẽ xuất hiện tại đây sau khi nộp hồ sơ pháp lý.</p>
+            <a href="/Project/Create" class="btn btn-outline-primary fw-bold px-4 rounded-pill">Đăng ký ngay</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var item in Model)
+            {
+                <div class="col-12">
+                    <div class="project-list-card p-3 d-flex flex-column flex-md-row align-items-md-center gap-3">
+                        <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="project-img-thumb shadow-sm" alt="@item.ProjectName" onerror="this.src='/images/no-image.jpg'">
+
+                        <div class="flex-grow-1">
+                            <h5 class="fw-bold text-dark mb-1 text-truncate" style="max-width: 400px;" title="@item.ProjectName">@item.ProjectName</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-building me-1"></i> Chủ đầu tư: <strong class="text-dark">@item.Investor</strong></p>
+                            <div class="d-flex flex-wrap gap-3 text-secondary small fw-medium">
+                                <span><i class="bi bi-geo-alt me-1"></i> @item.Ward?.WardName, @item.Ward?.Area?.AreaName</span>
+                                <span><i class="bi bi-calendar-event me-1"></i> Đã gửi: @item.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                <span><i class="bi bi-clock-history me-1"></i> Tiến độ: @item.ProjectStatus</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-md-column align-items-end justify-content-between gap-2 border-start ps-md-4 ms-md-2" style="min-width: 150px;">
+                            @if (item.ApprovalStatus == "Approved")
+                            {
+                                <span class="status-badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-check-circle-fill me-1"></i> Đã phê duyệt</span>
+                            }
+                            else if (item.ApprovalStatus == "Pending")
+                            {
+                                <span class="status-badge bg-warning bg-opacity-10 text-warning border border-warning"><i class="bi bi-hourglass-split me-1"></i> Đang chờ duyệt</span>
+                            }
+                            else
+                            {
+                                <span class="status-badge bg-danger bg-opacity-10 text-danger border border-danger"><i class="bi bi-x-circle-fill me-1"></i> Bị từ chối</span>
+                            }
+
+                            <div class="mt-2 d-flex gap-2">
+                                <a href="@item.LegalDocs" target="_blank" class="btn btn-light btn-action-icon text-info border shadow-sm" title="Xem hồ sơ pháp lý đã nộp">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                                </a>
+                                @if (item.ApprovalStatus == "Approved")
+                                {
+                                    <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-light btn-action-icon text-primary border shadow-sm" title="Xem trên website">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

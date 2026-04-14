@@ -1,0 +1,89 @@
+﻿@model BDSKhanhHoa.Models.Project
+@{
+    ViewData["Title"] = Model.ProjectName;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var properties = ViewBag.PropertiesInProject as IEnumerable<BDSKhanhHoa.Models.Property>;
+}
+
+<div class="container my-5">
+    <div class="row g-5">
+        <div class="col-lg-8">
+            <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" style="width:100%; height:500px; object-fit:cover; border-radius:16px;" class="mb-4 shadow-sm">
+
+            <h1 class="fw-bold mb-2 display-6">@Model.ProjectName</h1>
+            <p class="fs-5 text-muted mb-4"><i class="bi bi-geo-alt-fill text-danger me-2"></i>@Model.Ward?.WardName, @Model.Ward?.Area?.AreaName, Tỉnh Khánh Hòa</p>
+
+            <div class="bg-white border rounded-4 p-4 shadow-sm mb-5 d-flex flex-wrap gap-4">
+                <div class="flex-grow-1 border-end">
+                    <span class="d-block text-muted fw-bold small text-uppercase mb-1">Chủ đầu tư</span>
+                    <h5 class="fw-bold text-primary mb-0">@Model.Investor</h5>
+                </div>
+                <div class="flex-grow-1 border-end">
+                    <span class="d-block text-muted fw-bold small text-uppercase mb-1">Tiến độ</span>
+                    <h5 class="fw-bold text-success mb-0">@Model.ProjectStatus</h5>
+                </div>
+                <div class="flex-grow-1">
+                    <span class="d-block text-muted fw-bold small text-uppercase mb-1">Quy mô</span>
+                    <h5 class="fw-bold text-dark mb-0">@Model.Scale</h5>
+                </div>
+            </div>
+
+            <h4 class="fw-bold mb-3 border-bottom pb-2">Tổng quan dự án</h4>
+            <div class="text-secondary" style="font-size:1.1rem; line-height: 1.8; white-space:pre-wrap;">@Model.Description</div>
+
+            <div class="mt-5 pt-4 border-top">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold mb-0">Bất động sản đang giao dịch tại dự án này</h4>
+                    <a href="/Property/Search?keyword=@Model.ProjectName" class="btn btn-outline-primary rounded-pill fw-bold">Xem tất cả <i class="bi bi-arrow-right"></i></a>
+                </div>
+
+                <div class="row g-4">
+                    @if (properties != null && properties.Any())
+                    {
+                        foreach (var prop in properties)
+                        {
+                            <div class="col-md-6">
+                                <div class="border rounded-4 overflow-hidden bg-white shadow-sm h-100 transition-hover">
+                                    <a href="/Property/Details/@prop.PropertyID" class="text-decoration-none text-dark">
+                                        <img src="@(string.IsNullOrEmpty(prop.MainImage) ? "/images/no-image.jpg" : prop.MainImage)" style="width:100%; height:200px; object-fit:cover;">
+                                        <div class="p-3">
+                                            <h6 class="fw-bold text-truncate mb-2">@prop.Title</h6>
+                                            <div class="text-danger fw-bold fs-5 mb-2">@(prop.Price.HasValue ? (prop.Price >= 1000000000 ? (prop.Price / 1000000000)?.ToString("0.##") + " Tỷ" : (prop.Price / 1000000)?.ToString("0.##") + " Tr") : "Thỏa thuận")</div>
+                                            <div class="text-muted small"><i class="bi bi-rulers"></i> @prop.AreaSize m² &nbsp;|&nbsp; @prop.PropertyType?.TypeName</div>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="col-12 p-4 bg-light text-center rounded-4 border">
+                            <p class="mb-0 text-muted">Hiện tại chưa có người dùng nào đăng bán/cho thuê sản phẩm thuộc dự án này.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="bg-white border rounded-4 p-4 shadow-sm sticky-top" style="top: 90px;">
+                <div class="text-center mb-4">
+                    <h5 class="fw-bold mb-2">Tư vấn dự án</h5>
+                    <p class="text-muted small">Nhận thông tin mặt bằng, bảng giá và chính sách chiết khấu mới nhất.</p>
+                </div>
+                <form>
+                    <input type="text" class="form-control bg-light mb-3 py-2" placeholder="Họ và tên của bạn">
+                    <input type="tel" class="form-control bg-light mb-3 py-2" placeholder="Số điện thoại">
+                    <textarea class="form-control bg-light mb-3" rows="3">Tôi quan tâm đến dự án @Model.ProjectName. Vui lòng tư vấn thêm.</textarea>
+                    <button type="button" class="btn btn-primary w-100 py-3 fw-bold rounded-3 shadow-sm" onclick="alert('Đã gửi yêu cầu tư vấn!')">GỬI YÊU CẦU NGAY</button>
+                </form>
+                <hr class="my-4">
+                <div class="text-center">
+                    <p class="text-muted small mb-2">Hoặc gọi Hotline hỗ trợ trực tiếp</p>
+                    <h4 class="text-success fw-bold"><i class="bi bi-telephone-fill me-2"></i> 1900 88 99</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
