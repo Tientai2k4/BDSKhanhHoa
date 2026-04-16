@@ -1,76 +1,215 @@
 ﻿@model BDSKhanhHoa.Models.Blog
 @{
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
-    ViewData["Title"] = "Thêm bài viết mới";
+    ViewData["Title"] = "Soạn bài viết mới";
 }
 
-<div class="container-fluid">
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3 border-bottom-0">
-            <h5 class="fw-bold mb-0">TẠO BÀI VIẾT MỚI</h5>
-        </div>
-        <div class="card-body p-4">
-            <form asp-area="Admin" asp-controller="Blog" asp-action="Create" method="post" enctype="multipart/form-data">
-                @Html.AntiForgeryToken()
-                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 
-                <div class="row">
-                    <div class="col-lg-8">
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Tiêu đề bài viết <span class="text-danger">*</span></label>
-                            <input asp-for="Title" class="form-control form-control-lg" placeholder="Nhập tiêu đề hấp dẫn..." />
-                            <span asp-validation-for="Title" class="text-danger"></span>
-                        </div>
+<style>
+    .img-upload-zone {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f8fafc;
+        cursor: pointer;
+        overflow: hidden;
+        position: relative;
+        transition: 0.3s;
+    }
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Tóm tắt nội dung</label>
-                            <textarea asp-for="Summary" class="form-control" rows="4" placeholder="Viết mô tả ngắn cho bài viết..."></textarea>
-                            <span asp-validation-for="Summary" class="text-danger"></span>
-                        </div>
-                    </div>
+        .img-upload-zone:hover {
+            border-color: #0061f2;
+            background: #f1f5f9;
+        }
 
-                    <div class="col-lg-4">
-                        <div class="card bg-light border-0">
-                            <div class="card-body">
-                                <label class="form-label fw-bold">Ảnh đại diện bài viết</label>
-                                <div class="text-center mb-3">
-                                    <img id="preview" src="/images/no-image.png" class="img-fluid rounded border shadow-sm" style="max-height: 200px; width: 100%; object-fit: cover;" />
-                                </div>
-                                <input type="file" name="imageFile" class="form-control" onchange="previewImage(this)" accept="image/*" />
-                                <p class="small text-muted mt-2">Định dạng hỗ trợ: JPG, PNG, WEBP (Tối đa 2MB)</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    #preview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
 
-                <div class="mb-4 mt-3">
-                    <label class="form-label fw-bold">Nội dung chi tiết <span class="text-danger">*</span></label>
-                    <textarea asp-for="Content" id="editor"></textarea>
-                    <span asp-validation-for="Content" class="text-danger"></span>
-                </div>
+    /* Làm đẹp giao diện Quill */
+    .ql-toolbar.ql-snow {
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+        padding: 10px;
+    }
 
-                <div class="d-flex gap-2 justify-content-end border-top pt-4">
-                    <a asp-action="Index" class="btn btn-light px-4">Hủy bỏ</a>
-                    <button type="submit" class="btn btn-primary px-5">Đăng bài viết</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    .ql-container.ql-snow {
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+        border-color: #e2e8f0;
+        font-family: 'Inter', sans-serif;
+        font-size: 1.05rem;
+    }
+
+    .ql-editor {
+        min-height: 450px;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <a href="/Admin/Blog/Index" class="btn btn-light border fw-bold text-secondary rounded-pill px-4">
+        <i class="bi bi-arrow-left me-1"></i> Trở về
+    </a>
 </div>
 
+<form asp-area="Admin" asp-controller="Blog" asp-action="Create" method="post" enctype="multipart/form-data" id="blogForm">
+    @Html.AntiForgeryToken()
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark">Danh mục bài viết <span class="text-danger">*</span></label>
+                    <select asp-for="Category" asp-items="ViewBag.Categories" class="form-select bg-light fw-bold text-primary" required>
+                        <option value="">-- Chọn danh mục chuyên trang --</option>
+                    </select>
+                    <span asp-validation-for="Category" class="text-danger small"></span>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark">Tiêu đề bài viết <span class="text-danger">*</span></label>
+                    <input asp-for="Title" class="form-control form-control-lg bg-light" placeholder="Nhập tiêu đề thật hấp dẫn..." required />
+                    <span asp-validation-for="Title" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark">Tóm tắt ngắn (Sapo)</label>
+                    <textarea asp-for="Summary" class="form-control bg-light" rows="3" placeholder="Đoạn văn ngắn (khoảng 2-3 câu) hiển thị ở trang danh sách tin tức..."></textarea>
+                    <span asp-validation-for="Summary" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold text-dark">Nội dung chi tiết <span class="text-danger">*</span></label>
+                    <input type="hidden" asp-for="Content" id="hiddenContent" />
+                    <div id="editor-container"></div>
+                    <span asp-validation-for="Content" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top bg-white" style="top: 90px;">
+                <h6 class="fw-bold mb-3 border-bottom pb-2 text-dark"><i class="bi bi-image text-primary me-2"></i>Ảnh đại diện bài viết</h6>
+
+                <div class="mb-4">
+                    <label for="imageFile" class="img-upload-zone w-100 d-block">
+                        <div id="uploadPlaceholder" class="text-center text-muted mt-3">
+                            <i class="bi bi-cloud-arrow-up display-4"></i>
+                            <p class="mt-2 fw-medium mb-0">Nhấn để tải ảnh lên</p>
+                            <small class="opacity-75">Tỷ lệ 16:9 (JPG, PNG, WEBP)</small>
+                        </div>
+                        <img id="preview" src="" />
+                    </label>
+                    <input type="file" id="imageFile" name="imageFile" class="d-none" accept="image/*" onchange="previewImage(this)" />
+                </div>
+
+                <div class="alert alert-info border-0 rounded-3 small">
+                    <i class="bi bi-info-circle-fill me-1"></i> Tác giả và ngày đăng sẽ được hệ thống ghi nhận tự động.
+                </div>
+
+                <hr class="my-4">
+                <button type="submit" class="btn btn-primary w-100 btn-lg fw-bold rounded-pill shadow-sm">
+                    <i class="bi bi-send-check me-2"></i> XUẤT BẢN NGAY
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
 @section Scripts {
-    <script src="https://cdn.ckeditor.com/4.19.1/standard/ckeditor.js"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
     <script>
-        CKEDITOR.replace('editor', {
-            height: 450,
-            language: 'vi'
+        // CẤU HÌNH QUILL EDITOR
+        var quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    ['link', 'image', 'video'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Bắt đầu viết nội dung bài viết tại đây...'
         });
 
+        // CUSTOM IMAGE HANDLER: Ép Quill upload ảnh lên Server thay vì lưu Base64
+        quill.getModule('toolbar').addHandler('image', function () {
+            selectLocalImage();
+        });
+
+        function selectLocalImage() {
+            const input = document.createElement('input');
+            input.setAttribute('type', 'file');
+            input.setAttribute('accept', 'image/*');
+            input.click();
+
+            input.onchange = () => {
+                const file = input.files[0];
+                if (file) {
+                    saveToServer(file);
+                }
+            };
+        }
+
+        function saveToServer(file) {
+            const fd = new FormData();
+            fd.append('file', file); // Tham số 'file' khớp với tham số trong BlogController
+
+            fetch('/Admin/Blog/UploadImageContents', {
+                method: 'POST',
+                body: fd
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    insertToEditor(result.url);
+                } else {
+                    alert(result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Tải ảnh thất bại!');
+            });
+        }
+
+        function insertToEditor(url) {
+            const range = quill.getSelection();
+            quill.insertEmbed(range.index, 'image', url);
+            // Dịch chuyển con trỏ xuống sau bức ảnh
+            quill.setSelection(range.index + 1);
+        }
+
+        // KHI ẤN NÚT SUBMIT FORM -> Đẩy nội dung từ Quill vào thẻ input ẩn
+        document.getElementById('blogForm').onsubmit = function() {
+            document.getElementById('hiddenContent').value = quill.root.innerHTML;
+        };
+
+        // HIỂN THỊ ẢNH COVER PREVIEW
         function previewImage(input) {
             if (input.files && input.files[0]) {
                 var reader = new FileReader();
                 reader.onload = function(e) {
-                    document.getElementById('preview').src = e.target.result;
+                    var preview = document.getElementById('preview');
+                    var placeholder = document.getElementById('uploadPlaceholder');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    placeholder.style.display = 'none';
                 }
                 reader.readAsDataURL(input.files[0]);
             }

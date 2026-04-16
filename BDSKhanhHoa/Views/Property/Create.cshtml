@@ -28,7 +28,7 @@
         color: #0061f2;
     }
 
-    /* Tiện ích Pill Buttons (Thay thế Checkbox truyền thống) */
+    /* Tiện ích Pill Buttons */
     .amenity-checkbox input[type="checkbox"] {
         display: none;
     }
@@ -54,7 +54,7 @@
         box-shadow: 0 2px 5px rgba(22, 163, 74, 0.2);
     }
 
-    /* Image Upload Zone */
+    /* Image Upload Zone (Ảnh Đại Diện) */
     .img-upload-zone {
         border: 2px dashed #cbd5e1;
         border-radius: 12px;
@@ -67,6 +67,7 @@
         cursor: pointer;
         overflow: hidden;
         position: relative;
+        transition: 0.3s;
     }
 
         .img-upload-zone:hover {
@@ -82,6 +83,16 @@
         position: absolute;
         top: 0;
         left: 0;
+    }
+
+    /* Thumbnail Gallery Preview */
+    .sub-img-thumb {
+        width: 70px;
+        height: 70px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 </style>
 
@@ -114,6 +125,21 @@
                         <label class="form-label fw-bold">Tiêu đề tin đăng <span class="text-danger">*</span></label>
                         <input asp-for="Title" class="form-control form-control-lg bg-light" placeholder="Ví dụ: Bán nhà mặt tiền đường Trần Phú" required />
                     </div>
+
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label fw-bold">Thuộc dự án nào? (Tùy chọn)</label>
+                        <select asp-for="ProjectID" class="form-select bg-light">
+                            <option value="">-- Không thuộc dự án nào --</option>
+                            @if (ViewBag.Projects != null)
+                            {
+                                foreach (var proj in ViewBag.Projects)
+                                {
+                                    <option value="@proj.ProjectID">@proj.ProjectName</option>
+                                }
+                            }
+                        </select>
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> Nếu dự án của bạn chưa có trên hệ thống, hãy <a href="/Project/Create" target="_blank">đăng ký mở Dự án mới tại đây</a>.</small>
+                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -126,7 +152,7 @@
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-geo-alt text-primary me-2"></i>2. Địa điểm & Kích thước</h5>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Khu vực (Quận/Huyện) <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Khu vực  <span class="text-danger">*</span></label>
                         <select id="areaSelect" class="form-select bg-light" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
                             <option value="">-- Chọn khu vực --</option>
                         </select>
@@ -160,7 +186,6 @@
 
             <div class="card-custom p-4 mb-4">
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-list-check text-primary me-2"></i>3. Thông tin chi tiết & Tiện ích</h5>
-
                 <div class="row mb-4">
                     <div class="col-md-3 col-6 mb-3">
                         <label class="form-label fw-bold text-muted small">Phòng ngủ</label>
@@ -226,18 +251,34 @@
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-camera text-primary me-2"></i>4. Media & Đăng tin</h5>
 
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Hình ảnh đại diện <span class="text-danger">*</span></label>
+                    <label class="form-label fw-bold">Ảnh đại diện (Bắt buộc) <span class="text-danger">*</span></label>
                     <label for="MainImageFile" class="img-upload-zone w-100 d-block">
                         <div id="uploadPlaceholder" class="text-center text-muted mt-5 pt-3">
-                            <i class="bi bi-cloud-arrow-up display-4"></i>
-                            <p class="mt-2 fw-medium">Nhấn để tải ảnh lên</p>
+                            <i class="bi bi-card-image display-4"></i>
+                            <p class="mt-2 fw-medium mb-0">Ảnh chính hiển thị ngoài bìa</p>
+                            <small class="opacity-75">Tỷ lệ 16:9</small>
                         </div>
                         <img id="imgPreview" src="" />
                     </label>
                     <input type="file" id="MainImageFile" name="MainImageFile" class="d-none" accept="image/*" onchange="previewImage(event)" required />
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-4 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-end mb-2">
+                        <label class="form-label fw-bold mb-0">Ảnh phụ (Tùy chọn)</label>
+                        <small class="text-muted">Tối đa 10 ảnh</small>
+                    </div>
+
+                    <label for="AdditionalImagesFile" class="btn btn-light border w-100 fw-bold text-secondary mb-3" style="border: 2px dashed #cbd5e1 !important;">
+                        <i class="bi bi-images me-2 text-primary"></i> Chọn danh sách ảnh phụ
+                    </label>
+                    <input type="file" id="AdditionalImagesFile" name="AdditionalImages" class="d-none" accept="image/*" multiple onchange="previewGallery(event)" />
+
+                    <div class="d-flex flex-wrap gap-2" id="galleryPreviewContainer">
+                    </div>
+                </div>
+
+                <div class="mb-4 pt-3 border-top">
                     <label class="form-label fw-bold">Gói dịch vụ <span class="text-danger">*</span></label>
                     <select asp-for="PackageID" class="form-select border-warning shadow-sm" style="background-color: #fffbeb;" asp-items="ViewBag.Packages" required>
                         <option value="">-- Chọn gói tin đăng --</option>
@@ -271,15 +312,12 @@
             });
         }
 
-        // Kích hoạt mặc định nút radio đầu tiên
         document.addEventListener("DOMContentLoaded", function() {
             const firstRadio = document.querySelector('input[name="ParentTypeSelector"]');
-            if(firstRadio) {
-                firstRadio.click();
-            }
+            if(firstRadio) firstRadio.click();
         });
 
-        // --- 2. LOGIC LỌC PHƯỜNG XÃ (AJAX) ---
+        // --- 2. LỌC PHƯỜNG XÃ ---
         async function loadWards(areaId) {
             const wardSelect = document.getElementById('wardSelect');
             wardSelect.innerHTML = '<option value="">Đang tải...</option>';
@@ -289,31 +327,61 @@
             }
             try {
                 const response = await fetch(`/Home/GetWardsByArea?areaId=${areaId}`);
-                if (!response.ok) throw new Error('Lỗi mạng');
                 const data = await response.json();
                 wardSelect.innerHTML = '<option value="">-- Chọn Phường / Xã --</option>';
-                data.forEach(ward => {
-                    let opt = new Option(ward.wardName, ward.wardId);
-                    wardSelect.add(opt);
-                });
+                data.forEach(w => wardSelect.add(new Option(w.wardName, w.wardId)));
             } catch (error) {
                 wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>';
             }
         }
-
-        // --- 3. HIỆU ỨNG PREVIEW ẢNH ---
         function previewImage(event) {
-            var reader = new FileReader();
-            reader.onload = function() {
-                var output = document.getElementById('imgPreview');
-                var placeholder = document.getElementById('uploadPlaceholder');
-                output.src = reader.result;
-                output.style.display = 'block';
-                placeholder.style.display = 'none';
-            };
-            if(event.target.files[0]){
-                reader.readAsDataURL(event.target.files[0]);
-            }
+                    var reader = new FileReader();
+                    reader.onload = function() {
+                        var output = document.getElementById('imgPreview');
+                        var placeholder = document.getElementById('uploadPlaceholder');
+                        output.src = reader.result;
+                        output.style.display = 'block';
+                        placeholder.style.display = 'none';
+                    };
+                    if(event.target.files[0]){
+                        reader.readAsDataURL(event.target.files[0]);
+                    }
+                }
+
+                // --- HIỆU ỨNG PREVIEW NHIỀU ẢNH PHỤ (MỚI) ---
+                function previewGallery(event) {
+                    const container = document.getElementById('galleryPreviewContainer');
+                    container.innerHTML = ''; // Xóa ảnh cũ nếu người dùng chọn lại
+
+                    const files = event.target.files;
+
+                    // Cảnh báo nếu chọn quá 10 ảnh
+                    if(files.length > 10) {
+                        alert('Bạn chỉ được chọn tối đa 10 ảnh phụ!');
+                        event.target.value = ''; // Reset input
+                        return;
+                    }
+
+                    for(let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        if(!file.type.startsWith('image/')) continue;
+
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            // Tạo thẻ img và CSS cho nó
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            img.style.width = '75px';
+                            img.style.height = '75px';
+                            img.style.objectFit = 'cover';
+                            img.style.borderRadius = '8px';
+                            img.style.border = '1px solid #cbd5e1';
+                            img.className = 'shadow-sm';
+
+                            container.appendChild(img);
+                        }
+                        reader.readAsDataURL(file);
+                    }
         }
     </script>
 }

@@ -23,13 +23,14 @@ namespace BDSKhanhHoa.Models
         public string? FullName { get; set; }
         public string? Phone { get; set; }
         public string? Address { get; set; }
+        // Thêm 2 dòng này vào dưới thuộc tính Address
+        public string? Zalo { get; set; }
+        public string? Facebook { get; set; }
 
         [Required]
         public int RoleID { get; set; }
 
-        [Column(TypeName = "decimal(18,2)")]
-        public decimal? WalletBalance { get; set; } = 0;
-
+       
         public bool IsActive { get; set; } = true;
 
         // Tính năng xóa tạm thời

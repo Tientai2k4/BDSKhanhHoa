@@ -4,21 +4,28 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BDSKhanhHoa.Models
 {
+    [Table("Blogs")]
     public class Blog
     {
         [Key]
         public int BlogID { get; set; }
 
-        [Required(ErrorMessage = "Tiêu đề không được để trống")]
+        [Required(ErrorMessage = "Vui lòng nhập tiêu đề bài viết.")]
         [Display(Name = "Tiêu đề")]
-        [StringLength(255, ErrorMessage = "Tiêu đề không quá 255 ký tự")]
+        [StringLength(255, ErrorMessage = "Tiêu đề không được vượt quá 255 ký tự.")]
         public string Title { get; set; }
 
-        [Display(Name = "Tóm tắt")]
-        [StringLength(500, ErrorMessage = "Tóm tắt không quá 500 ký tự")]
+        // --- CỘT DANH MỤC MỚI THÊM ---
+        [Required(ErrorMessage = "Vui lòng chọn danh mục bài viết.")]
+        [Display(Name = "Danh mục")]
+        [StringLength(100)]
+        public string Category { get; set; }
+
+        [Display(Name = "Tóm tắt nội dung")]
+        [StringLength(500, ErrorMessage = "Tóm tắt không được vượt quá 500 ký tự.")]
         public string? Summary { get; set; }
 
-        [Required(ErrorMessage = "Nội dung không được để trống")]
+        [Required(ErrorMessage = "Nội dung bài viết không được để trống.")]
         [Display(Name = "Nội dung chi tiết")]
         public string Content { get; set; }
 
@@ -28,10 +35,12 @@ namespace BDSKhanhHoa.Models
         [Display(Name = "Lượt xem")]
         public int Views { get; set; } = 0;
 
-        [Display(Name = "Ngày tạo")]
+        public bool IsDeleted { get; set; } = false;
+
+        [Display(Name = "Ngày đăng")]
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        [Display(Name = "Người đăng")]
+        [Display(Name = "Tác giả")]
         public int UserID { get; set; }
 
         [ForeignKey("UserID")]

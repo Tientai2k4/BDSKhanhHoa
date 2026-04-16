@@ -1,0 +1,308 @@
+﻿@using BDSKhanhHoa.Data
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext _context
+
+@{
+    // 1. Lấy ID của User đang đăng nhập
+    int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
+
+    // 2. Kiểm tra xem User này ĐÃ TỪNG ĐĂNG TIN NÀO CHƯA (Vai trò Seller)
+    bool isSeller = _context.Properties.Any(p => p.UserID == currentUserId && p.IsDeleted == false);
+
+    // 3. Đếm các thông báo thực tế (Dynamic Badges)
+    int newLeadsCount = 0;
+    int newCoBrokerCount = 0;
+
+    if (isSeller)
+    {
+        // Đếm số yêu cầu tư vấn mới gửi đến các BĐS của user này
+        newLeadsCount = _context.Consultations.Count(c => c.Property != null && c.Property.UserID == currentUserId && c.Status == "New");
+        // Đếm số yêu cầu xin bán hộ đang chờ duyệt
+        newCoBrokerCount = _context.CoBrokerRequests.Count(c => c.OwnerID == currentUserId && c.Status == "Pending");
+    }
+
+    // Đếm số lịch hẹn xem nhà (cả vai trò người đi xem và người cho xem)
+    int pendingAppointments = _context.Appointments.Count(a => (a.BuyerID == currentUserId || a.SellerID == currentUserId) && a.Status == "Pending");
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - BDS KHÁNH HÒA Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" />
+    <style>
+        :root {
+            --primary: #0061f2;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+        }
+
+        .sidebar {
+            width: 280px;
+            height: 100vh;
+            position: fixed;
+            background: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.03);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+            .sidebar::-webkit-scrollbar {
+                width: 5px;
+            }
+
+            .sidebar::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 10px;
+            }
+
+        .sidebar-header {
+            padding: 25px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 10;
+        }
+
+        .sidebar-menu {
+            padding: 15px;
+            list-style: none;
+            margin: 0;
+        }
+
+        .sidebar-heading {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: 0.8px;
+            margin: 25px 0 10px 10px;
+            border-bottom: 1px dashed #e2e8f0;
+            padding-bottom: 5px;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 4px;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: #475569;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease-in-out;
+        }
+
+            .sidebar-menu a:hover {
+                background: #f8fafc;
+                color: var(--primary);
+                transform: translateX(3px);
+            }
+
+            .sidebar-menu a.active {
+                background: #e0e7ff;
+                color: var(--primary);
+                font-weight: 700;
+            }
+
+            .sidebar-menu a i {
+                font-size: 1.25rem;
+                margin-right: 12px;
+                width: 24px;
+                text-align: center;
+            }
+
+        .main-content {
+            margin-left: 280px;
+            padding: 30px;
+            min-height: 100vh;
+        }
+
+        .top-navbar {
+            background: #fff;
+            padding: 15px 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #edf2f7;
+        }
+
+        .card-custom {
+            background: #fff;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            overflow: hidden;
+            border: 1px solid #edf2f7;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="text-decoration-none">
+                <h4 class="fw-bolder text-primary mb-0 d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi bi-building-fill-check fs-3"></i> BDS KHÁNH HÒA
+                </h4>
+            </a>
+            <span class="badge bg-primary-subtle text-primary mt-2 px-3 py-1 rounded-pill border border-primary-subtle">MEMBER DASHBOARD</span>
+        </div>
+
+        <ul class="sidebar-menu">
+            <li class="sidebar-heading text-primary"><i class="bi bi-house-door me-1"></i> Bất động sản của tôi</li>
+            <li><a href="/Property/Create" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Create" && ViewContext.RouteData.Values["Controller"]?.ToString() == "Property" ? "active" : "") text-primary"><i class="bi bi-plus-circle-fill"></i> Đăng tin BĐS mới</a></li>
+            <li><a href="/Property/MyAds" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "MyAds" ? "active" : "")"><i class="bi bi-card-list"></i> Danh sách tin đã đăng</a></li>
+            <li><a href="/Favorite/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Favorite" ? "active" : "")"><i class="bi bi-heart text-danger"></i> Bất động sản đã lưu</a></li>
+
+            <li class="sidebar-heading text-info"><i class="bi bi-calendar2-heart me-1"></i> Tương tác & Hỗ trợ</li>
+            <li>
+                <a href="/Appointments/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Appointments" ? "active" : "")">
+                    <i class="bi bi-calendar-check"></i> Lịch hẹn xem nhà
+                    @if (pendingAppointments > 0)
+                    {
+                        <span class="badge bg-danger rounded-pill ms-auto">@pendingAppointments</span>
+                    }
+                </a>
+            </li>
+            <li>
+                <a href="/Chat/History" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Chat" ? "active" : "")">
+                    <i class="bi bi-chat-dots text-info"></i> Trò chuyện AI & Hỗ trợ
+                </a>
+            </li>
+
+            @if (isSeller)
+            {
+                <li class="sidebar-heading text-success"><i class="bi bi-briefcase me-1"></i> Dành cho Người bán</li>
+                <li>
+                    <a href="/Consultations/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Consultations" ? "active" : "")">
+                        <i class="bi bi-people"></i> Khách hàng quan tâm (Leads)
+                        @if (newLeadsCount > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill ms-auto">@newLeadsCount</span>
+                        }
+                    </a>
+                </li>
+                <li>
+                    <a href="/CoBrokerRequests/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "CoBrokerRequests" ? "active" : "")">
+                        <i class="bi bi-person-vcard"></i> Yêu cầu nhận bán hộ
+                        @if (newCoBrokerCount > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill ms-auto">@newCoBrokerCount</span>
+                        }
+                    </a>
+                </li>
+                <li><a href="/Dashboard/Statistics" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Statistics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Thống kê hiệu quả tin</a></li>
+            }
+
+            <li class="sidebar-heading text-warning"><i class="bi bi-buildings me-1"></i> Quản lý Dự án BĐS</li>
+            <li><a href="/Project/Create" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Create" && ViewContext.RouteData.Values["Controller"]?.ToString() == "Project" ? "active" : "")"><i class="bi bi-file-earmark-arrow-up-fill"></i> Xin cấp phép Dự án mới</a></li>
+            <li><a href="/Project/MyProjects" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "MyProjects" ? "active" : "")"><i class="bi bi-journal-album"></i> Danh sách dự án của tôi</a></li>
+
+            <li class="sidebar-heading text-danger"><i class="bi bi-wallet2 me-1"></i> Gói Dịch vụ & Thanh toán</li>
+            <li>
+                <a href="/Package/Buy" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Buy" ? "active" : "")">
+                    <i class="bi bi-gem text-danger"></i> Mua gói đăng tin VIP
+                </a>
+            </li>
+            <li><a href="/Payment/History" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" ? "active" : "")"><i class="bi bi-receipt"></i> Lịch sử thanh toán</a></li>
+
+            <li class="sidebar-heading"><i class="bi bi-gear me-1"></i> Tài khoản cá nhân</li>
+            <li><a href="/Notification/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Notification" ? "active" : "")"><i class="bi bi-bell"></i> Thông báo hệ thống</a></li>
+            <li><a href="/Account/Profile" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Profile" ? "active" : "")"><i class="bi bi-person-circle"></i> Hồ sơ & Xác thực (KYC)</a></li>
+            <li><a href="/Account/ChangePassword" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "ChangePassword" ? "active" : "")"><i class="bi bi-shield-lock"></i> Đổi mật khẩu</a></li>
+
+            <li><hr class="text-muted opacity-25 my-4"></li>
+            <li><a href="/" class="text-secondary"><i class="bi bi-box-arrow-up-right"></i> Về Trang chủ (Xem Web)</a></li>
+            <li>
+                <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                    <a href="javascript:document.getElementById('logoutForm').submit()" class="text-danger fw-bold">
+                        <i class="bi bi-power"></i> Đăng xuất an toàn
+                    </a>
+                </form>
+            </li>
+        </ul>
+    </aside>
+
+    <div class="main-content">
+        <div class="top-navbar">
+            <h4 class="mb-0 fw-bold text-dark">@ViewData["Title"]</h4>
+            <div class="d-flex align-items-center gap-4">
+                <a href="/Notification/Index" class="position-relative text-secondary transition-hover">
+                    <i class="bi bi-bell-fill fs-4"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem;" id="topNotiBadge">0</span>
+                </a>
+                <div class="d-flex align-items-center gap-3 border-start ps-4">
+                    <div class="text-end d-none d-sm-block">
+                        <span class="d-block fw-bold text-dark lh-1">@User.Identity.Name</span>
+                        <small class="text-success fw-bold" style="font-size: 0.75rem;"><i class="bi bi-patch-check-fill"></i> Thành viên uy tín</small>
+                    </div>
+                    <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
+                         class="rounded-circle border border-2 border-primary-subtle shadow-sm"
+                         width="45" height="45" style="object-fit:cover;">
+                </div>
+            </div>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+                <span class="fw-medium">@TempData["Success"]</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+                <span class="fw-medium">@TempData["Error"]</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="animate__animated animate__fadeIn animate__faster">
+            @RenderBody()
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            // Tự động ẩn thông báo Flash Message sau 5 giây
+            setTimeout(function () {
+                $('.alert').fadeOut('slow');
+            }, 5000);
+
+            // Xử lý ẩn Badge thông báo nếu = 0
+            var totalNoti = @newLeadsCount + @newCoBrokerCount + @pendingAppointments;
+            if(totalNoti > 0) {
+                $('#topNotiBadge').text(totalNoti);
+            } else {
+                $('#topNotiBadge').hide();
+            }
+        });
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

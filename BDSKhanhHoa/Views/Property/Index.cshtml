@@ -1,0 +1,802 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+@using System.Linq
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var filters = ViewBag.CurrentFilters;
+    string transactionType = filters?.transactionType ?? "all";
+
+    var currentAmenities = (filters?.amenities as string[]) ?? Array.Empty<string>();
+
+    int totalItems = ViewBag.TotalItems != null ? (int)ViewBag.TotalItems : 0;
+    int totalPages = ViewBag.TotalPages != null ? (int)ViewBag.TotalPages : 1;
+    int currentPage = ViewBag.CurrentPage != null ? (int)ViewBag.CurrentPage : 1;
+
+    string subTypesJson = ViewBag.SubTypesJson ?? "[]";
+
+    decimal priceMinLimit = 0m;
+    decimal priceMaxLimit = ViewBag.PriceMaxLimit != null ? Convert.ToDecimal(ViewBag.PriceMaxLimit) : 50000m; // 50 tỷ
+    decimal areaMinLimit = 0m;
+    decimal areaMaxLimit = ViewBag.AreaMaxLimit != null ? Convert.ToDecimal(ViewBag.AreaMaxLimit) : 1000m;
+
+    decimal currentMinPrice = filters?.minPrice != null ? Convert.ToDecimal(filters.minPrice) : priceMinLimit;
+    decimal currentMaxPrice = filters?.maxPrice != null ? Convert.ToDecimal(filters.maxPrice) : priceMaxLimit;
+
+    decimal currentMinArea = filters?.minSize != null ? Convert.ToDecimal(filters.minSize) : areaMinLimit;
+    decimal currentMaxArea = filters?.maxSize != null ? Convert.ToDecimal(filters.maxSize) : areaMaxLimit;
+
+    ViewData["Title"] = "Tất cả Bất động sản Khánh Hòa";
+}
+
+@functions {
+    public string FormatPrice(object priceObj, int? parentTypeId)
+    {
+        if (priceObj == null) return "Thỏa thuận";
+
+        try
+        {
+            decimal price = Convert.ToDecimal(priceObj);
+            string result = price >= 1000000000m ? $"{(price / 1000000000m):0.##} Tỷ" : $"{(price / 1000000m):0.##} Triệu";
+            // Nếu ParentID = 2 (Cho thuê) thì thêm đuôi /tháng
+            if (parentTypeId == 2) result += "/tháng";
+            return result;
+        }
+        catch { return "Thỏa thuận"; }
+    }
+
+    public string FormatRangeLabel(decimal value) => value >= 1000m ? $"{(value / 1000m):0.##} Tỷ" : $"{value:0.##} Triệu";
+    public string FormatAreaLabel(decimal value) => $"{value:0.##} m²";
+}
+
+<style>
+    /* CSS CỦA BẠN ĐƯỢC GIỮ NGUYÊN (Vô cùng tuyệt vời) */
+    :root {
+        --page-bg: #f6f8fc;
+        --surface: #ffffff;
+        --border: #e5e7eb;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #2563eb;
+        --primary-2: #1d4ed8;
+        --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.05);
+        --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
+        --transition: all .25s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28%), radial-gradient(circle at top right, rgba(249, 115, 22, 0.05), transparent 24%), var(--page-bg);
+        color: var(--text);
+        overflow-x: hidden;
+    }
+
+    .page-shell {
+        padding: 18px 0 34px;
+    }
+
+    .filter-shell {
+        position: sticky;
+        top: 92px;
+        z-index: 10;
+    }
+
+    .filter-card {
+        background: rgba(255,255,255,.94);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(229,231,235,.9);
+        border-radius: 24px;
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+    }
+
+    .filter-head {
+        padding: 18px 18px 14px;
+        border-bottom: 1px solid rgba(229,231,235,.75);
+        background: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,.96));
+    }
+
+    .filter-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+        color: var(--text);
+    }
+
+    .filter-body {
+        padding: 18px;
+    }
+
+    .segmented-control {
+        display: flex;
+        gap: 10px;
+        background: #eef2ff;
+        padding: 6px;
+        border-radius: 18px;
+        margin-bottom: 18px;
+    }
+
+    .segmented-item {
+        flex: 1;
+        border: 0;
+        border-radius: 14px;
+        padding: 11px 10px;
+        background: transparent;
+        color: #475569;
+        font-weight: 800;
+        transition: var(--transition);
+    }
+
+        .segmented-item.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, .22);
+        }
+
+    .field {
+        margin-bottom: 16px;
+    }
+
+        .field label {
+            display: block;
+            font-size: .92rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+    .soft-input, .soft-select {
+        border-radius: 14px !important;
+        border: 1px solid var(--border) !important;
+        background: #fbfdff !important;
+        padding: 12px 14px !important;
+        box-shadow: none !important;
+        transition: var(--transition);
+    }
+
+        .soft-input:focus, .soft-select:focus {
+            border-color: rgba(37, 99, 235, .38) !important;
+            box-shadow: 0 0 0 .25rem rgba(37, 99, 235, .10) !important;
+            background: #fff !important;
+        }
+
+    .range-box {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .range-values {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: .86rem;
+        color: var(--muted);
+        font-weight: 700;
+        flex-wrap: wrap;
+    }
+
+        .range-values strong {
+            color: var(--text);
+            font-weight: 900;
+        }
+
+    .range-slider {
+        position: relative;
+        height: 42px;
+        margin-top: 4px;
+    }
+
+        .range-slider input[type="range"] {
+            position: absolute;
+            left: 0;
+            top: 10px;
+            width: 100%;
+            height: 22px;
+            pointer-events: none;
+            appearance: none;
+            background: transparent;
+            margin: 0;
+            padding: 0;
+            outline: none;
+        }
+
+            .range-slider input[type="range"]::-webkit-slider-runnable-track {
+                height: 8px;
+                border-radius: 999px;
+                background: transparent;
+            }
+
+            .range-slider input[type="range"]::-webkit-slider-thumb {
+                pointer-events: auto;
+                appearance: none;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: #fff;
+                border: 4px solid var(--primary);
+                box-shadow: 0 6px 16px rgba(37, 99, 235, .22);
+                cursor: pointer;
+                margin-top: -7px;
+                position: relative;
+                z-index: 2;
+            }
+
+    .range-track {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 17px;
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #e2e8f0 0%, #e2e8f0 100%);
+        pointer-events: none;
+    }
+
+    .pill-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+        .pill-grid .btn-check:checked + .pill-btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 8px 16px rgba(37, 99, 235, .18);
+        }
+
+    .pill-btn {
+        border-radius: 999px !important;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: #334155;
+        font-weight: 700;
+        font-size: .9rem;
+        padding: 9px 13px;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+        .pill-btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(37, 99, 235, .20);
+            box-shadow: var(--shadow-sm);
+        }
+
+    .amenity-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .amenity-item {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fff;
+        padding: 10px 12px;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+    }
+
+        .amenity-item:hover {
+            transform: translateY(-1px);
+            border-color: rgba(37, 99, 235, .18);
+            box-shadow: var(--shadow-md);
+        }
+
+    .amenity-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        cursor: pointer;
+        font-size: .9rem;
+        font-weight: 700;
+        color: #334155;
+        user-select: none;
+    }
+
+        .amenity-label input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            accent-color: var(--primary);
+            flex: 0 0 auto;
+        }
+
+    .amenity-item.is-checked {
+        border-color: rgba(37, 99, 235, .3);
+        background: linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.03));
+        color: var(--primary-2);
+    }
+
+    .action-group {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+    }
+
+    .action-primary {
+        border: 0;
+        border-radius: 16px;
+        padding: 13px 16px;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, .22);
+        transition: var(--transition);
+    }
+
+        .action-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(37, 99, 235, .28);
+        }
+
+    .action-secondary {
+        border-radius: 16px;
+        padding: 12px 16px;
+        font-weight: 800;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: #475569;
+        transition: var(--transition);
+    }
+
+        .action-secondary:hover {
+            transform: translateY(-1px);
+            border-color: rgba(249, 115, 22, .25);
+            box-shadow: var(--shadow-sm);
+        }
+
+    .results-shell {
+        background: transparent;
+    }
+
+    .results-card {
+        background: rgba(255,255,255,.92);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(229,231,235,.9);
+        border-radius: 24px;
+        box-shadow: var(--shadow-sm);
+        padding: 16px;
+    }
+
+    .results-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+    .results-title {
+        margin: 0;
+        font-weight: 900;
+        letter-spacing: -.03em;
+        color: var(--text);
+        font-size: 1.25rem;
+    }
+
+    .results-meta {
+        color: var(--muted);
+        font-size: .95rem;
+        margin: 4px 0 0;
+    }
+
+    .sort-wrap {
+        min-width: 220px;
+    }
+
+        .sort-wrap .form-select {
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 11px 14px;
+            font-weight: 700;
+            background-color: #fff;
+            box-shadow: var(--shadow-sm);
+        }
+
+    .property-grid {
+        margin-top: 18px;
+    }
+
+    .property-card {
+        height: 100%;
+        border: 1px solid rgba(229,231,235,.9);
+        border-radius: 22px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+        position: relative;
+    }
+
+        .property-card:hover {
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(37,99,235,.18);
+        }
+
+    .property-media {
+        position: relative;
+        aspect-ratio: 16/10;
+        overflow: hidden;
+        background: #e2e8f0;
+    }
+
+        .property-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scale(1.001);
+            transition: transform .45s ease;
+        }
+
+    .property-card:hover .property-media img {
+        transform: scale(1.04);
+    }
+
+    .property-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 20%, rgba(15,23,42,.18) 100%);
+        pointer-events: none;
+    }
+
+    .property-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .03em;
+        background: rgba(255,255,255,.88);
+        color: #0f172a;
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .property-body {
+        padding: 14px 14px 15px;
+    }
+
+    .property-title {
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.35;
+        color: var(--text);
+        min-height: 44px;
+        margin-bottom: 10px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .property-price {
+        font-size: 1.08rem;
+        font-weight: 900;
+        color: var(--primary-2);
+        line-height: 1.2;
+        margin-bottom: 10px;
+    }
+
+    .property-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(229,231,235,.85);
+        color: var(--muted);
+        font-size: .88rem;
+        font-weight: 700;
+    }
+
+    .pagination-wrap {
+        margin-top: 28px;
+    }
+
+    .pagination {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .page-item .page-link {
+        border: 1px solid var(--border);
+        border-radius: 14px !important;
+        color: #334155;
+        font-weight: 700;
+        min-width: 42px;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition);
+    }
+
+    .page-item.active .page-link {
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        color: #fff;
+        border-color: transparent;
+    }
+
+    .page-item .page-link:hover {
+        transform: translateY(-1px);
+        border-color: rgba(37,99,235,.22);
+        box-shadow: var(--shadow-md);
+    }
+
+    .empty-state {
+        background: rgba(255,255,255,.94);
+        border: 1px solid rgba(229,231,235,.9);
+        border-radius: 26px;
+        padding: 52px 20px;
+        box-shadow: var(--shadow-sm);
+    }
+
+        .empty-state img {
+            width: 160px;
+            max-width: 100%;
+            opacity: .7;
+            margin-bottom: 16px;
+        }
+
+    .mobile-filter-btn {
+        display: none;
+    }
+
+    @@media (max-width: 991.98px) {
+        .page-shell {
+            padding-top: 12px;
+        }
+
+        .filter-shell {
+            position: static;
+        }
+
+        .mobile-filter-btn {
+            display: inline-flex;
+        }
+
+        .results-card {
+            padding: 14px;
+        }
+    }
+</style>
+
+<div class="container page-shell">
+    <div class="row g-4 page-layout">
+        <div class="col-lg-3">
+            <div class="offcanvas-lg offcanvas-start filter-shell" tabindex="-1" id="filterPanel">
+                <div class="offcanvas-header d-lg-none">
+                    <h5 class="offcanvas-title">Bộ lọc tìm kiếm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+                </div>
+
+                <div class="offcanvas-body p-0">
+                    <div class="filter-card">
+                        <div class="filter-head">
+                            <h3 class="filter-title"><i class="bi bi-sliders2 text-primary me-2"></i>Tìm Bất động sản</h3>
+                            <div class="text-muted small mt-1">Lọc theo đúng nhu cầu của bạn</div>
+                        </div>
+
+                        <div class="filter-body">
+                            <form id="filterForm" action="/Property/Index" method="get">
+                                <input type="hidden" name="page" id="pageInput" value="@currentPage" />
+                                <input type="hidden" name="sortOrder" id="sortInput" value="@(filters?.sortOrder ?? "")" />
+
+                                <div class="field">
+                                    <label>Từ khóa</label>
+                                    <input type="text" id="keywordInput" name="keyword" class="form-control soft-input" placeholder="Tiêu đề, khu vực..." value="@(filters?.keyword ?? "")" />
+                                </div>
+
+                                <div class="field">
+                                    <label>Khu vực</label>
+                                    <select name="areaId" id="areaSelect" class="form-select soft-select">
+                                        <option value="">Toàn tỉnh Khánh Hòa</option>
+                                        @foreach (var a in ViewBag.Areas)
+                                        {
+                                            <option value="@a.AreaID" selected="@((filters?.areaId != null && filters.areaId.ToString() == a.AreaID.ToString()) ? "selected" : null)">@a.AreaName</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="field">
+                                    <label>Mức giá</label>
+                                    <div class="range-box" data-range="price">
+                                        <div class="range-values">
+                                            <span>Từ: <strong id="priceMinLabel">@FormatRangeLabel(currentMinPrice)</strong></span>
+                                            <span>Đến: <strong id="priceMaxLabel">@FormatRangeLabel(currentMaxPrice)</strong></span>
+                                        </div>
+                                        <div class="range-slider">
+                                            <input type="range" id="priceMinRange" name="minPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMinPrice" />
+                                            <input type="range" id="priceMaxRange" name="maxPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMaxPrice" />
+                                            <div class="range-track" id="priceTrack"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <label>Phòng ngủ</label>
+                                    <div class="pill-grid">
+                                        @foreach (var n in new[] { "1", "2", "3", "4", "5" })
+                                        {
+                                            var checkedBed = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
+                                            <div>
+                                                <input class="btn-check" type="radio" name="bedrooms" id="bed_@n" value="@n" @(checkedBed ? "checked" : "") />
+                                                <label class="pill-btn" for="bed_@n">@(n == "5" ? "5+" : n)</label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="action-group">
+                                    <button type="submit" class="action-primary"><i class="bi bi-search me-2"></i>Tìm Kiếm Ngay</button>
+                                    <a href="/Property" class="action-secondary text-center text-decoration-none"><i class="bi bi-arrow-counterclockwise me-2"></i>Xóa bộ lọc</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-9 results-shell">
+            <div class="results-card">
+                <div class="results-top">
+                    <div>
+                        <h2 class="results-title">@ViewData["Title"]</h2>
+                        <p class="results-meta mb-0">Đang hiển thị <strong class="text-primary">@totalItems</strong> tin đăng toàn hệ thống.</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button class="btn btn-outline-primary d-lg-none fw-bold" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterPanel"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                        <div class="sort-wrap">
+                            <select id="sortSelect" class="form-select">
+                                <option value="" selected="@(string.IsNullOrEmpty(filters?.sortOrder) ? "selected" : null)">Mặc định (Ưu tiên VIP)</option>
+                                <option value="price_asc" selected="@(Convert.ToString(filters?.sortOrder) == "price_asc" ? "selected" : null)">Giá thấp → cao</option>
+                                <option value="price_desc" selected="@(Convert.ToString(filters?.sortOrder) == "price_desc" ? "selected" : null)">Giá cao → thấp</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="property-grid">
+                    <div class="row g-4">
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var item in Model)
+                            {
+                                <div class="col-12 col-sm-6 col-xl-4">
+                                    <a href="/Property/Details/@item.PropertyID" class="text-decoration-none">
+                                        <article class="property-card">
+                                            <div class="property-media">
+                                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.Title" loading="lazy" onerror="this.src='/images/no-image.jpg'" />
+                                                <div class="property-overlay"></div>
+
+                                                @if (item.PackageID > 1)
+                                                {
+                                                    <div class="property-badge"><i class="bi bi-star-fill text-warning me-1"></i> VIP</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="property-badge text-muted"><i class="bi bi-tag-fill me-1"></i> @item.PropertyType?.TypeName</div>
+                                                }
+                                            </div>
+
+                                            <div class="property-body">
+                                                <h3 class="property-title">@item.Title</h3>
+                                                <div class="property-price">@FormatPrice(item.Price, item.PropertyType?.ParentID)</div>
+
+                                                <div class="property-meta">
+                                                    <span title="Diện tích"><i class="bi bi-rulers"></i> @item.AreaSize m²</span>
+                                                    <span class="text-truncate" title="Khu vực"><i class="bi bi-geo-alt"></i> @(item.Ward?.Area?.AreaName ?? "Khánh Hòa")</span>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    </a>
+                                </div>
+                            }
+
+                            if (totalPages > 1)
+                            {
+                                <div class="col-12 pagination-wrap">
+                                    <nav aria-label="Phân trang">
+                                        <ul class="pagination justify-content-center mb-0">
+                                            @for (int i = 1; i <= totalPages; i++)
+                                            {
+                                                <li class="page-item @(currentPage == i ? "active" : "")">
+                                                    <button type="button" class="page-link" onclick="submitPage(@i)">@i</button>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </nav>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="col-12">
+                                <div class="empty-state text-center">
+                                    <img src="/images/not-found.svg" alt="Không tìm thấy" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'" />
+                                    <h3 class="fw-black mb-2" style="font-weight:900;">Không tìm thấy kết quả phù hợp</h3>
+                                    <p class="text-secondary mb-4">Hãy thử mở rộng khu vực hoặc xóa bộ lọc.</p>
+                                    <a href="/Property" class="btn btn-primary px-4 py-2 fw-bold">Xóa bộ lọc</a>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const filterForm = document.getElementById('filterForm');
+        const pageInput = document.getElementById('pageInput');
+        const sortInput = document.getElementById('sortInput');
+        const sortSelect = document.getElementById('sortSelect');
+
+        function submitPage(pageNum) {
+            pageInput.value = pageNum;
+            filterForm.submit();
+        }
+
+        if (sortSelect) {
+            sortSelect.addEventListener('change', function () {
+                sortInput.value = this.value;
+                pageInput.value = 1;
+                filterForm.submit();
+            });
+        }
+
+        // Logic thanh kéo Range Slider (Mức giá)
+        const priceMinRange = document.getElementById('priceMinRange');
+        const priceMaxRange = document.getElementById('priceMaxRange');
+        const priceMinLabel = document.getElementById('priceMinLabel');
+        const priceMaxLabel = document.getElementById('priceMaxLabel');
+        const priceTrack = document.getElementById('priceTrack');
+
+        function formatMoneyLabel(value) {
+            const num = Number(value || 0);
+            return num >= 1000 ? `${(num / 1000).toFixed(2).replace(/\.?0+$/, '')} Tỷ` : `${num.toFixed(0)} Triệu`;
+        }
+
+        function syncPriceRange() {
+            let min = Number(priceMinRange.value);
+            let max = Number(priceMaxRange.value);
+            if (min > max) { let tmp = min; min = max; max = tmp; }
+
+            priceMinLabel.textContent = formatMoneyLabel(min);
+            priceMaxLabel.textContent = formatMoneyLabel(max);
+
+            const minPercent = ((min - priceMinRange.min) / (priceMaxRange.max - priceMinRange.min)) * 100;
+            const maxPercent = ((max - priceMinRange.min) / (priceMaxRange.max - priceMinRange.min)) * 100;
+            priceTrack.style.background = `linear-gradient(90deg, #e2e8f0 ${minPercent}%, var(--primary) ${minPercent}%, var(--primary) ${maxPercent}%, #e2e8f0 ${maxPercent}%)`;
+        }
+
+        priceMinRange.addEventListener('input', syncPriceRange);
+        priceMaxRange.addEventListener('input', syncPriceRange);
+
+        document.addEventListener('DOMContentLoaded', syncPriceRange);
+    </script>
+}

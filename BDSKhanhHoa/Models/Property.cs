@@ -3,30 +3,51 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BDSKhanhHoa.Models
 {
+    [Table("Properties")]
     public class Property
     {
         [Key]
         public int PropertyID { get; set; }
 
+        [Required(ErrorMessage = "Tiêu đề không được để trống")]
+        [StringLength(255)]
         public string Title { get; set; }
+
         public string? Description { get; set; }
 
-        // Cập nhật: Thêm cột này để khớp với SQL của bạn
+        [StringLength(255)]
         public string? AddressDetail { get; set; }
-
-        public decimal? Price { get; set; }
-        public decimal? AreaSize { get; set; }
-        public string? Status { get; set; } = "Pending";
-        public string? MainImage { get; set; }
-
+        public int? ProjectID { get; set; }
+        [ForeignKey("ProjectID")]
+        public virtual Project? Project { get; set; }
         public int WardID { get; set; }
         public int TypeID { get; set; }
         public int UserID { get; set; }
         public int PackageID { get; set; }
 
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? Price { get; set; }
+
+        [Column(TypeName = "decimal(10,2)")]
+        public decimal? AreaSize { get; set; }
+
+        [StringLength(20)]
+        public string? Status { get; set; } = "Pending";
+
+        public string? MainImage { get; set; }
+
+        // --- CÁC TRƯỜNG ĐƯỢC BỔ SUNG ĐỂ SỬA LỖI BIÊN DỊCH ---
+        public DateTime? VipExpiryDate { get; set; }
+
+        public int? Views { get; set; } = 0;
+
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        // --- NAVIGATION PROPERTIES (Dùng để lấy dữ liệu bảng liên quan) ---
+        public DateTime? UpdatedAt { get; set; } = DateTime.Now;
+
+        public bool? IsDeleted { get; set; } = false;
+        public string? RejectionReason { get; set; }
+        // --- NAVIGATION PROPERTIES (Liên kết các bảng) ---
 
         [ForeignKey("TypeID")]
         public virtual PropertyType? PropertyType { get; set; }
@@ -36,5 +57,8 @@ namespace BDSKhanhHoa.Models
 
         [ForeignKey("UserID")]
         public virtual User? User { get; set; }
+
+        [ForeignKey("PackageID")]
+        public virtual PostServicePackage? PostServicePackage { get; set; }
     }
 }

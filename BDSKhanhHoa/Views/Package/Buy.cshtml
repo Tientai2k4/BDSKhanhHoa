@@ -1,0 +1,199 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.PostServicePackage>
+@{
+    ViewData["Title"] = "Mua gói dịch vụ đăng tin";
+    Layout = "~/Views/Shared/_UserLayout.cshtml"; // Dùng Layout của Dashboard Member
+}
+
+<style>
+    .pricing-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 40px 30px;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+            border-color: #0061f2;
+        }
+
+        .pricing-card.highlighted {
+            background: linear-gradient(180deg, #fff 0%, #fffbfb 100%);
+            border: 2px solid #f59e0b;
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
+        }
+
+    .pricing-badge {
+        position: absolute;
+        top: 20px;
+        right: -35px;
+        background: #ef4444;
+        color: white;
+        padding: 5px 40px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        transform: rotate(45deg);
+        box-shadow: 0 4px 10px rgba(239,68,68,0.3);
+    }
+
+    .pricing-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: #eef2ff;
+        color: #0061f2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-bottom: 25px;
+    }
+
+    .highlighted .pricing-icon {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .pricing-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 10px;
+    }
+
+    .pricing-price {
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #0061f2;
+        margin-bottom: 25px;
+    }
+
+    .highlighted .pricing-price {
+        color: #f59e0b;
+    }
+
+    .pricing-price small {
+        font-size: 1rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .pricing-features {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 30px 0;
+        flex-grow: 1;
+    }
+
+        .pricing-features li {
+            margin-bottom: 15px;
+            color: #475569;
+            font-weight: 500;
+            display: flex;
+            align-items: flex-start;
+        }
+
+            .pricing-features li i {
+                color: #10b981;
+                font-size: 1.2rem;
+                margin-right: 12px;
+                margin-top: -2px;
+            }
+
+    .btn-buy {
+        background: #f1f5f9;
+        color: #0f172a;
+        border: none;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 1.1rem;
+        transition: 0.3s;
+        text-transform: uppercase;
+        width: 100%;
+    }
+
+    .pricing-card:hover .btn-buy {
+        background: #0061f2;
+        color: white;
+    }
+
+    .highlighted .btn-buy {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3);
+    }
+
+        .highlighted .btn-buy:hover {
+            background: linear-gradient(135deg, #d97706, #b45309);
+        }
+</style>
+
+<div class="card-custom p-4 p-md-5">
+    <div class="text-center mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill fw-bold mb-3">BẢNG GIÁ DỊCH VỤ</span>
+        <h2 class="fw-black text-dark mb-3" style="font-weight: 900;">Nâng Cấp Tin Đăng Của Bạn</h2>
+        <p class="text-muted fs-5">Tiếp cận hàng ngàn khách hàng tiềm năng bằng cách đưa tin lên Top.</p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        @if (!Model.Any())
+        {
+            <div class="col-12 text-center py-5 text-muted">
+                <i class="bi bi-wallet2 display-1 opacity-25 d-block mb-3"></i>
+                <h5 class="fw-bold">Hệ thống đang cập nhật bảng giá. Vui lòng quay lại sau!</h5>
+            </div>
+        }
+
+        @foreach (var pkg in Model)
+        {
+            <div class="col-lg-4 col-md-6">
+                <div class="pricing-card @(pkg.IsHighlighted ? "highlighted" : "")">
+                    @if (pkg.IsHighlighted)
+                    {
+                        <div class="pricing-badge">Khuyên dùng</div>
+                    }
+
+                    <div class="pricing-icon">
+                        <i class="bi @(pkg.IsHighlighted ? "bi-gem" : "bi-stars")"></i>
+                    </div>
+
+                    <h3 class="pricing-title">@pkg.PackageName</h3>
+                    <div class="pricing-price">
+                        @(pkg.Price == 0 ? "Miễn phí" : pkg.Price.ToString("N0")) <small>VNĐ</small>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="bi bi-check-circle-fill"></i> Hiển thị liên tục trong <strong>@pkg.DurationDays ngày</strong></li>
+                        <li><i class="bi bi-check-circle-fill"></i> Mức độ hiển thị: <strong>Cấp @pkg.PriorityLevel</strong> (Số càng cao càng trên Top)</li>
+                        @if (pkg.IsHighlighted)
+                        {
+                            <li><i class="bi bi-check-circle-fill"></i> <strong>Đổi màu viền tin</strong> và gắn thẻ Hot thu hút sự chú ý.</li>
+                        }
+
+                        @if (!string.IsNullOrEmpty(pkg.Description))
+                        {
+                            // Tách từng dòng mô tả thành các gạch đầu dòng
+                            foreach (var line in pkg.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                <li><i class="bi bi-check-circle-fill"></i> @line</li>
+                            }
+                        }
+                    </ul>
+
+                    <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn btn-buy text-decoration-none text-center">
+                        @(pkg.Price == 0 ? "Dùng thử ngay" : "Chọn mua gói này")
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+</div>

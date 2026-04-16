@@ -1,111 +1,116 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
 @{
     ViewData["Title"] = "Quản lý & Duyệt Tin Đăng";
-    // Tạm thời dùng Layout mặc định nếu bạn chưa có Layout riêng cho Admin
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container-fluid py-4 bg-light min-vh-100">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-dark"><i class="bi bi-kanban text-primary me-2"></i> Hệ Thống Kiểm Duyệt Tin</h3>
-
-        <div class="btn-group shadow-sm">
-            <a href="/Admin/Properties/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "btn-primary" : "btn-white border") fw-medium">Tất cả</a>
-            <a href="/Admin/Properties/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "btn-warning text-dark" : "btn-white border") fw-medium">Chờ duyệt</a>
-            <a href="/Admin/Properties/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "btn-success" : "btn-white border") fw-medium">Đã duyệt</a>
-            <a href="/Admin/Properties/Index?status=Rejected" class="btn @(ViewBag.CurrentStatus == "Rejected" ? "btn-danger" : "btn-white border") fw-medium">Bị từ chối</a>
+<div class="container-fluid py-4">
+    <div class="row align-items-center mb-4 g-3">
+        <div class="col-md-6">
+            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-house-door text-info me-2"></i> Hệ Thống Kiểm Duyệt Tin</h3>
+            <p class="text-muted small mb-0">Quản lý nội dung rao vặt, đảm bảo chất lượng và tính xác thực trên sàn giao dịch.</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <div class="btn-group shadow-sm bg-white rounded-3 p-1">
+                <a href="/Admin/Properties/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "btn-primary rounded-3" : "btn-white border-0 text-secondary") fw-bold px-3">Tất cả</a>
+                <a href="/Admin/Properties/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "btn-warning text-dark rounded-3" : "btn-white border-0 text-secondary") fw-bold px-3">
+                    Chờ duyệt <span class="badge bg-danger ms-1 rounded-pill">@ViewBag.PendingCount</span>
+                </a>
+                <a href="/Admin/Properties/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "btn-success rounded-3" : "btn-white border-0 text-secondary") fw-bold px-3">Đã duyệt</a>
+                <a href="/Admin/Properties/Index?status=Rejected" class="btn @(ViewBag.CurrentStatus == "Rejected" ? "btn-danger rounded-3" : "btn-white border-0 text-secondary") fw-bold px-3">Bị cấm</a>
+            </div>
         </div>
     </div>
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    }
-
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">Tin đăng</th>
-                        <th>Người đăng</th>
-                        <th>Ngày đăng</th>
-                        <th>Trạng thái</th>
-                        <th class="text-end pe-4">Thao tác duyệt</th>
+                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold" style="width: 35%;">Thông tin BĐS</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold">Người đăng</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Trạng thái</th>
+                        <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Thao tác duyệt</th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (!Model.Any())
                     {
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-muted">
-                                <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
-                                Không có tin đăng nào.
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox display-1 d-block mb-3 opacity-25"></i>
+                                <h6 class="fw-bold">Không có tin đăng nào trong thư mục này.</h6>
                             </td>
                         </tr>
                     }
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td class="ps-4">
-                                <div class="d-flex align-items-center gap-3">
-                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 object-fit-cover" width="60" height="60" />
+                            <td class="ps-4 py-3">
+                                <div class="d-flex align-items-start gap-3">
+                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm object-fit-cover" width="90" height="70" onerror="this.src='/images/no-image.jpg'" />
                                     <div>
-                                        <a href="/Property/Details/@item.PropertyID" target="_blank" class="fw-bold text-dark text-decoration-none d-block text-truncate" style="max-width: 250px;">@item.Title</a>
-                                        <span class="text-danger fw-bold small">@(item.Price.HasValue ? (item.Price >= 1000000000 ? (item.Price / 1000000000)?.ToString("0.##") + " Tỷ" : (item.Price / 1000000)?.ToString("0.##") + " Tr") : "Thỏa thuận")</span>
+                                        <div class="fw-bold text-dark text-truncate mb-1" style="max-width: 250px; font-size: 1.05rem;" title="@item.Title">@item.Title</div>
+                                        <div class="small text-muted mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@item.Ward?.Area?.AreaName</div>
+                                        <div class="text-danger fw-bold small">@(item.Price.HasValue ? (item.Price >= 1000000000 ? (item.Price / 1000000000)?.ToString("0.##") + " Tỷ" : (item.Price / 1000000)?.ToString("0.##") + " Tr") : "Thỏa thuận") - @item.PropertyType?.TypeName</div>
                                     </div>
                                 </div>
                             </td>
-                            <td>
-                                <span class="d-block fw-medium text-dark">@item.User?.FullName</span>
-                                <span class="small text-muted">@item.User?.Phone</span>
+                            <td class="py-3">
+                                <span class="d-block fw-bold text-primary mb-1">@item.User?.FullName</span>
+                                <span class="small text-muted fw-medium"><i class="bi bi-telephone-fill me-1"></i>@item.User?.Phone</span>
+                                <div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
                             </td>
-                            <td>
-                                <span class="d-block text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
-                                <span class="small text-muted">@item.CreatedAt.ToString("HH:mm")</span>
-                            </td>
-                            <td>
+                            <td class="py-3 text-center">
                                 @if (item.Status == "Approved")
                                 {
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2">Đã duyệt</span>
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Đã duyệt</span>
                                 }
                                 else if (item.Status == "Pending")
                                 {
-
-                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill px-3 py-2">Chờ duyệt</span>
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill px-3 py-2 fw-bold"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
                                 }
                                 else if (item.Status == "Rejected")
                                 {
-
-                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill px-3 py-2">Từ chối</span>
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill px-3 py-2 fw-bold mb-1"><i class="bi bi-x-circle-fill me-1"></i> Bị từ chối</span>
+                                    <small class="d-block text-danger fw-medium text-truncate" style="max-width: 150px; margin: 0 auto;" title="@item.RejectionReason">Lý do: @item.RejectionReason</small>
                                 }
                             </td>
-                            <td class="text-end pe-4">
-                                <form action="/Admin/Properties/UpdateStatus" method="post" class="d-inline-block">
-                                    <input type="hidden" name="id" value="@item.PropertyID" />
+                            <td class="text-end pe-4 py-3">
+                                <div class="d-flex justify-content-end gap-1">
+
+                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="btn btn-sm btn-info text-white fw-bold rounded-3 shadow-sm" title="Xem nội dung chi tiết">
+                                        <i class="bi bi-eye-fill"></i> Xem tin
+                                    </a>
+
                                     @if (item.Status == "Pending" || item.Status == "Rejected")
                                     {
-                                        <button type="submit" name="newStatus" value="Approved" class="btn btn-sm btn-success fw-bold rounded-3 me-1" title="Duyệt tin">
-                                            <i class="bi bi-check-lg"></i> Duyệt
-                                        </button>
+                                        <form action="/Admin/Properties/UpdateStatus" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.PropertyID" />
+                                            <button type="submit" name="newStatus" value="Approved" class="btn btn-sm btn-success rounded-3 fw-bold shadow-sm" title="Duyệt cho phép hiển thị">
+                                                <i class="bi bi-check-lg"></i> Duyệt
+                                            </button>
+                                        </form>
                                     }
+
                                     @if (item.Status == "Pending" || item.Status == "Approved")
                                     {
-                                        <button type="submit" name="newStatus" value="Rejected" class="btn btn-sm btn-danger fw-bold rounded-3 me-1" title="Từ chối">
+                                        <button type="button" class="btn btn-sm btn-danger rounded-3 fw-bold shadow-sm" onclick="openRejectModal(@item.PropertyID, '@Html.Raw(item.Title.Replace("'", "\\'"))')" title="Từ chối/Khóa tin">
                                             <i class="bi bi-x-lg"></i> Cấm
                                         </button>
                                     }
-                                </form>
 
-                                <form action="/Admin/Properties/Delete" method="post" class="d-inline-block" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tin này không?');">
-                                    <input type="hidden" name="id" value="@item.PropertyID" />
-                                    <button type="submit" class="btn btn-sm btn-light border text-danger fw-bold rounded-3" title="Xóa">
-                                        <i class="bi bi-trash"></i>
+                                    <button type="button" class="btn btn-sm btn-light border text-secondary rounded-3 shadow-sm" onclick="confirmDelete(@item.PropertyID)" title="Xóa bỏ tin này">
+                                        <i class="bi bi-trash3-fill"></i>
                                     </button>
-                                </form>
+
+                                    <form id="deleteForm-@item.PropertyID" action="/Admin/Properties/Delete" method="post" style="display:none;">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.PropertyID" />
+                                    </form>
+
+                                </div>
                             </td>
                         </tr>
                     }
@@ -114,3 +119,88 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-danger text-white border-0 rounded-top-4">
+                <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-octagon-fill me-2"></i>Từ Chối Tin Đăng</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form action="/Admin/Properties/UpdateStatus" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body p-4">
+                    <input type="hidden" name="id" id="rejectPropertyId" />
+                    <input type="hidden" name="newStatus" value="Rejected" />
+
+                    <p class="text-dark mb-3">
+                        Bạn đang thực hiện thao tác cấm hiển thị đối với tin: <br />
+                        <strong id="rejectPropertyTitle" class="text-primary"></strong>
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">Lý do từ chối (Bắt buộc) <span class="text-danger">*</span></label>
+                        <textarea class="form-control bg-light" name="reason" rows="3" placeholder="Ví dụ: Hình ảnh mờ, giá trị ảo, đăng sai danh mục..." required></textarea>
+                        <small class="text-muted mt-1 d-block"><i class="bi bi-info-circle"></i> Lý do này sẽ được thông báo lại cho người đăng để họ chỉnh sửa.</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm"><i class="bi bi-send-x-fill me-2"></i> Xác nhận Cấm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // 1. Script mở Modal Từ Chối
+        function openRejectModal(id, title) {
+            document.getElementById('rejectPropertyId').value = id;
+            document.getElementById('rejectPropertyTitle').innerText = title;
+            var myModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+            myModal.show();
+        }
+
+        // 2. Script xác nhận Xóa bằng SweetAlert2
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Chắc chắn xóa?',
+                text: "Tin đăng này sẽ được đưa vào thùng rác hệ thống!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Đồng ý xóa!',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deleteForm-' + id).submit();
+                }
+            })
+        }
+
+        // 3. Script hiển thị thông báo TempData
+        @if (TempData["Success"] != null)
+        {
+                <text>
+                Swal.fire({
+                    icon: 'success', title: 'Thành công!',
+                    text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false
+                });
+                </text>
+        }
+        @if (TempData["Error"] != null)
+        {
+                <text>
+                Swal.fire({
+                    icon: 'error', title: 'Lỗi!',
+                    text: '@Html.Raw(TempData["Error"])'
+                });
+                </text>
+        }
+    </script>
+}

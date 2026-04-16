@@ -1,30 +1,193 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Blog>
 @{
-    ViewData["Title"] = "Tin tức Bất động sản";
+    ViewData["Title"] = "Tin tức & Kiến thức Bất động sản";
+    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="container my-5">
-    <h2 class="text-center mb-4 fw-bold">TIN TỨC MỚI NHẤT</h2>
-    <div class="row">
-        @foreach (var item in Model)
-        {
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm border-0">
-                    <a asp-action="Details" asp-route-id="@item.BlogID">
-                        <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.png" : item.ImageURL)"
-                             class="card-img-top" style="height: 200px; object-fit: cover;">
-                    </a>
-                    <div class="card-body">
-                        <small class="text-muted">@item.CreatedAt.ToString("dd/MM/yyyy") | @item.Views lượt xem</small>
-                        <h5 class="card-title mt-2">
-                            <a asp-action="Details" asp-route-id="@item.BlogID" class="text-decoration-none text-dark fw-bold">@item.Title</a>
-                        </h5>
-                        <p class="card-text text-muted">@item.Summary</p>
-                    </div>
-                    <div class="card-footer bg-white border-0">
-                        <a asp-action="Details" asp-route-id="@item.BlogID" class="btn btn-outline-primary btn-sm">Xem thêm</a>
-                    </div>
+<style>
+    body {
+        background-color: #f8fafc;
+    }
+
+    .blog-hero {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: -40px;
+        padding-bottom: 80px;
+    }
+
+    .blog-card {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        border: 1px solid #edf2f7;
+    }
+
+        .blog-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+
+    .blog-img-wrap {
+        position: relative;
+        height: 220px;
+        overflow: hidden;
+    }
+
+        .blog-img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: 0.5s;
+        }
+
+    .blog-card:hover .blog-img-wrap img {
+        transform: scale(1.05);
+    }
+
+    .blog-cat-badge {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: rgba(0, 97, 242, 0.9);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.75rem;
+        backdrop-filter: blur(5px);
+    }
+
+    .blog-title {
+        font-weight: 800;
+        color: #0f172a;
+        font-size: 1.15rem;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        transition: 0.2s;
+    }
+
+    .blog-card:hover .blog-title {
+        color: #0061f2;
+    }
+
+    .blog-summary {
+        color: #64748b;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .search-box {
+        background: white;
+        padding: 25px;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        margin-bottom: 40px;
+        position: relative;
+        z-index: 10;
+    }
+</style>
+
+<div class="blog-hero text-center">
+    <div class="container">
+        <h1 class="fw-bold display-5 mb-3">TIN TỨC & KIẾN THỨC THỊ TRƯỜNG</h1>
+        <p class="fs-5 opacity-75">Cập nhật thông tin nhanh nhất về thị trường Bất động sản Khánh Hòa</p>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <div class="search-box">
+        <form action="/Blog/Index" method="get" class="row g-3">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control form-control-lg bg-light border-start-0" placeholder="Nhập từ khóa bài viết...">
                 </div>
+            </div>
+            <div class="col-md-4">
+                <select name="category" class="form-select form-select-lg bg-light fw-medium">
+                    <option value="">-- Tất cả danh mục --</option>
+                    @if (ViewBag.Categories != null)
+                    {
+                        foreach (var cat in ViewBag.Categories)
+                        {
+                            <option value="@cat" selected="@(ViewBag.CurrentCategory == cat ? "selected" : null)">@cat</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">LỌC BÀI VIẾT</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4">
+        @if (Model != null && Model.Any())
+        {
+            foreach (var item in Model)
+            {
+                <div class="col-lg-4 col-md-6">
+                    <a asp-action="Details" asp-route-id="@item.BlogID" class="text-decoration-none">
+                        <div class="blog-card">
+                            <div class="blog-img-wrap">
+                                <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.jpg" : item.ImageURL)" onerror="this.src='/images/no-image.jpg'">
+                                <span class="blog-cat-badge">@item.Category</span>
+                            </div>
+                            <div class="card-body p-4 d-flex flex-column flex-grow-1">
+                                <div class="text-muted small fw-bold mb-2">
+                                    <i class="bi bi-calendar3 me-1"></i> @item.CreatedAt.ToString("dd/MM/yyyy")
+                                    <span class="mx-2">|</span>
+                                    <i class="bi bi-eye me-1"></i> @item.Views lượt xem
+                                </div>
+                                <h2 class="blog-title">@item.Title</h2>
+                                <p class="blog-summary mt-2">@item.Summary</p>
+                            </div>
+                            <div class="card-footer bg-white border-top-0 p-4 pt-0">
+                                <span class="text-primary fw-bold small text-uppercase" style="letter-spacing: 1px;">Đọc tiếp <i class="bi bi-arrow-right"></i></span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            }
+
+            @if (ViewBag.TotalPages > 1)
+            {
+                <div class="col-12 mt-5">
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                            {
+                                <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                                    <a class="page-link shadow-sm fw-bold px-3 py-2 mx-1 rounded-3" href="/Blog/Index?page=@i&keyword=@ViewBag.Keyword&category=@ViewBag.CurrentCategory">@i</a>
+                                </li>
+                            }
+                        </ul>
+                    </nav>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12 text-center py-5 bg-white rounded-4 border shadow-sm">
+                <i class="bi bi-journal-x display-1 text-muted opacity-25 d-block mb-3"></i>
+                <h4 class="fw-bold text-dark">Không tìm thấy bài viết nào</h4>
+                <p class="text-muted">Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc danh mục.</p>
+                <a href="/Blog/Index" class="btn btn-outline-primary fw-bold mt-2 rounded-pill px-4">Xóa bộ lọc</a>
             </div>
         }
     </div>

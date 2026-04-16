@@ -1,73 +1,212 @@
 ﻿@model BDSKhanhHoa.Models.User
 @{
-    ViewData["Title"] = "Trang cá nhân";
+    ViewData["Title"] = "Hồ sơ cá nhân";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    // Thuật toán tính độ hoàn thiện hồ sơ mới (Thêm Zalo & FB)
+    int completionRate = 20; // Mặc định có Email là được 20%
+    if (!string.IsNullOrEmpty(Model.FullName)) completionRate += 20;
+    if (!string.IsNullOrEmpty(Model.Phone)) completionRate += 20;
+    if (Model.Avatar != null && !Model.Avatar.Contains("default")) completionRate += 10;
+    if (!string.IsNullOrEmpty(Model.Address)) completionRate += 10;
+    if (!string.IsNullOrEmpty(Model.Zalo)) completionRate += 10;
+    if (!string.IsNullOrEmpty(Model.Facebook)) completionRate += 10;
 }
 
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm" style="border-radius: 20px;">
-                <div class="card-body p-4 p-md-5">
-                    <div class="text-center mb-5">
-                        <div class="position-relative d-inline-block">
-                            <img id="avatarPreview" src="@(Model.Avatar ?? "/images/avatars/default-user.png")"
-                                 class="rounded-circle border border-4 border-white shadow"
-                                 style="width: 130px; height: 130px; object-fit: cover;">
+<style>
+    .profile-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #edf2f7;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    }
 
-                            <form asp-action="UpdateAvatar" method="post" enctype="multipart/form-data" id="formAvatar">
-                                <label for="fileAvatar" class="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm"
-                                       style="width: 35px; height: 35px; cursor: pointer; border: 2px solid white;">
-                                    <i class="bi bi-camera-fill"></i>
-                                </label>
-                                <input type="file" id="fileAvatar" name="AvatarFile" hidden accept="image/*" onchange="document.getElementById('formAvatar').submit();">
-                            </form>
-                        </div>
-                        <h4 class="fw-bold mt-3 mb-1">@Model.FullName</h4>
-                        <p class="text-muted small">Thành viên từ: @Model.CreatedAt?.ToString("dd/MM/yyyy")</p>
+    .avatar-wrapper {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto;
+    }
+
+    .avatar-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid #fff;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .avatar-btn {
+        position: absolute;
+        bottom: 5px;
+        right: 5px;
+        width: 36px;
+        height: 36px;
+        background: #0061f2;
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px solid #fff;
+        transition: 0.2s;
+    }
+
+        .avatar-btn:hover {
+            background: #004bb9;
+            transform: scale(1.1);
+        }
+
+    .stat-box {
+        background: #f8fafc;
+        padding: 15px;
+        border-radius: 12px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+    }
+
+        .stat-box h4 {
+            color: #0061f2;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .stat-box span {
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+    /* CSS cho icon Zalo & Facebook */
+    .icon-zalo {
+        color: #0068ff;
+    }
+
+    .icon-fb {
+        color: #1877f2;
+    }
+</style>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="profile-card p-4 text-center mb-4">
+            <div class="avatar-wrapper mb-3">
+                <img id="avatarPreview" src="@(Model.Avatar ?? "/images/avatars/default-user.png")" class="avatar-img">
+                <form asp-action="UpdateAvatar" method="post" enctype="multipart/form-data" id="formAvatar">
+                    <label for="fileAvatar" class="avatar-btn shadow-sm" title="Đổi ảnh đại diện">
+                        <i class="bi bi-camera-fill"></i>
+                    </label>
+                    <input type="file" id="fileAvatar" name="AvatarFile" hidden accept="image/*" onchange="document.getElementById('formAvatar').submit();">
+                </form>
+            </div>
+            <h4 class="fw-bold text-dark mb-1">@Model.FullName</h4>
+            <p class="text-muted small mb-3">@Model.Email</p>
+
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fw-bold mb-4">
+                <i class="bi bi-check-circle-fill me-1"></i> Thành viên đã xác thực
+            </span>
+
+            <div class="text-start mb-3">
+                <div class="d-flex justify-content-between small fw-bold mb-1">
+                    <span class="text-dark">Độ hoàn thiện hồ sơ</span>
+                    <span class="text-primary">@completionRate%</span>
+                </div>
+                <div class="progress" style="height: 10px; border-radius: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated @(completionRate == 100 ? "bg-success" : "bg-primary")" style="width: @completionRate%"></div>
+                </div>
+                @if (completionRate < 100)
+                {
+                    <small class="text-muted mt-2 d-block">Hãy bổ sung Zalo/Facebook để đạt 100% uy tín nhé!</small>
+                }
+                else
+                {
+                    <small class="text-success mt-2 d-block fw-bold"><i class="bi bi-patch-check-fill"></i> Hồ sơ hoàn hảo! Rất đáng tin cậy.</small>
+                }
+            </div>
+        </div>
+
+        <div class="profile-card p-4">
+            <h6 class="fw-bold mb-3 text-dark border-bottom pb-2">Hoạt động của bạn</h6>
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="stat-box">
+                        <h4>@ViewBag.TotalProps</h4>
+                        <span>Tin rao vặt</span>
                     </div>
-
-                    @if (TempData["Success"] != null)
-                    {
-                        <div class="alert alert-success border-0 small shadow-sm mb-4">@TempData["Success"]</div>
-                    }
-
-                    <form asp-action="UpdateProfile" method="post">
-                        <input type="hidden" asp-for="UserID" />
-                        <div class="row g-4">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small">Họ và tên</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-0"><i class="bi bi-person text-primary"></i></span>
-                                    <input asp-for="FullName" class="form-control bg-light border-0" placeholder="Nhập họ tên...">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small">Số điện thoại</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-0"><i class="bi bi-phone text-primary"></i></span>
-                                    <input asp-for="Phone" class="form-control bg-light border-0" placeholder="Nhập số điện thoại...">
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold small">Email (Không thể thay đổi)</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-0"><i class="bi bi-envelope text-muted"></i></span>
-                                    <input asp-for="Email" class="form-control bg-light border-0 text-muted" readonly>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold small">Địa chỉ</label>
-                                <input asp-for="Address" class="form-control bg-light border-0" placeholder="Ví dụ: Nha Trang, Khánh Hòa">
-                            </div>
-                            <div class="col-12 text-center mt-5">
-                                <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm">
-                                    LƯU THÔNG TIN
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                </div>
+                <div class="col-6">
+                    <div class="stat-box">
+                        <h4>@ViewBag.TotalProjects</h4>
+                        <span>Dự án</span>
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="profile-card p-4 p-md-5">
+            <h4 class="fw-bold text-dark border-bottom pb-3 mb-4"><i class="bi bi-person-vcard text-primary me-2"></i> Cập nhật thông tin cá nhân</h4>
+
+            <form asp-action="UpdateProfile" method="post">
+                <input type="hidden" asp-for="UserID" />
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-secondary small">Họ và tên hiển thị <span class="text-danger">*</span></label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white text-primary border-end-0"><i class="bi bi-person"></i></span>
+                            <input asp-for="FullName" class="form-control border-start-0 py-2 fw-medium" placeholder="Nhập họ tên..." required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-secondary small">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white text-primary border-end-0"><i class="bi bi-telephone"></i></span>
+                            <input asp-for="Phone" class="form-control border-start-0 py-2 fw-medium" placeholder="Số điện thoại..." required>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-secondary small">Số Zalo (Tùy chọn)</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white icon-zalo border-end-0"><i class="bi bi-chat-dots-fill"></i></span>
+                            <input asp-for="Zalo" class="form-control border-start-0 py-2 fw-medium" placeholder="Nhập số điện thoại Zalo...">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-secondary small">Link Facebook (Tùy chọn)</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white icon-fb border-end-0"><i class="bi bi-facebook"></i></span>
+                            <input asp-for="Facebook" class="form-control border-start-0 py-2 fw-medium" placeholder="Nhập link Facebook của bạn...">
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold text-secondary small">Địa chỉ liên hệ</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white text-primary border-end-0"><i class="bi bi-geo-alt"></i></span>
+                            <input asp-for="Address" class="form-control border-start-0 py-2 fw-medium" placeholder="Số nhà, đường, Phường/Xã...">
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold text-secondary small">Địa chỉ Email (Đã xác minh)</label>
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-light text-success border-end-0"><i class="bi bi-envelope-check-fill"></i></span>
+                            <input asp-for="Email" class="form-control bg-light border-start-0 py-2 text-muted fw-bold" readonly>
+                        </div>
+                    </div>
+
+                    <div class="col-12 mt-5 text-end border-top pt-4">
+                        <button type="submit" class="btn btn-primary px-5 py-2 fw-bold rounded-pill shadow-sm">
+                            <i class="bi bi-floppy-fill me-2"></i> LƯU THAY ĐỔI
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>

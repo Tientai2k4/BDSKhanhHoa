@@ -34,13 +34,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             }
 
             var projects = await query
-                .OrderBy(p => p.ApprovalStatus == "Pending" ? 0 : 1) // Ưu tiên xếp các dự án đang chờ duyệt lên đầu
+                .OrderBy(p => p.ApprovalStatus == "Pending" ? 0 : 1)
                 .ThenByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
             ViewBag.CurrentStatus = status;
-
-            // Đếm số lượng để hiển thị Badge thống kê nhanh
             ViewBag.PendingCount = await _context.Projects.CountAsync(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false);
             ViewBag.ApprovedCount = await _context.Projects.CountAsync(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false);
 
@@ -48,13 +46,25 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         // ==========================================
-        // 2. MÀN HÌNH KIỂM DUYỆT NHANH (VERIFY)
+        // 2. MÀN HÌNH KIỂM DUYỆT NHANH (SỬA LỖI TẠI ĐÂY)
         // ==========================================
         [HttpGet]
         public async Task<IActionResult> Verify()
         {
-            // Tái sử dụng lại hàm Index nhưng tự động gán status = "Pending"
-            return await Index("Pending");
+            // Lấy danh sách chỉ có trạng thái Pending
+            var pendingProjects = await _context.Projects
+                .Include(p => p.User)
+                .Include(p => p.Ward).ThenInclude(w => w.Area)
+                .Where(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+
+            ViewBag.CurrentStatus = "Pending";
+            ViewBag.PendingCount = pendingProjects.Count;
+            ViewBag.ApprovedCount = await _context.Projects.CountAsync(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false);
+
+            // BẮT BUỘC TRẢ VỀ VIEW "Index" CÙNG VỚI DATA
+            return View("Index", pendingProjects);
         }
 
         // ==========================================
@@ -77,20 +87,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 project.UpdatedAt = DateTime.Now;
                 await _context.SaveChangesAsync();
 
-                if (newStatus == "Approved")
-                {
-                    TempData["Success"] = $"Đã duyệt dự án: {project.ProjectName}. Dự án hiện đã public trên hệ thống.";
-                }
-                else if (newStatus == "Rejected")
-                {
-                    TempData["Error"] = $"Đã TỪ CHỐI hồ sơ dự án: {project.ProjectName} do pháp lý không đảm bảo.";
-                }
+                if (newStatus == "Approved") TempData["Success"] = $"Đã phê duyệt dự án: {project.ProjectName}.";
+                else if (newStatus == "Rejected") TempData["Error"] = $"Đã từ chối dự án: {project.ProjectName}.";
             }
 
-            // Quay lại trang gốc (nếu đang ở trang Verify thì về Verify, nếu ở Index thì về Index)
             string referer = Request.Headers["Referer"].ToString();
             if (!string.IsNullOrEmpty(referer)) return Redirect(referer);
-
             return RedirectToAction(nameof(Index));
         }
 
@@ -106,16 +108,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             {
                 project.IsDeleted = true;
                 project.UpdatedAt = DateTime.Now;
-                await _context.SaveChangesAsync();
 
-                // Đồng thời set thuộc tính ProjectID của các Tin đăng liên quan về NULL để tránh lỗi dữ liệu
                 var linkedProperties = await _context.Properties.Where(p => p.ProjectID == id).ToListAsync();
-                foreach (var prop in linkedProperties)
-                {
-                    prop.ProjectID = null;
-                }
-                await _context.SaveChangesAsync();
+                foreach (var prop in linkedProperties) prop.ProjectID = null;
 
+                await _context.SaveChangesAsync();
                 TempData["Success"] = "Đã xóa dự án thành công khỏi hệ thống!";
             }
             return RedirectToAction(nameof(Index));
