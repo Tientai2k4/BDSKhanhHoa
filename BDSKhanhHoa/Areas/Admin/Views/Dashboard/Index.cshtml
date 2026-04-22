@@ -1,31 +1,428 @@
 ﻿@{
-    Layout = "_AdminLayout";
-    ViewData["Title"] = "Bảng điều khiển hệ thống";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    // Khởi tạo biến từ ViewBag an toàn
+    decimal totalRevenue = ViewBag.TotalRevenue ?? 0m;
+    decimal monthlyRevenue = ViewBag.MonthlyRevenue ?? 0m;
+
+    int pendingProperties = ViewBag.PendingProperties ?? 0;
+    int pendingProjects = ViewBag.PendingProjects ?? 0;
+    int pendingReports = ViewBag.PendingReports ?? 0;
+
+    int totalUsers = ViewBag.TotalUsers ?? 0;
+    int newUsersThisMonth = ViewBag.NewUsersThisMonth ?? 0;
+
+    int chatInteractionsToday = ViewBag.ChatInteractionsToday ?? 0;
+
+    var recentTransactions = ViewBag.RecentTransactions as List<BDSKhanhHoa.Models.Transaction> ?? new List<BDSKhanhHoa.Models.Transaction>();
+
+    // Dữ liệu cho biểu đồ
+    var revenueDataJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.RevenueData);
+    var monthLabelsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.MonthLabels);
 }
 
-<div class="row">
-    <div class="col-md-4">
-        <div class="card bg-primary text-white mb-4 shadow">
-            <div class="card-body">
-                <h5>Tổng tin đăng</h5>
-                <h2>@ViewBag.TotalProperties</h2>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+<style>
+    /* CSS Admin Dashboard 2026 */
+    .admin-stat-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        border: 1px solid #f1f5f9;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .admin-stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+    .stat-icon-wrapper {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+    }
+
+    .gradient-revenue {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .gradient-pending {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+
+    .gradient-users {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+    }
+
+    .gradient-ai {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        color: white;
+    }
+
+    .admin-chart-container {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        border: 1px solid #f1f5f9;
+    }
+
+    .admin-table-container {
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        border: 1px solid #f1f5f9;
+        overflow: hidden;
+    }
+
+    .admin-table thead {
+        background: #f8fafc;
+    }
+
+    .admin-table th {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        padding: 16px 20px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .admin-table td {
+        padding: 16px 20px;
+        vertical-align: middle;
+        color: #334155;
+        font-weight: 500;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .pulse-dot {
+        height: 10px;
+        width: 10px;
+        background-color: #ef4444;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse-animation 2s infinite;
+    }
+
+    @@keyframes pulse-animation {
+        0%
+
+    {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+
+    }
+</style>
+
+<div class="animate__animated animate__fadeIn">
+    <div class="row g-4 mb-4">
+        <div class="col-xl-3 col-lg-6">
+            <div class="admin-stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6">DOANH THU THÁNG</p>
+                        <h3 class="fw-black text-dark mb-2">@monthlyRevenue.ToString("N0") <small class="fs-6 text-muted">VNĐ</small></h3>
+                        <span class="badge bg-success-subtle text-success fw-bold">
+                            <i class="bi bi-graph-up-arrow"></i> Tổng: @totalRevenue.ToString("N0") đ
+                        </span>
+                    </div>
+                    <div class="stat-icon-wrapper gradient-revenue shadow-sm">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="admin-stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6">CẦN XỬ LÝ GẤP</p>
+                        <h3 class="fw-black text-dark mb-2">@(pendingProperties + pendingProjects + pendingReports) <small class="fs-6 text-muted">mục</small></h3>
+                        <div class="d-flex gap-2">
+                            @if (pendingProperties > 0)
+                            {
+                                <span class="badge bg-warning-subtle text-warning-emphasis">@pendingProperties Tin</span>
+                            }
+                            @if (pendingProjects > 0)
+                            {
+                                <span class="badge bg-info-subtle text-info-emphasis">@pendingProjects Dự án</span>
+                            }
+                            @if (pendingReports > 0)
+                            {
+                                <span class="badge bg-danger-subtle text-danger-emphasis">@pendingReports Report</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="stat-icon-wrapper gradient-pending shadow-sm">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="admin-stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6">TỔNG THÀNH VIÊN</p>
+                        <h3 class="fw-black text-dark mb-2">@totalUsers.ToString("N0") <small class="fs-6 text-muted">user</small></h3>
+                        <span class="badge bg-primary-subtle text-primary fw-bold">
+                            <i class="bi bi-person-plus-fill"></i> +@newUsersThisMonth user mới tháng này
+                        </span>
+                    </div>
+                    <div class="stat-icon-wrapper gradient-users shadow-sm">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-lg-6">
+            <div class="admin-stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6">AI CHATBOT TƯ VẤN</p>
+                        <h3 class="fw-black text-dark mb-2">@chatInteractionsToday.ToString("N0") <small class="fs-6 text-muted">lượt hỏi h.nay</small></h3>
+                        <span class="badge bg-purple-subtle text-purple fw-bold" style="background-color: #f3e8ff; color: #6b21a8;">
+                            <i class="bi bi-cpu"></i> Trợ lý ảo đang hoạt động
+                        </span>
+                    </div>
+                    <div class="stat-icon-wrapper gradient-ai shadow-sm">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-warning text-dark mb-4 shadow">
-            <div class="card-body">
-                <h5>Tin chờ duyệt</h5>
-                <h2>@ViewBag.PendingProperties</h2>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-8">
+            <div class="admin-chart-container h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold text-dark m-0"><i class="bi bi-bar-chart-line-fill text-primary me-2"></i>Biến động Doanh thu (6 tháng qua)</h5>
+                    <a href="/Admin/Transactions/Index" class="btn btn-sm btn-light border fw-bold text-muted">Chi tiết GD</a>
+                </div>
+                <div style="height: 300px;">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="admin-chart-container h-100 d-flex flex-column">
+                <h5 class="fw-bold text-dark mb-4"><i class="bi bi-shield-exclamation text-danger me-2"></i>Trung tâm kiểm duyệt</h5>
+
+                <div class="d-flex flex-column gap-3 flex-grow-1 justify-content-center">
+                    <a href="/Admin/Properties/Verify" class="text-decoration-none">
+                        <div class="p-3 rounded-3 border d-flex justify-content-between align-items-center transition-hover bg-light">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-house-door"></i></div>
+                                <div>
+                                    <h6 class="m-0 fw-bold text-dark">Tin rao vặt chờ duyệt</h6>
+                                    <small class="text-muted">Kiểm tra nội dung & hình ảnh</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-warning fs-6 rounded-pill">@pendingProperties</span>
+                        </div>
+                    </a>
+
+                    <a href="/Admin/Projects/Verify" class="text-decoration-none">
+                        <div class="p-3 rounded-3 border d-flex justify-content-between align-items-center transition-hover bg-light">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-buildings"></i></div>
+                                <div>
+                                    <h6 class="m-0 fw-bold text-dark">Dự án cần xác minh pháp lý</h6>
+                                    <small class="text-muted">Xét duyệt chủ đầu tư BĐS</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-info fs-6 rounded-pill">@pendingProjects</span>
+                        </div>
+                    </a>
+
+                    <a href="/Admin/PropertyReports/Index" class="text-decoration-none">
+                        <div class="p-3 rounded-3 border border-danger-subtle d-flex justify-content-between align-items-center transition-hover bg-danger-subtle">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;"><i class="bi bi-flag"></i></div>
+                                <div>
+                                    <h6 class="m-0 fw-bold text-danger">Báo cáo vi phạm <span class="pulse-dot ms-1"></span></h6>
+                                    <small class="text-danger fw-medium">Tin lừa đảo, sai sự thật</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-danger fs-6 rounded-pill">@pendingReports</span>
+                        </div>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-success text-white mb-4 shadow">
-            <div class="card-body">
-                <h5>Tổng thành viên</h5>
-                <h2>@ViewBag.TotalUsers</h2>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="admin-table-container">
+                <div class="p-4 border-bottom d-flex justify-content-between align-items-center bg-white">
+                    <h5 class="fw-bold m-0"><i class="bi bi-clock-history text-success me-2"></i>Giao dịch thanh toán trực tiếp gần đây</h5>
+                    <a href="/Admin/Transactions/Index" class="btn btn-sm btn-primary fw-bold px-3">Xem toàn bộ</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table admin-table mb-0 table-hover">
+                        <thead>
+                            <tr>
+                                <th>Mã GD</th>
+                                <th>Người thanh toán</th>
+                                <th>Nội dung chuyển khoản</th>
+                                <th>Số tiền</th>
+                                <th>Thời gian</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (recentTransactions.Any())
+                            {
+                                foreach (var trans in recentTransactions)
+                                {
+                                    <tr>
+                                        <td><span class="fw-bold text-secondary">#@trans.TransactionCode</span></td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <img src="@(trans.User?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle" width="30" height="30" style="object-fit:cover;">
+                                                <span class="fw-bold">@(trans.User?.FullName ?? trans.User?.Username)</span>
+                                            </div>
+                                        </td>
+                                        <td>@trans.Description</td>
+                                        <td class="fw-bold text-success">+ @trans.Amount.ToString("N0") đ</td>
+                                        <td>@trans.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</td>
+                                        <td>
+                                            @if (trans.Status == "Success" || trans.Status == "Completed")
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill"><i class="bi bi-check2-circle me-1"></i>Thành công</span>
+                                            }
+                                            else if (trans.Status == "Pending")
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 rounded-pill"><i class="bi bi-arrow-repeat me-1"></i>Đang xử lý</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill"><i class="bi bi-x-circle me-1"></i>Thất bại</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center py-5">
+                                        <i class="bi bi-receipt display-4 text-muted opacity-25 d-block mb-3"></i>
+                                        <p class="text-muted fw-medium m-0">Chưa có giao dịch nào được thực hiện trên hệ thống.</p>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // Render biểu đồ doanh thu
+            const ctxRevenue = document.getElementById('revenueChart').getContext('2d');
+
+            // Dữ liệu từ ViewBag đẩy xuống JS
+            const rawLabels = @Html.Raw(monthLabelsJson);
+            const rawData = @Html.Raw(revenueDataJson);
+
+            // Tạo hiệu ứng Gradient cho biểu đồ Bar
+            let barGradient = ctxRevenue.createLinearGradient(0, 0, 0, 300);
+            barGradient.addColorStop(0, '#3b82f6'); // Xanh nhạt
+            barGradient.addColorStop(1, '#1d4ed8'); // Xanh đậm
+
+            new Chart(ctxRevenue, {
+                type: 'bar',
+                data: {
+                    labels: rawLabels,
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: rawData,
+                        backgroundColor: barGradient,
+                        borderRadius: 8,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleFont: { size: 13, family: "'Inter', sans-serif" },
+                            bodyFont: { size: 14, weight: 'bold', family: "'Inter', sans-serif" },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { borderDash: [5, 5], color: '#e2e8f0', drawBorder: false },
+                            ticks: {
+                                color: '#64748b',
+                                font: { family: "'Inter', sans-serif" },
+                                callback: function(value) {
+                                    if(value >= 1000000) return (value / 1000000) + ' Tr';
+                                    if(value >= 1000) return (value / 1000) + ' K';
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false, drawBorder: false },
+                            ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", weight: '600' } }
+                        }
+                    },
+                    animation: {
+                        y: { duration: 1500, easing: 'easeOutQuart' }
+                    }
+                }
+            });
+        });
+    </script>
+}

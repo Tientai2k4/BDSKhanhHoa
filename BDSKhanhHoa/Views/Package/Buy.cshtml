@@ -1,119 +1,166 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PostServicePackage>
 @{
-    ViewData["Title"] = "Mua gói dịch vụ đăng tin";
-    Layout = "~/Views/Shared/_UserLayout.cshtml"; // Dùng Layout của Dashboard Member
+    ViewData["Title"] = "Bảng giá dịch vụ";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
 }
 
 <style>
+    .pricing-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: 24px;
+        padding: 60px 20px;
+        text-align: center;
+        margin-bottom: -80px;
+        padding-bottom: 120px;
+    }
+
     .pricing-card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 24px;
         padding: 40px 30px;
-        transition: all 0.3s ease;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
         height: 100%;
         display: flex;
         flex-direction: column;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
     }
 
         .pricing-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-            border-color: #0061f2;
+            transform: translateY(-15px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.12);
         }
 
-        .pricing-card.highlighted {
-            background: linear-gradient(180deg, #fff 0%, #fffbfb 100%);
-            border: 2px solid #f59e0b;
-            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
-        }
-
-    .pricing-badge {
+    .badge-ribbon {
         position: absolute;
-        top: 20px;
+        top: 25px;
         right: -35px;
-        background: #ef4444;
         color: white;
-        padding: 5px 40px;
+        padding: 6px 40px;
         font-size: 0.8rem;
         font-weight: 800;
+        letter-spacing: 1px;
         text-transform: uppercase;
         transform: rotate(45deg);
-        box-shadow: 0 4px 10px rgba(239,68,68,0.3);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
 
-    .pricing-icon {
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        background: #eef2ff;
-        color: #0061f2;
+    .icon-box {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 2rem;
-        margin-bottom: 25px;
+        font-size: 2.5rem;
+        margin-bottom: 30px;
+        transform: rotate(-5deg);
     }
 
-    .highlighted .pricing-icon {
-        background: #fef3c7;
-        color: #d97706;
+    /* Các theme màu sắc */
+    .theme-diamond {
+        border-top: 5px solid #ef4444;
     }
 
-    .pricing-title {
-        font-size: 1.5rem;
-        font-weight: 800;
-        color: #0f172a;
-        margin-bottom: 10px;
+        .theme-diamond .icon-box {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            color: #ef4444;
+        }
+
+        .theme-diamond .badge-ribbon, .theme-diamond .btn-buy {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+        }
+
+    .theme-gold {
+        border-top: 5px solid #f59e0b;
     }
+
+        .theme-gold .icon-box {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            color: #f59e0b;
+        }
+
+        .theme-gold .badge-ribbon, .theme-gold .btn-buy {
+            background: linear-gradient(135deg, #f59e0b, #b45309);
+            color: white;
+        }
+
+    .theme-silver {
+        border-top: 5px solid #0ea5e9;
+    }
+
+        .theme-silver .icon-box {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            color: #0ea5e9;
+        }
+
+        .theme-silver .badge-ribbon, .theme-silver .btn-buy {
+            background: linear-gradient(135deg, #0ea5e9, #0369a1);
+            color: white;
+        }
+
+    .theme-basic {
+        border-top: 5px solid #64748b;
+    }
+
+        .theme-basic .icon-box {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            color: #64748b;
+        }
+
+        .theme-basic .btn-buy {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+            .theme-basic .btn-buy:hover {
+                background: #cbd5e1;
+            }
 
     .pricing-price {
-        font-size: 2.5rem;
+        font-size: 2.8rem;
         font-weight: 900;
-        color: #0061f2;
         margin-bottom: 25px;
+        line-height: 1;
+        color: #0f172a;
     }
 
-    .highlighted .pricing-price {
-        color: #f59e0b;
-    }
-
-    .pricing-price small {
-        font-size: 1rem;
-        color: #64748b;
-        font-weight: 600;
-    }
+        .pricing-price span {
+            font-size: 1.2rem;
+            color: #64748b;
+            font-weight: 600;
+        }
 
     .pricing-features {
         list-style: none;
         padding: 0;
-        margin: 0 0 30px 0;
+        margin: 0 0 40px 0;
         flex-grow: 1;
     }
 
         .pricing-features li {
-            margin-bottom: 15px;
+            margin-bottom: 18px;
             color: #475569;
             font-weight: 500;
             display: flex;
             align-items: flex-start;
+            font-size: 1.05rem;
         }
 
             .pricing-features li i {
                 color: #10b981;
-                font-size: 1.2rem;
-                margin-right: 12px;
-                margin-top: -2px;
+                font-size: 1.3rem;
+                margin-right: 15px;
             }
 
     .btn-buy {
-        background: #f1f5f9;
-        color: #0f172a;
         border: none;
-        padding: 15px;
-        border-radius: 12px;
+        padding: 18px;
+        border-radius: 16px;
         font-weight: 800;
         font-size: 1.1rem;
         transition: 0.3s;
@@ -121,67 +168,48 @@
         width: 100%;
     }
 
-    .pricing-card:hover .btn-buy {
-        background: #0061f2;
-        color: white;
-    }
-
-    .highlighted .btn-buy {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-        color: white;
-        box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3);
-    }
-
-        .highlighted .btn-buy:hover {
-            background: linear-gradient(135deg, #d97706, #b45309);
+        .btn-buy:hover {
+            transform: scale(1.03);
+            filter: brightness(1.1);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 </style>
 
-<div class="card-custom p-4 p-md-5">
-    <div class="text-center mb-5">
-        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill fw-bold mb-3">BẢNG GIÁ DỊCH VỤ</span>
-        <h2 class="fw-black text-dark mb-3" style="font-weight: 900;">Nâng Cấp Tin Đăng Của Bạn</h2>
-        <p class="text-muted fs-5">Tiếp cận hàng ngàn khách hàng tiềm năng bằng cách đưa tin lên Top.</p>
+<div class="container my-5">
+    <div class="pricing-header shadow-sm">
+        <span class="badge bg-dark text-white px-4 py-2 rounded-pill fw-bold mb-3 fs-6">DỊCH VỤ PREMIUM</span>
+        <h1 class="fw-black text-dark mb-3" style="font-weight: 900; font-size: 3rem;">Tiếp Cận Hàng Triệu Khách Hàng</h1>
+        <p class="text-muted fs-5 max-w-2xl mx-auto">Nâng cấp tin đăng của bạn ngay hôm nay để chốt sale nhanh chóng hơn.</p>
     </div>
 
-    <div class="row g-4 justify-content-center">
-        @if (!Model.Any())
-        {
-            <div class="col-12 text-center py-5 text-muted">
-                <i class="bi bi-wallet2 display-1 opacity-25 d-block mb-3"></i>
-                <h5 class="fw-bold">Hệ thống đang cập nhật bảng giá. Vui lòng quay lại sau!</h5>
-            </div>
-        }
-
+    <div class="row g-4 justify-content-center position-relative z-1">
         @foreach (var pkg in Model)
         {
+            string themeClass = "theme-basic";
+            string iconClass = "bi-box-seam";
+            if (pkg.PackageType == "Kim Cương") { themeClass = "theme-diamond"; iconClass = "bi-gem"; }
+            else if (pkg.PackageType == "Vàng") { themeClass = "theme-gold"; iconClass = "bi-star-fill"; }
+            else if (pkg.PackageType == "Bạc") { themeClass = "theme-silver"; iconClass = "bi-shield-check"; }
+
             <div class="col-lg-4 col-md-6">
-                <div class="pricing-card @(pkg.IsHighlighted ? "highlighted" : "")">
-                    @if (pkg.IsHighlighted)
+                <div class="pricing-card @themeClass">
+                    @if (pkg.PackageType != "Tin Thường")
                     {
-                        <div class="pricing-badge">Khuyên dùng</div>
+                        <div class="badge-ribbon shadow-sm">@pkg.PackageType</div>
                     }
 
-                    <div class="pricing-icon">
-                        <i class="bi @(pkg.IsHighlighted ? "bi-gem" : "bi-stars")"></i>
-                    </div>
+                    <div class="icon-box"><i class="bi @iconClass"></i></div>
 
-                    <h3 class="pricing-title">@pkg.PackageName</h3>
+                    <h3 class="fw-bold mb-2 text-dark">@pkg.PackageName</h3>
                     <div class="pricing-price">
-                        @(pkg.Price == 0 ? "Miễn phí" : pkg.Price.ToString("N0")) <small>VNĐ</small>
+                        @(pkg.Price == 0 ? "Miễn phí" : pkg.Price.ToString("N0")) <span>VNĐ</span>
                     </div>
 
                     <ul class="pricing-features">
                         <li><i class="bi bi-check-circle-fill"></i> Hiển thị liên tục trong <strong>@pkg.DurationDays ngày</strong></li>
-                        <li><i class="bi bi-check-circle-fill"></i> Mức độ hiển thị: <strong>Cấp @pkg.PriorityLevel</strong> (Số càng cao càng trên Top)</li>
-                        @if (pkg.IsHighlighted)
-                        {
-                            <li><i class="bi bi-check-circle-fill"></i> <strong>Đổi màu viền tin</strong> và gắn thẻ Hot thu hút sự chú ý.</li>
-                        }
-
+                        <li><i class="bi bi-check-circle-fill"></i> Mức độ ưu tiên: <strong>Top @pkg.PriorityLevel</strong></li>
                         @if (!string.IsNullOrEmpty(pkg.Description))
                         {
-                            // Tách từng dòng mô tả thành các gạch đầu dòng
                             foreach (var line in pkg.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                             {
                                 <li><i class="bi bi-check-circle-fill"></i> @line</li>
@@ -190,7 +218,7 @@
                     </ul>
 
                     <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn btn-buy text-decoration-none text-center">
-                        @(pkg.Price == 0 ? "Dùng thử ngay" : "Chọn mua gói này")
+                        @(pkg.Price == 0 ? "Sử dụng ngay" : "CHỌN GÓI NÀY")
                     </a>
                 </div>
             </div>

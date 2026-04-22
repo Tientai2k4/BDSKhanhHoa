@@ -8,8 +8,9 @@
     var similarProps = ViewBag.SimilarProperties as IEnumerable<BDSKhanhHoa.Models.Property> ?? new List<BDSKhanhHoa.Models.Property>();
     var userProps = ViewBag.UserProperties as IEnumerable<BDSKhanhHoa.Models.Property> ?? new List<BDSKhanhHoa.Models.Property>();
     var comments = ViewBag.Comments as IEnumerable<BDSKhanhHoa.Models.Comment> ?? new List<BDSKhanhHoa.Models.Comment>();
-
     var features = ViewBag.Features as List<BDSKhanhHoa.Models.PropertyFeature>;
+    var propertyImages = ViewBag.PropertyImages as IEnumerable<BDSKhanhHoa.Models.PropertyImage> ?? new List<BDSKhanhHoa.Models.PropertyImage>();
+
     var bed = features?.FirstOrDefault(f => f.FeatureName == "Phòng ngủ")?.FeatureValue;
     var bath = features?.FirstOrDefault(f => f.FeatureName == "Phòng vệ sinh")?.FeatureValue;
     var direction = features?.FirstOrDefault(f => f.FeatureName == "Hướng nhà")?.FeatureValue;
@@ -21,253 +22,864 @@
 
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
     bool isOwner = (currentUserId > 0 && currentUserId == Model.UserID);
+    bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
 
-    var propertyImages = ViewBag.PropertyImages as IEnumerable<BDSKhanhHoa.Models.PropertyImage> ?? new List<BDSKhanhHoa.Models.PropertyImage>();
     var totalImages = propertyImages.Count() + (string.IsNullOrEmpty(Model.MainImage) ? 0 : 1);
 
-    string zaloLink = !string.IsNullOrEmpty(Model.User?.Zalo) ? (Model.User.Zalo.StartsWith("http") ? Model.User.Zalo : "https://zalo.me/" + Model.User.Zalo) : "";
-    string fbLink = !string.IsNullOrEmpty(Model.User?.Facebook) ? (Model.User.Facebook.StartsWith("http") ? Model.User.Facebook : "https://facebook.com/" + Model.User.Facebook) : "";
+    string zaloLink = !string.IsNullOrEmpty(Model.User?.Zalo)
+        ? (Model.User.Zalo.StartsWith("0") || Model.User.Zalo.StartsWith("+84") ? "https://zalo.me/" + Model.User.Zalo : Model.User.Zalo) : "";
+    string fbLink = !string.IsNullOrEmpty(Model.User?.Facebook)
+        ? (Model.User.Facebook.StartsWith("http") ? Model.User.Facebook : "https://facebook.com/" + Model.User.Facebook) : "";
 
     string fullAddress = $"{(Model.AddressDetail != null ? Model.AddressDetail + ", " : "")}{Model.Ward?.WardName}, {Model.Ward?.Area?.AreaName}, Khánh Hòa";
     string mapQuery = Uri.EscapeDataString(fullAddress ?? "");
+
+    // Format price helper inline
+    string priceDisplay = Model.Price.HasValue
+        ? (Model.Price.Value >= 1_000_000_000
+            ? (Model.Price.Value / 1_000_000_000M).ToString("0.##") + " Tỷ"
+            : (Model.Price.Value / 1_000_000M).ToString("0.##") + " Triệu")
+        : "Thỏa thuận";
+
+    string pricePerM2 = (Model.Price.HasValue && Model.AreaSize.HasValue && Model.AreaSize.Value > 0)
+        ? ((Model.Price.Value / (decimal)Model.AreaSize.Value / 1_000_000M).ToString("0.##") + " Tr/m²")
+        : "";
 }
 
+@* ─────────────────────────────────────────────────────────── *@
+@* CSS                                                          *@
+@* ─────────────────────────────────────────────────────────── *@
 <style>
+    /* ── Variables ───────────────────────────────────────────────── */
+    :root {
+        --p1: #1a56db;
+        --p2: #1242a8;
+        --pl: #ebf2ff;
+        --acc: #e81c2e;
+        --grn: #16a34a;
+        --bg: #f0f4fa;
+        --sur: #ffffff;
+        --bor: #e4e8f0;
+        --tx: #0f172a;
+        --mu: #64748b;
+        --r8: 8px;
+        --r12: 12px;
+        --r16: 16px;
+        --r20: 20px;
+        --sh1: 0 2px 12px rgba(15,23,42,.07);
+        --sh2: 0 8px 32px rgba(15,23,42,.10);
+        --sh3: 0 20px 60px rgba(15,23,42,.13);
+        --tr: all .2s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Base ────────────────────────────────────────────────────── */
     body {
-        background-color: #f4f6f9;
+        background: var(--bg);
     }
 
-    .prop-hero-img {
-        width: 100%;
-        height: 480px;
-        object-fit: cover;
-        border-radius: 16px;
-        position: relative;
-        cursor: zoom-in;
+    /* ── Breadcrumb ──────────────────────────────────────────────── */
+    .bc-wrap {
+        background: var(--sur);
+        border-bottom: 1px solid var(--bor);
+        padding: 12px 0;
     }
 
-    .img-overlay-btn {
-        position: absolute;
-        bottom: 20px;
-        right: 20px;
-        background: rgba(0,0,0,0.7);
-        color: white;
-        border: 1px solid rgba(255,255,255,0.3);
-        padding: 8px 20px;
-        border-radius: 8px;
-        backdrop-filter: blur(5px);
-        font-weight: 600;
-        cursor: pointer;
-        transition: 0.3s;
-        z-index: 2;
-    }
-
-        .img-overlay-btn:hover {
-            background: rgba(0,0,0,0.9);
-        }
-
-    .thumb-gallery-scroll {
-        display: flex;
-        gap: 10px;
-        overflow-x: auto;
-        padding-bottom: 5px;
-        margin-top: 15px;
-        scrollbar-width: thin;
-    }
-
-    .sub-img-thumb {
-        width: 80px;
-        height: 80px;
-        object-fit: cover;
-        border-radius: 8px;
-        border: 2px solid transparent;
-        cursor: pointer;
-        transition: 0.2s ease;
-        flex-shrink: 0;
-    }
-
-        .sub-img-thumb:hover, .sub-img-thumb.active {
-            border-color: #0061f2;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-    .prop-price {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #e81c2e;
-    }
-
-    .section-card {
-        background: #fff;
-        border-radius: 16px;
-        padding: 30px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-        margin-bottom: 25px;
-        border: 1px solid #edf2f7;
-    }
-
-    .section-title {
-        font-weight: 800;
-        margin-bottom: 20px;
-        font-size: 1.3rem;
-        color: #0f172a;
+    .bc-inner {
         display: flex;
         align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        font-size: .84rem;
+        color: var(--mu);
     }
 
-        .section-title i {
-            color: #0061f2;
-            margin-right: 10px;
-            font-size: 1.5rem;
+        .bc-inner a {
+            color: var(--mu);
+            text-decoration: none;
+            transition: var(--tr);
         }
 
-    .overview-grid {
+            .bc-inner a:hover {
+                color: var(--p1);
+            }
+
+        .bc-inner .sep {
+            opacity: .4;
+        }
+
+        .bc-inner .cur {
+            color: var(--tx);
+            font-weight: 600;
+        }
+
+    /* ── Status Badge ────────────────────────────────────────────── */
+    .status-bar {
+        background: linear-gradient(90deg,#fffbeb,#fff7d6);
+        border-left: 4px solid #f59e0b;
+        padding: 10px 18px;
+        border-radius: 0 var(--r8) var(--r8) 0;
+        font-size: .88rem;
+        color: #92400e;
+        margin-bottom: 18px;
+    }
+
+    /* ── Gallery ─────────────────────────────────────────────────── */
+    .gallery-wrap {
+        position: relative;
+        border-radius: var(--r20);
+        overflow: hidden;
+        background: #000;
+        box-shadow: var(--sh2);
+    }
+
+    .hero-img {
+        width: 100%;
+        height: 500px;
+        object-fit: cover;
+        cursor: zoom-in;
+        transition: transform .4s ease;
+        display: block;
+    }
+
+        .hero-img:hover {
+            transform: scale(1.015);
+        }
+
+    .gallery-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(0,0,0,.55) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    .gallery-top-badges {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        gap: 8px;
+        z-index: 3;
+    }
+
+    .badge-vip {
+        background: linear-gradient(135deg,#f59e0b,#ef4444);
+        color: #fff;
+        font-weight: 800;
+        font-size: .78rem;
+        padding: 5px 14px;
+        border-radius: 20px;
+        letter-spacing: .04em;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+        text-transform: uppercase;
+    }
+
+    .badge-type {
+        background: rgba(26,86,219,.92);
+        color: #fff;
+        font-weight: 700;
+        font-size: .78rem;
+        padding: 5px 14px;
+        border-radius: 20px;
+        backdrop-filter: blur(6px);
+    }
+
+    .gallery-photo-btn {
+        position: absolute;
+        bottom: 18px;
+        right: 18px;
+        background: rgba(255,255,255,.15);
+        backdrop-filter: blur(10px);
+        border: 1.5px solid rgba(255,255,255,.4);
+        color: #fff;
+        padding: 9px 20px;
+        border-radius: var(--r12);
+        font-weight: 700;
+        font-size: .88rem;
+        cursor: pointer;
+        z-index: 3;
+        transition: var(--tr);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .gallery-photo-btn:hover {
+            background: rgba(255,255,255,.28);
+        }
+
+    .thumb-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--bor) transparent;
+    }
+
+    .thumb-item {
+        flex-shrink: 0;
+        width: 82px;
+        height: 64px;
+        border-radius: var(--r8);
+        object-fit: cover;
+        cursor: pointer;
+        border: 2.5px solid transparent;
+        transition: var(--tr);
+        opacity: .75;
+    }
+
+        .thumb-item:hover, .thumb-item.active {
+            border-color: var(--p1);
+            opacity: 1;
+            box-shadow: 0 0 0 3px rgba(26,86,219,.18);
+        }
+
+    /* ── Main Info Card ──────────────────────────────────────────── */
+    .info-card {
+        background: var(--sur);
+        border-radius: var(--r20);
+        padding: 28px 32px;
+        box-shadow: var(--sh1);
+        border: 1px solid var(--bor);
+        margin-bottom: 20px;
+    }
+
+    .prop-title {
+        font-size: 1.55rem;
+        font-weight: 800;
+        color: var(--tx);
+        line-height: 1.35;
+        margin-bottom: 8px;
+    }
+
+    .prop-address {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        color: var(--mu);
+        font-size: .93rem;
+        margin-bottom: 20px;
+    }
+
+        .prop-address i {
+            color: var(--acc);
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+    .price-area-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1px;
+        background: var(--bor);
+        border-radius: var(--r12);
+        overflow: hidden;
+        border: 1px solid var(--bor);
+    }
+
+    .pa-cell {
+        background: var(--sur);
+        padding: 18px 22px;
+        text-align: center;
+    }
+
+    .pa-label {
+        font-size: .75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--mu);
+        margin-bottom: 6px;
+    }
+
+    .pa-val-price {
+        font-size: 1.9rem;
+        font-weight: 900;
+        color: var(--acc);
+        line-height: 1;
+    }
+
+    .pa-val {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: var(--tx);
+        line-height: 1;
+    }
+
+    .pa-unit {
+        font-size: .82rem;
+        color: var(--mu);
+        margin-top: 4px;
+    }
+
+    /* ── Quick Stat Pills ────────────────────────────────────────── */
+    .quick-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .qs-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        border: 1px solid var(--bor);
+        border-radius: 30px;
+        padding: 8px 16px;
+        font-size: .87rem;
+        font-weight: 600;
+        color: var(--tx);
+    }
+
+        .qs-pill i {
+            color: var(--p1);
+            font-size: 1rem;
+        }
+
+    /* ── Section Card ────────────────────────────────────────────── */
+    .sec-card {
+        background: var(--sur);
+        border-radius: var(--r20);
+        padding: 28px 32px;
+        box-shadow: var(--sh1);
+        border: 1px solid var(--bor);
+        margin-bottom: 20px;
+    }
+
+    .sec-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--tx);
+        margin-bottom: 22px;
+        padding-bottom: 14px;
+        border-bottom: 2px solid var(--bg);
+    }
+
+        .sec-title i {
+            width: 36px;
+            height: 36px;
+            background: var(--pl);
+            border-radius: var(--r8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--p1);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+    /* ── Detail Grid ─────────────────────────────────────────────── */
+    .detail-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
+        gap: 0;
     }
 
-    .overview-item {
+    .dg-row {
         display: flex;
         justify-content: space-between;
-        padding-bottom: 10px;
-        border-bottom: 1px dashed #e2e8f0;
-    }
-
-        .overview-item span:first-child {
-            color: #64748b;
-            font-weight: 500;
-        }
-
-        .overview-item span:last-child {
-            color: #1e293b;
-            font-weight: 700;
-            text-align: right;
-        }
-
-    .amenity-pill {
-        display: inline-flex;
         align-items: center;
-        background: #f8fafc;
-        color: #334155;
-        padding: 10px 20px;
-        border-radius: 10px;
-        margin: 0 10px 10px 0;
-        font-weight: 600;
-        font-size: 0.95rem;
-        border: 1px solid #e2e8f0;
-        transition: 0.2s;
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--bg);
+        transition: var(--tr);
     }
 
-        .amenity-pill:hover {
-            background: #e0e7ff;
-            color: #0061f2;
-            border-color: #0061f2;
+        .dg-row:hover {
+            background: #fafbff;
         }
 
-    .contact-card {
-        background: #fff;
-        border-radius: 16px;
-        padding: 25px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-        border: 1px solid #edf2f7;
+        .dg-row:nth-child(odd) {
+            border-right: 1px solid var(--bg);
+        }
+
+    .dg-key {
+        font-size: .87rem;
+        color: var(--mu);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+        .dg-key i {
+            color: var(--p1);
+            font-size: .95rem;
+        }
+
+    .dg-val {
+        font-size: .9rem;
+        font-weight: 700;
+        color: var(--tx);
+        text-align: right;
+        max-width: 55%;
+    }
+
+        .dg-val.highlight {
+            color: var(--p1);
+        }
+
+        .dg-val.green {
+            color: var(--grn);
+        }
+
+    /* ── Description ─────────────────────────────────────────────── */
+    .desc-body {
+        line-height: 1.85;
+        font-size: 1rem;
+        color: #334155;
+        white-space: pre-wrap;
+    }
+
+    .read-more-btn {
+        display: none;
+        margin-top: 14px;
+        font-size: .88rem;
+        font-weight: 700;
+        color: var(--p1);
+        background: var(--pl);
+        border: none;
+        border-radius: 20px;
+        padding: 7px 20px;
+        cursor: pointer;
+        transition: var(--tr);
+    }
+
+        .read-more-btn:hover {
+            background: #d6e4ff;
+        }
+
+    .desc-collapsed {
+        max-height: 200px;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .desc-collapsed::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(transparent, var(--sur));
+        }
+
+    /* ── Amenity Pills ───────────────────────────────────────────── */
+    .amenity-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .am-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: linear-gradient(135deg,#f0fdf4,#dcfce7);
+        border: 1px solid #bbf7d0;
+        color: #166534;
+        padding: 9px 18px;
+        border-radius: 30px;
+        font-size: .88rem;
+        font-weight: 600;
+        transition: var(--tr);
+    }
+
+        .am-pill:hover {
+            background: linear-gradient(135deg,#dcfce7,#bbf7d0);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(22,163,74,.15);
+        }
+
+        .am-pill i {
+            font-size: 1rem;
+        }
+
+    /* ── Warning Box ─────────────────────────────────────────────── */
+    .warn-box {
+        display: flex;
+        gap: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-left: 5px solid #f59e0b;
+        border-radius: var(--r12);
+        padding: 18px 22px;
+        margin-bottom: 20px;
+    }
+
+        .warn-box i {
+            color: #f59e0b;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .warn-box ul {
+            margin: 0;
+            padding-left: 18px;
+            font-size: .88rem;
+            color: #78350f;
+            line-height: 1.75;
+        }
+
+        .warn-box h6 {
+            font-weight: 800;
+            color: #92400e;
+            margin-bottom: 8px;
+            font-size: .95rem;
+        }
+
+    /* ── Map ─────────────────────────────────────────────────────── */
+    .map-wrap {
+        border-radius: var(--r12);
+        overflow: hidden;
+        border: 1px solid var(--bor);
+    }
+
+    /* ── Comments ────────────────────────────────────────────────── */
+    .comment-item {
+        display: flex;
+        gap: 14px;
+        padding: 18px 0;
+        border-bottom: 1px solid var(--bg);
+    }
+
+        .comment-item:last-child {
+            border-bottom: none;
+        }
+
+    .c-avatar {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        border: 2px solid var(--bor);
+    }
+
+    .c-bubble {
+        flex: 1;
+        background: var(--bg);
+        border-radius: 4px var(--r12) var(--r12) var(--r12);
+        padding: 14px 18px;
+        border: 1px solid var(--bor);
+    }
+
+    .c-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .c-name {
+        font-weight: 700;
+        color: var(--tx);
+        font-size: .9rem;
+    }
+
+    .c-time {
+        font-size: .78rem;
+        color: var(--mu);
+    }
+
+    .c-text {
+        color: #475569;
+        font-size: .9rem;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        margin: 0;
+    }
+
+    /* ── Right Sidebar ───────────────────────────────────────────── */
+    .contact-sticky {
         position: sticky;
         top: 90px;
     }
 
-    .contact-avatar {
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid #e0e7ff;
-        padding: 3px;
-    }
-
-    .phone-box {
-        display: flex;
-        align-items: center;
-        background: #16a34a;
-        border-radius: 12px;
+    .contact-card {
+        background: var(--sur);
+        border-radius: var(--r20);
+        box-shadow: var(--sh2);
+        border: 1px solid var(--bor);
         overflow: hidden;
-        transition: 0.3s;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
     }
 
-        .phone-box:hover {
-            background: #15803d;
-            box-shadow: 0 5px 15px rgba(22, 163, 74, 0.3);
+    .contact-header {
+        background: linear-gradient(135deg, var(--p1) 0%, #1e40af 100%);
+        padding: 22px 24px 18px;
+        text-align: center;
+        position: relative;
+    }
+
+        .contact-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: var(--sur);
+            border-radius: 20px 20px 0 0;
         }
 
-    .btn-call {
-        flex-grow: 1;
-        background: transparent;
-        color: white;
+    .c-avatar-wrap {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 10px;
+    }
+
+    .c-avatar-lg {
+        width: 82px;
+        height: 82px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid rgba(255,255,255,.4);
+    }
+
+    .c-online-dot {
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        width: 14px;
+        height: 14px;
+        background: #22c55e;
+        border: 2.5px solid #fff;
+        border-radius: 50%;
+    }
+
+    .c-seller-name {
+        font-size: 1.05rem;
         font-weight: 800;
+        color: #fff;
+        margin-bottom: 2px;
+    }
+
+    .c-seller-role {
+        font-size: .78rem;
+        color: rgba(255,255,255,.75);
+        background: rgba(255,255,255,.15);
+        padding: 3px 12px;
+        border-radius: 20px;
+        display: inline-block;
+        margin-bottom: 4px;
+    }
+
+    .contact-body {
+        padding: 20px 22px 22px;
+    }
+
+    .phone-reveal-box {
+        background: linear-gradient(135deg, #15803d, #16a34a);
+        border-radius: var(--r12);
+        overflow: hidden;
+        display: flex;
+        margin-bottom: 14px;
+        box-shadow: 0 4px 16px rgba(22,163,74,.25);
+        transition: var(--tr);
+    }
+
+        .phone-reveal-box:hover {
+            box-shadow: 0 6px 22px rgba(22,163,74,.35);
+        }
+
+    .btn-reveal {
+        flex: 1;
+        background: transparent;
         border: none;
-        padding: 12px 15px;
-        font-size: 1.1rem;
-        letter-spacing: 0.5px;
+        color: #fff;
+        font-weight: 800;
+        font-size: 1rem;
+        padding: 13px 16px;
         text-align: left;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 
-    .btn-copy {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
+    .btn-copy-ph {
+        background: rgba(255,255,255,.18);
         border: none;
-        padding: 12px 20px;
-        font-weight: bold;
-        transition: 0.3s;
+        color: #fff;
+        padding: 13px 18px;
+        cursor: pointer;
+        transition: var(--tr);
+        display: none;
     }
 
-        .btn-copy:hover {
-            background: rgba(255, 255, 255, 0.4);
+        .btn-copy-ph:hover {
+            background: rgba(255,255,255,.32);
         }
 
     .btn-zalo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         background: #0068FF;
-        color: white;
+        color: #fff;
         font-weight: 700;
-        border-radius: 12px;
-        transition: 0.3s;
+        font-size: .9rem;
+        padding: 11px 0;
+        border-radius: var(--r12);
+        text-decoration: none;
+        transition: var(--tr);
+        border: none;
+        width: 100%;
     }
 
         .btn-zalo:hover {
             background: #0054cc;
-            color: white;
+            color: #fff;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 104, 255, 0.3);
+            box-shadow: 0 6px 16px rgba(0,104,255,.3);
         }
 
     .btn-fb {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         background: #1877F2;
-        color: white;
+        color: #fff;
         font-weight: 700;
-        border-radius: 12px;
-        transition: 0.3s;
+        font-size: .9rem;
+        padding: 11px 0;
+        border-radius: var(--r12);
+        text-decoration: none;
+        transition: var(--tr);
+        border: none;
+        width: 100%;
     }
 
         .btn-fb:hover {
             background: #145dbf;
-            color: white;
+            color: #fff;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(24, 119, 242, 0.3);
+            box-shadow: 0 6px 16px rgba(24,119,242,.3);
         }
 
-    .locked-contact {
-        position: relative;
-        overflow: hidden;
-        border-radius: 12px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 20px;
+    .action-btns {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .action-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        font-weight: 700;
+        font-size: .9rem;
+        padding: 12px 0;
+        border-radius: var(--r12);
+        border: none;
+        cursor: pointer;
+        transition: var(--tr);
+        text-decoration: none;
         text-align: center;
     }
 
-    .locked-content {
-        filter: blur(5px);
-        opacity: 0.5;
+        .action-btn:hover {
+            transform: translateY(-2px);
+        }
+
+    .ab-consult {
+        background: linear-gradient(135deg,#0ea5e9,#0284c7);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(14,165,233,.25);
+    }
+
+        .ab-consult:hover {
+            box-shadow: 0 6px 20px rgba(14,165,233,.38);
+            color: #fff;
+        }
+
+    .ab-chat {
+        background: var(--p1);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(26,86,219,.25);
+    }
+
+        .ab-chat:hover {
+            background: var(--p2);
+            box-shadow: 0 6px 20px rgba(26,86,219,.38);
+            color: #fff;
+        }
+
+    .ab-appt {
+        background: linear-gradient(135deg,#16a34a,#15803d);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(22,163,74,.25);
+    }
+
+        .ab-appt:hover {
+            box-shadow: 0 6px 20px rgba(22,163,74,.38);
+            color: #fff;
+        }
+
+    /* ── Utility buttons row ─────────────────────────────────────── */
+    .util-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .util-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        padding: 10px 6px;
+        border-radius: var(--r8);
+        border: 1.5px solid var(--bor);
+        background: var(--sur);
+        font-size: .78rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: var(--tr);
+    }
+
+        .util-btn i {
+            font-size: 1.15rem;
+        }
+
+        .util-btn:hover {
+            background: var(--bg);
+            border-color: var(--p1);
+        }
+
+        .util-btn.saved {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            color: var(--acc);
+        }
+
+            .util-btn.saved i {
+                color: var(--acc);
+            }
+
+    /* ── Locked overlay ──────────────────────────────────────────── */
+    .locked-wrap {
+        position: relative;
+        border-radius: var(--r12);
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .locked-blur {
+        filter: blur(6px);
+        opacity: .45;
         pointer-events: none;
         user-select: none;
     }
@@ -279,654 +891,1178 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        z-index: 10;
-        background: rgba(255,255,255,0.6);
+        gap: 8px;
+        background: rgba(255,255,255,.55);
+        backdrop-filter: blur(2px);
     }
 
-    .warning-box {
-        background-color: #fffbeb;
-        border-left: 5px solid #f59e0b;
-        padding: 15px 20px;
-        border-radius: 0 12px 12px 0;
-    }
-
-    .mini-card {
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        overflow: hidden;
-        background: #fff;
-        text-decoration: none;
-        transition: 0.3s;
-        display: block;
-    }
-
-        .mini-card:hover {
-            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-            transform: translateY(-3px);
-            border-color: #0061f2;
+        .locked-overlay i {
+            font-size: 1.6rem;
+            color: var(--tx);
         }
 
-        .mini-card img {
-            width: 100%;
-            height: 140px;
-            object-fit: cover;
+        .locked-overlay p {
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--tx);
+            margin: 0;
         }
 
-    .comment-item {
+    /* ── Mini property card ──────────────────────────────────────── */
+    .mini-prop {
         display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-        border-bottom: 1px solid #f1f5f9;
-        padding-bottom: 20px;
+        gap: 12px;
+        padding: 12px;
+        border-radius: var(--r12);
+        border: 1px solid var(--bor);
+        background: var(--sur);
+        text-decoration: none;
+        transition: var(--tr);
+        align-items: flex-start;
     }
 
-    .comment-avatar {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
+        .mini-prop:hover {
+            box-shadow: var(--sh1);
+            border-color: var(--p1);
+            transform: translateX(3px);
+        }
+
+    .mini-prop-img {
+        width: 80px;
+        height: 64px;
+        border-radius: var(--r8);
         object-fit: cover;
+        flex-shrink: 0;
     }
 
-    .comment-box {
-        background: #f8fafc;
-        padding: 15px;
-        border-radius: 0 16px 16px 16px;
-        border: 1px solid #e2e8f0;
-        flex-grow: 1;
+    .mini-prop-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mini-prop-title {
+        font-size: .85rem;
+        font-weight: 700;
+        color: var(--tx);
+        margin-bottom: 4px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .mini-prop-price {
+        color: var(--acc);
+        font-weight: 800;
+        font-size: .9rem;
+    }
+
+    .mini-prop-meta {
+        font-size: .75rem;
+        color: var(--mu);
+        margin-top: 3px;
+    }
+
+    /* ── Seller's other listings card ────────────────────────────── */
+    .seller-listing-card {
+        display: block;
+        border-radius: var(--r12);
+        overflow: hidden;
+        border: 1px solid var(--bor);
+        text-decoration: none;
+        transition: var(--tr);
+        background: var(--sur);
+    }
+
+        .seller-listing-card:hover {
+            box-shadow: var(--sh2);
+            transform: translateY(-3px);
+            border-color: var(--p1);
+        }
+
+        .seller-listing-card img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            display: block;
+        }
+
+    .slc-body {
+        padding: 10px 12px 12px;
+    }
+
+    .slc-title {
+        font-size: .83rem;
+        font-weight: 700;
+        color: var(--tx);
+        margin-bottom: 4px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .slc-price {
+        color: var(--acc);
+        font-weight: 800;
+        font-size: .88rem;
+    }
+
+    /* ── Empty State ─────────────────────────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 36px 20px;
+        color: var(--mu);
+        background: var(--bg);
+        border-radius: var(--r12);
+        border: 1px dashed var(--bor);
+    }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            opacity: .35;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: .9rem;
+        }
+
+    /* ── Progress Bar for stats ──────────────────────────────────── */
+    .stat-bar-row {
+        margin-bottom: 12px;
+    }
+
+    .stat-bar-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: .83rem;
+        font-weight: 600;
+        color: var(--mu);
+        margin-bottom: 5px;
+    }
+
+    .stat-bar-track {
+        background: var(--bg);
+        height: 7px;
+        border-radius: 99px;
+        overflow: hidden;
+    }
+
+    .stat-bar-fill {
+        height: 100%;
+        border-radius: 99px;
+        background: linear-gradient(90deg, var(--p1), #60a5fa);
+        transition: width .8s ease;
+    }
+
+    /* ── Modal improvements ──────────────────────────────────────── */
+    .modal-content {
+        border: none;
+        border-radius: var(--r20);
+        box-shadow: var(--sh3);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        border-bottom: none;
+        padding: 22px 26px 14px;
+    }
+
+    .modal-body {
+        padding: 6px 26px 10px;
+    }
+
+    .modal-footer {
+        border-top: 1px solid var(--bg);
+        padding: 14px 26px 22px;
+    }
+
+    .form-control, .form-select {
+        border: 1.5px solid var(--bor);
+        border-radius: var(--r8);
+        padding: 10px 14px;
+        font-size: .9rem;
+        transition: var(--tr);
+        background: var(--bg);
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--p1);
+            box-shadow: 0 0 0 4px rgba(26,86,219,.1);
+            background: var(--sur);
+        }
+
+    .form-label {
+        font-weight: 700;
+        font-size: .87rem;
+        color: var(--tx);
+        margin-bottom: 6px;
+    }
+
+    /* ── Fullscreen image modal ──────────────────────────────────── */
+    #galleryModal .modal-dialog {
+        max-width: 95vw;
+    }
+
+    #galleryModal .modal-content {
+        background: #000;
+        border-radius: var(--r12);
+    }
+
+    #galleryModal .modal-body {
+        padding: 6px;
+    }
+
+    #galleryDisplayImg {
+        max-height: 88vh;
+        max-width: 100%;
+        object-fit: contain;
+        border-radius: var(--r8);
+        display: block;
+        margin: auto;
+    }
+
+    /* ── Loading spinner inside btn ──────────────────────────────── */
+    .btn-loading {
+        pointer-events: none;
+        opacity: .7;
+    }
+
+    /* ── Responsive tweaks ───────────────────────────────────────── */
+    @@media (max-width: 768px) {
+        .hero-img
+
+    {
+        height: 280px;
+    }
+
+    .prop-title {
+        font-size: 1.25rem;
+    }
+
+    .price-area-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .pa-cell:last-child {
+        grid-column: 1/-1;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dg-row:nth-child(odd) {
+        border-right: none;
+    }
+
+    .sec-card, .info-card {
+        padding: 20px 16px;
+    }
+
+    }
+
+    /* ── Smooth fade-in animation for page elements ──────────────── */
+    @@keyframes fadeUp {
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    .fade-up {
+        animation: fadeUp .5s ease forwards;
+    }
+
+    .fade-up-1 {
+        animation-delay: .05s;
+        opacity: 0;
+    }
+
+    .fade-up-2 {
+        animation-delay: .12s;
+        opacity: 0;
+    }
+
+    .fade-up-3 {
+        animation-delay: .20s;
+        opacity: 0;
+    }
+
+    .fade-up-4 {
+        animation-delay: .28s;
+        opacity: 0;
     }
 </style>
 
+@* ─────────────────────────────────────────────────────────── *@
+@* BREADCRUMB                                                    *@
+@* ─────────────────────────────────────────────────────────── *@
+<div class="bc-wrap">
+    <div class="container">
+        <div class="bc-inner">
+            <a href="/"><i class="bi bi-house-door-fill"></i> Trang chủ</a>
+            <span class="sep">›</span>
+            <a href="/BatDongSan/@(isRent ? "NhaDatChoThue" : "NhaDatBan")">@(isRent ? "Cho thuê" : "Nhà đất bán")</a>
+            <span class="sep">›</span>
+            <a href="#">@Model.PropertyType?.TypeName</a>
+            <span class="sep">›</span>
+            <a href="#">@Model.Ward?.Area?.AreaName</a>
+            <span class="sep">›</span>
+            <span class="cur">@Model.Ward?.WardName</span>
+        </div>
+    </div>
+</div>
+
 <div class="container my-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb bg-white p-3 rounded-4 shadow-sm border mb-4 fw-medium">
-            <li class="breadcrumb-item"><a href="/" class="text-decoration-none text-primary"><i class="bi bi-house-door-fill"></i> Trang chủ</a></li>
-            <li class="breadcrumb-item"><a href="/BatDongSan/@(isRent ? "NhaDatChoThue" : "NhaDatBan")" class="text-decoration-none">@(isRent ? "Cho thuê" : "Mua bán")</a></li>
-            <li class="breadcrumb-item"><a href="#" class="text-decoration-none">@Model.PropertyType?.TypeName</a></li>
-            <li class="breadcrumb-item active text-dark">@Model.Ward?.Area?.AreaName</li>
-        </ol>
-    </nav>
+
+    @* Status warning for non-approved *@
+    @if (Model.Status == "Pending" && (isAdminOrStaff || isOwner))
+    {
+        <div class="status-bar fade-up fade-up-1">
+            <i class="bi bi-hourglass-split me-2"></i>
+            <strong>Tin đăng đang chờ kiểm duyệt.</strong> Bài đăng chỉ hiển thị với bạn và Admin cho đến khi được phê duyệt.
+        </div>
+    }
 
     <div class="row g-4">
+        @* ═══════════════════════════════ LEFT COLUMN ═══════════════════════════════ *@
         <div class="col-lg-8">
-            <div class="section-card p-2 position-relative mb-4">
-                <img id="main-hero-img" src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" class="prop-hero-img" alt="@Model.Title" onerror="this.src='/images/no-image.jpg'" data-bs-toggle="modal" data-bs-target="#imageGalleryModal">
-                <div class="img-overlay-btn" data-bs-toggle="modal" data-bs-target="#imageGalleryModal">
-                    <i class="bi bi-images me-2"></i> Xem tất cả ảnh (@totalImages)
+
+            @* ── GALLERY ── *@
+            <div class="gallery-wrap fade-up fade-up-1 mb-3">
+                <div class="gallery-top-badges">
+                    @if (Model.PackageID != null && Model.PostServicePackage?.PriorityLevel > 1)
+                    {
+                        <span class="badge-vip"><i class="bi bi-star-fill me-1"></i>VIP @Model.PostServicePackage.PackageName</span>
+                    }
+                    <span class="badge-type">@(isRent ? "Cho thuê" : "Bán")</span>
                 </div>
 
-                @if (propertyImages.Any())
-                {
-                    <div class="thumb-gallery-scroll">
-                        <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" class="sub-img-thumb active" onclick="changeMainImg(this)" onerror="this.src='/images/no-image.jpg'" />
-                        @foreach (var img in propertyImages)
+                <img id="heroImg"
+                     src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
+                     class="hero-img"
+                     alt="@Model.Title"
+                     onerror="this.src='/images/no-image.jpg'"
+                     data-bs-toggle="modal" data-bs-target="#galleryModal" />
+
+                <div class="gallery-overlay"></div>
+
+                <button class="gallery-photo-btn" data-bs-toggle="modal" data-bs-target="#galleryModal">
+                    <i class="bi bi-images"></i> @totalImages ảnh
+                </button>
+            </div>
+
+            @if (propertyImages.Any())
+            {
+                <div class="thumb-row mb-3">
+                    <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
+                         class="thumb-item active"
+                         onclick="switchImg(this)"
+                         onerror="this.src='/images/no-image.jpg'" />
+                    @foreach (var img in propertyImages)
+                    {
+                        <img src="@img.ImageURL" class="thumb-item" onclick="switchImg(this)" onerror="this.src='/images/no-image.jpg'" />
+                    }
+                </div>
+            }
+
+            @* ── TITLE + PRICE CARD ── *@
+            <div class="info-card fade-up fade-up-2">
+                <div class="d-flex justify-content-between align-items-start mb-1 gap-3 flex-wrap">
+                    <h1 class="prop-title flex-1">@Model.Title</h1>
+                    <div class="d-flex gap-2 flex-shrink-0 align-items-start">
+                        @if (isOwner)
                         {
-                            <img src="@img.ImageURL" class="sub-img-thumb" onclick="changeMainImg(this)" onerror="this.src='/images/no-image.jpg'" />
+                            <a href="/Property/Edit/@Model.PropertyID" class="btn btn-sm btn-outline-secondary rounded-pill fw-bold">
+                                <i class="bi bi-pencil me-1"></i>Sửa tin
+                            </a>
                         }
                     </div>
-                }
+                </div>
+                <div class="prop-address">
+                    <i class="bi bi-geo-alt-fill"></i>
+                    <span>@fullAddress</span>
+                </div>
+
+                <div class="price-area-row">
+                    <div class="pa-cell">
+                        <div class="pa-label">Mức giá</div>
+                        <div class="pa-val-price">@priceDisplay</div>
+                        @if (isRent)
+                        {
+                            <div class="pa-unit">/ tháng</div>
+                        }
+                    </div>
+                    <div class="pa-cell">
+                        <div class="pa-label">Diện tích</div>
+                        <div class="pa-val">@Model.AreaSize m²</div>
+                    </div>
+                    <div class="pa-cell">
+                        <div class="pa-label">Đơn giá</div>
+                        <div class="pa-val" style="font-size:1.1rem;">@(string.IsNullOrEmpty(pricePerM2) ? "—" : pricePerM2)</div>
+                    </div>
+                </div>
+
+                @* Quick stats pills *@
+                <div class="quick-stats">
+                    @if (!string.IsNullOrEmpty(bed))
+                    {
+                        <span class="qs-pill"><i class="bi bi-door-closed"></i> @bed phòng ngủ</span>
+                    }
+                    @if (!string.IsNullOrEmpty(bath))
+                    {
+                        <span class="qs-pill"><i class="bi bi-droplet"></i> @bath phòng tắm</span>
+                    }
+                    @if (!string.IsNullOrEmpty(direction))
+                    {
+                        <span class="qs-pill"><i class="bi bi-compass"></i> Hướng @direction</span>
+                    }
+                    @if (!string.IsNullOrEmpty(legal))
+                    {
+                        <span class="qs-pill"><i class="bi bi-patch-check"></i> @legal</span>
+                    }
+                    <span class="qs-pill"><i class="bi bi-eye"></i> @Model.Views lượt xem</span>
+                    <span class="qs-pill"><i class="bi bi-calendar3"></i> Đăng @Model.CreatedAt.ToString("dd/MM/yyyy")</span>
+                </div>
             </div>
 
-            <div class="section-card">
-                <h1 class="fw-bold mb-3 lh-base" style="font-size: 1.6rem; color: #0f172a;">@Model.Title</h1>
-                <p class="text-secondary fs-6 mb-4"><i class="bi bi-geo-alt-fill text-danger me-2"></i>@fullAddress</p>
-
-                <div class="d-flex align-items-center justify-content-between border-top pt-4">
-                    <div>
-                        <span class="d-block text-muted mb-1 fw-bold text-uppercase" style="font-size: 0.8rem;">Mức giá</span>
-                        <span class="prop-price">
-                            @(Model.Price.HasValue ? (Model.Price.Value >= 1000000000 ? (Model.Price.Value / 1000000000).ToString("0.##") + " Tỷ" : (Model.Price.Value / 1000000).ToString("0.##") + " Triệu") : "Thỏa thuận")
-                            @if (isRent)
-                            {
-                                <span class="fs-5 text-muted fw-normal">/tháng</span>
-                            }
+            @* ── DETAIL TABLE ── *@
+            <div class="sec-card fade-up fade-up-3">
+                <div class="sec-title"><i class="bi bi-list-ul"></i> Thông tin chi tiết</div>
+                <div class="detail-grid">
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-hash"></i>Mã tin</span>
+                        <span class="dg-val highlight">#@Model.PropertyID</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-geo-alt"></i>Khu vực</span>
+                        <span class="dg-val">@Model.Ward?.Area?.AreaName</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-pin-map"></i>Phường/Xã</span>
+                        <span class="dg-val">@Model.Ward?.WardName</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-buildings"></i>Dự án</span>
+                        <span class="dg-val">@(Model.Project?.ProjectName ?? "Không có")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-tag"></i>Loại hình</span>
+                        <span class="dg-val">@Model.PropertyType?.TypeName</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-arrow-left-right"></i>Giao dịch</span>
+                        <span class="dg-val">@(isRent ? "Cho thuê" : "Mua bán")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-door-closed"></i>Phòng ngủ</span>
+                        <span class="dg-val">@(bed ?? "N/A")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-droplet"></i>Phòng tắm</span>
+                        <span class="dg-val">@(bath ?? "N/A")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-compass"></i>Hướng nhà</span>
+                        <span class="dg-val">@(direction ?? "N/A")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-patch-check"></i>Pháp lý</span>
+                        <span class="dg-val green">@(legal ?? "Đang cập nhật")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-calendar-plus"></i>Ngày đăng</span>
+                        <span class="dg-val">@Model.CreatedAt.ToString("dd/MM/yyyy")</span>
+                    </div>
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-arrow-clockwise"></i>Cập nhật</span>
+                        <span class="dg-val green">
+                            @(Model.UpdatedAt.HasValue? Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm") : Model.CreatedAt.ToString("dd/MM/yyyy"))
                         </span>
                     </div>
-                    <div class="text-end">
-                        <span class="d-block text-muted mb-1 fw-bold text-uppercase" style="font-size: 0.8rem;">Diện tích</span>
-                        <span class="fs-3 fw-bold text-dark">@Model.AreaSize m²</span>
+                    @if (Model.VipExpiryDate.HasValue)
+                    {
+                        <div class="dg-row">
+                            <span class="dg-key"><i class="bi bi-clock-history"></i>Hết hạn VIP</span>
+                            <span class="dg-val">@Model.VipExpiryDate.Value.ToString("dd/MM/yyyy")</span>
+                        </div>
+                    }
+                    <div class="dg-row">
+                        <span class="dg-key"><i class="bi bi-eye"></i>Lượt xem</span>
+                        <span class="dg-val">@Model.Views lượt</span>
                     </div>
                 </div>
             </div>
 
-            <div class="section-card">
-                <h4 class="section-title"><i class="bi bi-ui-checks-grid"></i> Thông tin chi tiết</h4>
-                <div class="overview-grid">
-                    <div class="overview-item"><span>Mã tin</span><span class="text-primary">#@Model.PropertyID</span></div>
-                    <div class="overview-item"><span>Khu vực</span><span>@Model.Ward?.Area?.AreaName</span></div>
-                    <div class="overview-item"><span>Loại hình</span><span>@Model.PropertyType?.TypeName</span></div>
-                    <div class="overview-item"><span>Giao dịch</span><span>@(isRent ? "Cho thuê" : "Bán")</span></div>
-                    <div class="overview-item"><span>Phòng ngủ</span><span>@(bed ?? "N/A")</span></div>
-                    <div class="overview-item"><span>Phòng tắm</span><span>@(bath ?? "N/A")</span></div>
-                    <div class="overview-item"><span>Hướng nhà</span><span>@(direction ?? "N/A")</span></div>
-                    <div class="overview-item"><span>Pháp lý</span><span>@(legal ?? "Đang cập nhật")</span></div>
-                    <div class="overview-item"><span>Ngày đăng</span><span>@Model.CreatedAt.ToString("dd/MM/yyyy")</span></div>
-                    <div class="overview-item"><span>Lượt xem</span><span>@Model.Views lượt</span></div>
-                </div>
+            @* ── DESCRIPTION ── *@
+            <div class="sec-card fade-up fade-up-3">
+                <div class="sec-title"><i class="bi bi-file-text"></i> Mô tả bất động sản</div>
+                <div id="descBody" class="desc-body desc-collapsed">@Model.Description</div>
+                <button id="readMoreBtn" class="read-more-btn" onclick="expandDesc()">
+                    <i class="bi bi-chevron-down me-1"></i> Xem thêm nội dung
+                </button>
             </div>
 
-            <div class="section-card">
-                <h4 class="section-title"><i class="bi bi-file-text"></i> Mô tả bất động sản</h4>
-                <div class="text-dark" style="line-height: 1.8; font-size: 1.05rem; white-space: pre-wrap;">@Model.Description</div>
-            </div>
-
-            <div class="warning-box mb-4 shadow-sm">
-                <h6 class="fw-bold text-danger mb-2"><i class="bi bi-shield-exclamation me-2"></i>Cảnh báo an toàn giao dịch:</h6>
-                <ul class="mb-0 text-dark small" style="line-height: 1.6;">
-                    <li>Không chuyển khoản ngân hàng khi chưa gặp mặt và xác minh rõ ràng.</li>
-                    <li>Luôn yêu cầu xem giấy tờ pháp lý bản gốc trước khi tiến hành giao dịch.</li>
-                    <li>Hệ thống không chịu trách nhiệm với các nội dung do người dùng tự đăng tải.</li>
-                    <li>Phát hiện tin giả, lừa đảo? <a href="#" class="text-danger fw-bold" data-bs-toggle="modal" data-bs-target="#reportModal">Báo cáo ngay</a>.</li>
-                </ul>
-            </div>
-
+            @* ── AMENITIES ── *@
             @if (!string.IsNullOrEmpty(amenities))
             {
-                <div class="section-card mt-4">
-                    <h4 class="section-title"><i class="bi bi-stars"></i> Tiện ích nổi bật</h4>
-                    <div class="d-flex flex-wrap">
+                <div class="sec-card fade-up fade-up-3">
+                    <div class="sec-title"><i class="bi bi-stars"></i> Tiện ích nổi bật</div>
+                    <div class="amenity-grid">
                         @foreach (var am in amenities.Split(','))
                         {
-                            <span class="amenity-pill"><i class="bi bi-check-circle-fill text-success me-2 fs-5"></i>@am.Trim()</span>
+                            <span class="am-pill">
+                                <i class="bi bi-check-circle-fill"></i>@am.Trim()
+                            </span>
                         }
                     </div>
                 </div>
             }
 
-            <div class="section-card p-4 overflow-hidden mt-4">
-                <h4 class="section-title"><i class="bi bi-map"></i> Vị trí trên bản đồ</h4>
-                <div class="rounded-4 overflow-hidden border">
-                    <iframe width="100%" height="350" style="border:0;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=@mapQuery&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
+            @* ── SAFETY WARNING ── *@
+            <div class="warn-box fade-up fade-up-3">
+                <i class="bi bi-shield-exclamation"></i>
+                <div>
+                    <h6><i class="bi bi-exclamation-triangle-fill me-1"></i> Lưu ý an toàn giao dịch</h6>
+                    <ul>
+                        <li>Không chuyển khoản khi chưa gặp mặt trực tiếp và xác minh giấy tờ pháp lý bản gốc.</li>
+                        <li>Luôn yêu cầu xem sổ đỏ/sổ hồng gốc và công chứng hợp đồng tại văn phòng công chứng.</li>
+                        <li>Cẩn thận với các trường hợp yêu cầu đặt cọc trước khi ký hợp đồng chính thức.</li>
+                        <li>Hệ thống không chịu trách nhiệm với các nội dung do người dùng tự đăng tải.</li>
+                        <li>Phát hiện tin giả / lừa đảo? <a href="#" data-bs-toggle="modal" data-bs-target="#reportModal" class="fw-bold text-danger">Báo cáo ngay tại đây</a>.</li>
+                    </ul>
                 </div>
             </div>
 
-            <div class="section-card mt-4">
-                <h4 class="section-title"><i class="bi bi-chat-text"></i> Bình luận & Đánh giá (@comments.Count())</h4>
+            @* ── MAP ── *@
+            <div class="sec-card fade-up fade-up-4">
+                <div class="sec-title"><i class="bi bi-map"></i> Vị trí trên bản đồ</div>
+                <div class="map-wrap">
+                    <iframe width="100%" height="360" style="border:0;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
+                            src="https://maps.google.com/maps?q=@mapQuery&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
+                </div>
+            </div>
+
+            @* ── SELLER'S OTHER LISTINGS ── *@
+            @if (userProps.Any())
+            {
+                <div class="sec-card fade-up fade-up-4">
+                    <div class="sec-title"><i class="bi bi-person-lines-fill"></i> Tin khác của người đăng</div>
+                    <div class="row g-3">
+                        @foreach (var p in userProps)
+                        {
+                            string pPrice = p.Price.HasValue
+                            ? (p.Price >= 1_000_000_000 ? (p.Price / 1_000_000_000M)?.ToString("0.##") + " Tỷ" : (p.Price / 1_000_000M)?.ToString("0.##") + " Tr")
+                            : "Thỏa thuận";
+                            <div class="col-6 col-md-3">
+                                <a href="/Property/Details/@p.PropertyID" class="seller-listing-card">
+                                    <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)" onerror="this.src='/images/no-image.jpg'" />
+                                    <div class="slc-body">
+                                        <div class="slc-title">@p.Title</div>
+                                        <div class="slc-price">@pPrice</div>
+                                    </div>
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ── COMMENTS ── *@
+            <div class="sec-card fade-up fade-up-4">
+                <div class="sec-title">
+                    <i class="bi bi-chat-text"></i>
+                    Bình luận & Đánh giá
+                    <span class="badge bg-primary rounded-pill ms-1" style="font-size:.75rem;">@comments.Count()</span>
+                </div>
 
                 @if (isAuthenticated)
                 {
-                    <div class="d-flex gap-3 mb-5">
-                        <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")" class="comment-avatar border">
+                    <div class="d-flex gap-3 mb-4">
+                        <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
+                             class="c-avatar" style="width:46px;height:46px;" />
                         <div class="flex-grow-1">
-                            <textarea id="commentContent" class="form-control bg-light rounded-4" rows="3" placeholder="Chia sẻ trải nghiệm hoặc nhận xét của bạn về bất động sản này..."></textarea>
+                            <textarea id="commentContent" class="form-control" rows="3"
+                                  placeholder="Chia sẻ nhận xét của bạn về bất động sản này..."></textarea>
                             <div class="d-flex justify-content-between align-items-center mt-2">
-                                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Bình luận sẽ được hiển thị sau khi Ban quản trị duyệt.</small>
-                                <button type="button" id="btnSubmitComment" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Gửi bình luận</button>
+                                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Bình luận sẽ hiển thị sau khi Admin duyệt.</small>
+                                <button id="btnComment" type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-size:.88rem;">
+                                    <i class="bi bi-send-fill me-1"></i>Gửi
+                                </button>
                             </div>
                         </div>
                     </div>
                 }
                 else
                 {
-                    <div class="alert alert-secondary border-0 rounded-4 text-center mb-5">
-                        Vui lòng <a href="/Account/Login" class="fw-bold text-primary">đăng nhập</a> để tham gia bình luận.
+                    <div class="empty-state mb-4">
+                        <i class="bi bi-lock"></i>
+                        <p>Vui lòng <a href="/Account/Login" class="fw-bold text-primary">đăng nhập</a> để tham gia bình luận.</p>
                     </div>
                 }
 
-                <div class="comments-list">
-                    @if (comments.Any())
+                @if (comments.Any())
+                {
+                    @foreach (var c in comments)
                     {
-                        foreach (var c in comments)
-                        {
-                            <div class="comment-item">
-                                <img src="@(c.User?.Avatar ?? "/images/avatars/default-user.png")" class="comment-avatar border shadow-sm">
-                                <div class="comment-box">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <strong class="text-dark">@c.User?.FullName</strong>
-                                        <small class="text-muted">@c.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
-                                    </div>
-                                    <p class="mb-0 text-secondary" style="white-space:pre-wrap;">@c.Content</p>
+                        <div class="comment-item">
+                            <img src="@(c.User?.Avatar ?? "/images/avatars/default-user.png")" class="c-avatar" />
+                            <div class="c-bubble">
+                                <div class="c-header">
+                                    <span class="c-name">@c.User?.FullName</span>
+                                    <span class="c-time"><i class="bi bi-clock me-1"></i>@c.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
                                 </div>
+                                <p class="c-text">@c.Content</p>
                             </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="text-center py-4 text-muted bg-light rounded-4 border">
-                            <i class="bi bi-chat-square-dots fs-1 mb-2 d-block opacity-50"></i>
-                            <p class="mb-0">Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
                         </div>
                     }
-                </div>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-chat-square-dots"></i>
+                        <p>Chưa có bình luận nào. Hãy là người đầu tiên!</p>
+                    </div>
+                }
             </div>
-        </div>
 
+        </div>@* /col-lg-8 *@
+
+        @* ═══════════════════════════════ RIGHT SIDEBAR ═══════════════════════════ *@
         <div class="col-lg-4">
-            <div class="contact-card mb-4">
-                <div class="text-center border-bottom pb-4 mb-4">
-                    <p class="text-muted small fw-bold text-uppercase mb-3">Thông tin liên hệ</p>
-                    <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")" alt="Avatar" class="contact-avatar mb-3 shadow-sm">
-                    <h4 class="fw-bold text-dark mb-1">@(Model.User?.FullName ?? "Người dùng ẩn danh")</h4>
-                    <div class="text-warning small mb-3">
-                        <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-half"></i>
-                        <span class="text-muted ms-1">(Chưa có đánh giá)</span>
+            <div class="contact-sticky">
+
+                @* ── CONTACT CARD ── *@
+                <div class="contact-card fade-up fade-up-2">
+                    <div class="contact-header">
+                        <a href="/Nguoi-Dang-Tin/@Model.UserID" title="Xem hồ sơ người đăng">
+                            <div class="c-avatar-wrap">
+                                <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                     class="c-avatar-lg" alt="Avatar" />
+                                <span class="c-online-dot"></span>
+                            </div>
+                        </a>
+                        <div class="mt-2">
+                            <a href="/Nguoi-Dang-Tin/@Model.UserID" class="c-seller-name text-decoration-none" title="Xem hồ sơ người đăng">
+                                @(Model.User?.FullName ?? "Người dùng ẩn danh")
+                            </a>
+                        </div>                        <span class="c-seller-role">Người đăng tin</span>
                     </div>
 
-                    @if (isAuthenticated)
-                    {
-                        <div class="phone-box">
-                            <button class="btn-call" id="btnRevealPhone">
-                                <i class="bi bi-telephone-fill me-2"></i>
-                                <span id="phoneText">@(!string.IsNullOrEmpty(Model.User?.Phone) ? Model.User.Phone.Substring(0, 4) + " *** *** (Bấm hiện số)" : "Chưa có SĐT")</span>
+                    <div class="contact-body">
+
+                        @if (isAuthenticated)
+                        {
+                            @* Phone reveal *@
+                            <div class="phone-reveal-box" id="phoneBox">
+                                <button class="btn-reveal" id="btnReveal">
+                                    <i class="bi bi-telephone-fill"></i>
+                                    <span id="phoneText">
+                                        @(!string.IsNullOrEmpty(Model.User?.Phone)
+                                                                            ? Model.User.Phone.Substring(0, Math.Min(4, Model.User.Phone.Length)) + " *** *** – Bấm để hiện"
+                                                                            : "Chưa cập nhật SĐT")
+                                </span>
                             </button>
-                            <button class="btn-copy" id="btnCopyPhone" title="Sao chép số" style="display: none;">
+                            <button class="btn-copy-ph" id="btnCopyPh" title="Sao chép">
                                 <i class="bi bi-copy"></i>
                             </button>
                         </div>
 
-                        <div class="row g-2 mb-3">
+                            @* Social *@
+                            <div class="row g-2 mb-3">
                             @if (!string.IsNullOrEmpty(zaloLink))
-                            {
-                                <div class="col-6"><a href="@zaloLink" target="_blank" class="btn btn-zalo w-100 py-2"><i class="bi bi-chat-dots-fill me-1"></i> Zalo</a></div>
-                            }
-                            @if (!string.IsNullOrEmpty(fbLink))
-                            {
-                                <div class="col-6"><a href="@fbLink" target="_blank" class="btn btn-fb w-100 py-2"><i class="bi bi-facebook me-1"></i> Facebook</a></div>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="locked-contact mb-3">
-                            <div class="locked-content">
-                                <div class="phone-box mb-2"><button class="btn-call w-100 py-3"><i class="bi bi-telephone-fill"></i> 0987 *** ***</button></div>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-zalo w-50 py-2"><i class="bi bi-chat-dots-fill"></i> Zalo</button>
-                                    <button class="btn btn-fb w-50 py-2"><i class="bi bi-facebook"></i> FB</button>
+                                {
+                                    <div class="@(!string.IsNullOrEmpty(fbLink) ? "col-6" : "col-12")">
+                                        <a href="@zaloLink" target="_blank" class="btn-zalo">
+                                            <i class="bi bi-chat-dots-fill"></i> Zalo
+                                        </a>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(fbLink))
+                                {
+                                    <div class="@(!string.IsNullOrEmpty(zaloLink) ? "col-6" : "col-12")">
+                                        <a href="@fbLink" target="_blank" class="btn-fb">
+                                            <i class="bi bi-facebook"></i> Facebook
+                                        </a>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            @* Locked blur *@
+                            <div class="locked-wrap mb-3">
+                                <div class="locked-blur">
+                                    <div class="phone-reveal-box" style="margin-bottom:10px;">
+                                        <button class="btn-reveal w-100">
+                                            <i class="bi bi-telephone-fill"></i> 0987 *** ***
+                                        </button>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn-zalo w-50">Zalo</button>
+                                        <button class="btn-fb w-50">Facebook</button>
+                                    </div>
+                                </div>
+                                <div class="locked-overlay">
+                                    <i class="bi bi-lock-fill"></i>
+                                    <p>Đăng nhập để xem liên hệ</p>
+                                    <a href="/Account/Login" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm">Đăng nhập ngay</a>
                                 </div>
                             </div>
-                            <div class="locked-overlay">
-                                <i class="bi bi-lock-fill text-dark fs-2 mb-2"></i>
-                                <p class="small fw-bold text-dark mb-2">Thông tin bị ẩn để bảo mật</p>
-                                <a href="/Account/Login" class="btn btn-primary btn-sm px-4 rounded-pill fw-bold shadow-sm">Đăng nhập để xem</a>
-                            </div>
-                        </div>
-                    }
+                        }
 
-                    <button class="btn btn-info text-white w-100 mb-2 py-2 fw-bold shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#consultationModal">
-                        <i class="bi bi-headset me-2"></i> YÊU CẦU TƯ VẤN MIỄN PHÍ
-                    </button>
-
-                    @if (!isOwner)
-                    {
-                        <button class="btn btn-success w-100 mb-2 py-2 fw-bold shadow-sm rounded-3" data-bs-toggle="modal" data-bs-target="#appointmentModal">
-                            <i class="bi bi-calendar-check-fill me-2"></i> ĐẶT LỊCH XEM NHÀ
-                        </button>
-
-                        @if (isAuthenticated)
-                        {
-                            <button class="btn btn-outline-primary w-100 py-2 fw-bold border-2 rounded-3" data-bs-toggle="modal" data-bs-target="#coBrokerModal">
-                                <i class="bi bi-person-vcard-fill me-2"></i> XIN NHẬN BÁN HỘ (MÔI GIỚI)
+                        @* Action buttons *@
+                        <div class="action-btns">
+                            <button type="button" class="action-btn ab-consult"
+                                    data-bs-toggle="modal" data-bs-target="#consultationModal">
+                                <i class="bi bi-headset fs-5"></i> Yêu cầu tư vấn miễn phí
                             </button>
-                        }
-                    }
+
+                            @if (!isOwner)
+                            {
+                                <button type="button" class="action-btn ab-chat"
+                                        data-bs-toggle="modal" data-bs-target="#internalChatModal">
+                                    <i class="bi bi-chat-dots-fill fs-5"></i> Chat trực tiếp ngay
+                                </button>
+
+                                <button type="button" class="action-btn ab-appt"
+                                        data-bs-toggle="modal" data-bs-target="#appointmentModal">
+                                    <i class="bi bi-calendar-check-fill fs-5"></i> Đặt lịch xem nhà
+                                </button>
+                            }
+                        </div>
+
+                        @* Utility buttons *@
+                        <div class="util-row">
+                            <button class="util-btn @(ViewBag.IsFavorited ? "saved" : "")"
+                                    id="btnFav" data-id="@Model.PropertyID">
+                                <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
+                                   id="iconFav"
+                                   style="color:@(ViewBag.IsFavorited ? "var(--acc)" : "var(--mu)")"></i>
+                                <span id="textFav">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
+                            </button>
+                            <button class="util-btn"
+                                    onclick="navigator.clipboard.writeText(window.location.href).then(()=>showToast('Đã copy link!','success'))">
+                                <i class="bi bi-share" style="color:var(--p1);"></i>
+                                <span>Chia sẻ</span>
+                            </button>
+                            <button class="util-btn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                <i class="bi bi-flag" style="color:var(--mu);"></i>
+                                <span>Báo cáo</span>
+                            </button>
+                        </div>
+
+                    </div>
                 </div>
 
-                <div class="row g-2 mt-3 text-center">
-                    <div class="col-4">
-                        <button class="btn btn-sm border w-100 fw-bold py-2 @(ViewBag.IsFavorited ? "btn-danger text-white shadow-sm" : "btn-light text-danger")" id="btnSaveFavorite" data-id="@Model.PropertyID">
-                            <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart") d-block fs-5 mb-1" id="iconFavorite"></i>
-                            <span id="textFavorite">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
-                        </button>
+                @* ── SIMILAR PROPERTIES ── *@
+                @if (similarProps.Any())
+                {
+                    <div class="sec-card fade-up fade-up-3" style="padding:22px 20px;">
+                        <div class="sec-title" style="font-size:1rem; margin-bottom:14px;"><i class="bi bi-grid-3x3-gap"></i>Bất động sản tương tự</div>
+                        <div class="d-flex flex-column gap-2">
+                            @foreach (var p in similarProps)
+                            {
+                                string simPrice = p.Price.HasValue
+                                ? (p.Price >= 1_000_000_000 ? (p.Price / 1_000_000_000M)?.ToString("0.##") + " Tỷ" : (p.Price / 1_000_000M)?.ToString("0.##") + " Tr")
+                                : "Thỏa thuận";
+                                <a href="/Property/Details/@p.PropertyID" class="mini-prop">
+                                    <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)"
+                                         class="mini-prop-img" onerror="this.src='/images/no-image.jpg'" />
+                                    <div class="mini-prop-info">
+                                        <div class="mini-prop-title">@p.Title</div>
+                                        <div class="mini-prop-price">@simPrice</div>
+                                        <div class="mini-prop-meta">
+                                            <i class="bi bi-geo-alt me-1"></i>@p.Ward?.WardName
+                                            &nbsp;·&nbsp;
+                                            <i class="bi bi-calendar3 me-1"></i>@p.CreatedAt.ToString("dd/MM/yy")
+                                        </div>
+                                    </div>
+                                </a>
+                            }
+                        </div>
                     </div>
-                    <div class="col-4">
-                        <button class="btn btn-sm btn-light border w-100 text-primary fw-bold py-2" onclick="navigator.clipboard.writeText(window.location.href); alert('Đã copy link!');">
-                            <i class="bi bi-share d-block fs-5 mb-1"></i> Chia sẻ
-                        </button>
-                    </div>
-                    <div class="col-4">
-                        <button class="btn btn-sm btn-light border w-100 text-secondary fw-bold py-2" data-bs-toggle="modal" data-bs-target="#reportModal">
-                            <i class="bi bi-flag d-block fs-5 mb-1"></i> Báo cáo
-                        </button>
-                    </div>
-                </div>
+                }
+
             </div>
+        </div>@* /col-lg-4 *@
+    </div>@* /row *@
+</div>@* /container *@
 
-            @if (similarProps.Any())
-            {
-                <div class="section-card p-4 mb-4 bg-white">
-                    <h5 class="fw-bold mb-3 border-bottom pb-2" style="font-size: 1.1rem;">Bất động sản tương tự</h5>
-                    <div class="d-grid gap-3">
-                        @foreach (var p in similarProps)
-                        {
-                            <a href="/Property/Details/@p.PropertyID" class="mini-card text-dark">
-                                <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)" onerror="this.src='/images/no-image.jpg'">
-                                <div class="p-3">
-                                    <h6 class="fw-bold text-truncate mb-1" style="font-size: 0.95rem;">@p.Title</h6>
-                                    <div class="text-danger fw-bold mb-1">@(p.Price.HasValue ? (p.Price >= 1000000000 ? (p.Price / 1000000000)?.ToString("0.##") + " Tỷ" : (p.Price / 1000000)?.ToString("0.##") + " Tr") : "Thỏa thuận")</div>
-                                    <small class="text-muted fw-medium"><i class="bi bi-geo-alt"></i> @p.Ward?.Area?.AreaName</small>
-                                </div>
-                            </a>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
-    </div>
-</div>
 
-<div class="modal fade" id="imageGalleryModal" tabindex="-1" aria-hidden="true">
+@* ═══════════════════════════ MODALS ════════════════════════════ *@
+
+@* ── Gallery Fullscreen Modal ── *@
+<div class="modal fade" id="galleryModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content bg-transparent border-0">
-            <div class="modal-header border-0 justify-content-end pb-0">
-                <button type="button" class="btn-close btn-close-white bg-dark p-2 rounded-circle" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0 text-center">
-                <img id="galleryDisplayImg" src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" style="max-height: 85vh; max-width: 100%; object-fit: contain; border-radius: 12px;">
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header bg-light rounded-top-4">
-                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-flag-fill text-danger me-2"></i>Báo cáo tin đăng vi phạm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4">
-                <p class="text-muted small mb-4">Xin hãy chọn lý do bạn cho rằng tin đăng này vi phạm. Chúng tôi sẽ xem xét và xử lý kịp thời.</p>
-                <form id="frmReport">
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Chọn vấn đề: <span class="text-danger">*</span></label>
-                        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="reportReason" value="Tin giả, lừa đảo" checked><label class="form-check-label">Tin giả, có dấu hiệu lừa đảo tiền cọc</label></div>
-                        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="reportReason" value="Đã bán/cho thuê"><label class="form-check-label">Bất động sản đã bán hoặc cho thuê rồi</label></div>
-                        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="reportReason" value="Thông tin sai"><label class="form-check-label">Giá bán, diện tích hoặc vị trí không đúng thực tế</label></div>
-                        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="reportReason" value="Lý do khác"><label class="form-check-label">Lý do khác</label></div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Chi tiết thêm (Không bắt buộc)</label>
-                        <textarea class="form-control bg-light" id="reportDescription" rows="3" placeholder="Mô tả rõ hơn vấn đề..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-top-0 px-4 pb-4">
-                <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
-                <button type="button" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" id="btnSubmitReport"><i class="bi bi-send-fill me-1"></i> Gửi báo cáo</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="appointmentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header bg-success text-white rounded-top-4">
-                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill me-2"></i>Đặt Lịch Xem Nhà</h5>
+        <div class="modal-content">
+            <div class="modal-header bg-dark border-0 py-2 px-3">
+                <span class="text-white fw-bold small">@Model.Title</span>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4">
-                <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp mặt trực tiếp Chủ nhà/Môi giới để xem bất động sản này.</p>
-                <form id="frmAppointment">
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Chọn Thời gian (Ngày & Giờ) <span class="text-danger">*</span></label>
-                        <input type="datetime-local" id="apptDate" class="form-control bg-light" required>
+            <div class="modal-body text-center p-2" style="background:#111;">
+                <img id="galleryDisplayImg"
+                     src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
+                     id="galleryDisplayImg" style="max-height:85vh;max-width:100%;object-fit:contain;border-radius:8px;" />
+
+                @if (propertyImages.Any())
+                {
+                    <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 4px 4px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
+                        <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
+                             style="height:56px;width:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.7;border:2px solid transparent;"
+                             onclick="switchGallery(this)" />
+                        @foreach (var gi in propertyImages)
+                        {
+                            <img src="@gi.ImageURL"
+                                 style="height:56px;width:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.7;border:2px solid transparent;"
+                                 onclick="switchGallery(this)" />
+                        }
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Ghi chú thêm (Không bắt buộc)</label>
-                        <textarea class="form-control bg-light" id="apptNote" rows="3" placeholder="Ví dụ: Tôi chỉ rảnh vào buổi chiều, gọi cho tôi trước khi đến..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-top-0 px-4 pb-4">
-                <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
-                <button type="button" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" id="btnSubmitAppointment"><i class="bi bi-send-check me-1"></i> Xác nhận đặt lịch</button>
+                }
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="coBrokerModal" tabindex="-1" aria-hidden="true">
+@* ── Internal Chat Modal ── *@
+<div class="modal fade" id="internalChatModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header bg-primary text-white rounded-top-4">
-                <h5 class="modal-title fw-bold"><i class="bi bi-person-vcard-fill me-2"></i>Đề Xuất Nhận Bán Hộ</h5>
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--p1);color:#fff;">
+                <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill me-2"></i>Nhắn tin trực tiếp</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4">
-                <div class="alert alert-primary bg-opacity-10 border-0 small mb-4">
-                    <strong>Môi giới / Cộng tác viên:</strong> Bạn có thể gửi lời nhắn hợp tác đến người đăng tin này. Nếu họ đồng ý, bạn có thể mang thông tin này đi giới thiệu cho khách hàng của bạn.
+            @* ── Tìm đến đoạn Internal Chat Modal và thay bằng đoạn này ── *@
+            <div class="modal-body pt-4">
+                @* Chỉ cần 1 thẻ <a> duy nhất bọc toàn bộ thông tin người đăng *@
+                <a href="/Nguoi-Dang-Tin/@Model.UserID" class="text-decoration-none d-flex align-items-center gap-3 p-3 mb-4 rounded-3"
+                   style="background:var(--bg); border:1px solid var(--bor); transition: var(--tr);"
+                   onmouseover="this.style.borderColor='var(--p1)'" onmouseout="this.style.borderColor='var(--bor)'">
+
+                    <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
+                         width="55" height="55" class="rounded-circle border shadow-sm" style="object-fit:cover;">
+
+                    <div>
+                        <div class="fw-bold text-dark" style="font-size:1rem;">@(Model.User?.FullName ?? "Ẩn danh")</div>
+                        <div style="font-size:.8rem; color:var(--mu);">
+                            Xem hồ sơ uy tín <i class="bi bi-arrow-right-short"></i>
+                        </div>
+                    </div>
+                </a>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Nội dung tin nhắn <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="chatContent" rows="4"
+                              style="background:#fff;"
+                              placeholder="Ví dụ: Bất động sản này còn không ạ? Tôi muốn hỏi thêm về giá chốt..." required></textarea>
                 </div>
-                <form id="frmCoBroker">
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Lời nhắn gửi Chủ nhà <span class="text-danger">*</span></label>
-                        <textarea class="form-control bg-light" id="coBrokerMessage" rows="4" required>Chào bạn, tôi hiện đang có khách hàng quan tâm tìm kiếm BĐS tại khu vực này. Tôi muốn xin phép nhận thông tin để môi giới bán hộ sản phẩm này. Nếu thành công, hoa hồng thỏa thuận là bao nhiêu %?</textarea>
-                    </div>
-                </form>
             </div>
-            <div class="modal-footer border-top-0 px-4 pb-4">
-                <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
-                <button type="button" class="btn btn-primary fw-bold rounded-pill px-4 shadow-sm" id="btnSubmitCoBroker"><i class="bi bi-send-fill me-1"></i> Gửi Yêu Cầu Hợp Tác</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="consultationModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header bg-info text-white rounded-top-4">
-                <h5 class="modal-title fw-bold"><i class="bi bi-headset me-2"></i>Yêu Cầu Tư Vấn Miễn Phí</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4">
-                <p class="text-muted small mb-4">Vui lòng để lại thông tin liên hệ, chuyên viên tư vấn của chúng tôi sẽ gọi lại cho bạn sớm nhất có thể.</p>
-                <form id="frmConsultation">
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Họ và tên <span class="text-danger">*</span></label>
-                        <input type="text" id="consultName" class="form-control bg-light" placeholder="Nhập họ tên của bạn" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" id="consultPhone" class="form-control bg-light" placeholder="Nhập số điện thoại liên hệ" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Email</label>
-                        <input type="email" id="consultEmail" class="form-control bg-light" placeholder="Email (Tùy chọn)">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-dark fw-bold">Lời nhắn thêm</label>
-                        <textarea id="consultNote" class="form-control bg-light" rows="3" placeholder="Ví dụ: Tôi muốn biết thêm thông tin về giá chốt, pháp lý sổ đỏ..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-top-0 px-4 pb-4">
-                <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
-                <button type="button" class="btn btn-info text-white fw-bold rounded-pill px-4 shadow-sm" id="btnSubmitConsultation">
-                    <i class="bi bi-send-fill me-1"></i> Gửi Yêu Cầu
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" id="btnSendChat" class="btn btn-primary rounded-pill fw-bold px-4 shadow-sm">
+                    <i class="bi bi-send-fill me-1"></i>Gửi tin nhắn
                 </button>
             </div>
         </div>
     </div>
 </div>
 
+@* ── Report Modal ── *@
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#fef2f2;">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-flag-fill me-2"></i>Báo cáo vi phạm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-4">
+                <p class="text-muted small mb-4">Chọn lý do báo cáo. Chúng tôi sẽ xem xét và xử lý trong vòng 24 giờ.</p>
+                <div class="mb-3">
+                    <label class="form-label">Lý do vi phạm <span class="text-danger">*</span></label>
+                    @foreach (var reason in new[] { "Tin giả, lừa đảo tiền cọc", "Đã bán/cho thuê rồi", "Giá hoặc diện tích sai thực tế", "Hình ảnh giả / không đúng bất động sản", "Lý do khác" })
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="repReason" value="@reason" id="rep_@reason.GetHashCode()" @(reason == "Tin giả, lừa đảo tiền cọc" ? "checked" : "")>
+                            <label class="form-check-label" for="rep_@reason.GetHashCode()">@reason</label>
+                        </div>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mô tả thêm (không bắt buộc)</label>
+                    <textarea class="form-control" id="repDesc" rows="3" placeholder="Mô tả chi tiết hơn về vấn đề..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" id="btnReport" class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm">
+                    <i class="bi bi-send-fill me-1"></i>Gửi báo cáo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Appointment Modal ── *@
+<div class="modal fade" id="appointmentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill me-2"></i>Đặt lịch xem nhà</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-4">
+                <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp trực tiếp để tham quan bất động sản này.</p>
+                <div class="mb-3">
+                    <label class="form-label">Thời gian hẹn <span class="text-danger">*</span></label>
+                    <input type="datetime-local" id="apptDate" class="form-control" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ghi chú thêm</label>
+                    <textarea class="form-control" id="apptNote" rows="3"
+                              placeholder="Ví dụ: Tôi rảnh chiều các ngày trong tuần, gọi trước 30 phút..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" id="btnAppt" class="btn fw-bold rounded-pill px-4 shadow-sm"
+                        style="background:var(--grn);color:#fff;">
+                    <i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Consultation Modal ── *@
+<div class="modal fade" id="consultationModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;">
+                <h5 class="modal-title fw-bold"><i class="bi bi-headset me-2"></i>Yêu cầu tư vấn miễn phí</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-4">
+                <p class="text-muted small mb-4">Để lại thông tin, chuyên viên sẽ gọi lại tư vấn trong vòng 15 phút.</p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                        <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Email (tùy chọn)</label>
+                        <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Lời nhắn</label>
+                        <textarea id="csNote" class="form-control" rows="3"
+                                  placeholder="Ví dụ: Tôi muốn hỏi về giá chốt, pháp lý và tiến độ..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" id="btnConsult" class="btn fw-bold rounded-pill px-4 shadow-sm"
+                        style="background:#0ea5e9;color:#fff;">
+                    <i class="bi bi-send-fill me-1"></i>Gửi yêu cầu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@* ═══════════════════════════ SCRIPTS ══════════════════════════ *@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        // 1. XỬ LÝ ĐỔI ẢNH LỚN TRONG GALLERY
-        function changeMainImg(element) {
-            document.getElementById('main-hero-img').src = element.src;
-            document.getElementById('galleryDisplayImg').src = element.src;
-            const thumbs = document.querySelectorAll('.sub-img-thumb');
-            thumbs.forEach(el => el.classList.remove('active'));
-            element.classList.add('active');
+        // ── Toast helper ────────────────────────────────────────────────
+        function showToast(msg, icon = 'success') {
+            Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 3000, timerProgressBar: true });
         }
 
-        // 2. XỬ LÝ NÚT SỐ ĐIỆN THOẠI
-        const btnPhone = document.getElementById('btnRevealPhone');
-        const btnCopy = document.getElementById('btnCopyPhone');
-        if (btnPhone) {
-            btnPhone.addEventListener('click', function(e) {
-                e.preventDefault();
-                const fullPhone = '@Model.User?.Phone';
-                if(fullPhone) {
-                    document.getElementById('phoneText').innerText = fullPhone;
-                    btnCopy.style.display = 'block';
-                    this.style.pointerEvents = 'none';
-                } else {
-                    Swal.fire({ icon: 'info', title: 'Thông báo', text: 'Người dùng này chưa cập nhật số điện thoại.' });
-                }
-            });
+        // ── Expand description ──────────────────────────────────────────
+        (function(){
+            const body = document.getElementById('descBody');
+            const btn  = document.getElementById('readMoreBtn');
+            if (body && body.scrollHeight > 210) btn.style.display = 'inline-flex';
+        })();
+        function expandDesc() {
+            const body = document.getElementById('descBody');
+            const btn  = document.getElementById('readMoreBtn');
+            body.classList.remove('desc-collapsed');
+            btn.style.display = 'none';
+        }
 
-            btnCopy.addEventListener('click', function(e) {
-                e.preventDefault();
-                navigator.clipboard.writeText('@Model.User?.Phone').then(() => {
-                    this.innerHTML = '<i class="bi bi-check2-all text-light"></i>';
+        // ── Gallery thumb switch ────────────────────────────────────────
+        function switchImg(el) {
+            document.getElementById('heroImg').src = el.src;
+            document.getElementById('galleryDisplayImg').src = el.src;
+            document.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+        }
+        function switchGallery(el) {
+            document.getElementById('galleryDisplayImg').src = el.src;
+            document.getElementById('heroImg').src = el.src;
+        }
+
+        // ── Phone reveal ────────────────────────────────────────────────
+        const btnReveal = document.getElementById('btnReveal');
+        const btnCopyPh = document.getElementById('btnCopyPh');
+        const fullPhone = '@(Model.User?.Phone ?? "")';
+        if (btnReveal) {
+            btnReveal.addEventListener('click', function() {
+                if (!fullPhone) { showToast('Người dùng chưa cập nhật số điện thoại', 'info'); return; }
+                document.getElementById('phoneText').innerText = fullPhone;
+                btnCopyPh.style.display = 'block';
+                this.style.cursor = 'default';
+            });
+            btnCopyPh.addEventListener('click', function() {
+                navigator.clipboard.writeText(fullPhone).then(() => {
+                    this.innerHTML = '<i class="bi bi-check2-all"></i>';
                     setTimeout(() => { this.innerHTML = '<i class="bi bi-copy"></i>'; }, 2000);
                 });
             });
         }
 
-        // 3. HÀM DÙNG CHUNG GỌI AJAX RẤT CHUYÊN NGHIỆP
-        async function submitFormAjax(url, formData, btnElement, loadingText, originalText, modalIdToClose) {
-            btnElement.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> ${loadingText}...`;
-            btnElement.disabled = true;
+        // ── Generic AJAX POST helper ────────────────────────────────────
+        async function ajaxPost(url, fd, btn, loadingLabel, originalHtml, modalId) {
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingLabel}`;
+            btn.disabled = true;
             try {
-                const response = await fetch(url, { method: 'POST', body: formData });
-                const data = await response.json();
-
-                if(data.success) {
-                    Swal.fire({ icon: 'success', title: 'Thành công', text: data.message });
-                    if(modalIdToClose) {
-                        var myModalEl = document.getElementById(modalIdToClose);
-                        var modal = bootstrap.Modal.getInstance(myModalEl);
-                        modal.hide();
-                    }
+                const res  = await fetch(url, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'Thành công!', text: data.message, confirmButtonColor: 'var(--p1)' });
+                    if (modalId) bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
                     return true;
                 } else {
-                    if(data.message.includes('đăng nhập')) {
-                        if(modalIdToClose) bootstrap.Modal.getInstance(document.getElementById(modalIdToClose)).hide();
-                        Swal.fire({ icon: 'warning', title: 'Yêu cầu đăng nhập', text: data.message }).then(() => { window.location.href = '/Account/Login'; });
+                    if (data.message?.includes('đăng nhập')) {
+                        if (modalId) bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
+                        Swal.fire({ icon: 'warning', title: 'Yêu cầu đăng nhập', text: data.message, confirmButtonColor: 'var(--p1)' })
+                            .then(() => window.location.href = '/Account/Login');
                     } else {
-                        Swal.fire({ icon: 'info', title: 'Thông báo', text: data.message });
+                        Swal.fire({ icon: 'info', title: 'Thông báo', text: data.message, confirmButtonColor: 'var(--p1)' });
                     }
                     return false;
                 }
-            } catch(e) {
-                Swal.fire({ icon: 'error', title: 'Lỗi mạng', text: 'Mất kết nối tới máy chủ. Vui lòng thử lại.' });
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Lỗi mạng', text: 'Mất kết nối tới máy chủ. Vui lòng thử lại.', confirmButtonColor: 'var(--p1)' });
                 return false;
             } finally {
-                btnElement.innerHTML = originalText;
-                btnElement.disabled = false;
+                btn.innerHTML = originalHtml;
+                btn.disabled  = false;
             }
         }
 
-        // 4. LƯU TIN YÊU THÍCH (FAVORITE)
-        const btnSaveFav = document.getElementById('btnSaveFavorite');
-        if (btnSaveFav) {
-            btnSaveFav.addEventListener('click', async function() {
-                try {
-                    const response = await fetch('/Favorite/ToggleFavorite', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(@Model.PropertyID)
-                    });
-                    const data = await response.json();
-
-                    if(data.success) {
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: data.message, showConfirmButton: false, timer: 3000 });
-                        const iconFav = document.getElementById('iconFavorite');
-                        const textFav = document.getElementById('textFavorite');
-                        if(data.isSaved) {
-                            this.classList.replace('btn-light', 'btn-danger'); this.classList.replace('text-danger', 'text-white');
-                            iconFav.classList.replace('bi-heart', 'bi-heart-fill'); textFav.innerText = "Đã lưu";
-                        } else {
-                            this.classList.replace('btn-danger', 'btn-light'); this.classList.replace('text-white', 'text-danger');
-                            iconFav.classList.replace('bi-heart-fill', 'bi-heart'); textFav.innerText = "Lưu tin";
-                        }
+        // ── Favorite ────────────────────────────────────────────────────
+        document.getElementById('btnFav')?.addEventListener('click', async function() {
+            try {
+                const res  = await fetch('/Favorite/ToggleFavorite', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(@Model.PropertyID)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const icon = document.getElementById('iconFav');
+                    const text = document.getElementById('textFav');
+                    showToast(data.message);
+                    if (data.isSaved) {
+                        this.classList.add('saved');
+                        icon.className = 'bi bi-heart-fill'; icon.style.color = 'var(--acc)';
+                        text.innerText = 'Đã lưu';
                     } else {
-                        Swal.fire({ icon: 'warning', title: 'Yêu cầu', text: data.message }).then(() => window.location.href = '/Account/Login');
+                        this.classList.remove('saved');
+                        icon.className = 'bi bi-heart'; icon.style.color = 'var(--mu)';
+                        text.innerText = 'Lưu tin';
                     }
-                } catch(e) { console.log(e); }
-            });
-        }
-
-        // 5. GỬI BÁO CÁO VI PHẠM
-        const btnSubmitReport = document.getElementById('btnSubmitReport');
-        if (btnSubmitReport) {
-            btnSubmitReport.addEventListener('click', async function() {
-                var fd = new FormData();
-                fd.append('propertyId', '@Model.PropertyID');
-                fd.append('reason', document.querySelector('input[name="reportReason"]:checked').value);
-                fd.append('description', document.getElementById('reportDescription').value);
-
-                if(await submitFormAjax('/Property/SubmitReport', fd, this, 'Đang gửi', '<i class="bi bi-send-fill me-1"></i> Gửi báo cáo', 'reportModal')){
-                    document.getElementById('frmReport').reset();
+                } else {
+                    Swal.fire({ icon: 'warning', title: 'Yêu cầu đăng nhập', text: data.message, confirmButtonColor: 'var(--p1)' })
+                        .then(() => window.location.href = '/Account/Login');
                 }
-            });
-        }
+            } catch(e) { console.error(e); }
+        });
 
-        // 6. ĐẶT LỊCH XEM NHÀ
-        const btnSubmitAppt = document.getElementById('btnSubmitAppointment');
-        if (btnSubmitAppt) {
-            btnSubmitAppt.addEventListener('click', async function() {
-                var dateVal = document.getElementById('apptDate').value;
-                if(!dateVal) { Swal.fire('Lỗi', 'Vui lòng chọn ngày giờ hẹn!', 'warning'); return; }
+        // ── Report ──────────────────────────────────────────────────────
+        document.getElementById('btnReport')?.addEventListener('click', async function() {
+            const fd = new FormData();
+            fd.append('propertyId', '@Model.PropertyID');
+            fd.append('reason', document.querySelector('input[name="repReason"]:checked')?.value ?? '');
+            fd.append('description', document.getElementById('repDesc').value);
+            if (await ajaxPost('/Property/SubmitReport', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi báo cáo', 'reportModal')) {
+                document.getElementById('repDesc').value = '';
+            }
+        });
 
-                var fd = new FormData();
-                fd.append('propertyId', '@Model.PropertyID');
-                fd.append('appointmentDate', dateVal);
-                fd.append('note', document.getElementById('apptNote').value);
+        // ── Appointment ─────────────────────────────────────────────────
+        document.getElementById('btnAppt')?.addEventListener('click', async function() {
+            const d = document.getElementById('apptDate').value;
+            if (!d) { Swal.fire('Lỗi', 'Vui lòng chọn ngày & giờ hẹn!', 'warning'); return; }
+            const fd = new FormData();
+            fd.append('propertyId', '@Model.PropertyID');
+            fd.append('appointmentDate', d);
+            fd.append('note', document.getElementById('apptNote').value);
+            if (await ajaxPost('/Property/BookAppointment', fd, this, 'Đang đặt lịch...', '<i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch', 'appointmentModal')) {
+                document.getElementById('apptDate').value = '';
+                document.getElementById('apptNote').value = '';
+            }
+        });
 
-                if(await submitFormAjax('/Property/BookAppointment', fd, this, 'Đang đặt lịch', '<i class="bi bi-send-check me-1"></i> Xác nhận đặt lịch', 'appointmentModal')){
-                    document.getElementById('frmAppointment').reset();
-                }
-            });
-        }
+        // ── Consultation ────────────────────────────────────────────────
+        document.getElementById('btnConsult')?.addEventListener('click', async function() {
+            const name  = document.getElementById('csName').value.trim();
+            const phone = document.getElementById('csPhone').value.trim();
+            if (!name || !phone) { Swal.fire('Thiếu thông tin', 'Họ tên và số điện thoại là bắt buộc!', 'warning'); return; }
+            const fd = new FormData();
+            fd.append('propertyId', '@Model.PropertyID');
+            fd.append('fullName', name);
+            fd.append('phone', phone);
+            fd.append('email', document.getElementById('csEmail').value);
+            fd.append('note',  document.getElementById('csNote').value);
+            if (await ajaxPost('/Property/SubmitConsultation', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi yêu cầu', 'consultationModal')) {
+                ['csName','csPhone','csEmail','csNote'].forEach(id => document.getElementById(id).value = '');
+            }
+        });
 
-        // 7. YÊU CẦU NHẬN BÁN HỘ (CO-BROKER)
-        const btnSubmitCoBroker = document.getElementById('btnSubmitCoBroker');
-        if (btnSubmitCoBroker) {
-            btnSubmitCoBroker.addEventListener('click', async function() {
-                var msg = document.getElementById('coBrokerMessage').value;
-                if(!msg) { Swal.fire('Lỗi', 'Vui lòng nhập lời nhắn!', 'warning'); return; }
+        // ── Internal Chat ───────────────────────────────────────────────
+        document.getElementById('btnSendChat')?.addEventListener('click', async function() {
+            const content = document.getElementById('chatContent').value.trim();
+            if (!content) { Swal.fire('Lỗi', 'Vui lòng nhập nội dung tin nhắn!', 'warning'); return; }
+            const fd = new FormData();
+            fd.append('receiverId',      '@Model.UserID');
+            fd.append('propertyId',      '@Model.PropertyID');
+            fd.append('messageContent',  content);
+            if (await ajaxPost('/Property/SendMessage', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi tin nhắn', 'internalChatModal')) {
+                document.getElementById('chatContent').value = '';
+            }
+        });
 
-                var fd = new FormData();
-                fd.append('propertyId', '@Model.PropertyID');
-                fd.append('message', msg);
-
-                if(await submitFormAjax('/Property/SubmitCoBroker', fd, this, 'Đang gửi', '<i class="bi bi-send-fill me-1"></i> Gửi Yêu Cầu Hợp Tác', 'coBrokerModal')){
-                    // Do nothing, alert is handled
-                }
-            });
-        }
-
-        // 8. YÊU CẦU TƯ VẤN (GUEST & MEMBER) - ĐÃ CHUYỂN SANG MODAL
-        const btnSubmitConsultation = document.getElementById('btnSubmitConsultation');
-        if (btnSubmitConsultation) {
-            btnSubmitConsultation.addEventListener('click', async function() {
-                var name = document.getElementById('consultName').value;
-                var phone = document.getElementById('consultPhone').value;
-                if(!name || !phone) { Swal.fire('Lỗi', 'Họ tên và Số điện thoại là bắt buộc!', 'warning'); return; }
-
-                var fd = new FormData();
-                fd.append('propertyId', '@Model.PropertyID');
-                fd.append('fullName', name);
-                fd.append('phone', phone);
-                fd.append('email', document.getElementById('consultEmail').value);
-                fd.append('note', document.getElementById('consultNote').value);
-
-                if(await submitFormAjax('/Property/SubmitConsultation', fd, this, 'Đang gửi', '<i class="bi bi-send-fill me-1"></i> Gửi Yêu Cầu', 'consultationModal')){
-                    document.getElementById('frmConsultation').reset();
-                }
-            });
-        }
-
-        // 9. GỬI BÌNH LUẬN
-        const btnSubmitComment = document.getElementById('btnSubmitComment');
-        if (btnSubmitComment) {
-            btnSubmitComment.addEventListener('click', async function() {
-                var content = document.getElementById('commentContent').value;
-                if(!content.trim()) { Swal.fire('Lỗi', 'Vui lòng nhập nội dung bình luận!', 'warning'); return; }
-
-                var fd = new FormData();
-                fd.append('propertyId', '@Model.PropertyID');
-                fd.append('content', content);
-
-                if(await submitFormAjax('/Property/SubmitComment', fd, this, 'Đang đăng', 'Gửi bình luận', null)){
-                    document.getElementById('commentContent').value = '';
-                    // Comment đã được đưa vào trạng thái chờ duyệt (IsHidden = true) nên trang sẽ reload mà không hiện comment đó ngay
-                }
-            });
-        }
+        // ── Comment ─────────────────────────────────────────────────────
+        document.getElementById('btnComment')?.addEventListener('click', async function() {
+            const content = document.getElementById('commentContent').value.trim();
+            if (!content) { Swal.fire('Lỗi', 'Vui lòng nhập nội dung bình luận!', 'warning'); return; }
+            const fd = new FormData();
+            fd.append('propertyId', '@Model.PropertyID');
+            fd.append('content', content);
+            if (await ajaxPost('/Property/SubmitComment', fd, this, 'Đang đăng...', '<i class="bi bi-send-fill me-1"></i>Gửi', null)) {
+                document.getElementById('commentContent').value = '';
+                showToast('Bình luận đã gửi, chờ Admin duyệt!');
+            }
+        });
     </script>
 }

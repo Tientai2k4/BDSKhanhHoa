@@ -1,6 +1,6 @@
 ﻿@model BDSKhanhHoa.Models.User
 @{
-    ViewData["Title"] = "Chi tiết người dùng";
+    ViewData["Title"] = "Hồ sơ người dùng";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
     var trans = ViewBag.Transactions as List<BDSKhanhHoa.Models.Transaction>;
     var logs = ViewBag.Logs as List<BDSKhanhHoa.Models.AuditLog>;
@@ -8,148 +8,242 @@
 }
 
 <div class="container-fluid px-4 mt-4">
-    <div class="row">
+    <div class="mb-3">
+        <a asp-action="Index" class="btn btn-sm btn-light border text-dark fw-bold rounded-pill px-3 shadow-sm"><i class="bi bi-arrow-left me-1"></i> Trở về danh sách</a>
+    </div>
+
+    <div class="row g-4">
         <div class="col-xl-4 col-lg-5">
-            <div class="card border-0 shadow-sm mb-4 rounded-3 overflow-hidden">
-                <div class="bg-primary py-5 text-center">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 h-100">
+                <div class="bg-primary py-5 text-center position-relative" style="background: linear-gradient(135deg, #0d6efd, #0dcaf0);">
                     <img src="@(string.IsNullOrEmpty(Model.Avatar) ? "/images/avatars/default.png" : Model.Avatar)"
-                         class="rounded-circle border border-4 border-white shadow mb-3" width="120" height="120" style="object-fit: cover;">
-                    <h4 class="text-white fw-bold mb-0">@Model.FullName</h4>
+                         class="rounded-circle border border-4 border-white shadow mb-3" width="130" height="130" style="object-fit: cover;">
+                    <h4 class="text-white fw-bold mb-0">@(Model.FullName ?? "Chưa xác định")</h4>
                     <p class="text-white-50 small mb-0">@@@Model.Username</p>
+
+                    <div class="position-absolute top-0 end-0 p-3">
+                        @switch (Model.RoleID)
+                        {
+                            case 1:
+                                <span class="badge bg-danger shadow-sm fs-6">ADMIN</span>
+                                break;
+                            case 2:
+
+                                <span class="badge bg-warning text-dark shadow-sm fs-6">STAFF</span>
+                                break;
+                            default:
+
+                                <span class="badge bg-info shadow-sm fs-6">MEMBER</span>
+                                break;
+                        }
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-around text-center mb-4 border-bottom pb-3">
-                       
+
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
                         <div>
-                            <p class="text-muted small mb-0">Trạng thái</p>
-                            <span class="badge @(Model.IsActive ? "bg-success" : "bg-danger")">
-                                @(Model.IsActive ? "Đang mở" : "Đã khóa")
-                            </span>
+                            <p class="text-muted small mb-0 text-uppercase fw-bold">Trạng thái tài khoản</p>
                         </div>
+                        <span class="badge @(Model.IsActive ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger") fs-6 px-3 py-2 rounded-pill border @(Model.IsActive ? "border-success-subtle" : "border-danger-subtle")">
+                            <i class="bi @(Model.IsActive ? "bi-check-circle" : "bi-lock") me-1"></i> @(Model.IsActive ? "Hoạt động tốt" : "Đang bị khóa")
+                        </span>
                     </div>
 
-                    <h6 class="fw-bold text-uppercase small text-muted mb-3">Thông tin liên lạc</h6>
-                    <ul class="list-unstyled">
-                        <li class="mb-3 small d-flex align-items-center">
-                            <i class="bi bi-envelope text-primary me-3 fs-5"></i>
-                            <span>@Model.Email</span>
+                    <h6 class="fw-bold text-uppercase small text-primary mb-3">Thông tin liên hệ</h6>
+                    <ul class="list-group list-group-flush mb-4">
+                        <li class="list-group-item d-flex align-items-center px-0 py-3 border-light">
+                            <div class="bg-light rounded-circle p-2 me-3 text-primary"><i class="bi bi-envelope"></i></div>
+                            <div>
+                                <small class="text-muted d-block">Email hệ thống</small>
+                                <span class="fw-bold text-dark">@Model.Email</span>
+                            </div>
                         </li>
-                        <li class="mb-3 small d-flex align-items-center">
-                            <i class="bi bi-telephone text-primary me-3 fs-5"></i>
-                            <span>@(Model.Phone ?? "Chưa cập nhật")</span>
+                        <li class="list-group-item d-flex align-items-center px-0 py-3 border-light">
+                            <div class="bg-light rounded-circle p-2 me-3 text-success"><i class="bi bi-telephone"></i></div>
+                            <div>
+                                <small class="text-muted d-block">Số điện thoại</small>
+                                <span class="fw-bold text-dark">@(Model.Phone ?? "Chưa cập nhật")</span>
+                            </div>
                         </li>
-                        <li class="mb-3 small d-flex align-items-center">
-                            <i class="bi bi-geo-alt text-primary me-3 fs-5"></i>
-                            <span>@(Model.Address ?? "Nha Trang, Khánh Hòa")</span>
+                        @if (!string.IsNullOrEmpty(Model.Zalo))
+                        {
+                            <li class="list-group-item d-flex align-items-center px-0 py-3 border-light">
+                                <div class="bg-light rounded-circle p-2 me-3 text-info"><i class="bi bi-chat-dots"></i></div>
+                                <div><small class="text-muted d-block">Zalo</small><span class="fw-bold text-dark">@Model.Zalo</span></div>
+                            </li>
+                        }
+                        <li class="list-group-item d-flex align-items-center px-0 py-3 border-light">
+                            <div class="bg-light rounded-circle p-2 me-3 text-danger"><i class="bi bi-geo-alt"></i></div>
+                            <div>
+                                <small class="text-muted d-block">Địa chỉ</small>
+                                <span class="fw-bold text-dark">@(Model.Address ?? "Chưa có dữ liệu")</span>
+                            </div>
                         </li>
-                        <li class="mb-3 small d-flex align-items-center">
-                            <i class="bi bi-calendar-check text-primary me-3 fs-5"></i>
-                            <span>Tham gia: @Model.CreatedAt?.ToString("dd/MM/yyyy")</span>
+                        <li class="list-group-item d-flex align-items-center px-0 py-3 border-0">
+                            <div class="bg-light rounded-circle p-2 me-3 text-secondary"><i class="bi bi-calendar-check"></i></div>
+                            <div>
+                                <small class="text-muted d-block">Ngày tham gia</small>
+                                <span class="fw-bold text-dark">@Model.CreatedAt?.ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
                         </li>
                     </ul>
 
-                    <div class="d-grid gap-2 mt-4">
-                        <a asp-action="Edit" asp-route-id="@Model.UserID" class="btn btn-warning fw-bold">
-                            <i class="bi bi-pencil-square me-2"></i>Chỉnh sửa quyền
+                    @if (!string.IsNullOrEmpty(Model.Bio))
+                    {
+                        <div class="bg-light p-3 rounded-3 mb-4 border">
+                            <small class="fw-bold text-muted text-uppercase d-block mb-1">Giới thiệu</small>
+                            <p class="mb-0 small fst-italic text-dark">"@Model.Bio"</p>
+                        </div>
+                    }
+
+                    <div class="d-grid gap-2">
+                        <a asp-action="Edit" asp-route-id="@Model.UserID" class="btn btn-warning text-dark fw-bold rounded-pill shadow-sm py-2">
+                            <i class="bi bi-pencil-square me-2"></i>Chỉnh sửa hồ sơ
                         </a>
-                        <a asp-action="Index" class="btn btn-light border">Quay lại danh sách</a>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="col-xl-8 col-lg-7">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-header bg-white border-bottom-0 pt-3">
-                    <ul class="nav nav-pills nav-fill" id="pills-tab" role="tablist">
-                        <li class="nav-item">
-                            <button class="nav-link active fw-bold" data-bs-toggle="pill" data-bs-target="#tab-trans">
-                                <i class="bi bi-cash-stack me-2"></i>Giao dịch
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-0">
+                    <ul class="nav nav-tabs nav-fill border-bottom-0 gap-2" id="profileTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active rounded-top-3 border-0 bg-light fw-bold text-dark w-100 py-3" data-bs-toggle="tab" data-bs-target="#tab-trans" type="button">
+                                <i class="bi bi-cash-stack me-2 text-success"></i>Giao dịch (@(trans?.Count ?? 0))
                             </button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link fw-bold" data-bs-toggle="pill" data-bs-target="#tab-logs">
-                                <i class="bi bi-activity me-2"></i>Nhật ký
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-top-3 border-0 bg-light fw-bold text-dark w-100 py-3" data-bs-toggle="tab" data-bs-target="#tab-logs" type="button">
+                                <i class="bi bi-activity me-2 text-info"></i>Lịch sử HĐ
                             </button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link text-danger fw-bold" data-bs-toggle="pill" data-bs-target="#tab-violation">
-                                <i class="bi bi-exclamation-octagon me-2"></i>Vi phạm (@violations?.Count)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-top-3 border-0 bg-light fw-bold text-danger w-100 py-3" data-bs-toggle="tab" data-bs-target="#tab-violation" type="button">
+                                <i class="bi bi-shield-exclamation me-2"></i>Vi phạm (@(violations?.Count ?? 0))
                             </button>
                         </li>
                     </ul>
                 </div>
-                <div class="card-body tab-content p-4">
-                    <div class="tab-pane fade show active" id="tab-trans">
-                        <div class="table-responsive">
-                            <table class="table table-sm align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Ngày</th>
-                                        <th>Loại</th>
-                                        <th class="text-end">Số tiền</th>
-                                        <th>Nội dung</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var t in trans ?? new List<BDSKhanhHoa.Models.Transaction>())
-                                    {
-                                        <tr>
-                                            <td class="small">@t.CreatedAt.ToString("dd/MM/yy HH:mm")</td>
-                                            <td>
-                                                <span class="badge @(t.Type == "Deposit" ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger")">
-                                                    @t.Type
-                                                </span>
-                                            </td>
-                                            <td class="fw-bold text-end">@t.Amount.ToString("N0")đ</td>
-                                            <td class="small">@t.Description</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
 
-                    <div class="tab-pane fade" id="tab-logs">
-                        <div class="list-group list-group-flush">
-                            @foreach (var log in logs ?? new List<BDSKhanhHoa.Models.AuditLog>())
-                            {
-                                <div class="list-group-item px-0 py-3">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1 fw-bold text-primary">@log.Action</h6>
-                                        <small class="text-muted">@log.CreatedAt.ToString("G")</small>
-                                    </div>
-                                    <p class="mb-1 small text-dark">@log.Target</p>
-                                </div>
-                            }
-                        </div>
-                    </div>
+                <div class="card-body tab-content p-4 bg-white rounded-bottom-4 border-top">
 
-                    <div class="tab-pane fade" id="tab-violation">
-                        @if (violations?.Count > 0)
+                    <div class="tab-pane fade show active" id="tab-trans" role="tabpanel">
+                        @if (trans != null && trans.Any())
                         {
-                            @foreach (var v in violations)
-                            {
-                                <div class="alert alert-danger border-0 shadow-sm mb-3">
-                                    <div class="d-flex justify-content-between">
-                                        <strong class="text-uppercase"><i class="bi bi-bug me-2"></i>@v.Reason</strong>
-                                        <span class="small italic">@v.CreatedAt.ToString("dd/MM/yyyy")</span>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light text-uppercase small text-muted">
+                                        <tr>
+                                            <th>Mã GD</th>
+                                            <th>Thời gian</th>
+                                            <th>Loại</th>
+                                            <th class="text-end">Số tiền (VNĐ)</th>
+                                            <th>Nội dung</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var t in trans)
+                                        {
+                                            <tr>
+                                                <td class="fw-bold">#@t.TransactionID</td>
+                                                <td class="small text-muted">@t.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                                <td><span class="badge bg-light text-dark border">@t.Type</span></td>
+                                                <td class="text-end fw-bold @(t.Amount > 0 ? "text-success" : "text-danger")">
+                                                    @(t.Amount > 0 ? "+" : "")@t.Amount.ToString("N0")
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-5 opacity-50">
+                                <i class="bi bi-wallet2 display-1 d-block mb-3"></i>
+                                <h5>Chưa có giao dịch</h5>
+                                <p class="mb-0">Người dùng này chưa thực hiện giao dịch nào trên hệ thống.</p>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-logs" role="tabpanel">
+                        @if (logs != null && logs.Any())
+                        {
+                            <div class="timeline p-3">
+                                @foreach (var log in logs)
+                                {
+                                    <div class="d-flex mb-4 position-relative">
+                                        <div class="me-3 position-relative z-1">
+                                            <div class="bg-primary rounded-circle text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                <i class="bi bi-check-lg"></i>
+                                            </div>
+                                        </div>
+                                        <div class="flex-grow-1 bg-light p-3 rounded-3 border-start border-4 border-primary shadow-sm">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <h6 class="fw-bold mb-0 text-dark">@log.Action</h6>
+                                                <small class="text-muted"><i class="bi bi-clock me-1"></i> @log.CreatedAt.ToString("dd/MM HH:mm")</small>
+                                            </div>
+                                            <p class="mb-0 small text-secondary">@log.Target</p>
+                                        </div>
                                     </div>
-                                    <hr class="my-2">
-                                    <p class="mb-0 small">@v.Description</p>
-                                </div>
-                            }
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-5 opacity-50">
+                                <i class="bi bi-journal-text display-1 d-block mb-3"></i>
+                                <h5>Chưa có lịch sử hoạt động</h5>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-violation" role="tabpanel">
+                        @if (violations != null && violations.Any())
+                        {
+                            <div class="row g-3">
+                                @foreach (var v in violations)
+                                {
+                                    <div class="col-12">
+                                        <div class="alert alert-danger border-start border-danger border-4 bg-white shadow-sm mb-0">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong class="text-danger text-uppercase"><i class="bi bi-exclamation-triangle-fill me-2"></i>Lý do: @v.Reason</strong>
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">
+                                                    <i class="bi bi-calendar-event me-1"></i> @v.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                                </span>
+                                            </div>
+                                            <p class="mb-0 text-dark small bg-light p-2 rounded border">@v.Description</p>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                         }
                         else
                         {
                             <div class="text-center py-5">
-                                <i class="bi bi-shield-check text-success display-1"></i>
-                                <p class="mt-3 text-muted">Người dùng này chưa có vi phạm nào.</p>
+                                <div class="bg-success-subtle text-success rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 100px; height: 100px;">
+                                    <i class="bi bi-shield-check display-3"></i>
+                                </div>
+                                <h5 class="text-dark fw-bold mt-2">Tuyệt vời! Tài khoản trong sạch</h5>
+                                <p class="text-muted mb-0">Người dùng này chưa từng nhận cảnh báo vi phạm nào từ hệ thống.</p>
                             </div>
                         }
                     </div>
+
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* CSS cho Active Tab */
+    .nav-link.active {
+        background-color: #fff !important;
+        border-bottom: 3px solid #0d6efd !important;
+        color: #0d6efd !important;
+    }
+</style>

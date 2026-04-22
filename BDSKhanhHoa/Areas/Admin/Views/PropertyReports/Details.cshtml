@@ -1,0 +1,573 @@
+﻿@model BDSKhanhHoa.Models.PropertyReport
+@{
+    ViewData["Title"] = "Xử lý báo cáo vi phạm #" + Model.ReportID;
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    var property = Model.Property;
+    var seller = property?.User;
+    var reporter = Model.User;
+    bool isPending = Model.Status == "Pending";
+    int violationCount = ViewBag.SellerViolationsCount ?? 0;
+}
+
+<style>
+    .admin-card {
+        border: none;
+        border-radius: 1rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+
+    .admin-card-header {
+        background: #fff;
+        border-bottom: 1px solid #f0f0f0;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .data-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #6c757d;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .data-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #2b2b2b;
+    }
+
+    /* Custom Radio Buttons cho form xử lý */
+    .action-option {
+        border: 2px solid #e9ecef;
+        border-radius: 0.75rem;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+        .action-option:hover {
+            background-color: #f8f9fa;
+            border-color: #dee2e6;
+        }
+
+        .action-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+        }
+
+            .action-option input[type="radio"]:checked + .option-content {
+                background-color: rgba(13, 110, 253, 0.05);
+            }
+
+    .action-reject input[type="radio"]:checked ~ .option-content {
+        border-color: #6c757d;
+        box-shadow: 0 0 0 2px #6c757d;
+        border-radius: 0.65rem;
+    }
+
+    .action-warn input[type="radio"]:checked ~ .option-content {
+        border-color: #fd7e14;
+        box-shadow: 0 0 0 2px #fd7e14;
+        border-radius: 0.65rem;
+    }
+
+    .action-delete input[type="radio"]:checked ~ .option-content {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 2px #dc3545;
+        border-radius: 0.65rem;
+    }
+
+    .quick-note-btn {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        background: #f1f3f5;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+        .quick-note-btn:hover {
+            background: #e2e6ea;
+            border-color: #dae0e5;
+        }
+
+    .status-ribbon {
+        position: absolute;
+        top: 15px;
+        right: -35px;
+        width: 140px;
+        text-align: center;
+        transform: rotate(45deg);
+        font-weight: bold;
+        font-size: 0.8rem;
+        padding: 5px 0;
+        color: white;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .ribbon-pending {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .ribbon-processed {
+        background: #198754;
+    }
+
+    .ribbon-rejected {
+        background: #6c757d;
+    }
+</style>
+
+<div class="container-fluid px-4 mt-4 mb-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/Admin/Home" class="text-decoration-none">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Admin/PropertyReports" class="text-decoration-none">Quản lý Báo cáo</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Chi tiết #@Model.ReportID</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <h3 class="fw-bold text-dark mb-0">
+            <i class="bi bi-file-earmark-break text-danger me-2"></i> Hồ sơ xử lý Báo cáo #@Model.ReportID
+        </h3>
+        <div>
+            @if (Model.Status == "Pending")
+            {
+                <span class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="bi bi-hourglass-split me-1"></i> Đang chờ xử lý</span>
+            }
+            else if (Model.Status == "Processed")
+            {
+                <span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i> Đã phê duyệt & Kỷ luật</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary fs-6 px-3 py-2"><i class="bi bi-x-circle me-1"></i> Đã bác bỏ báo cáo</span>
+            }
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-7 col-lg-12">
+
+            <div class="card admin-card position-relative">
+                <div class="status-ribbon @(Model.Status == "Pending" ? "ribbon-pending" : (Model.Status == "Processed" ? "ribbon-processed" : "ribbon-rejected"))">
+                    @(Model.Status == "Pending" ? "NEW" : "CLOSED")
+                </div>
+                <div class="admin-card-header d-flex align-items-center">
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width:45px; height:45px;">
+                        <i class="bi bi-megaphone-fill fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0">Thông tin người tố cáo</h5>
+                        <small class="text-muted">Được gửi lúc: @Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm:ss")</small>
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <div class="d-flex align-items-center">
+                                <img src="@(reporter?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border me-3" width="50" height="50" style="object-fit:cover;">
+                                <div>
+                                    <div class="data-label">Người gửi</div>
+                                    <div class="data-value">@(reporter?.FullName ?? "Người dùng hệ thống")</div>
+                                    <a href="/Admin/Users/Details/@Model.ReportedBy" target="_blank" class="small text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>Xem hồ sơ (ID: @Model.ReportedBy)</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 border">
+                                <div class="data-label">Lý do chính được chọn</div>
+                                <div class="fs-6 fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> @Model.Reason</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="data-label">Chi tiết mô tả từ người tố cáo:</div>
+                    <div class="p-4 bg-white border rounded-3 text-dark mt-2" style="font-size: 0.95rem; line-height: 1.7; white-space: pre-wrap; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        @if (string.IsNullOrWhiteSpace(Model.Description))
+                        {
+                            <span class="text-muted fst-italic">Người tố cáo không cung cấp thêm mô tả chi tiết. Vui lòng căn cứ vào lý do chính và tự đối chiếu tin đăng.</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-quote fs-3 text-muted opacity-50 me-1"></i>
+                            @Model.Description
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (isPending && property != null)
+            {
+                <div class="card admin-card border-top border-primary border-4" style="box-shadow: 0 10px 30px rgba(13, 110, 253, 0.1);">
+                    <div class="admin-card-header bg-white">
+                        <h5 class="fw-bold text-primary mb-0"><i class="bi bi-hammer me-2"></i> Quyết định xử lý & Thi hành</h5>
+                        <p class="text-muted small mb-0 mt-1">Hành động của bạn sẽ gửi thông báo tự động và cập nhật hồ sơ tín nhiệm của người dùng.</p>
+                    </div>
+                    <div class="card-body p-4">
+                        <form id="frmProcessReport">
+                            <input type="hidden" name="reportId" value="@Model.ReportID" />
+
+                            <div class="data-label mb-3 fs-6">1. Chọn phương án xử lý</div>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-12">
+                                    <label class="action-option action-reject d-block w-100 cursor-pointer mb-0">
+                                        <input type="radio" name="actionType" value="Reject" checked onchange="updateNoteHint('reject')">
+                                        <div class="option-content p-3 d-flex align-items-start gap-3 h-100">
+                                            <div class="text-secondary mt-1"><i class="bi bi-x-circle-fill fs-4"></i></div>
+                                            <div>
+                                                <h6 class="fw-bold text-dark mb-1">Bác bỏ (Báo cáo sai / Tin hợp lệ)</h6>
+                                                <p class="text-muted small mb-0">Không phạt người bán. Hệ thống sẽ gửi thông báo cảm ơn và giải thích cho người tố cáo.</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <label class="action-option action-warn d-block w-100 cursor-pointer mb-0">
+                                        <input type="radio" name="actionType" value="Warn" onchange="updateNoteHint('warn')">
+                                        <div class="option-content p-3 d-flex align-items-start gap-3 h-100">
+                                            <div class="text-warning mt-1"><i class="bi bi-exclamation-triangle-fill fs-4" style="color: #fd7e14;"></i></div>
+                                            <div>
+                                                <h6 class="fw-bold mb-1" style="color: #d96400;">Ghi nhận lỗi & Yêu cầu sửa tin</h6>
+                                                <p class="text-muted small mb-0">Tin vẫn hiển thị. Ghi <strong class="text-danger">1 lỗi</strong> vào hồ sơ người bán, gửi thông báo ép buộc sửa tin (kèm nút sửa).</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <label class="action-option action-delete d-block w-100 cursor-pointer mb-0">
+                                        <input type="radio" name="actionType" value="DeleteProperty" onchange="updateNoteHint('delete')">
+                                        <div class="option-content p-3 d-flex align-items-start gap-3 h-100">
+                                            <div class="text-danger mt-1"><i class="bi bi-trash3-fill fs-4"></i></div>
+                                            <div>
+                                                <h6 class="fw-bold text-danger mb-1">Gỡ tin lập tức & Ghi nhận vi phạm</h6>
+                                                <p class="text-muted small mb-0">Ẩn tin khỏi hệ thống. Ghi <strong class="text-danger">1 lỗi</strong>. Gửi thông báo cảnh cáo nghiêm khắc cho người bán.</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="data-label mb-2 fs-6">2. Lời nhắn từ Quản trị viên (Bắt buộc)</div>
+                            <p class="text-muted small mb-2" id="noteHint">Nội dung này sẽ được gửi trực tiếp cho người tố cáo để giải thích lý do bác bỏ.</p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3" id="quickNotesContainer">
+                                <span class="quick-note-btn" onclick="addNote('Tin đăng hoàn toàn hợp lệ, hình ảnh và giá cả đúng thực tế.')">Tin hợp lệ</span>
+                                <span class="quick-note-btn" onclick="addNote('Không đủ bằng chứng xác định tin đăng lừa đảo.')">Thiếu bằng chứng</span>
+                                <span class="quick-note-btn" onclick="addNote('Báo cáo mang tính chất spam hoặc cạnh tranh không lành mạnh.')">Báo cáo spam</span>
+                            </div>
+
+                            <div class="mb-4">
+                                <textarea class="form-control bg-light" name="adminNote" id="adminNoteField" rows="4" required placeholder="Nhập nội dung thông báo..."></textarea>
+                            </div>
+
+                            <button type="button" id="btnSubmitProcess" class="btn btn-primary btn-lg w-100 fw-bold rounded-pill shadow">
+                                <i class="bi bi-shield-lock-fill me-2"></i> Xác thực & Thi hành quyết định
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+            else if (!isPending)
+            {
+                <div class="card admin-card bg-light border-0">
+                    <div class="card-body p-4 text-center">
+                        <i class="bi @(Model.Status == "Processed" ? "bi-check-circle-fill text-success" : "bi-info-circle-fill text-secondary")" style="font-size: 3rem;"></i>
+                        <h4 class="fw-bold mt-3 mb-2">Báo cáo đã được khép lại</h4>
+                        <p class="text-muted mb-0">Vào lúc @Model.UpdatedAt?.ToString("HH:mm - dd/MM/yyyy"). Quyết định cuối cùng: <strong>@(Model.Status == "Processed" ? "Đã ghi nhận vi phạm & Xử lý người bán" : "Đã bác bỏ báo cáo")</strong>.</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-xl-5 col-lg-12">
+
+            @if (property != null)
+            {
+                <div class="card admin-card mb-4 border-top border-warning border-4">
+                    <div class="admin-card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-person-badge-fill text-warning me-2"></i> Chủ tài khoản đăng tin</h6>
+                        <span class="badge bg-light text-dark border">ID: @seller?.UserID</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center mb-4">
+                            <img src="@(seller?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border shadow-sm me-3" width="70" height="70" style="object-fit:cover;">
+                            <div>
+                                <h5 class="fw-bold mb-1">@(seller?.FullName ?? "Chưa cập nhật tên")</h5>
+                                <div class="text-muted small"><i class="bi bi-envelope-fill me-1"></i> @seller?.Email</div>
+                                <div class="text-muted small mt-1"><i class="bi bi-telephone-fill me-1"></i> @(seller?.Phone ?? "Chưa cập nhật SĐT")</div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-3 @(violationCount >= 3 ? "bg-danger bg-opacity-10 border border-danger" : (violationCount > 0 ? "bg-warning bg-opacity-10 border border-warning" : "bg-success bg-opacity-10 border border-success"))">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold @(violationCount >= 3 ? "text-danger" : (violationCount > 0 ? "text-warning text-darken" : "text-success"))">
+                                    <i class="bi bi-shield-exclamation me-1"></i> Mức độ uy tín (Án tích)
+                                </span>
+                                <span class="badge @(violationCount >= 3 ? "bg-danger" : (violationCount > 0 ? "bg-warning text-dark" : "bg-success")) fs-6">
+                                    @violationCount Lỗi
+                                </span>
+                            </div>
+
+                            <div class="progress" style="height: 8px;">
+                                @{
+                                    int percent = (violationCount * 100) / 3;
+                                    if (percent > 100) percent = 100;
+                                    string pgClass = violationCount >= 3 ? "bg-danger" : (violationCount > 0 ? "bg-warning" : "bg-success");
+                                }
+                                <div class="progress-bar @pgClass" role="progressbar" style="width: @percent%" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+
+                            <div class="small mt-2 text-muted">
+                                @if (violationCount >= 3)
+                                {
+                                    <strong class="text-danger">Cảnh báo đỏ:</strong>
+                                    <span>Người dùng này đã vi phạm nhiều lần. Đề xuất khóa tài khoản vĩnh viễn.</span>
+                                }
+                                else if (violationCount > 0)
+                                {
+                                    <span>Đã có tiền sự vi phạm. Cần theo dõi chặt chẽ.</span>
+                                }
+                                else
+                                {
+
+                                    <span>Tài khoản trong sạch, chưa có vi phạm nào trước đây.</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mt-3 text-center">
+                            <a href="/Admin/Users/Details/@seller?.UserID" target="_blank" class="btn btn-sm btn-outline-secondary w-100 rounded-pill">
+                                <i class="bi bi-search me-1"></i> Kiểm tra toàn bộ hồ sơ người bán
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card admin-card">
+                    <div class="admin-card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-house-door-fill text-primary me-2"></i> Thông tin Bất động sản</h6>
+                        <a href="/Property/Details/@property.PropertyID" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm">
+                            <i class="bi bi-eye"></i> Xem tin Public
+                        </a>
+                    </div>
+
+                    <div class="position-relative">
+                        <img src="@(string.IsNullOrEmpty(property.MainImage) ? "/images/no-image.jpg" : property.MainImage)" class="w-100" style="height: 220px; object-fit: cover;">
+                        <div class="position-absolute bottom-0 start-0 w-100 p-3" style="background: linear-gradient(transparent, rgba(0,0,0,0.8));">
+                            <h6 class="text-white fw-bold mb-0 text-truncate" title="@property.Title">@property.Title</h6>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <table class="table table-borderless table-striped mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted ps-4 py-3" style="width: 40%;"><i class="bi bi-tag me-2"></i>Trạng thái tin</td>
+                                    <td class="pe-4 py-3 text-end">
+                                        @if (property.Status == "Approved")
+                                        {
+                                            <span class="badge bg-success">Đang hiển thị</span>
+                                        }
+                                        else if (property.Status == "Pending")
+                                        {
+
+                                            <span class="badge bg-warning text-dark">Chờ duyệt</span>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="badge bg-danger">Đã bị ẩn/Xóa</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-4 py-3"><i class="bi bi-cash-coin me-2"></i>Mức giá</td>
+                                    <td class="pe-4 py-3 text-end fw-bold text-danger fs-6">
+                                        @(property.Price?.ToString("N0") ?? "Thỏa thuận") VNĐ
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-4 py-3"><i class="bi bi-aspect-ratio me-2"></i>Diện tích</td>
+                                    <td class="pe-4 py-3 text-end fw-bold">@(property.AreaSize?.ToString("N0") ?? "0") m²</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-4 py-3"><i class="bi bi-geo-alt me-2"></i>Địa chỉ</td>
+                                    <td class="pe-4 py-3 text-end small">
+                                        @(property.AddressDetail)<br>
+                                        ID Phường/Xã: @property.WardID
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-4 py-3"><i class="bi bi-calendar-plus me-2"></i>Ngày đăng</td>
+                                    <td class="pe-4 py-3 text-end small">@property.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card admin-card border-danger text-center p-5">
+                    <i class="bi bi-exclamation-octagon text-danger display-1 mb-3"></i>
+                    <h4 class="fw-bold text-danger">Lỗi dữ liệu</h4>
+                    <p class="text-muted mb-0">Bất động sản gắn với báo cáo này đã bị xóa vĩnh viễn khỏi Database cơ sở. Hệ thống chỉ lưu lại log của báo cáo.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Data cấu hình nội dung gợi ý nhanh (Quick Notes)
+        const noteConfigs = {
+            reject: {
+                hint: "Nội dung này sẽ được gửi cho người tố cáo để giải thích lý do bác bỏ.",
+                notes: [
+                    "Tin đăng hoàn toàn hợp lệ, hình ảnh và giá cả đúng thực tế.",
+                    "Không đủ bằng chứng xác định tin đăng vi phạm.",
+                    "Báo cáo mang tính chất spam hoặc cạnh tranh không lành mạnh."
+                ]
+            },
+            warn: {
+                hint: "Nội dung này sẽ gửi cho NGƯỜI ĐĂNG TIN để yêu cầu họ tự sửa đổi sai phạm.",
+                notes: [
+                    "Vui lòng cập nhật lại hình ảnh thực tế của bất động sản.",
+                    "Giá bán hiển thị không đúng với thực tế. Yêu cầu điều chỉnh ngay.",
+                    "Địa chỉ hoặc thông số diện tích bị sai lệch, vui lòng cập nhật lại."
+                ]
+            },
+            delete: {
+                hint: "Nội dung này sẽ gửi cho NGƯỜI ĐĂNG TIN để giải thích lý do Gỡ tin và Ghi lỗi.",
+                notes: [
+                    "Tin đăng có dấu hiệu lừa đảo chiếm đoạt tiền cọc.",
+                    "Sử dụng hình ảnh giả mạo, copy từ dự án khác.",
+                    "Đăng tin rác, trùng lặp nhiều lần gây ảnh hưởng hệ thống."
+                ]
+            }
+        };
+
+        // Hàm cập nhật gợi ý khi đổi Radio
+        function updateNoteHint(type) {
+            const config = noteConfigs[type];
+            document.getElementById('noteHint').innerHTML = `<strong>Lưu ý:</strong> ${config.hint}`;
+
+            const container = document.getElementById('quickNotesContainer');
+            container.innerHTML = '';
+            config.notes.forEach(note => {
+                const span = document.createElement('span');
+                span.className = 'quick-note-btn';
+                span.innerText = note.length > 25 ? note.substring(0, 25) + '...' : note;
+                span.title = note;
+                span.onclick = () => addNote(note);
+                container.appendChild(span);
+            });
+
+            // Clear textarea when switching options
+            document.getElementById('adminNoteField').value = '';
+        }
+
+        // Điền nhanh note vào textarea
+        function addNote(text) {
+            document.getElementById('adminNoteField').value = text;
+        }
+
+        // Xử lý Submit với SweetAlert2
+        document.getElementById('btnSubmitProcess')?.addEventListener('click', function() {
+            const form = document.getElementById('frmProcessReport');
+            if (!form.reportValidity()) return; // Chặn nếu textarea trống
+
+            const fd = new FormData(form);
+            const actionVal = fd.get('actionType');
+            const adminNote = fd.get('adminNote');
+
+            let actionTitle = "";
+            let actionHtml = "";
+            let confirmBtnClass = "";
+            let icon = "";
+
+            if (actionVal === 'Reject') {
+                actionTitle = 'Xác nhận Bác bỏ Báo cáo';
+                icon = 'info';
+                confirmBtnClass = '#6c757d';
+                actionHtml = `
+                    <div class="text-start mt-3">
+                        <p><strong>Hành động:</strong> Giữ nguyên tin đăng.</p>
+                        <p><strong>Thông báo gửi đến người tố cáo:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p>
+                    </div>`;
+            } else if (actionVal === 'Warn') {
+                actionTitle = 'Xác nhận Cảnh cáo';
+                icon = 'warning';
+                confirmBtnClass = '#fd7e14';
+                actionHtml = `
+                    <div class="text-start mt-3 border-start border-warning border-4 ps-3">
+                        <p class="text-danger fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> Ghi nhận 1 vi phạm vào hồ sơ người bán!</p>
+                        <p class="mb-1"><strong>Hành động:</strong> Tin đăng giữ nguyên nhưng bị ép sửa.</p>
+                        <p class="mb-0"><strong>Lời nhắn gửi người bán:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p>
+                    </div>`;
+            } else {
+                actionTitle = 'Xác nhận Xóa tin & Kỷ luật';
+                icon = 'error';
+                confirmBtnClass = '#dc3545';
+                actionHtml = `
+                    <div class="text-start mt-3 border-start border-danger border-4 ps-3">
+                        <p class="text-danger fw-bold mb-1"><i class="bi bi-trash3"></i> Ẩn toàn bộ tin đăng khỏi hệ thống!</p>
+                        <p class="text-danger fw-bold mb-1"><i class="bi bi-shield-x"></i> Ghi nhận 1 vi phạm nặng vào hồ sơ người bán!</p>
+                        <p class="mb-0 mt-2"><strong>Lời nhắn gửi người bán:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p>
+                    </div>`;
+            }
+
+            Swal.fire({
+                title: actionTitle,
+                html: actionHtml,
+                icon: icon,
+                showCancelButton: true,
+                confirmButtonColor: confirmBtnClass,
+                cancelButtonColor: '#adb5bd',
+                confirmButtonText: 'Đồng ý & Thực thi',
+                cancelButtonText: 'Xem lại'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const btn = this;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+                    btn.disabled = true;
+
+                    fetch('/Admin/PropertyReports/ProcessReport', {
+                        method: 'POST',
+                        body: fd,
+                        headers: {
+                            'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('Thành công!', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                            btn.innerHTML = '<i class="bi bi-shield-lock-fill me-2"></i> Xác thực & Thi hành quyết định';
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('Lỗi mạng', 'Không thể kết nối máy chủ', 'error');
+                        btn.disabled = false;
+                    });
+                }
+            });
+        });
+    </script>
+}

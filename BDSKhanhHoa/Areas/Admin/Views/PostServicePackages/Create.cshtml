@@ -4,67 +4,178 @@
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
+<style>
+    /* CSS cho khu vực Live Preview */
+    .preview-card {
+        border-radius: 16px;
+        transition: all 0.3s ease;
+        border: 2px solid #e2e8f0;
+        background: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .preview-header {
+        padding: 20px;
+        text-align: center;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .preview-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 15px;
+        font-size: 1.8rem;
+        transition: all 0.3s;
+    }
+
+    /* Diamond */
+    .preview-card[data-tier="Kim Cương"] {
+        border-color: #00c6ff;
+        box-shadow: 0 10px 30px rgba(0, 198, 255, 0.15);
+    }
+
+        .preview-card[data-tier="Kim Cương"] .preview-icon {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
+        }
+
+        .preview-card[data-tier="Kim Cương"] .preview-tier-name {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+    /* Gold */
+    .preview-card[data-tier="Vàng"] {
+        border-color: #f6d365;
+        box-shadow: 0 10px 30px rgba(253, 160, 133, 0.15);
+    }
+
+        .preview-card[data-tier="Vàng"] .preview-icon {
+            background: linear-gradient(135deg, #f6d365, #fda085);
+            color: white;
+            box-shadow: 0 4px 15px rgba(253, 160, 133, 0.4);
+        }
+
+        .preview-card[data-tier="Vàng"] .preview-tier-name {
+            color: #d35400;
+        }
+
+    /* Silver */
+    .preview-card[data-tier="Bạc"] {
+        border-color: #bdc3c7;
+    }
+
+        .preview-card[data-tier="Bạc"] .preview-icon {
+            background: linear-gradient(135deg, #e2e2e2, #bdc3c7);
+            color: #2c3e50;
+        }
+
+        .preview-card[data-tier="Bạc"] .preview-tier-name {
+            color: #7f8c8d;
+        }
+
+    /* Bronze */
+    .preview-card[data-tier="Đồng"] {
+        border-color: #cd7f32;
+    }
+
+        .preview-card[data-tier="Đồng"] .preview-icon {
+            background: linear-gradient(135deg, #e67e22, #d35400);
+            color: white;
+        }
+
+        .preview-card[data-tier="Đồng"] .preview-tier-name {
+            color: #e67e22;
+        }
+
+    /* Normal */
+    .preview-card[data-tier="Tin Thường"], .preview-card[data-tier=""] {
+        border-color: #e2e8f0;
+    }
+
+        .preview-card[data-tier="Tin Thường"] .preview-icon, .preview-card[data-tier=""] .preview-icon {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        .preview-card[data-tier="Tin Thường"] .preview-tier-name, .preview-card[data-tier=""] .preview-tier-name {
+            color: #64748b;
+        }
+</style>
+
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-dark mb-0"><i class="bi bi-plus-circle text-primary me-2"></i>Thêm Gói Đăng Tin Mới</h3>
+        <div>
+            <h3 class="fw-black text-dark mb-0" style="font-weight: 900;"><i class="bi bi-plus-circle-fill text-primary me-2"></i>Thêm Gói Đăng Tin Mới</h3>
+            <p class="text-muted small mt-1">Thiết lập cấu hình hiển thị và giá cước cho gói dịch vụ.</p>
+        </div>
         <a href="/Admin/PostServicePackages/Index" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4">
-            <i class="bi bi-arrow-left me-1"></i> Trở về
+            <i class="bi bi-arrow-left me-1"></i> Trở về danh sách
         </a>
     </div>
 
-    <div class="row">
+    <div class="row g-4">
         <div class="col-lg-8">
-            <div class="card border-0 shadow-sm rounded-4 bg-white p-4 p-md-5">
-                <form asp-action="Create" method="post">
+            <div class="card border-0 shadow-sm rounded-4 bg-white p-4 p-md-5 h-100">
+                <form asp-action="Create" method="post" id="packageForm">
                     @Html.AntiForgeryToken()
 
                     <div class="row g-4">
-                        <div class="col-md-8">
-                            <label class="form-label fw-bold">Tên Gói Dịch Vụ <span class="text-danger">*</span></label>
-                            <input asp-for="PackageName" class="form-control form-control-lg bg-light" placeholder="Vd: VIP Kim Cương, Tin Thường..." required />
-                            <span asp-validation-for="PackageName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Mức độ ưu tiên <span class="text-danger">*</span></label>
-                            <input asp-for="PriorityLevel" type="number" class="form-control form-control-lg bg-light" placeholder="1, 2, 3..." required />
-                            <small class="text-muted">Số càng cao, tin càng trên Top.</small>
-                            <span asp-validation-for="PriorityLevel" class="text-danger small"></span>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Phân Loại Gói (Hạng VIP) <span class="text-danger">*</span></label>
+                            <select asp-for="PackageType" asp-items="ViewBag.PackageTypes" class="form-select form-select-lg bg-light fw-bold text-primary border-0" id="tierSelect" required>
+                                <option value="">-- Chọn hạng để áp dụng Style --</option>
+                            </select>
+                            <span asp-validation-for="PackageType" class="text-danger small mt-1 d-block"></span>
                         </div>
 
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">Tên Hiển Thị Của Gói <span class="text-danger">*</span></label>
+                            <input asp-for="PackageName" class="form-control form-control-lg bg-light border-0" id="nameInput" placeholder="Vd: VIP Kim Cương 30 Ngày..." required />
+                            <span asp-validation-for="PackageName" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <div class="col-md-4">
                             <label class="form-label fw-bold">Giá tiền (VNĐ) <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input asp-for="Price" type="number" class="form-control bg-light" required />
-                                <span class="input-group-text bg-white">VNĐ</span>
+                                <input asp-for="Price" type="number" class="form-control form-control-lg bg-light border-0 text-danger fw-black" id="priceInput" required />
+                                <span class="input-group-text bg-light border-0 text-muted fw-bold">₫</span>
                             </div>
-                            <small class="text-muted">Nhập 0 nếu là gói miễn phí.</small>
+                            <small class="text-muted mt-1 d-block"><i class="bi bi-info-circle"></i> Nhập 0 nếu là gói cấp phát Miễn phí.</small>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Thời gian hiển thị <span class="text-danger">*</span></label>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Thời gian (Ngày) <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input asp-for="DurationDays" type="number" class="form-control bg-light" required />
-                                <span class="input-group-text bg-white">Ngày</span>
+                                <input asp-for="DurationDays" type="number" class="form-control form-control-lg bg-light border-0" id="durationInput" required />
+                                <span class="input-group-text bg-light border-0 text-muted">Ngày</span>
                             </div>
                         </div>
 
-                        <div class="col-12 d-flex align-items-center mt-md-4">
-                            <div class="form-check form-switch fs-5">
-                                <input class="form-check-input" type="checkbox" asp-for="IsHighlighted" id="IsHighlighted">
-                                <label class="form-check-label fw-bold ms-2 text-danger" for="IsHighlighted"><i class="bi bi-fire"></i> Gắn nhãn Nổi bật (Đổi màu đỏ cho tin đăng)</label>
-                            </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-primary">Điểm Ưu Tiên (Top) <span class="text-danger">*</span></label>
+                            <input asp-for="PriorityLevel" type="number" class="form-control form-control-lg bg-primary bg-opacity-10 border-0 text-primary fw-bold" id="priorityInput" placeholder="Vd: 100" required />
+                            <small class="text-muted mt-1 d-block">Số càng lớn, tin càng nằm trên cùng.</small>
                         </div>
 
                         <div class="col-12">
                             <label class="form-label fw-bold">Mô tả đặc quyền của gói</label>
-                            <textarea asp-for="Description" class="form-control bg-light" rows="4" placeholder="Ví dụ: Hiển thị to hơn, có viền đỏ nổi bật, đứng trên tin VIP Bạc..."></textarea>
+                            <textarea asp-for="Description" class="form-control bg-light border-0" rows="3" id="descInput" placeholder="Hiển thị thẻ VIP nổi bật, luôn nằm top 1 tìm kiếm..."></textarea>
                         </div>
                     </div>
 
-                    <hr class="my-5">
+                    <hr class="my-4 border-light">
                     <div class="text-end">
                         <button type="submit" class="btn btn-primary btn-lg fw-bold rounded-pill px-5 shadow-sm">
-                            <i class="bi bi-floppy-fill me-2"></i> LƯU GÓI DỊCH VỤ
+                            <i class="bi bi-floppy-fill me-2"></i> LƯU GÓI DỊCH VỤ MỚI
                         </button>
                     </div>
                 </form>
@@ -72,13 +183,99 @@
         </div>
 
         <div class="col-lg-4 d-none d-lg-block">
-            <div class="alert alert-info border-0 shadow-sm rounded-4 p-4">
-                <h5 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2"></i>Mẹo cấu hình</h5>
-                <ul class="mb-0 lh-lg text-dark small">
-                    <li><strong>Mức độ ưu tiên:</strong> Hệ thống sẽ sắp xếp tin theo PriorityLevel. Gói có Priority = 100 sẽ luôn nằm trên gói có Priority = 10.</li>
-                    <li><strong>Tin nổi bật:</strong> Bật tùy chọn này sẽ gắn thẻ "HOT" màu đỏ và bôi viền đỏ cho tin đăng ngoài giao diện khách hàng.</li>
-                </ul>
+            <div class="preview-card h-100" data-tier="" id="previewCard">
+                <div class="preview-header">
+                    <div class="preview-icon" id="previewIcon">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    <h5 class="fw-black mb-1 preview-tier-name text-uppercase" id="previewTierName">CHỌN HẠNG VIP</h5>
+                    <div class="fs-4 fw-bold text-dark mt-2" id="previewName">Tên gói sẽ hiển thị ở đây</div>
+                </div>
+                <div class="p-4 bg-light bg-opacity-50">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-light">
+                        <span class="text-muted fw-bold">Giá cước:</span>
+                        <span class="fs-4 fw-black text-danger" id="previewPrice">0 ₫</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-light">
+                        <span class="text-muted fw-bold">Thời gian hiển thị:</span>
+                        <span class="fw-bold text-dark"><i class="bi bi-clock-history me-1 text-primary"></i> <span id="previewDuration">30</span> Ngày</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-light">
+                        <span class="text-muted fw-bold">Điểm tranh Top:</span>
+                        <span class="badge bg-dark fs-6" id="previewPriority">1</span>
+                    </div>
+
+                    <div class="mt-4">
+                        <span class="text-muted fw-bold d-block mb-2">Mô tả đặc quyền:</span>
+                        <p class="small text-secondary mb-0" id="previewDesc">Chưa có mô tả chi tiết cho gói dịch vụ này.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Logic Live Preview cho giao diện Admin
+        const tierSelect = document.getElementById('tierSelect');
+        const nameInput = document.getElementById('nameInput');
+        const priceInput = document.getElementById('priceInput');
+        const durationInput = document.getElementById('durationInput');
+        const priorityInput = document.getElementById('priorityInput');
+        const descInput = document.getElementById('descInput');
+
+        const previewCard = document.getElementById('previewCard');
+        const previewIcon = document.getElementById('previewIcon');
+        const previewTierName = document.getElementById('previewTierName');
+        const previewName = document.getElementById('previewName');
+        const previewPrice = document.getElementById('previewPrice');
+        const previewDuration = document.getElementById('previewDuration');
+        const previewPriority = document.getElementById('previewPriority');
+        const previewDesc = document.getElementById('previewDesc');
+
+        function updatePreview() {
+            // 1. Cập nhật Giao diện theo Hạng (Tier)
+            const tier = tierSelect.value;
+            previewCard.setAttribute('data-tier', tier);
+            previewTierName.innerText = tier || 'CHỌN HẠNG VIP';
+
+            let iconClass = 'bi-box';
+            if(tier === 'Kim Cương') iconClass = 'bi-gem';
+            else if(tier === 'Vàng') iconClass = 'bi-star-fill';
+            else if(tier === 'Bạc') iconClass = 'bi-shield-fill';
+            else if(tier === 'Đồng') iconClass = 'bi-award-fill';
+            else if(tier === 'Tin Thường') iconClass = 'bi-tag-fill';
+
+            previewIcon.innerHTML = `<i class="bi ${iconClass}"></i>`;
+
+            // 2. Cập nhật Text
+            previewName.innerText = nameInput.value || 'Tên gói dịch vụ';
+            previewDuration.innerText = durationInput.value || '0';
+            previewPriority.innerText = priorityInput.value || '0';
+            previewDesc.innerText = descInput.value || 'Chưa có mô tả chi tiết...';
+
+            // Cập nhật Format Giá Tiền
+            const price = parseInt(priceInput.value);
+            if(isNaN(price) || price === 0) {
+                previewPrice.innerText = 'MIỄN PHÍ';
+                previewPrice.className = 'fs-4 fw-black text-success';
+            } else {
+                previewPrice.innerText = new Intl.NumberFormat('vi-VN').format(price) + ' ₫';
+                previewPrice.className = 'fs-4 fw-black text-danger';
+            }
+        }
+
+        // Lắng nghe sự kiện gõ phím / chọn để update ngay lập tức
+        tierSelect.addEventListener('change', updatePreview);
+        nameInput.addEventListener('input', updatePreview);
+        priceInput.addEventListener('input', updatePreview);
+        durationInput.addEventListener('input', updatePreview);
+        priorityInput.addEventListener('input', updatePreview);
+        descInput.addEventListener('input', updatePreview);
+
+        // Khởi chạy lần đầu
+        document.addEventListener('DOMContentLoaded', updatePreview);
+    </script>
+}

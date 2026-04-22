@@ -3,8 +3,8 @@
     ViewData["Title"] = "Chỉnh sửa tin đăng";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 
-    // Lấy danh sách Features cũ để auto-select
     var oldFeatures = ViewBag.OldFeatures as List<BDSKhanhHoa.Models.PropertyFeature> ?? new List<BDSKhanhHoa.Models.PropertyFeature>();
+
     var bed = oldFeatures.FirstOrDefault(f => f.FeatureName == "Phòng ngủ")?.FeatureValue;
     var bath = oldFeatures.FirstOrDefault(f => f.FeatureName == "Phòng vệ sinh")?.FeatureValue;
     var dir = oldFeatures.FirstOrDefault(f => f.FeatureName == "Hướng nhà")?.FeatureValue;
@@ -12,10 +12,17 @@
     var amenityString = oldFeatures.FirstOrDefault(f => f.FeatureName == "Tiện ích")?.FeatureValue ?? "";
 
     var oldImages = ViewBag.OldImages as List<BDSKhanhHoa.Models.PropertyImage> ?? new List<BDSKhanhHoa.Models.PropertyImage>();
+
+    // LẤY DỮ LIỆU GỐC TỪ ADMIN ĐỂ HIỂN THỊ
+    var masterFeatures = ViewBag.MasterFeatures as List<BDSKhanhHoa.Models.PropertyFeature> ?? new List<BDSKhanhHoa.Models.PropertyFeature>();
+    var huongNhaList = masterFeatures.Where(f => f.FeatureGroup == "Hướng nhà").ToList();
+    var phapLyList = masterFeatures.Where(f => f.FeatureGroup == "Pháp lý").ToList();
+    var tienIchList = masterFeatures.Where(f => f.FeatureGroup == "Tiện ích").ToList();
+    var khacList = masterFeatures.Where(f => f.FeatureGroup == "Khác").ToList(); // LẤY DANH SÁCH LỚP CON CỦA NHÓM "KHÁC"
 }
 
 <style>
-    /* Radio Buttons & Checkbox y hệt như trang Create */
+    /* Radio Toolbar & Amenities */
     .radio-toolbar input[type="radio"], .amenity-checkbox input[type="checkbox"] {
         display: none;
     }
@@ -30,13 +37,15 @@
         cursor: pointer;
         transition: all 0.3s;
         color: #64748b;
-        margin-right: 5px;
+        margin-right: 8px;
+        margin-bottom: 8px;
     }
 
     .radio-toolbar input[type="radio"]:checked + label {
         background-color: #e0e7ff;
         border-color: #0061f2;
         color: #0061f2;
+        box-shadow: 0 4px 10px rgba(0, 97, 242, 0.15);
     }
 
     .amenity-checkbox label {
@@ -57,8 +66,10 @@
         background-color: #dcfce7;
         border-color: #16a34a;
         color: #16a34a;
+        box-shadow: 0 4px 10px rgba(22, 163, 74, 0.15);
     }
 
+    /* Image Upload Zone */
     .img-upload-zone {
         border: 2px dashed #cbd5e1;
         border-radius: 12px;
@@ -69,36 +80,124 @@
         justify-content: center;
         background: #f8fafc;
         cursor: pointer;
-        position: relative;
         overflow: hidden;
+        position: relative;
+        transition: 0.3s;
     }
 
         .img-upload-zone:hover {
             border-color: #0061f2;
+            background: #f1f5f9;
         }
 
-    .sub-img-thumb {
-        width: 70px;
-        height: 70px;
+    #imgPreview {
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        border-radius: 8px;
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+    }
+
+    .change-img-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+        z-index: 2;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+    }
+
+    .img-upload-zone:hover .change-img-overlay {
+        transform: translateY(0);
+    }
+
+    /* Unified Gallery for Old & New Images */
+    .gallery-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .img-thumb-container {
+        position: relative;
+        width: 90px;
+        height: 90px;
+    }
+
+    .sub-img-thumb {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 10px;
         border: 1px solid #cbd5e1;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        transition: 0.3s;
+    }
+
+    .img-thumb-container.new-img .sub-img-thumb {
+        border: 2px solid #0061f2;
+    }
+
+    .btn-remove-img {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: 0.2s;
+        z-index: 3;
+    }
+
+        .btn-remove-img:hover {
+            transform: scale(1.15);
+            background: #dc2626;
+        }
+
+    .img-deleted {
+        opacity: 0.4;
+        filter: grayscale(100%);
+        pointer-events: none;
     }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-2"></i> Chỉnh Sửa Tin Đăng</h4>
-    <a href="/Property/MyAds" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4">Trở về</a>
+    <div>
+        <h4 class="fw-bold text-dark mb-1"><i class="bi bi-pencil-square text-warning me-2"></i> Chỉnh Sửa Bất Động Sản</h4>
+        <p class="text-muted small mb-0">Mã tin: <strong class="text-primary">#@Model.PropertyID</strong> | Trạng thái: <span class="badge bg-secondary">@Model.Status</span></p>
+    </div>
+    <a href="/Property/MyAds" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4"><i class="bi bi-arrow-left me-1"></i> Trở về</a>
 </div>
 
-<form asp-action="Edit" method="post" enctype="multipart/form-data">
+<form asp-action="Edit" method="post" enctype="multipart/form-data" id="frmEditProp">
     <input type="hidden" asp-for="PropertyID" />
+    <div id="deletedImagesContainer"></div>
+
     <div class="row g-4">
         <div class="col-lg-8">
-            <div class="card-custom p-4 mb-4">
-                <h5 class="fw-bold mb-4 border-bottom pb-3">1. Thông tin cơ bản</h5>
+            <div class="card-custom p-4 mb-4 bg-white shadow-sm rounded-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-info-circle text-primary me-2"></i>1. Thông tin cơ bản</h5>
                 <div class="mb-4">
-                    <label class="form-label fw-bold d-block">Hình thức giao dịch</label>
+                    <label class="form-label fw-bold d-block">Hình thức giao dịch <span class="text-danger">*</span></label>
                     <div class="radio-toolbar" id="parentTypeContainer">
                         @foreach (var parent in ViewBag.ParentTypes)
                         {
@@ -108,45 +207,42 @@
                         }
                     </div>
                 </div>
-
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Loại bất động sản <span class="text-danger">*</span></label>
-                        <select asp-for="TypeID" id="subTypeSelect" class="form-select bg-light" required>
-                            <option value="@Model.TypeID" selected>@Model.PropertyType?.TypeName</option>
+                        <select asp-for="TypeID" id="subTypeSelect" class="form-select form-select-lg bg-light fw-medium" required>
+                            <option value="@Model.TypeID">@Model.PropertyType?.TypeName</option>
                         </select>
+                        <span asp-validation-for="TypeID" class="text-danger small"></span>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Tiêu đề tin đăng <span class="text-danger">*</span></label>
-                        <input asp-for="Title" class="form-control bg-light" required />
-                    </div>
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label fw-bold">Thuộc dự án nào? (Tùy chọn)</label>
-                        <select asp-for="ProjectID" class="form-select bg-light" asp-items="@(new SelectList(ViewBag.Projects, "ProjectID", "ProjectName", Model.ProjectID))">
-                            <option value="">-- Không thuộc dự án nào --</option>
-                        </select>
+                        <input asp-for="Title" class="form-control form-control-lg bg-light" required />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
                     </div>
                 </div>
-
                 <div class="mb-3">
                     <label class="form-label fw-bold">Mô tả chi tiết <span class="text-danger">*</span></label>
-                    <textarea asp-for="Description" class="form-control bg-light" rows="6" required></textarea>
+                    <textarea asp-for="Description" class="form-control bg-light" rows="7" required></textarea>
+                    <span asp-validation-for="Description" class="text-danger small"></span>
                 </div>
             </div>
 
-            <div class="card-custom p-4 mb-4">
-                <h5 class="fw-bold mb-4 border-bottom pb-3">2. Địa điểm & Kích thước</h5>
+            <div class="card-custom p-4 mb-4 bg-white shadow-sm rounded-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-geo-alt text-primary me-2"></i>2. Địa điểm & Kích thước</h5>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">Khu vực <span class="text-danger">*</span></label>
-                        <select id="areaSelect" class="form-select bg-light" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
+                        <label class="form-label fw-bold">Khu vực  <span class="text-danger">*</span></label>
+                        <select id="areaSelect" class="form-select bg-light fw-medium" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
                             <option value="">-- Chọn khu vực --</option>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Phường / Xã <span class="text-danger">*</span></label>
-                        <select asp-for="WardID" id="wardSelect" class="form-select bg-light" asp-items="ViewBag.Wards" required>
+                        <select asp-for="WardID" id="wardSelect" class="form-select bg-light fw-medium" asp-items="ViewBag.Wards" required>
+                            <option value="">-- Vui lòng chọn Khu vực trước --</option>
                         </select>
+                        <span asp-validation-for="WardID" class="text-danger small"></span>
                     </div>
                     <div class="col-md-12 mb-3">
                         <label class="form-label fw-bold">Địa chỉ chi tiết</label>
@@ -154,49 +250,63 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Mức giá (VNĐ)</label>
-                        <div class="input-group">
-                            <input asp-for="Price" type="number" class="form-control bg-light" />
-                            <span class="input-group-text bg-white">VNĐ</span>
+                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                            <input asp-for="Price" type="number" class="form-control bg-light border-0" />
+                            <span class="input-group-text bg-white fw-bold border-0 border-start">VNĐ</span>
                         </div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Diện tích đất (m²)</label>
-                        <div class="input-group">
-                            <input asp-for="AreaSize" type="number" step="0.01" class="form-control bg-light" />
-                            <span class="input-group-text bg-white">m²</span>
+                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                            <input asp-for="AreaSize" type="number" step="0.01" class="form-control bg-light border-0" />
+                            <span class="input-group-text bg-white fw-bold border-0 border-start">m²</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card-custom p-4 mb-4">
-                <h5 class="fw-bold mb-4 border-bottom pb-3">3. Thông tin chi tiết & Tiện ích</h5>
+            <div class="card-custom p-4 mb-4 bg-white shadow-sm rounded-4">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-list-check text-primary me-2"></i>3. Thông tin chi tiết & Tiện ích</h5>
                 <div class="row mb-4">
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Phòng ngủ</label>
-                        <input type="number" name="Bedrooms" value="@bed" class="form-control bg-light" />
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phòng ngủ</label>
+                        <input type="number" name="Bedrooms" value="@bed" class="form-control bg-light fw-bold text-center" min="1" max="20" />
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Phòng tắm</label>
-                        <input type="number" name="Bathrooms" value="@bath" class="form-control bg-light" />
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phòng tắm</label>
+                        <input type="number" name="Bathrooms" value="@bath" class="form-control bg-light fw-bold text-center" min="1" max="20" />
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Hướng nhà</label>
-                        <select name="Direction" class="form-select bg-light">
-                            <option value="">-- Chọn --</option>
-                            @foreach (var item in new[] { "Đông", "Tây", "Nam", "Bắc", "Đông Nam", "Tây Nam", "Đông Bắc", "Tây Bắc" })
+                        <label class="form-label fw-bold text-muted small text-uppercase">Hướng nhà</label>
+                        <select name="Direction" class="form-select bg-light fw-medium">
+                            <option value="">-- Không rõ --</option>
+                            @foreach (var item in huongNhaList)
                             {
-                                <option value="@item" selected="@(dir == item ? "selected" : null)">@item</option>
+                                if (dir == item.FeatureName)
+                                {
+                                    <option value="@item.FeatureName" selected>@item.FeatureName</option>
+                                }
+                                else
+                                {
+                                    <option value="@item.FeatureName">@item.FeatureName</option>
+                                }
                             }
                         </select>
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Giấy tờ pháp lý</label>
-                        <select name="LegalStatus" class="form-select bg-light">
-                            <option value="">-- Chọn --</option>
-                            @foreach (var item in new[] { "Sổ đỏ/ Sổ hồng", "Hợp đồng mua bán", "Đang chờ sổ" })
+                        <label class="form-label fw-bold text-muted small text-uppercase">Pháp lý</label>
+                        <select name="LegalStatus" class="form-select bg-light fw-medium">
+                            <option value="">-- Trạng thái --</option>
+                            @foreach (var item in phapLyList)
                             {
-                                <option value="@item" selected="@(legal == item ? "selected" : null)">@item</option>
+                                if (legal == item.FeatureName)
+                                {
+                                    <option value="@item.FeatureName" selected>@item.FeatureName</option>
+                                }
+                                else
+                                {
+                                    <option value="@item.FeatureName">@item.FeatureName</option>
+                                }
                             }
                         </select>
                     </div>
@@ -204,99 +314,309 @@
 
                 <label class="form-label fw-bold mb-3 d-block">Tiện ích nổi bật (Chọn nhiều)</label>
                 <div class="amenity-checkbox">
-                    @foreach (var am in new[] { "Có chỗ để xe máy", "Gara ô tô", "Hồ bơi", "Nội thất đầy đủ", "Thang máy", "Bảo vệ 24/7", "Ban công" })
+                    @if (!tienIchList.Any())
                     {
-                        bool hasAm = amenityString.Contains(am);
-                        <input type="checkbox" id="am_@am" name="Amenities" value="@am" @(hasAm ? "checked" : "")>
-                        <label for="am_@am">@am</label>
+                        <p class="text-muted small"><i>Hệ thống chưa cấu hình tiện ích mẫu.</i></p>
+                    }
+                    else
+                    {
+                        int count = 1;
+                        foreach (var item in tienIchList)
+                        {
+                            bool isChecked = amenityString.Contains(item.FeatureName);
+                            <input type="checkbox" id="am_@count" name="Amenities" value="@item.FeatureName" @(isChecked ? "checked" : "")>
+                            <label for="am_@count"><i class="bi bi-check2-square me-1"></i> @item.FeatureName</label>
+                            count++;
+                        }
                     }
                 </div>
+
+                <label class="form-label fw-bold mb-3 d-block mt-4">Đặc điểm khác (Chọn nhiều)</label>
+                <div class="amenity-checkbox">
+                    @if (!khacList.Any())
+                    {
+                        <p class="text-muted small"><i>Hệ thống chưa cấu hình đặc điểm khác.</i></p>
+                    }
+                    else
+                    {
+                        int countKhac = 1;
+                        foreach (var item in khacList)
+                        {
+                            // Tận dụng check chung trong biến amenityString vì dùng chung Name="Amenities" để submit
+                            bool isChecked = amenityString.Contains(item.FeatureName);
+                            <input type="checkbox" id="khac_@countKhac" name="Amenities" value="@item.FeatureName" @(isChecked ? "checked" : "")>
+                            <label for="khac_@countKhac"><i class="bi bi-check2-square me-1"></i> @item.FeatureName</label>
+                            countKhac++;
+                        }
+                    }
+                </div>
+
             </div>
         </div>
 
         <div class="col-lg-4">
-            <div class="card-custom p-4 sticky-top" style="top: 20px;">
-                <h5 class="fw-bold mb-4 border-bottom pb-3">4. Media & Gói tin</h5>
+            <div class="card-custom p-4 sticky-top bg-white shadow-sm rounded-4" style="top: 20px;">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-camera text-primary me-2"></i>4. Media & Gói tin</h5>
 
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Ảnh đại diện</label>
+                    <label class="form-label fw-bold">Ảnh đại diện (Bỏ qua nếu giữ nguyên)</label>
                     <label for="MainImageFile" class="img-upload-zone w-100 d-block">
-                        <img id="imgPreview" src="@Model.MainImage" style="width:100%; height:100%; object-fit:cover;" />
-                        <div class="text-center text-white w-100 py-2" style="position: absolute; bottom: 0; background: rgba(0,0,0,0.5);">
-                            <i class="bi bi-camera me-1"></i> Đổi ảnh bìa
-                        </div>
+                        <img id="imgPreview" src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" />
+                        <div class="change-img-overlay"><i class="bi bi-cloud-upload"></i> Nhấp để tải ảnh mới</div>
                     </label>
-                    <input type="file" id="MainImageFile" name="MainImageFile" class="d-none" accept="image/*" onchange="previewImage(event)" />
+                    <input type="file" id="MainImageFile" name="MainImageFile" class="d-none" accept="image/*" onchange="previewMainImage(event)" />
                 </div>
 
                 <div class="mb-4 pt-3 border-top">
-                    <label class="form-label fw-bold">Ảnh phụ (Gallery cũ)</label>
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        @if (oldImages.Any())
-                        {
-                            foreach (var img in oldImages)
-                            {
-                                <img src="@img.ImageURL" class="sub-img-thumb" />
-                            }
-                        }
-                        else
-                        {
-                            <small class="text-muted">Chưa có ảnh phụ.</small>
-                        }
+                    <div class="d-flex justify-content-between align-items-end mb-2">
+                        <label class="form-label fw-bold mb-0">Thư viện ảnh phụ</label>
+                        <label for="AdditionalImagesFile" class="btn btn-sm btn-outline-primary fw-bold rounded-pill">
+                            <i class="bi bi-plus-circle"></i> Thêm ảnh
+                        </label>
+                        <input type="file" id="AdditionalImagesFile" name="AdditionalImages" class="d-none" accept="image/*" multiple onchange="handleNewImagesSelection(event)" />
                     </div>
 
-                    <label class="form-label fw-bold">Thêm ảnh phụ mới</label>
-                    <input type="file" name="AdditionalImages" class="form-control mb-2" accept="image/*" multiple />
-                    <small class="text-muted"><i class="bi bi-info-circle"></i> Chọn thêm tối đa 10 ảnh (sẽ giữ lại ảnh cũ).</small>
+                    <div class="gallery-wrapper" id="combinedGalleryContainer">
+                        @foreach (var img in oldImages)
+                        {
+                            <div class="img-thumb-container" id="oldImg_@img.ImageID">
+                                <img src="@img.ImageURL" class="sub-img-thumb" />
+                                <button type="button" class="btn-remove-img" onclick="markOldImageDeleted(@img.ImageID)" title="Xóa ảnh cũ"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                        }
+                    </div>
                 </div>
 
                 <div class="mb-4 pt-3 border-top">
-                    <label class="form-label fw-bold">Gói dịch vụ <span class="text-danger">*</span></label>
-                    <select asp-for="PackageID" class="form-select border-warning bg-light" asp-items="ViewBag.Packages" required></select>
+                    <label class="form-label fw-bold mb-3 text-dark d-flex justify-content-between">
+                        Gói tin áp dụng <span class="text-danger">*</span>
+                    </label>
+                    <div class="alert alert-info bg-opacity-10 border-info border-opacity-25 small mb-3 p-3 rounded-3">
+                        <i class="bi bi-info-circle-fill text-info me-1"></i>
+                        Gói cũ đã được sử dụng. Đổi gói tin sẽ trừ 1 lượt mới từ ví. <strong class="text-danger">Không hoàn trả lượt cũ.</strong>
+                    </div>
+                    <select asp-for="PackageID" id="packageSelect" class="form-select form-select-lg border-primary shadow-sm mb-3 fw-bold text-primary" required>
+                        <option value="@Model.PackageID">Đang tải dữ liệu ví...</option>
+                    </select>
                 </div>
 
                 <hr />
-                <div class="alert alert-warning small border-0 shadow-sm">
-                    <strong>Lưu ý:</strong> Mọi thay đổi đối với tin đăng đều phải qua quá trình kiểm duyệt lại của Admin trước khi được hiển thị.
+                <div class="alert alert-warning small border-0 shadow-sm rounded-3">
+                    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> Bài viết sẽ được chuyển về trạng thái <strong>Chờ Duyệt</strong> để kiểm tra lại.
                 </div>
-                <button type="submit" class="btn btn-warning btn-lg fw-bold w-100 shadow-sm text-dark">
-                    <i class="bi bi-floppy-fill me-2"></i> LƯU THAY ĐỔI
-                </button>
+                <div class="d-grid mt-3">
+                    <button type="submit" class="btn btn-warning btn-lg fw-bold shadow-sm text-dark rounded-pill">
+                        <i class="bi bi-floppy-fill me-2"></i> LƯU THAY ĐỔI
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </form>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
     <script>
+        // ==========================================
+        // LOGIC DANH MỤC & ĐỊA CHỈ
+        // ==========================================
         const subTypesData = @Html.Raw(ViewBag.SubTypesJson);
         const subTypeSelect = document.getElementById('subTypeSelect');
 
         function filterSubTypes(parentId) {
+            let oldSelected = subTypeSelect.value;
             subTypeSelect.innerHTML = '<option value="">-- Chọn loại bất động sản --</option>';
-            subTypesData.filter(t => t.ParentID == parentId).forEach(t => {
-                subTypeSelect.add(new Option(t.TypeName, t.TypeID));
+            const filteredTypes = subTypesData.filter(t => t.ParentID == parentId);
+
+            filteredTypes.forEach(t => {
+                let opt = new Option(t.TypeName, t.TypeID);
+                if(t.TypeID == oldSelected) opt.selected = true;
+                subTypeSelect.add(opt);
             });
         }
 
         async function loadWards(areaId) {
             const wardSelect = document.getElementById('wardSelect');
+            let oldWard = wardSelect.value;
+
             wardSelect.innerHTML = '<option value="">Đang tải...</option>';
-            if (!areaId) { wardSelect.innerHTML = '<option value=""></option>'; return; }
+            if (!areaId) {
+                wardSelect.innerHTML = '<option value="">-- Vui lòng chọn Khu vực trước --</option>';
+                return;
+            }
             try {
                 const response = await fetch(`/Home/GetWardsByArea?areaId=${areaId}`);
                 const data = await response.json();
                 wardSelect.innerHTML = '<option value="">-- Chọn Phường / Xã --</option>';
-                data.forEach(w => wardSelect.add(new Option(w.wardName, w.wardId)));
-            } catch (error) { wardSelect.innerHTML = '<option value="">Lỗi</option>'; }
+                data.forEach(w => {
+                    let opt = new Option(w.wardName, w.wardId);
+                    if(w.wardId == oldWard) opt.selected = true;
+                    wardSelect.add(opt);
+                });
+            } catch (error) { wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>'; }
         }
 
-        function previewImage(event) {
-            if(event.target.files[0]) {
-                var reader = new FileReader();
-                reader.onload = function() { document.getElementById('imgPreview').src = reader.result; };
-                reader.readAsDataURL(event.target.files[0]);
+        // ==========================================
+        // LOGIC ẢNH ĐẠI DIỆN
+        // ==========================================
+        function previewMainImage(event) {
+            var reader = new FileReader();
+            reader.onload = function() { document.getElementById('imgPreview').src = reader.result; };
+            if(event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
+        }
+
+        // ==========================================
+        // LOGIC QUẢN LÝ ẢNH PHỤ (CŨ & MỚI)
+        // ==========================================
+        const dataTransfer = new DataTransfer(); // Nơi lưu trữ ảo danh sách file mới
+        const galleryContainer = document.getElementById('combinedGalleryContainer');
+        const fileInput = document.getElementById('AdditionalImagesFile');
+
+        // 1. Xóa ảnh cũ (Đã có trên Server)
+        function markOldImageDeleted(imageId) {
+            const container = document.getElementById('oldImg_' + imageId);
+            if(container.classList.contains('img-deleted')) return; // Chống click đúp
+
+            // Làm mờ UI
+            container.classList.add('img-deleted');
+            container.querySelector('.btn-remove-img').style.display = 'none';
+
+            // Tạo input hidden báo cho Controller biết ID cần xóa
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'DeletedImageIds'; // Bắt buộc đúng tên biến List<int> bên Controller
+            input.value = imageId;
+            document.getElementById('deletedImagesContainer').appendChild(input);
+        }
+
+        // 2. Thêm ảnh mới vào DataTransfer
+        function handleNewImagesSelection(event) {
+            const files = event.target.files;
+
+            for(let i = 0; i < files.length; i++) {
+                if(!files[i].type.startsWith('image/')) continue; // Chỉ nhận ảnh
+                if(dataTransfer.items.length >= 10) {
+                    alert('Chỉ được tải lên tối đa 10 ảnh phụ mới!');
+                    break;
+                }
+                dataTransfer.items.add(files[i]);
+            }
+
+            // Cập nhật lại input file và Render UI
+            syncFileInputAndRender();
+        }
+
+        // 3. Xóa ảnh mới (Vừa chọn, chưa đẩy lên Server)
+        function removeNewImage(indexToRemove) {
+            const tempDt = new DataTransfer();
+
+            // Chép lại toàn bộ file, bỏ qua file cần xóa
+            for(let i = 0; i < dataTransfer.files.length; i++) {
+                if (i !== indexToRemove) {
+                    tempDt.items.add(dataTransfer.files[i]);
+                }
+            }
+
+            // Xóa sạch dataTransfer hiện tại và gán lại từ tempDt
+            dataTransfer.items.clear();
+            for(let i = 0; i < tempDt.files.length; i++) {
+                dataTransfer.items.add(tempDt.files[i]);
+            }
+
+            syncFileInputAndRender();
+        }
+
+        // 4. Render UI cho mảng ảnh mới
+        function syncFileInputAndRender() {
+            // Gán lại cho thẻ input thật để lúc Submit nó có dữ liệu
+            fileInput.files = dataTransfer.files;
+
+            // Xóa các thẻ review ảnh mới cũ trên giao diện
+            document.querySelectorAll('.new-img').forEach(el => el.remove());
+
+            // Vẽ lại từ đầu danh sách ảnh đang có trong DataTransfer
+            const files = dataTransfer.files;
+            for(let i = 0; i < files.length; i++) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const div = document.createElement('div');
+                    div.className = 'img-thumb-container new-img'; // Đánh dấu là ảnh mới
+
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'sub-img-thumb';
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn-remove-img';
+                    btn.title = 'Hủy chọn ảnh này';
+                    btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+                    btn.onclick = function() { removeNewImage(i); }; // Xóa theo đúng index
+
+                    div.appendChild(img);
+                    div.appendChild(btn);
+                    galleryContainer.appendChild(div);
+                }
+                reader.readAsDataURL(files[i]);
             }
         }
+
+        // ==========================================
+        // LOGIC LOAD GÓI TIN
+        // ==========================================
+        async function loadMyPackages() {
+            const selectEl = document.getElementById('packageSelect');
+            let oldPackageId = '@Model.PackageID';
+
+            try {
+                const response = await fetch('/Property/GetAvailablePackages');
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    selectEl.innerHTML = '<option value="">-- Click để chọn gói đăng --</option>';
+                    let foundOldPackage = false;
+
+                    result.data.forEach(pkg => {
+                        let isFree = (pkg.price == 0);
+                        let typeLabel = isFree ? "Miễn phí" : "VIP " + pkg.type;
+                        let textStr = `[${typeLabel}] ${pkg.name} - (Còn: ${pkg.availableCount} Lượt)`;
+
+                        let option = new Option(textStr, pkg.id);
+                        if(isFree) option.style.color = "#16a34a";
+                        else option.style.color = "#e81c2e";
+
+                        if(pkg.id == oldPackageId) {
+                            option.selected = true;
+                            foundOldPackage = true;
+                        }
+                        selectEl.add(option);
+                    });
+
+                    if (!foundOldPackage) {
+                        let optionOld = new Option("Gói tin hiện tại đang dùng (Sẽ mất nếu đổi)", oldPackageId);
+                        optionOld.selected = true;
+                        optionOld.style.color = "#64748b";
+                        selectEl.add(optionOld);
+                    }
+                } else {
+                    selectEl.innerHTML = '<option value="@Model.PackageID">Gói tin hiện tại (Ví của bạn đã hết lượt)</option>';
+                }
+            } catch (error) {
+                selectEl.innerHTML = '<option value="@Model.PackageID">Lỗi kết nối. Vẫn giữ gói cũ.</option>';
+            }
+        }
+
+        // ==========================================
+        // INIT ON LOAD
+        // ==========================================
+        document.addEventListener("DOMContentLoaded", () => {
+            const checkedRadio = document.querySelector('input[name="ParentTypeSelector"]:checked');
+            if (checkedRadio) {
+                filterSubTypes(checkedRadio.value);
+                document.getElementById('subTypeSelect').value = '@Model.TypeID';
+            }
+            loadMyPackages();
+        });
     </script>
 }

@@ -35,11 +35,17 @@ namespace BDSKhanhHoa.Data
         public DbSet<PropertyReport> PropertyReports { get; set; }
         public DbSet<Project> Projects { get; set; }
 
-        // --- 4 BẢNG TƯƠNG TÁC DETAILS (SỬA LẠI TÊN SỐ NHIỀU) ---
+        // --- BẢNG TƯƠNG TÁC DETAILS ---
         public DbSet<Comment> Comments { get; set; }
         public DbSet<Consultation> Consultations { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
-        public DbSet<CoBrokerRequest> CoBrokerRequests { get; set; }
+        public DbSet<Voucher> Vouchers { get; set; }
+        public DbSet<UserMessage> UserMessages { get; set; }
+
+        // =======================================================
+        // BỔ SUNG: Khai báo bảng Notifications ở đây để fix lỗi
+        // =======================================================
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -53,7 +59,23 @@ namespace BDSKhanhHoa.Data
             modelBuilder.Entity<PropertyType>().HasKey(pt => pt.TypeID);
             modelBuilder.Entity<ContactMessage>().HasKey(c => c.ContactID);
             modelBuilder.Entity<Blog>().HasKey(b => b.BlogID);
-            modelBuilder.Entity<RoleUpgradeRequest>().HasKey(r => r.RequestID);
+
+            // Cấu hình Khóa chính cho Notification (đề phòng EF không tự nhận diện)
+            modelBuilder.Entity<Notification>().HasKey(n => n.NotificationID);
+
+            // ===== FIX WARNING DECIMAL =====
+            modelBuilder.Entity<PostServicePackage>()
+                .Property(p => p.Price)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<Voucher>()
+                .Property(v => v.DiscountPercent)
+                .HasPrecision(5, 2);
+
+            modelBuilder.Entity<Voucher>()
+                .Property(v => v.MaxDiscountAmount)
+                .HasPrecision(18, 2);
+
             modelBuilder.Entity<AuditLog>().HasKey(al => al.LogID);
             modelBuilder.Entity<Transaction>().HasKey(t => t.TransactionID);
             modelBuilder.Entity<UserViolation>().HasKey(uv => uv.ViolationID);
@@ -87,6 +109,13 @@ namespace BDSKhanhHoa.Data
             modelBuilder.Entity<UserViolation>()
                 .HasOne(uv => uv.User).WithMany().HasForeignKey(uv => uv.UserID).OnDelete(DeleteBehavior.Cascade);
 
+            // Cấu hình Quan hệ cho Notification
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserID)
+                .OnDelete(DeleteBehavior.Cascade); // Xóa user thì xóa luôn thông báo của họ
+
             // =========================================================
             // CẤU HÌNH KHÓA NGOẠI CHO CÁC BẢNG MỚI ĐỂ TRÁNH LỖI VÒNG LẶP
             // =========================================================
@@ -104,24 +133,18 @@ namespace BDSKhanhHoa.Data
                 .HasForeignKey(a => a.SellerID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Bảng CoBrokerRequests (Có 2 liên kết về bảng User)
-            modelBuilder.Entity<CoBrokerRequest>()
-                .HasOne(c => c.Owner)
-                .WithMany()
-                .HasForeignKey(c => c.OwnerID)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<CoBrokerRequest>()
-                .HasOne(c => c.Requester)
-                .WithMany()
-                .HasForeignKey(c => c.RequesterID)
-                .OnDelete(DeleteBehavior.Restrict);
-
             // Bảng Comments
             modelBuilder.Entity<Comment>()
                 .HasOne(c => c.User)
                 .WithMany()
                 .HasForeignKey(c => c.UserID)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Cấu hình self-referencing cho Comment (Tránh lỗi vòng lặp)
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.ParentComment)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(c => c.ParentID)
                 .OnDelete(DeleteBehavior.Restrict);
         }
 

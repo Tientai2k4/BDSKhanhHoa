@@ -30,7 +30,9 @@ namespace BDSKhanhHoa.Controllers
             _hostEnvironment = hostEnvironment;
         }
 
-        // Cập nhật lại Identity Cookie để hiển thị đúng thông tin trên Header
+        // ===============================================
+        // HÀM UPDATE CLAIMS CHO COOKIE AUTHENTICATION
+        // ===============================================
         private async Task UpdateUserClaims(User user)
         {
             var claims = new List<Claim> {
@@ -46,6 +48,85 @@ namespace BDSKhanhHoa.Controllers
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
         }
 
+        // ===============================================
+        // HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO TÀI KHOẢN MỚI
+        // ===============================================
+        private async Task GrantWelcomeFreeCredits(int userId)
+        {
+            // 1. Tìm gói "Tin Thường" trên hệ thống (hoặc gói có giá rẻ nhất/miễn phí)
+            var normalPackage = await _db.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường" || p.Price == 0);
+
+            // Nếu không có gói "Tin Thường", lấy đại gói có giá thấp nhất làm gói mặc định
+            if (normalPackage == null)
+            {
+                normalPackage = await _db.PostServicePackages.OrderBy(p => p.Price).FirstOrDefaultAsync();
+            }
+
+            // 2. Nếu tìm thấy gói, tiến hành nạp 5 lượt vào ví (Bảng Transactions)
+            if (normalPackage != null)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    var freeTransaction = new Transaction
+                    {
+                        UserID = userId,
+                        PackageID = normalPackage.PackageID,
+                        PropertyID = null, // Lượt đăng được lưu trong ví (chưa dùng cho BĐS nào)
+                        Amount = 0,
+                        Type = "Tặng lượt đăng tin thường", // Đảm bảo cột Type không bị NULL
+                        PaymentMethod = "System Gift",
+                        TransactionCode = "WELCOME" + DateTime.Now.ToString("yyyyMMddHHmmss") + userId + i,
+                        Status = "Success",
+                        CreatedAt = DateTime.Now
+                    };
+                    _db.Transactions.Add(freeTransaction);
+                }
+                await _db.SaveChangesAsync();
+            }
+        }
+        // ===============================================
+        // XEM HỒ SƠ CÔNG KHAI (PUBLIC PROFILE)
+        // Dành cho khách hàng xem uy tín của người đăng tin
+        // ===============================================
+        [AllowAnonymous]
+        [Route("Nguoi-Dang-Tin/{id}")]
+        public async Task<IActionResult> UserProfile(int id)
+        {
+            // Lấy thông tin user
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == id && !u.IsDeleted);
+            if (user == null)
+            {
+                TempData["Error"] = "Người dùng này không tồn tại hoặc đã bị khóa tài khoản.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // Lấy danh sách tin đang hiển thị (Approved) của user này
+            var activeProperties = await _db.Properties
+                .Include(p => p.Ward).ThenInclude(w => w.Area)
+                .Include(p => p.PropertyType)
+                .Include(p => p.PostServicePackage) // Để lấy màu sắc/badge gói VIP
+                .Where(p => p.UserID == id && p.Status == "Approved" && p.IsDeleted == false)
+                .OrderByDescending(p => p.PackageID) // Ưu tiên tin VIP lên trước
+                .ThenByDescending(p => p.CreatedAt)
+                .ToListAsync();
+
+            ViewBag.ActiveProperties = activeProperties;
+            ViewBag.TotalActive = activeProperties.Count;
+
+            // Tính toán độ uy tín (Profile Completion) để hiển thị
+            int completionRate = 20;
+            if (!string.IsNullOrEmpty(user.FullName)) completionRate += 20;
+            if (!string.IsNullOrEmpty(user.Phone)) completionRate += 20;
+            if (user.Avatar != null && !user.Avatar.Contains("default")) completionRate += 10;
+            if (!string.IsNullOrEmpty(user.Address)) completionRate += 10;
+            if (!string.IsNullOrEmpty(user.Zalo)) completionRate += 10;
+            if (!string.IsNullOrEmpty(user.Facebook)) completionRate += 10;
+
+            ViewBag.TrustScore = completionRate;
+
+            return View(user);
+        }
         #region ĐĂNG KÝ & ĐĂNG NHẬP
         [HttpGet]
         public IActionResult Register() => View(new RegisterViewModel());
@@ -119,12 +200,17 @@ namespace BDSKhanhHoa.Controllers
             if (string.IsNullOrEmpty(userJson)) return RedirectToAction("Register");
 
             var user = JsonConvert.DeserializeObject<User>(userJson);
+
+            // Lưu User mới vào hệ thống
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
 
+            // GỌI HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO USER MỚI
+            await GrantWelcomeFreeCredits(user.UserID);
+
             HttpContext.Session.Remove(SESSION_OTP);
             HttpContext.Session.Remove(SESSION_USER);
-            TempData["Success"] = "Đăng ký thành công! Hãy đăng nhập để bắt đầu.";
+            TempData["Success"] = "Đăng ký thành công! Bạn được tặng 5 lượt đăng tin thường vào ví. Hãy đăng nhập để bắt đầu.";
             return RedirectToAction("Login");
         }
 
@@ -152,7 +238,7 @@ namespace BDSKhanhHoa.Controllers
         }
 
         // ===============================================
-        // ĐÃ KHẮC PHỤC LỖI 404 CHO ĐĂNG NHẬP GOOGLE TẠI ĐÂY
+        // ĐĂNG NHẬP BẰNG GOOGLE (AUTH)
         // ===============================================
         [AllowAnonymous]
         [HttpGet("Account/LoginGoogle")]
@@ -190,8 +276,12 @@ namespace BDSKhanhHoa.Controllers
                     Avatar = "/images/avatars/default-user.png",
                     IsActive = true
                 };
+
                 _db.Users.Add(user);
                 await _db.SaveChangesAsync();
+
+                // GỌI HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO USER MỚI (TẠO TỪ GOOGLE)
+                await GrantWelcomeFreeCredits(user.UserID);
             }
 
             await UpdateUserClaims(user);
@@ -217,12 +307,24 @@ namespace BDSKhanhHoa.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == userId);
             if (user == null) return NotFound();
 
+            // Thống kê dành cho Member
             ViewBag.TotalProps = await _db.Properties.CountAsync(p => p.UserID == userId && !p.IsDeleted.Value);
             ViewBag.TotalProjects = await _db.Projects.CountAsync(p => p.UserID == userId && !p.IsDeleted.Value);
 
+            // Kiểm tra quyền: Nếu là Admin (1) hoặc Staff (2)
+            if (user.RoleID == 1 || user.RoleID == 2)
+            {
+                ViewBag.PendingAds = await _db.Properties.CountAsync(p => p.Status == "Pending" && !p.IsDeleted.Value);
+                ViewBag.TotalUsers = await _db.Users.CountAsync(u => !u.IsDeleted);
+                ViewBag.NewReports = await _db.PropertyReports.CountAsync(r => r.Status == "Pending");
+
+                // Trả về View riêng dành cho Admin
+                return View("AdminProfile", user);
+            }
+
+            // Trả về View dành cho Member
             return View(user);
         }
-
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
@@ -240,7 +342,7 @@ namespace BDSKhanhHoa.Controllers
                 // Zalo & FB
                 user.Zalo = model.Zalo;
                 user.Facebook = model.Facebook;
-
+                user.Bio = model.Bio;
                 await _db.SaveChangesAsync();
                 await UpdateUserClaims(user);
                 TempData["Success"] = "Cập nhật hồ sơ thành công!";
@@ -281,7 +383,17 @@ namespace BDSKhanhHoa.Controllers
         {
             return View();
         }
-
+        // ===============================================
+        // TRANG TỪ CHỐI QUYỀN TRUY CẬP (HTTP 403)
+        // ===============================================
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult AccessDenied(string? ReturnUrl = null)
+        {
+            // Trả về đường dẫn mà người dùng cố gắng truy cập nhưng bị chặn
+            ViewBag.ReturnUrl = ReturnUrl;
+            return View();
+        }
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]

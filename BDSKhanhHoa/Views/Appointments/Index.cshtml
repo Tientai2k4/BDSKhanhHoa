@@ -1,0 +1,308 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Appointment>
+@{
+    ViewData["Title"] = "Quản lý lịch hẹn xem nhà";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    int currentUserId = ViewBag.CurrentUserId;
+    string activeTab = ViewBag.ActiveTab;
+
+    var incomingAppointments = Model.Where(a => a.SellerID == currentUserId).ToList();
+    var outgoingAppointments = Model.Where(a => a.BuyerID == currentUserId).ToList();
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<style>
+    .appointment-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+        .appointment-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            border-color: #0061f2;
+        }
+
+    .status-badge {
+        font-weight: 700;
+        padding: 6px 15px;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .status-Pending {
+        background-color: #fffbeb;
+        color: #d97706;
+        border: 1px solid #fcd34d;
+    }
+
+    .status-Confirmed {
+        background-color: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #bbf7d0;
+    }
+
+    .status-Cancelled {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .status-Completed {
+        background-color: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+    }
+
+    .nav-pills-custom .nav-link {
+        border-radius: 50px;
+        font-weight: 700;
+        padding: 10px 25px;
+        color: #64748b;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        margin-right: 10px;
+        transition: 0.3s;
+    }
+
+        .nav-pills-custom .nav-link.active {
+            background: #0061f2;
+            color: white;
+            border-color: #0061f2;
+            box-shadow: 0 5px 15px rgba(0, 97, 242, 0.3);
+        }
+
+    .user-avatar-sm {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e2e8f0;
+    }
+</style>
+
+<div class="card-custom p-4 p-md-5 bg-white border-0 shadow-sm rounded-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center border-bottom pb-4 mb-4 gap-3">
+        <div>
+            <h3 class="fw-bolder text-dark mb-1"><i class="bi bi-calendar-check-fill text-primary me-2"></i> Lịch Hẹn Xem Nhà</h3>
+            <p class="text-muted small mb-0">Quản lý các cuộc hẹn gặp gỡ trực tiếp giữa Người mua và Người bán.</p>
+        </div>
+        <form method="get" action="/Appointments/Index" class="d-flex gap-2">
+            <input type="hidden" name="tab" id="currentTabInput" value="@activeTab" />
+            <select name="statusFilter" class="form-select bg-light fw-medium border-0" onchange="this.form.submit()">
+                <option value="All" selected="@(ViewBag.StatusFilter == "All" ? "selected" : null)">Tất cả trạng thái</option>
+                <option value="Pending" selected="@(ViewBag.StatusFilter == "Pending" ? "selected" : null)">Chờ xác nhận</option>
+                <option value="Confirmed" selected="@(ViewBag.StatusFilter == "Confirmed" ? "selected" : null)">Đã xác nhận</option>
+            </select>
+        </form>
+    </div>
+
+    <ul class="nav nav-pills nav-pills-custom mb-4" id="appointmentTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab != "outgoing" ? "active" : "")" id="incoming-tab" data-bs-toggle="pill" data-bs-target="#incoming" type="button" role="tab" onclick="document.getElementById('currentTabInput').value='incoming'">
+                <i class="bi bi-box-arrow-in-down-left"></i> Khách Hẹn Nhà Mình
+                @if (incomingAppointments.Count(a => a.Status == "Pending") > 0)
+                {
+                    <span class="badge bg-danger ms-2 rounded-pill">@incomingAppointments.Count(a => a.Status == "Pending") MỚI</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab == "outgoing" ? "active" : "")" id="outgoing-tab" data-bs-toggle="pill" data-bs-target="#outgoing" type="button" role="tab" onclick="document.getElementById('currentTabInput').value='outgoing'">
+                <i class="bi bi-box-arrow-up-right"></i> Lịch Tôi Đặt Xem
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="appointmentTabsContent">
+        <div class="tab-pane fade @(activeTab != "outgoing" ? "show active" : "")" id="incoming" role="tabpanel">
+            @if (!incomingAppointments.Any())
+            {
+                <div class="text-center py-5 text-muted border rounded-4 bg-light border-dashed">
+                    <i class="bi bi-calendar-x display-1 d-block mb-3 opacity-25"></i>
+                    <h5 class="fw-bold">Không có dữ liệu lịch hẹn</h5>
+                </div>
+            }
+            else
+            {
+                <div class="row g-4">
+                    @foreach (var item in incomingAppointments)
+                    {
+                        string icon = item.Status == "Pending" ? "bi-hourglass-split" : (item.Status == "Confirmed" ? "bi-check-all" : (item.Status == "Completed" ? "bi-flag-fill" : "bi-x-octagon"));
+                        string statusText = item.Status switch { "Pending" => "Chờ bạn duyệt", "Confirmed" => "Đã lên lịch", "Cancelled" => "Đã hủy", "Completed" => "Đã gặp mặt", _ => "" };
+
+                        <div class="col-xl-6">
+                            <div class="appointment-card p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <span class="status-badge status-@item.Status"><i class="bi @icon"></i> @statusText</span>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-hash"></i> Mã: APP-@item.AppointmentID</span>
+                                </div>
+
+                                <div class="bg-light p-3 rounded-3 mb-3 border d-flex align-items-center">
+                                    <img src="@(item.Buyer?.Avatar ?? "/images/avatars/default-user.png")" class="user-avatar-sm me-3 bg-white" />
+                                    <div class="flex-grow-1">
+                                        <div class="small text-muted fw-bold text-uppercase">Khách hàng</div>
+                                        <div class="fw-bold text-dark fs-6">@item.Buyer?.FullName</div>
+                                    </div>
+                                    <div class="text-end">
+                                        @if (item.Status == "Pending")
+                                        {
+                                            <span class="text-muted small fst-italic"><i class="bi bi-lock-fill"></i> Đang ẩn SĐT</span>
+                                        }
+                                        else if (item.Status == "Confirmed" || item.Status == "Completed")
+                                        {
+                                            <a href="tel:@item.Buyer?.Phone" class="btn btn-sm btn-success rounded-pill fw-bold"><i class="bi bi-telephone-fill"></i> Gọi ngay</a>
+                                        }
+                                    </div>
+                                </div>
+
+                                <a href="/Property/Details/@item.PropertyID" class="text-decoration-none text-dark d-block mb-3 border-bottom pb-3" target="_blank">
+                                    <h6 class="fw-bold mb-1 text-truncate text-primary" title="@item.Property?.Title">@item.Property?.Title</h6>
+                                    <div class="small text-muted"><i class="bi bi-geo-alt-fill text-danger"></i> @item.Property?.Ward?.WardName, @item.Property?.Ward?.Area?.AreaName</div>
+                                </a>
+
+                                <div class="d-flex align-items-center bg-warning bg-opacity-10 text-dark p-3 rounded-3 mb-3 border border-warning border-opacity-25">
+                                    <i class="bi bi-calendar-event fs-3 text-warning me-3"></i>
+                                    <div>
+                                        <div class="small fw-bold text-muted text-uppercase">Thời gian xem nhà</div>
+                                        <div class="fs-5 fw-black text-danger">@item.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</div>
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(item.Note))
+                                {
+                                    <p class="small text-muted mb-3 fst-italic"><i class="bi bi-chat-quote-fill me-1"></i> "@item.Note"</p>
+                                }
+
+                                <div class="d-flex gap-2 mt-auto">
+                                    @if (item.Status == "Pending")
+                                    {
+                                        <button class="btn btn-success fw-bold flex-grow-1 shadow-sm" onclick="updateAppointment(@item.AppointmentID, 'Confirmed')"><i class="bi bi-check-lg"></i> Chấp nhận</button>
+                                        <button class="btn btn-light border text-danger fw-bold shadow-sm" onclick="updateAppointment(@item.AppointmentID, 'Cancelled')"><i class="bi bi-x-lg"></i> Từ chối</button>
+                                    }
+                                    else if (item.Status == "Confirmed")
+                                    {
+                                        <button class="btn btn-primary fw-bold flex-grow-1 shadow-sm" onclick="updateAppointment(@item.AppointmentID, 'Completed')"><i class="bi bi-hand-thumbs-up"></i> Đánh dấu đã gặp</button>
+                                        <button class="btn btn-light border text-danger fw-bold shadow-sm" onclick="updateAppointment(@item.AppointmentID, 'Cancelled')"><i class="bi bi-x-octagon"></i> Hủy lịch</button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="tab-pane fade @(activeTab == "outgoing" ? "show active" : "")" id="outgoing" role="tabpanel">
+            @if (!outgoingAppointments.Any())
+            {
+                <div class="text-center py-5 text-muted border rounded-4 bg-light border-dashed">
+                    <i class="bi bi-journal-x display-1 d-block mb-3 opacity-25"></i>
+                    <h5 class="fw-bold">Bạn chưa đặt lịch hẹn nào.</h5>
+                    <a href="/" class="btn btn-primary rounded-pill fw-bold mt-3 px-4">Tìm Nhà Ngay</a>
+                </div>
+            }
+            else
+            {
+                <div class="row g-4">
+                    @foreach (var item in outgoingAppointments)
+                    {
+                        string icon = item.Status == "Pending" ? "bi-hourglass-split" : (item.Status == "Confirmed" ? "bi-check-all" : (item.Status == "Completed" ? "bi-flag-fill" : "bi-x-octagon"));
+                        string statusText = item.Status switch { "Pending" => "Chờ chủ nhà duyệt", "Confirmed" => "Chủ nhà đồng ý", "Cancelled" => "Đã hủy", "Completed" => "Đã xem xong", _ => "" };
+
+                        <div class="col-xl-6">
+                            <div class="appointment-card p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <span class="status-badge status-@item.Status"><i class="bi @icon"></i> @statusText</span>
+                                </div>
+
+                                <a href="/Property/Details/@item.PropertyID" class="text-decoration-none text-dark d-block mb-3 border-bottom pb-3" target="_blank">
+                                    <h6 class="fw-bold mb-1 text-truncate text-primary" title="@item.Property?.Title">@item.Property?.Title</h6>
+                                </a>
+
+                                <div class="bg-light p-3 rounded-3 mb-3 border d-flex align-items-center">
+                                    <img src="@(item.Seller?.Avatar ?? "/images/avatars/default-user.png")" class="user-avatar-sm me-3 bg-white" />
+                                    <div class="flex-grow-1">
+                                        <div class="small text-muted fw-bold text-uppercase">Chủ nhà / Môi giới</div>
+                                        <div class="fw-bold text-dark fs-6">@item.Seller?.FullName</div>
+                                    </div>
+                                    <div class="text-end">
+                                        @if (item.Status == "Confirmed" || item.Status == "Completed")
+                                        {
+                                            <a href="tel:@item.Seller?.Phone" class="btn btn-sm btn-success rounded-pill fw-bold"><i class="bi bi-telephone-fill"></i> Gọi</a>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center bg-primary bg-opacity-10 text-dark p-3 rounded-3 mb-4 border border-primary border-opacity-25">
+                                    <i class="bi bi-calendar-check fs-3 text-primary me-3"></i>
+                                    <div>
+                                        <div class="small fw-bold text-muted text-uppercase">Khung giờ hẹn xem</div>
+                                        <div class="fs-5 fw-black text-primary">@item.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</div>
+                                    </div>
+                                </div>
+
+                                <div class="text-end mt-auto">
+                                    @if (item.Status == "Pending" || item.Status == "Confirmed")
+                                    {
+                                        <button class="btn btn-outline-danger fw-bold rounded-pill px-4" onclick="updateAppointment(@item.AppointmentID, 'Cancelled')"><i class="bi bi-trash3-fill"></i> Rút lại yêu cầu / Hủy lịch</button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function updateAppointment(id, status) {
+            let actionText = status === 'Confirmed' ? 'Chấp nhận' : (status === 'Cancelled' ? 'Hủy' : 'Đánh dấu hoàn thành');
+            let confirmBtnColor = status === 'Cancelled' ? '#dc3545' : '#0061f2';
+
+            Swal.fire({
+                title: actionText + ' lịch hẹn?',
+                text: "Bạn có chắc chắn thực hiện thao tác này?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: confirmBtnColor,
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Đồng ý',
+                cancelButtonText: 'Đóng'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    var formData = new FormData();
+                    formData.append("id", id);
+                    formData.append("status", status);
+
+                    fetch('/Appointments/UpdateStatus', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.success) {
+                            Swal.fire({ icon: 'success', title: 'Thành công', text: data.message, showConfirmButton: false, timer: 1500 })
+                            .then(() => { location.reload(); });
+                        } else {
+                            Swal.fire({ icon: 'error', title: 'Lỗi', text: data.message });
+                        }
+                    }).catch(() => {
+                        Swal.fire({ icon: 'error', title: 'Lỗi mạng', text: 'Không thể kết nối đến máy chủ.' });
+                    });
+                }
+            });
+        }
+    </script>
+}

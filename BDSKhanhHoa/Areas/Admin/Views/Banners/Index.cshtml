@@ -4,21 +4,29 @@
     Layout = "_AdminLayout";
 }
 
-<div class="container-fluid">
+<div class="container-fluid py-3">
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white py-3 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
             <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-images me-2 text-primary"></i>QUẢN LÝ BANNER SLIDER</h5>
-            <a asp-action="Create" class="btn btn-primary rounded-pill px-4 shadow-sm">
+            <a asp-action="Create" class="btn btn-primary rounded-pill px-4 shadow-sm align-self-start align-self-sm-auto">
                 <i class="bi bi-plus-lg me-1"></i> Thêm mới
             </a>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light">
+                <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
+                    <thead class="bg-light text-muted small">
                         <tr>
-                            <th class="ps-4">Banner</th>
-                            <th>Thông tin chữ (Tùy chọn)</th>
+                            <th class="ps-4" style="width: 25%;">Banner</th>
+                            <th style="width: 35%;">Thông tin hiển thị</th>
                             <th class="text-center">Thứ tự</th>
                             <th class="text-center">Trạng thái</th>
                             <th class="text-end pe-4">Thao tác</th>
@@ -28,33 +36,43 @@
                         @foreach (var item in Model)
                         {
                             <tr>
-                                <td class="ps-4">
-                                    <div class="position-relative" style="width: 240px; height: 110px;">
-                                        <img src="@item.ImageURL" class="rounded-3 shadow-sm w-100 h-100" style="object-fit: cover;">
-                                    </div>
+                                <td class="ps-4 py-3">
+                                    <img src="@item.ImageURL" class="rounded-3 shadow-sm border" style="width: 100%; max-width: 180px; aspect-ratio: 21/9; object-fit: cover;">
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-dark">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
+                                    <div class="fw-bold text-dark text-truncate" style="max-width: 250px;">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
                                     <small class="text-muted d-block text-truncate" style="max-width: 250px;">@item.SubTitle</small>
-                                    <small class="text-primary"><i class="bi bi-link-45deg"></i> @(item.LinkURL ?? "N/A")</small>
+                                    @if (!string.IsNullOrEmpty(item.LinkURL))
+                                    {
+                                        <a href="@item.LinkURL" target="_blank" class="small text-primary text-decoration-none"><i class="bi bi-link-45deg"></i> Xem Link</a>
+                                    }
                                 </td>
-                                <td class="text-center fw-bold">@item.DisplayOrder</td>
+                                <td class="text-center fw-bold text-secondary">@item.DisplayOrder</td>
                                 <td class="text-center">
                                     @if (item.IsActive)
                                     {
-                                        <span class="badge bg-success-subtle text-success px-3 rounded-pill border border-success-subtle">Đang hiện</span>
+                                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">Đang hiện</span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-danger-subtle text-danger px-3 rounded-pill border border-danger-subtle">Đang ẩn</span>
+                                        <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">Đang ẩn</span>
                                     }
                                 </td>
                                 <td class="text-end pe-4">
-                                    <div class="btn-group shadow-sm rounded-3 overflow-hidden">
-                                        <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-white border-end"><i class="bi bi-pencil-fill text-info"></i></a>
-                                        <button onclick="confirmDelete(@item.BannerID)" class="btn btn-white"><i class="bi bi-trash3-fill text-danger"></i></button>
+                                    <div class="btn-group shadow-sm rounded-3">
+                                        <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-light btn-sm border text-info" title="Sửa"><i class="bi bi-pencil-fill"></i></a>
+                                        <button onclick="confirmDelete(@item.BannerID)" class="btn btn-light btn-sm border text-danger" title="Xóa"><i class="bi bi-trash3-fill"></i></button>
                                     </div>
                                     <form id="delete-form-@item.BannerID" asp-action="Delete" asp-route-id="@item.BannerID" method="post" style="display:none;"></form>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-image display-4 d-block mb-2 text-light"></i>
+                                    Chưa có banner nào. Hãy thêm mới!
                                 </td>
                             </tr>
                         }
@@ -68,7 +86,7 @@
 @section Scripts {
     <script>
         function confirmDelete(id) {
-            if (confirm('Xác nhận xóa banner này?')) {
+            if (confirm('Bạn có chắc chắn muốn xóa banner này vĩnh viễn?')) {
                 document.getElementById('delete-form-' + id).submit();
             }
         }

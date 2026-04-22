@@ -9,16 +9,21 @@ namespace BDSKhanhHoa.Models
         [Key]
         public int FeatureID { get; set; }
 
-        [Required]
-        public int PropertyID { get; set; }
+        // QUAN TRỌNG: NULL tức là Dữ liệu gốc (Master Data) do Admin tạo.
+        // Khi Client chọn và lưu tin, nó sẽ copy các dòng này và gán PropertyID cụ thể vào.
+        public int? PropertyID { get; set; }
 
+        // Lớp cha: Pháp lý, Hướng nhà, Tiện ích...
+        [StringLength(100)]
+        public string? FeatureGroup { get; set; }
+
+        // Lớp con: Sổ hồng, Đông Nam, Hồ bơi...
         [StringLength(255)]
         public string? FeatureName { get; set; }
 
         [StringLength(255)]
         public string? FeatureValue { get; set; }
 
-        // Khóa ngoại liên kết ngược lại với bảng Properties (Tin đăng)
         [ForeignKey("PropertyID")]
         public virtual Property? Property { get; set; }
     }

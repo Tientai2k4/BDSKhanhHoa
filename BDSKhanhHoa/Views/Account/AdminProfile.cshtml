@@ -1,0 +1,327 @@
+﻿@model BDSKhanhHoa.Models.User
+@{
+    ViewData["Title"] = "Hồ sơ Quản trị viên";
+    // Sử dụng Layout Admin của bạn
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    // Tính độ hoàn thiện hồ sơ cho Admin (Admin cũng cần uy tín)
+    int completionRate = 20;
+    if (!string.IsNullOrEmpty(Model.FullName)) completionRate += 20;
+    if (!string.IsNullOrEmpty(Model.Phone)) completionRate += 20;
+    if (Model.Avatar != null && !Model.Avatar.Contains("default")) completionRate += 20;
+    if (!string.IsNullOrEmpty(Model.Bio)) completionRate += 20;
+}
+
+<style>
+    :root {
+        --admin-primary: #1e293b; /* Slate 800 */
+        --admin-accent: #3b82f6; /* Blue 500 */
+    }
+
+    .admin-profile-wrapper {
+        padding: 1.5rem;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Card Header với Gradient tối sang trọng */
+    .admin-card-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 16px 16px 0 0;
+        height: 120px;
+        position: relative;
+    }
+
+    .admin-avatar-pos {
+        position: absolute;
+        bottom: -50px;
+        left: 40px;
+        z-index: 5;
+    }
+
+    .admin-avatar-circle {
+        width: 110px;
+        height: 110px;
+        border: 4px solid #fff;
+        border-radius: 20px; /* Bo góc hiện đại thay vì tròn xoe */
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+        .admin-avatar-circle img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .avatar-upload-label {
+        position: absolute;
+        bottom: -5px;
+        right: -5px;
+        background: var(--admin-accent);
+        color: #fff;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px solid #fff;
+        transition: 0.3s;
+    }
+
+        .avatar-upload-label:hover {
+            transform: scale(1.1);
+            background: #2563eb;
+        }
+
+    /* Thống kê Quản trị */
+    .admin-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .admin-stat-item {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        border-radius: 12px;
+        text-align: center;
+    }
+
+        .admin-stat-item h4 {
+            font-weight: 800;
+            color: var(--admin-primary);
+            margin-bottom: 2px;
+        }
+
+        .admin-stat-item span {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+    /* Form Styling */
+    .admin-form-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-label-admin {
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #475569;
+        margin-bottom: 6px;
+    }
+
+    .input-admin {
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 0.95rem;
+        transition: 0.2s;
+        background: #fbfdff;
+    }
+
+        .input-admin:focus {
+            border-color: var(--admin-accent);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.08);
+            outline: none;
+        }
+
+    .btn-admin-save {
+        background: var(--admin-primary);
+        color: #fff;
+        padding: 12px 30px;
+        border-radius: 10px;
+        font-weight: 700;
+        border: none;
+        transition: 0.3s;
+    }
+
+        .btn-admin-save:hover {
+            background: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+    .role-tag {
+        background: rgba(59, 130, 246, 0.1);
+        color: var(--admin-accent);
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+</style>
+
+<div class="admin-profile-wrapper">
+    <div class="row g-4">
+        <div class="col-xl-4 col-lg-5">
+            <div class="admin-form-card">
+                <div class="admin-card-header">
+                    <div class="admin-avatar-pos">
+                        <div class="admin-avatar-circle">
+                            <img src="@(Model.Avatar ?? "/images/avatars/default-user.png")" id="avatarPreview" alt="Admin">
+                        </div>
+                        <form asp-action="UpdateAvatar" method="post" enctype="multipart/form-data" id="formAvatar">
+                            <label for="fileAvatar" class="avatar-upload-label" title="Cập nhật ảnh nhân sự">
+                                <i class="bi bi-camera-fill"></i>
+                            </label>
+                            <input type="file" id="fileAvatar" name="AvatarFile" hidden accept="image/*" onchange="document.getElementById('formAvatar').submit();">
+                        </form>
+                    </div>
+                </div>
+
+                <div class="p-4 pt-5 mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h4 class="fw-bold text-dark mb-0">@Model.FullName</h4>
+                        <span class="role-tag">@(Model.RoleID == 1 ? "Hệ Thống" : "Điều Hành")</span>
+                    </div>
+                    <p class="text-muted small mb-4">@Model.Email</p>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between small fw-bold mb-2">
+                            <span>Độ tin cậy tài khoản</span>
+                            <span class="text-primary">@completionRate%</span>
+                        </div>
+                        <div class="progress" style="height: 6px; border-radius: 10px; background: #f1f5f9;">
+                            <div class="progress-bar bg-primary" style="width: @completionRate%"></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-stat-grid">
+                        <div class="admin-stat-item">
+                            <h4>@ViewBag.PendingAds</h4>
+                            <span>Chờ duyệt</span>
+                        </div>
+                        <div class="admin-stat-item">
+                            <h4>@ViewBag.NewReports</h4>
+                            <span>Báo cáo</span>
+                        </div>
+                        <div class="admin-stat-item">
+                            <h4>@ViewBag.TotalUsers</h4>
+                            <span>Người dùng</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-warning mt-4 border-0 shadow-sm rounded-4 p-3">
+                <div class="d-flex gap-3">
+                    <i class="bi bi-shield-lock-fill fs-3 text-warning"></i>
+                    <div>
+                        <h6 class="fw-bold mb-1">An toàn hệ thống</h6>
+                        <p class="small mb-0 opacity-75">Tài khoản quản trị có quyền truy cập cao. Vui lòng bảo mật thông tin và đổi mật khẩu định kỳ.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-8 col-lg-7">
+            <div class="admin-form-card p-4 p-md-5">
+                <div class="d-flex align-items-center gap-2 mb-4">
+                    <div style="width: 4px; height: 24px; background: var(--admin-accent); border-radius: 10px;"></div>
+                    <h5 class="fw-black mb-0" style="font-weight: 900; letter-spacing: -0.5px;">CẤU HÌNH HỒ SƠ QUẢN TRỊ</h5>
+                </div>
+
+                <form asp-action="UpdateProfile" method="post">
+                    <input type="hidden" asp-for="UserID" />
+
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label-admin">Họ và tên nhân sự <span class="text-danger">*</span></label>
+                            <input asp-for="FullName" class="form-control input-admin" placeholder="Nhập tên..." required>
+                            <span asp-validation-for="FullName" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label-admin">Số điện thoại trực ban <span class="text-danger">*</span></label>
+                            <input asp-for="Phone" class="form-control input-admin" id="adminPhone"
+                                   pattern="^0[35789][0-9]{8}$" maxlength="10" placeholder="Số điện thoại 10 số..." required>
+                            <span asp-validation-for="Phone" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label-admin">Giới thiệu công tác (Bio)</label>
+                            <textarea asp-for="Bio" class="form-control input-admin" rows="4" maxlength="500"
+                                      placeholder="Mô tả quyền hạn hoặc thông điệp hỗ trợ..."></textarea>
+                            <div class="text-end mt-1">
+                                <small id="adminBioCount" class="text-muted small">0/500</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label-admin">Số Zalo hỗ trợ</label>
+                            <input asp-for="Zalo" class="form-control input-admin" id="adminZalo"
+                                   pattern="^0[35789][0-9]{8}$" maxlength="10" placeholder="Số Zalo...">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label-admin">Link Facebook (Nếu có)</label>
+                            <input asp-for="Facebook" type="url" class="form-control input-admin" placeholder="https://facebook.com/...">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label-admin">Địa chỉ văn phòng công tác</label>
+                            <input asp-for="Address" class="form-control input-admin" placeholder="Vị trí phòng làm việc...">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label-admin opacity-50">Tài khoản Email đăng nhập (Cố định)</label>
+                            <input asp-for="Email" class="form-control input-admin bg-light text-muted" readonly>
+                        </div>
+
+                        <div class="col-12 text-end pt-3">
+                            <button type="submit" class="btn-admin-save shadow-sm">
+                                <i class="bi bi-check-all me-2"></i> CẬP NHẬT HỒ SƠ QUẢN TRỊ
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="mt-4 text-center">
+                <a href="/Account/ChangePassword" class="text-decoration-none fw-bold text-secondary small">
+                    <i class="bi bi-key-fill me-1"></i> Thiết lập lại mật khẩu bảo mật
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Đếm ký tự Bio cho Admin
+        const bioText = document.querySelector('textarea[name="Bio"]');
+        const bioCount = document.getElementById('adminBioCount');
+
+        if(bioText) {
+            bioText.addEventListener('input', function() {
+                bioCount.textContent = `${this.value.length}/500`;
+            });
+            bioCount.textContent = `${bioText.value.length}/500`;
+        }
+
+        // Chặn nhập chữ cho SĐT
+        const maskNum = (id) => {
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
+        };
+        maskNum('adminPhone');
+        maskNum('adminZalo');
+    </script>
+}

@@ -2,10 +2,16 @@
 @{
     ViewData["Title"] = "Đăng tin bất động sản mới";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    // LẤY DỮ LIỆU GỐC TỪ ADMIN ĐỂ HIỂN THỊ
+    var masterFeatures = ViewBag.MasterFeatures as List<BDSKhanhHoa.Models.PropertyFeature> ?? new List<BDSKhanhHoa.Models.PropertyFeature>();
+    var huongNhaList = masterFeatures.Where(f => f.FeatureGroup == "Hướng nhà").ToList();
+    var phapLyList = masterFeatures.Where(f => f.FeatureGroup == "Pháp lý").ToList();
+    var tienIchList = masterFeatures.Where(f => f.FeatureGroup == "Tiện ích").ToList();
+    var khacList = masterFeatures.Where(f => f.FeatureGroup == "Khác").ToList(); // LẤY DANH SÁCH LỚP CON CỦA NHÓM "KHÁC"
 }
 
 <style>
-    /* Radio Buttons Form */
     .radio-toolbar input[type="radio"] {
         display: none;
     }
@@ -20,15 +26,17 @@
         cursor: pointer;
         transition: all 0.3s;
         color: #64748b;
+        margin-right: 8px;
+        margin-bottom: 8px;
     }
 
     .radio-toolbar input[type="radio"]:checked + label {
         background-color: #e0e7ff;
         border-color: #0061f2;
         color: #0061f2;
+        box-shadow: 0 4px 10px rgba(0, 97, 242, 0.15);
     }
 
-    /* Tiện ích Pill Buttons */
     .amenity-checkbox input[type="checkbox"] {
         display: none;
     }
@@ -51,10 +59,9 @@
         background-color: #dcfce7;
         border-color: #16a34a;
         color: #16a34a;
-        box-shadow: 0 2px 5px rgba(22, 163, 74, 0.2);
+        box-shadow: 0 4px 10px rgba(22, 163, 74, 0.15);
     }
 
-    /* Image Upload Zone (Ảnh Đại Diện) */
     .img-upload-zone {
         border: 2px dashed #cbd5e1;
         border-radius: 12px;
@@ -83,24 +90,53 @@
         position: absolute;
         top: 0;
         left: 0;
+        z-index: 1;
     }
 
-    /* Thumbnail Gallery Preview */
+    .img-upload-zone .overlay-text {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        text-align: center;
+        padding: 8px 0;
+        font-size: 0.85rem;
+        font-weight: bold;
+        z-index: 2;
+        display: none;
+    }
+
+    .img-upload-zone:hover .overlay-text {
+        display: block;
+    }
+
     .sub-img-thumb {
-        width: 70px;
-        height: 70px;
+        width: 75px;
+        height: 75px;
         object-fit: cover;
         border-radius: 8px;
         border: 1px solid #cbd5e1;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        transition: 0.3s;
     }
+
+        .sub-img-thumb:hover {
+            transform: scale(1.05);
+            border-color: #0061f2;
+        }
 </style>
 
-<form asp-action="Create" method="post" enctype="multipart/form-data">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold text-dark mb-0"><i class="bi bi-pencil-square text-primary me-2"></i> Đăng Tin Bất Động Sản Mới</h4>
+    <a href="/Property/MyAds" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4"><i class="bi bi-arrow-left me-1"></i> Trở về</a>
+</div>
+
+<form asp-action="Create" method="post" enctype="multipart/form-data" id="frmCreateProp">
     <div class="row g-4">
         <div class="col-lg-8">
-
-            <div class="card-custom p-4 mb-4">
+            <div class="card-custom p-4 mb-4 bg-white">
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-info-circle text-primary me-2"></i>1. Thông tin cơ bản</h5>
 
                 <div class="mb-4">
@@ -109,7 +145,7 @@
                         @foreach (var parent in ViewBag.ParentTypes)
                         {
                             <input type="radio" id="parent_@parent.TypeID" name="ParentTypeSelector" value="@parent.TypeID" onchange="filterSubTypes(this.value)">
-                            <label for="parent_@parent.TypeID" class="me-2"><i class="bi bi-check-circle me-1"></i> @parent.TypeName</label>
+                            <label for="parent_@parent.TypeID"><i class="bi bi-check-circle me-1"></i> @parent.TypeName</label>
                         }
                     </div>
                 </div>
@@ -117,49 +153,34 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Loại bất động sản <span class="text-danger">*</span></label>
-                        <select asp-for="TypeID" id="subTypeSelect" class="form-select form-select-lg bg-light" required>
+                        <select asp-for="TypeID" id="subTypeSelect" class="form-select form-select-lg bg-light fw-medium" required>
                             <option value="">-- Vui lòng chọn Hình thức trước --</option>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Tiêu đề tin đăng <span class="text-danger">*</span></label>
-                        <input asp-for="Title" class="form-control form-control-lg bg-light" placeholder="Ví dụ: Bán nhà mặt tiền đường Trần Phú" required />
-                    </div>
-
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label fw-bold">Thuộc dự án nào? (Tùy chọn)</label>
-                        <select asp-for="ProjectID" class="form-select bg-light">
-                            <option value="">-- Không thuộc dự án nào --</option>
-                            @if (ViewBag.Projects != null)
-                            {
-                                foreach (var proj in ViewBag.Projects)
-                                {
-                                    <option value="@proj.ProjectID">@proj.ProjectName</option>
-                                }
-                            }
-                        </select>
-                        <small class="text-muted"><i class="bi bi-info-circle"></i> Nếu dự án của bạn chưa có trên hệ thống, hãy <a href="/Project/Create" target="_blank">đăng ký mở Dự án mới tại đây</a>.</small>
+                        <input asp-for="Title" class="form-control form-control-lg bg-light" placeholder=".............." required />
                     </div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Mô tả chi tiết <span class="text-danger">*</span></label>
-                    <textarea asp-for="Description" class="form-control bg-light" rows="6" placeholder="Mô tả tiện ích xung quanh, kiến trúc, dân cư..." required></textarea>
+                    <textarea asp-for="Description" class="form-control bg-light" rows="7" placeholder="Mô tả chi tiết về vị trí, tiện ích xung quanh, tình trạng nội thất, kiến trúc, khu dân cư..." required></textarea>
                 </div>
             </div>
 
-            <div class="card-custom p-4 mb-4">
+            <div class="card-custom p-4 mb-4 bg-white">
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-geo-alt text-primary me-2"></i>2. Địa điểm & Kích thước</h5>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Khu vực  <span class="text-danger">*</span></label>
-                        <select id="areaSelect" class="form-select bg-light" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
-                            <option value="">-- Chọn khu vực --</option>
+                        <select id="areaSelect" class="form-select bg-light fw-medium" asp-items="ViewBag.Areas" onchange="loadWards(this.value)" required>
+                            <option value="">-- Chọn khu vực  --</option>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Phường / Xã <span class="text-danger">*</span></label>
-                        <select asp-for="WardID" id="wardSelect" class="form-select bg-light" required>
+                        <select asp-for="WardID" id="wardSelect" class="form-select bg-light fw-medium" required>
                             <option value="">-- Vui lòng chọn Khu vực trước --</option>
                         </select>
                     </div>
@@ -169,96 +190,107 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Mức giá (VNĐ)</label>
-                        <div class="input-group">
-                            <input asp-for="Price" type="number" class="form-control bg-light" placeholder="Để trống nếu muốn Thỏa thuận" />
-                            <span class="input-group-text bg-white">VNĐ</span>
+                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                            <input asp-for="Price" type="number" class="form-control bg-light border-0" placeholder="Để trống nếu muốn Thỏa thuận" />
+                            <span class="input-group-text bg-white fw-bold border-0 border-start">VNĐ</span>
                         </div>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Diện tích đất (m²)</label>
-                        <div class="input-group">
-                            <input asp-for="AreaSize" type="number" step="0.01" class="form-control bg-light" placeholder="Ví dụ: 100" />
-                            <span class="input-group-text bg-white">m²</span>
+                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                            <input asp-for="AreaSize" type="number" step="0.01" class="form-control bg-light border-0" placeholder="Ví dụ: 100" />
+                            <span class="input-group-text bg-white fw-bold border-0 border-start">m²</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card-custom p-4 mb-4">
+            <div class="card-custom p-4 mb-4 bg-white">
                 <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-list-check text-primary me-2"></i>3. Thông tin chi tiết & Tiện ích</h5>
                 <div class="row mb-4">
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Phòng ngủ</label>
-                        <input type="number" name="Bedrooms" class="form-control bg-light" placeholder="Số phòng..." min="1" max="20" />
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phòng ngủ</label>
+                        <input type="number" name="Bedrooms" class="form-control bg-light fw-bold text-center" placeholder="0" min="1" max="20" />
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Phòng tắm</label>
-                        <input type="number" name="Bathrooms" class="form-control bg-light" placeholder="Số phòng..." min="1" max="20" />
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phòng tắm</label>
+                        <input type="number" name="Bathrooms" class="form-control bg-light fw-bold text-center" placeholder="0" min="1" max="20" />
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Hướng nhà</label>
-                        <select name="Direction" class="form-select bg-light">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Hướng nhà</label>
+                        <select name="Direction" class="form-select bg-light fw-medium">
                             <option value="">-- Không rõ --</option>
-                            <option value="Đông">Đông</option>
-                            <option value="Tây">Tây</option>
-                            <option value="Nam">Nam</option>
-                            <option value="Bắc">Bắc</option>
-                            <option value="Đông Nam">Đông Nam</option>
-                            <option value="Tây Nam">Tây Nam</option>
-                            <option value="Đông Bắc">Đông Bắc</option>
-                            <option value="Tây Bắc">Tây Bắc</option>
+                            @foreach (var item in huongNhaList)
+                            {
+                                <option value="@item.FeatureName">@item.FeatureName</option>
+                            }
                         </select>
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <label class="form-label fw-bold text-muted small">Giấy tờ pháp lý</label>
-                        <select name="LegalStatus" class="form-select bg-light">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Giấy tờ pháp lý</label>
+                        <select name="LegalStatus" class="form-select bg-light fw-medium">
                             <option value="">-- Trạng thái --</option>
-                            <option value="Sổ đỏ/ Sổ hồng">Sổ đỏ/ Sổ hồng</option>
-                            <option value="Hợp đồng mua bán">Hợp đồng mua bán</option>
-                            <option value="Đang chờ sổ">Đang chờ sổ</option>
+                            @foreach (var item in phapLyList)
+                            {
+                                <option value="@item.FeatureName">@item.FeatureName</option>
+                            }
                         </select>
                     </div>
                 </div>
 
                 <label class="form-label fw-bold mb-3 d-block">Tiện ích nổi bật (Chọn nhiều)</label>
                 <div class="amenity-checkbox">
-                    <input type="checkbox" id="am1" name="Amenities" value="Có chỗ để xe máy">
-                    <label for="am1"><i class="bi bi-bicycle me-1"></i> Để xe máy</label>
-
-                    <input type="checkbox" id="am2" name="Amenities" value="Gara ô tô">
-                    <label for="am2"><i class="bi bi-car-front me-1"></i> Gara Ô tô</label>
-
-                    <input type="checkbox" id="am3" name="Amenities" value="Hồ bơi">
-                    <label for="am3"><i class="bi bi-water me-1"></i> Hồ bơi</label>
-
-                    <input type="checkbox" id="am4" name="Amenities" value="Nội thất đầy đủ">
-                    <label for="am4"><i class="bi bi-tv me-1"></i> Nội thất đầy đủ</label>
-
-                    <input type="checkbox" id="am5" name="Amenities" value="Thang máy">
-                    <label for="am5"><i class="bi bi-elevator me-1"></i> Thang máy</label>
-
-                    <input type="checkbox" id="am6" name="Amenities" value="Bảo vệ 24/7">
-                    <label for="am6"><i class="bi bi-shield-check me-1"></i> Bảo vệ 24/7</label>
-
-                    <input type="checkbox" id="am7" name="Amenities" value="Ban công">
-                    <label for="am7"><i class="bi bi-wind me-1"></i> Ban công</label>
+                    @if (!tienIchList.Any())
+                    {
+                        <p class="text-muted small"><i>Hệ thống chưa cấu hình tiện ích mẫu.</i></p>
+                    }
+                    else
+                    {
+                        int count = 1;
+                        foreach (var item in tienIchList)
+                        {
+                            <input type="checkbox" id="am_@count" name="Amenities" value="@item.FeatureName">
+                            <label for="am_@count"><i class="bi bi-check2-square me-1"></i> @item.FeatureName</label>
+                            count++;
+                        }
+                    }
                 </div>
+
+                <label class="form-label fw-bold mb-3 d-block mt-4">Đặc điểm khác (Chọn nhiều)</label>
+                <div class="amenity-checkbox">
+                    @if (!khacList.Any())
+                    {
+                        <p class="text-muted small"><i>Hệ thống chưa cấu hình đặc điểm khác.</i></p>
+                    }
+                    else
+                    {
+                        int countKhac = 1;
+                        foreach (var item in khacList)
+                        {
+                            <input type="checkbox" id="khac_@countKhac" name="Amenities" value="@item.FeatureName">
+                            <label for="khac_@countKhac"><i class="bi bi-check2-square me-1"></i> @item.FeatureName</label>
+                            countKhac++;
+                        }
+                    }
+                </div>
+
             </div>
         </div>
 
         <div class="col-lg-4">
-            <div class="card-custom p-4 sticky-top" style="top: 20px;">
-                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-camera text-primary me-2"></i>4. Media & Đăng tin</h5>
+            <div class="card-custom p-4 sticky-top bg-white" style="top: 20px;">
+                <h5 class="fw-bold mb-4 border-bottom pb-3"><i class="bi bi-camera text-primary me-2"></i>4. Media & Gói tin</h5>
 
                 <div class="mb-4">
                     <label class="form-label fw-bold">Ảnh đại diện (Bắt buộc) <span class="text-danger">*</span></label>
                     <label for="MainImageFile" class="img-upload-zone w-100 d-block">
                         <div id="uploadPlaceholder" class="text-center text-muted mt-5 pt-3">
-                            <i class="bi bi-card-image display-4"></i>
-                            <p class="mt-2 fw-medium mb-0">Ảnh chính hiển thị ngoài bìa</p>
-                            <small class="opacity-75">Tỷ lệ 16:9</small>
+                            <i class="bi bi-cloud-arrow-up display-4 text-primary opacity-75"></i>
+                            <p class="mt-2 fw-bold mb-0 text-dark">Tải ảnh chính lên</p>
+                            <small class="opacity-75">Khuyên dùng tỷ lệ 16:9</small>
                         </div>
                         <img id="imgPreview" src="" />
+                        <div class="overlay-text"><i class="bi bi-pencil-square"></i> Đổi ảnh khác</div>
                     </label>
                     <input type="file" id="MainImageFile" name="MainImageFile" class="d-none" accept="image/*" onchange="previewImage(event)" required />
                 </div>
@@ -266,31 +298,48 @@
                 <div class="mb-4 pt-3 border-top">
                     <div class="d-flex justify-content-between align-items-end mb-2">
                         <label class="form-label fw-bold mb-0">Ảnh phụ (Tùy chọn)</label>
-                        <small class="text-muted">Tối đa 10 ảnh</small>
+                        <span class="badge bg-secondary">Tối đa 10 ảnh</span>
                     </div>
 
-                    <label for="AdditionalImagesFile" class="btn btn-light border w-100 fw-bold text-secondary mb-3" style="border: 2px dashed #cbd5e1 !important;">
-                        <i class="bi bi-images me-2 text-primary"></i> Chọn danh sách ảnh phụ
+                    <label for="AdditionalImagesFile" class="btn btn-light border border-2 border-dashed w-100 fw-bold text-secondary mb-3 py-2">
+                        <i class="bi bi-images me-2 text-primary fs-5 align-middle"></i> Chọn danh sách ảnh phụ
                     </label>
                     <input type="file" id="AdditionalImagesFile" name="AdditionalImages" class="d-none" accept="image/*" multiple onchange="previewGallery(event)" />
 
-                    <div class="d-flex flex-wrap gap-2" id="galleryPreviewContainer">
-                    </div>
+                    <div class="d-flex flex-wrap gap-2" id="galleryPreviewContainer"></div>
                 </div>
 
                 <div class="mb-4 pt-3 border-top">
-                    <label class="form-label fw-bold">Gói dịch vụ <span class="text-danger">*</span></label>
-                    <select asp-for="PackageID" class="form-select border-warning shadow-sm" style="background-color: #fffbeb;" asp-items="ViewBag.Packages" required>
-                        <option value="">-- Chọn gói tin đăng --</option>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <label class="form-label fw-bold mb-0 text-dark">Áp dụng Lượt đăng (Ví) <span class="text-danger">*</span></label>
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill fw-bold" onclick="loadMyPackages()" title="Cập nhật lại ví gói tin">
+                            <i class="bi bi-arrow-clockwise"></i> Làm mới ví
+                        </button>
+                    </div>
+
+                    <div id="freeGiftAlert" class="alert alert-success bg-opacity-10 border-success border-opacity-25 small mb-3 p-3 rounded-3" style="display: none;">
+                        <i class="bi bi-gift-fill text-success fs-5 me-1 align-middle"></i>
+                        Bạn đang có <strong class="text-danger" id="freeCountSpan"></strong> lượt đăng <strong>Miễn phí</strong>. Hãy chọn ở danh sách bên dưới!
+                    </div>
+
+                    <select asp-for="PackageID" id="packageSelect" class="form-select form-select-lg border-primary shadow-sm mb-3 fw-bold text-primary" required>
+                        <option value="">Đang tải dữ liệu ví...</option>
                     </select>
+
+                    <div class="text-center bg-light p-3 rounded-3 border">
+                        <span class="d-block small text-muted mb-2">Hết lượt đăng hoặc muốn hiển thị nổi bật hơn?</span>
+                        <a href="/Package/Buy" target="_blank" class="btn btn-warning fw-bold text-dark rounded-pill w-100 shadow-sm">
+                            <i class="bi bi-cart-plus-fill me-1"></i> Mua thêm gói VIP ngay
+                        </a>
+                    </div>
                 </div>
 
                 <hr />
                 <div class="d-grid mt-4">
-                    <button type="submit" class="btn btn-success btn-lg fw-bold shadow-sm">
-                        <i class="bi bi-check2-circle me-2"></i> HOÀN TẤT ĐĂNG
+                    <button type="submit" class="btn btn-primary btn-lg fw-bold shadow-sm rounded-pill" onclick="clearDraftStorage()">
+                        <i class="bi bi-check2-circle me-2"></i> HOÀN TẤT ĐĂNG TIN
                     </button>
-                    <a href="/Property/MyAds" class="btn btn-light mt-2 text-secondary fw-medium">Hủy bỏ</a>
+                    <a href="/Property/MyAds" class="btn btn-light border mt-2 text-secondary fw-bold rounded-pill">Hủy bỏ</a>
                 </div>
             </div>
         </div>
@@ -299,7 +348,6 @@
 
 @section Scripts {
     <script>
-        // --- 1. LOGIC LỌC LOẠI BẤT ĐỘNG SẢN ---
         const subTypesData = @Html.Raw(ViewBag.SubTypesJson);
         const subTypeSelect = document.getElementById('subTypeSelect');
 
@@ -312,12 +360,6 @@
             });
         }
 
-        document.addEventListener("DOMContentLoaded", function() {
-            const firstRadio = document.querySelector('input[name="ParentTypeSelector"]');
-            if(firstRadio) firstRadio.click();
-        });
-
-        // --- 2. LỌC PHƯỜNG XÃ ---
         async function loadWards(areaId) {
             const wardSelect = document.getElementById('wardSelect');
             wardSelect.innerHTML = '<option value="">Đang tải...</option>';
@@ -334,54 +376,164 @@
                 wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>';
             }
         }
+
         function previewImage(event) {
-                    var reader = new FileReader();
-                    reader.onload = function() {
-                        var output = document.getElementById('imgPreview');
-                        var placeholder = document.getElementById('uploadPlaceholder');
-                        output.src = reader.result;
-                        output.style.display = 'block';
-                        placeholder.style.display = 'none';
-                    };
-                    if(event.target.files[0]){
-                        reader.readAsDataURL(event.target.files[0]);
+            var reader = new FileReader();
+            reader.onload = function() {
+                var output = document.getElementById('imgPreview');
+                var placeholder = document.getElementById('uploadPlaceholder');
+                output.src = reader.result;
+                output.style.display = 'block';
+                placeholder.style.display = 'none';
+            };
+            if(event.target.files[0]){
+                reader.readAsDataURL(event.target.files[0]);
+            }
+        }
+
+        function previewGallery(event) {
+            const container = document.getElementById('galleryPreviewContainer');
+            container.innerHTML = '';
+
+            const files = event.target.files;
+            if(files.length > 10) {
+                alert('Chỉ được chọn tối đa 10 ảnh phụ!');
+                event.target.value = '';
+                return;
+            }
+
+            for(let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if(!file.type.startsWith('image/')) continue;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'sub-img-thumb shadow-sm border border-2 border-white';
+                    container.appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function loadMyPackages() {
+            const selectEl = document.getElementById('packageSelect');
+            const alertGift = document.getElementById('freeGiftAlert');
+            const spanCount = document.getElementById('freeCountSpan');
+
+            selectEl.innerHTML = '<option value="">Đang tải dữ liệu ví...</option>';
+            try {
+                const response = await fetch('/Property/GetAvailablePackages');
+                const result = await response.json();
+
+                if (result.success && result.data.length > 0) {
+                    selectEl.innerHTML = '<option value="">-- Click để chọn gói đăng --</option>';
+                    let totalFreeCount = 0;
+
+                    result.data.forEach(pkg => {
+                        let isFree = (pkg.price == 0);
+                        let typeLabel = isFree ? "Miễn phí" : "VIP " + pkg.type;
+                        let textStr = `[${typeLabel}] ${pkg.name} - (Còn: ${pkg.availableCount} Lượt)`;
+
+                        let option = new Option(textStr, pkg.id);
+
+                        if(isFree) {
+                            option.style.color = "#16a34a";
+                            option.style.fontWeight = "bold";
+                            totalFreeCount += parseInt(pkg.availableCount);
+                        } else {
+                            option.style.color = "#e81c2e";
+                            option.style.fontWeight = "bold";
+                        }
+
+                        selectEl.add(option);
+                    });
+
+                    if(totalFreeCount > 0) {
+                        spanCount.innerText = totalFreeCount;
+                        alertGift.style.display = 'block';
+                    } else {
+                        alertGift.style.display = 'none';
+                    }
+
+                } else {
+                    selectEl.innerHTML = '<option value="">Ví của bạn đã hết lượt đăng. Vui lòng mua thêm!</option>';
+                    alertGift.style.display = 'none';
+                }
+            } catch (error) {
+                selectEl.innerHTML = '<option value="">Lỗi tải dữ liệu gói</option>';
+                alertGift.style.display = 'none';
+            }
+        }
+
+        const FORM_STORAGE_KEY = "bds_draft_form";
+
+        function saveFormDraft() {
+            const form = document.getElementById('frmCreateProp');
+            const formData = new FormData(form);
+            let obj = {};
+
+            for (let [key, value] of formData.entries()) {
+                if(key !== "MainImageFile" && key !== "AdditionalImages" && !key.includes("RequestVerificationToken")) {
+                    if(obj[key] !== undefined) {
+                        if(!Array.isArray(obj[key])) obj[key] = [obj[key]];
+                        obj[key].push(value);
+                    } else {
+                        obj[key] = value;
                     }
                 }
-
-                // --- HIỆU ỨNG PREVIEW NHIỀU ẢNH PHỤ (MỚI) ---
-                function previewGallery(event) {
-                    const container = document.getElementById('galleryPreviewContainer');
-                    container.innerHTML = ''; // Xóa ảnh cũ nếu người dùng chọn lại
-
-                    const files = event.target.files;
-
-                    // Cảnh báo nếu chọn quá 10 ảnh
-                    if(files.length > 10) {
-                        alert('Bạn chỉ được chọn tối đa 10 ảnh phụ!');
-                        event.target.value = ''; // Reset input
-                        return;
-                    }
-
-                    for(let i = 0; i < files.length; i++) {
-                        const file = files[i];
-                        if(!file.type.startsWith('image/')) continue;
-
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            // Tạo thẻ img và CSS cho nó
-                            const img = document.createElement('img');
-                            img.src = e.target.result;
-                            img.style.width = '75px';
-                            img.style.height = '75px';
-                            img.style.objectFit = 'cover';
-                            img.style.borderRadius = '8px';
-                            img.style.border = '1px solid #cbd5e1';
-                            img.className = 'shadow-sm';
-
-                            container.appendChild(img);
-                        }
-                        reader.readAsDataURL(file);
-                    }
+            }
+            localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(obj));
         }
+
+        function restoreFormDraft() {
+            const draft = localStorage.getItem(FORM_STORAGE_KEY);
+            if (!draft) return;
+            const obj = JSON.parse(draft);
+
+            for (let key in obj) {
+                const inputList = document.querySelectorAll(`[name="${key}"]`);
+                if (!inputList || inputList.length === 0) continue;
+
+                const input = inputList[0];
+                if (input.type === 'radio' || input.type === 'checkbox') {
+                    let values = Array.isArray(obj[key]) ? obj[key] : [obj[key]];
+                    inputList.forEach(el => { el.checked = values.includes(el.value); });
+                } else {
+                    input.value = obj[key];
+                }
+            }
+
+            const selectedRadio = document.querySelector('input[name="ParentTypeSelector"]:checked');
+            if (selectedRadio) {
+                filterSubTypes(selectedRadio.value);
+                if (obj["TypeID"]) document.getElementById('subTypeSelect').value = obj["TypeID"];
+            }
+
+            const areaSelect = document.getElementById('areaSelect');
+            if(areaSelect && areaSelect.value) {
+                loadWards(areaSelect.value).then(() => {
+                    if (obj["WardID"]) document.getElementById('wardSelect').value = obj["WardID"];
+                });
+            }
+        }
+
+        function clearDraftStorage() {
+            localStorage.removeItem(FORM_STORAGE_KEY);
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadMyPackages();
+            restoreFormDraft();
+
+            const formElement = document.getElementById('frmCreateProp');
+            formElement.addEventListener('input', saveFormDraft);
+            formElement.addEventListener('change', saveFormDraft);
+
+            const firstRadio = document.querySelector('input[name="ParentTypeSelector"]');
+            const checkedRadio = document.querySelector('input[name="ParentTypeSelector"]:checked');
+            if(firstRadio && !checkedRadio) firstRadio.click();
+        });
     </script>
 }

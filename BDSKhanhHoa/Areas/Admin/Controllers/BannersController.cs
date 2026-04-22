@@ -31,13 +31,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             if (imageFile != null)
             {
-                // Kiểm tra và tự động tạo thư mục nếu chưa có để tránh lỗi DirectoryNotFoundException
-                string wwwRootPath = _hostEnvironment.WebRootPath;
-                string folderPath = Path.Combine(wwwRootPath, @"images/banners");
-                if (!Directory.Exists(folderPath))
-                {
-                    Directory.CreateDirectory(folderPath);
-                }
+                string folderPath = Path.Combine(_hostEnvironment.WebRootPath, @"images/banners");
+                if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
 
                 string fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
                 string fullPath = Path.Combine(folderPath, fileName);
@@ -50,6 +45,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
                 _context.Add(banner);
                 await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Thêm banner mới thành công!";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -77,15 +74,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 {
                     if (imageFile != null)
                     {
-                        string wwwRootPath = _hostEnvironment.WebRootPath;
-                        string folderPath = Path.Combine(wwwRootPath, @"images/banners");
-
+                        string folderPath = Path.Combine(_hostEnvironment.WebRootPath, @"images/banners");
                         if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
 
-                        // Xóa ảnh cũ nếu có để giải phóng dung lượng (tùy chọn)
                         if (!string.IsNullOrEmpty(banner.ImageURL))
                         {
-                            var oldImagePath = Path.Combine(wwwRootPath, banner.ImageURL.TrimStart('/'));
+                            var oldImagePath = Path.Combine(_hostEnvironment.WebRootPath, banner.ImageURL.TrimStart('/'));
                             if (System.IO.File.Exists(oldImagePath)) System.IO.File.Delete(oldImagePath);
                         }
 
@@ -100,6 +94,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     }
                     _context.Update(banner);
                     await _context.SaveChangesAsync();
+
+                    TempData["Success"] = "Cập nhật banner thành công!";
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -117,7 +113,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             var banner = await _context.Banners.FindAsync(id);
             if (banner != null)
             {
-                // Xóa file vật lý trước khi xóa bản ghi
                 if (!string.IsNullOrEmpty(banner.ImageURL))
                 {
                     var imagePath = Path.Combine(_hostEnvironment.WebRootPath, banner.ImageURL.TrimStart('/'));
@@ -125,6 +120,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 }
                 _context.Banners.Remove(banner);
                 await _context.SaveChangesAsync();
+                TempData["Success"] = "Đã xóa banner thành công!";
             }
             return RedirectToAction(nameof(Index));
         }

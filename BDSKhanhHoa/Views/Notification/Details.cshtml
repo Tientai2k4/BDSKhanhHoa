@@ -1,0 +1,222 @@
+﻿@model BDSKhanhHoa.Models.Notification
+
+@{
+    ViewData["Title"] = Model.Title;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    bool hasAction = !string.IsNullOrEmpty(Model.ActionUrl);
+    bool isWarning = Model.Title.ToLower().Contains("cảnh cáo") || Model.Title.ToLower().Contains("vi phạm");
+    bool isDanger = Model.Title.ToLower().Contains("gỡ bỏ") || Model.Title.ToLower().Contains("khóa");
+
+    string themeColor = isDanger ? "#ef4444" : (isWarning ? "#f59e0b" : "#3b82f6");
+    string bgSoft = isDanger ? "#fef2f2" : (isWarning ? "#fffbeb" : "#eff6ff");
+    string iconClass = isDanger ? "bi-shield-x-fill" : (isWarning ? "bi-exclamation-octagon-fill" : "bi-info-circle-fill");
+}
+
+<style>
+    .detail-shell {
+        padding: 40px 0 80px;
+        background: #f8fafc;
+        min-height: 80vh;
+    }
+
+    .reader-card {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.04);
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+    }
+
+    .reader-header {
+        padding: 40px;
+        background: @bgSoft;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        text-align: center;
+        position: relative;
+    }
+
+    .btn-back {
+        position: absolute;
+        left: 30px;
+        top: 30px;
+        background: #fff;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+        .btn-back:hover {
+            transform: translateX(-3px);
+            color: #0f172a;
+        }
+
+    .header-icon {
+        font-size: 3.5rem;
+        color: @themeColor;
+        margin-bottom: 16px;
+    }
+
+    .reader-title {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: #0f172a;
+        margin-bottom: 12px;
+    }
+
+    .reader-meta {
+        font-size: 0.95rem;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    .reader-body {
+        padding: 40px;
+        font-size: 1.05rem;
+        color: #334155;
+        line-height: 1.8;
+        white-space: pre-wrap;
+    }
+
+    /* BOX YÊU CẦU HÀNH ĐỘNG - TÂM ĐIỂM CỦA TRANG */
+    .action-box {
+        margin: 0 40px 40px;
+        padding: 36px;
+        background: #ffffff;
+        border: 2px dashed @themeColor;
+        border-radius: 20px;
+        text-align: center;
+        position: relative;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+    }
+
+        .action-box::before {
+            content: '\F33A'; /* Bootstrap icon gear */
+            font-family: "bootstrap-icons";
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: @themeColor;
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+    .action-title {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 12px;
+    }
+
+    .action-desc {
+        color: #475569;
+        margin-bottom: 24px;
+        font-size: 0.95rem;
+    }
+
+    .btn-execute {
+        background: @themeColor;
+        color: #fff;
+        padding: 14px 36px;
+        border-radius: 100px;
+        font-size: 1.05rem;
+        font-weight: 800;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.3s;
+        border: none;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        animation: pulseAction 2s infinite;
+    }
+
+        .btn-execute:hover {
+            background: #0f172a;
+            transform: translateY(-2px);
+            color: #fff;
+            animation: none;
+        }
+
+    @@keyframes pulseAction {
+        0% {
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+        }
+
+        70% {
+            box-shadow: 0 0 0 15px rgba(245, 158, 11, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+        }
+    }
+</style>
+
+<div class="container detail-shell">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+
+            <div class="reader-card">
+                <div class="reader-header">
+                    <a href="/Notification/Index" class="btn-back" title="Quay lại"><i class="bi bi-arrow-left"></i></a>
+                    <i class="bi @iconClass header-icon"></i>
+                    <h1 class="reader-title">@Model.Title</h1>
+                    <div class="reader-meta">
+                        <i class="bi bi-clock-history me-1"></i> @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+                    </div>
+                </div>
+
+                <div class="reader-body">
+                    @* Render nội dung thông báo, giữ nguyên định dạng xuống dòng của Admin *@
+                    @Html.Raw(Model.Content)
+                </div>
+
+                @if (hasAction)
+                {
+                    <div class="action-box">
+                        <h3 class="action-title">Yêu cầu xử lý từ Quản trị viên</h3>
+                        <p class="action-desc">
+                            Vui lòng thực hiện yêu cầu này để tuân thủ quy định của hệ thống. Nếu bỏ qua, tài khoản của bạn có thể bị hạn chế tính năng.
+                        </p>
+
+                        @* Sử dụng API ProcessAction để đảm bảo an toàn và điều hướng chuẩn xác *@
+                        <a href="/Notification/ProcessAction/@Model.NotificationID" class="btn-execute">
+                            @if (isWarning)
+                            {
+                                <i class="bi bi-pencil-square"></i>
+                            }
+                            else if (isDanger)
+                            {
+
+                                <i class="bi bi-shield-lock-fill"></i>
+                            }
+                            else
+                            {
+
+                                <i class="bi bi-cursor-fill"></i>
+                            }
+
+                            @(Model.ActionText ?? "Thực hiện ngay")
+                        </a>
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+</div>

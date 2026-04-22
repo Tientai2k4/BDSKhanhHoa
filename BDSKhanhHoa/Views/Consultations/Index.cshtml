@@ -1,0 +1,353 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Consultation>
+
+@{
+    ViewData["Title"] = "Quản lý Khách hàng quan tâm (Leads)";
+    Layout = "~/Views/Shared/_UserLayout.cshtml"; // Thay bằng tên Layout chuẩn của bạn
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <p class="mb-1 fw-medium text-white-50">Tổng khách hàng</p>
+                    <h3 class="fw-bold mb-0">@ViewBag.TotalLeads</h3>
+                </div>
+                <div class="bg-white bg-opacity-25 p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <i class="bi bi-people-fill fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-danger text-white border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <p class="mb-1 fw-medium text-white-50">Khách mới cần tư vấn</p>
+                    <h3 class="fw-bold mb-0">@ViewBag.NewLeads</h3>
+                </div>
+                <div class="bg-white bg-opacity-25 p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <i class="bi bi-bell-fill fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body d-flex align-items-center justify-content-between p-4">
+                <div>
+                    <p class="mb-1 fw-medium text-white-50">Đã liên hệ & Chăm sóc</p>
+                    <h3 class="fw-bold mb-0">@ViewBag.ContactedLeads</h3>
+                </div>
+                <div class="bg-white bg-opacity-25 p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <i class="bi bi-check-circle-fill fs-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom mb-4 border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+        <form method="get" action="/Consultations/Index" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-bold text-secondary small">Tìm kiếm khách hàng</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="searchString" class="form-control border-start-0 bg-light" placeholder="Nhập tên hoặc số điện thoại..." value="@ViewBag.SearchString">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold text-secondary small">Trạng thái xử lý</label>
+                <select name="statusFilter" class="form-select bg-light">
+                    <option value="All" selected="@(ViewBag.StatusFilter == "All" ? "selected" : null)">Tất cả trạng thái</option>
+                    <option value="New" selected="@(ViewBag.StatusFilter == "New" ? "selected" : null)">Khách mới (Chưa gọi)</option>
+                    <option value="Contacted" selected="@(ViewBag.StatusFilter == "Contacted" ? "selected" : null)">Đã liên hệ</option>
+                    <option value="Closed" selected="@(ViewBag.StatusFilter == "Closed" ? "selected" : null)">Đã chốt / Hủy</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary px-4 fw-bold me-2"><i class="bi bi-funnel-fill"></i> Lọc dữ liệu</button>
+                <a href="/Consultations/Index" class="btn btn-light border text-dark fw-bold"><i class="bi bi-arrow-clockwise"></i> Đặt lại</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card card-custom border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center rounded-top-4">
+        <h5 class="mb-0 fw-bolder text-dark"><i class="bi bi-list-task text-primary me-2"></i>Danh sách yêu cầu tư vấn</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary">
+                    <tr>
+                        <th class="ps-4 border-0">Khách hàng</th>
+                        <th class="border-0">Bất động sản quan tâm</th>
+                        <th class="border-0">Lời nhắn</th>
+                        <th class="border-0">Ngày gửi</th>
+                        <th class="border-0">Trạng thái</th>
+                        <th class="text-end pe-4 border-0">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr id="row-@item.ConsultID">
+                                <td class="ps-4">
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold text-dark">@(string.IsNullOrEmpty(item.FullName) ? "Khách vãng lai" : item.FullName)</span>
+                                        <a href="tel:@item.Phone" class="text-decoration-none text-success fw-bold small mt-1">
+                                            <i class="bi bi-telephone-fill"></i> @item.Phone
+                                        </a>
+                                        @if (!string.IsNullOrEmpty(item.Email))
+                                        {
+                                            <span class="text-muted small"><i class="bi bi-envelope"></i> @item.Email</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (item.Property != null)
+                                    {
+                                        <a href="/Property/Details/@item.PropertyID" class="text-primary text-decoration-none fw-medium" target="_blank">
+                                            Xem tin BĐS <i class="bi bi-box-arrow-up-right small"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">BĐS đã gỡ</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.Note))
+                                    {
+                                        <button class="btn btn-sm btn-light border btn-view-note" data-id="@item.ConsultID">
+                                            <i class="bi bi-chat-text-fill text-info"></i> Xem lời nhắn
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small fst-italic">Không có</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="fw-medium text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span><br />
+                                    <small class="text-muted">@item.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                                <td>
+                                    @if (item.Status == "New")
+                                    {
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-2" id="badge-status-@item.ConsultID">
+                                            <i class="bi bi-circle-fill" style="font-size: 0.5rem; vertical-align: middle;"></i> Mới
+                                        </span>
+                                    }
+                                    else if (item.Status == "Contacted")
+                                    {
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2" id="badge-status-@item.ConsultID">
+                                            <i class="bi bi-check-circle-fill"></i> Đã liên hệ
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary rounded-pill px-3 py-2" id="badge-status-@item.ConsultID">@item.Status</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="dropdown">
+                                        <button class="btn btn-light btn-sm rounded-circle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                            @if (item.Status == "New")
+                                            {
+                                                <li><a class="dropdown-item text-success fw-medium btn-mark-contacted" href="javascript:void(0)" data-id="@item.ConsultID"><i class="bi bi-check2-all me-2"></i> Đánh dấu đã liên hệ</a></li>
+                                            }
+                                            <li><a class="dropdown-item text-info fw-medium btn-view-note" href="javascript:void(0)" data-id="@item.ConsultID"><i class="bi bi-info-circle me-2"></i> Xem chi tiết</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger fw-medium btn-delete" href="javascript:void(0)" data-id="@item.ConsultID"><i class="bi bi-trash me-2"></i> Xóa thư này</a></li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <h6 class="fw-bold">Không tìm thấy dữ liệu</h6>
+                                <p class="small mb-0">Chưa có khách hàng nào khớp với tìm kiếm của bạn.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (ViewBag.TotalPages > 1)
+    {
+        <div class="card-footer bg-white border-top py-3 rounded-bottom-4">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mb-0">
+                    <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                        <a class="page-link shadow-sm border-0" href="?page=@(ViewBag.CurrentPage - 1)&searchString=@ViewBag.SearchString&statusFilter=@ViewBag.StatusFilter">Trang trước</a>
+                    </li>
+                    @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                    {
+                        <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                            <a class="page-link shadow-sm border-0 @(i == ViewBag.CurrentPage ? "fw-bold" : "")" href="?page=@i&searchString=@ViewBag.SearchString&statusFilter=@ViewBag.StatusFilter">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                        <a class="page-link shadow-sm border-0" href="?page=@(ViewBag.CurrentPage + 1)&searchString=@ViewBag.SearchString&statusFilter=@ViewBag.StatusFilter">Trang sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-bottom-0 rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary"><i class="bi bi-person-lines-fill me-2"></i>Thông tin chi tiết</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3 border-bottom pb-2">
+                    <small class="text-muted d-block text-uppercase fw-bold mb-1">Khách hàng</small>
+                    <span id="md-name" class="fw-bold fs-5 text-dark"></span>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <small class="text-muted d-block text-uppercase fw-bold mb-1">Số điện thoại</small>
+                        <a href="#" id="md-phone" class="fw-bold text-success text-decoration-none fs-5"><i class="bi bi-telephone-fill"></i> <span></span></a>
+                    </div>
+                    <div class="col-6 border-start">
+                        <small class="text-muted d-block text-uppercase fw-bold mb-1">Email</small>
+                        <span id="md-email" class="text-dark"></span>
+                    </div>
+                </div>
+                <div class="mb-3 bg-light p-3 rounded-3 border">
+                    <small class="text-muted d-block text-uppercase fw-bold mb-2"><i class="bi bi-chat-quote-fill"></i> Lời nhắn của khách</small>
+                    <p id="md-note" class="mb-0 text-dark" style="white-space: pre-line;"></p>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <small class="text-muted" id="md-time"><i class="bi bi-clock"></i> <span></span></small>
+                    <span id="md-status" class="badge"></span>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 bg-light rounded-bottom-4">
+                <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        $(document).ready(function () {
+
+            // 1. Xử lý Đánh dấu đã liên hệ
+            $('.btn-mark-contacted').click(function () {
+                var btn = $(this);
+                var id = btn.data('id');
+
+                Swal.fire({
+                    title: 'Xác nhận!',
+                    text: "Bạn đã gọi điện/tư vấn cho khách hàng này?",
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#00ac69',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Đã liên hệ',
+                    cancelButtonText: 'Hủy'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Gọi AJAX Update
+                        $.post('/Consultations/UpdateStatus', { id: id, newStatus: 'Contacted' }, function (res) {
+                            if (res.success) {
+                                Swal.fire('Thành công!', 'Đã cập nhật trạng thái.', 'success');
+                                // Đổi badge
+                                $('#badge-status-' + id).removeClass('bg-danger text-danger border-danger border-opacity-25 bg-opacity-10')
+                                    .addClass('bg-success text-success border-success border-opacity-25 bg-opacity-10')
+                                    .html('<i class="bi bi-check-circle-fill"></i> Đã liên hệ');
+                                // Ẩn nút hiện tại trong dropdown
+                                btn.closest('li').remove();
+                            } else {
+                                Swal.fire('Lỗi', res.message, 'error');
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 2. Xử lý Xóa yêu cầu (Spam)
+            $('.btn-delete').click(function () {
+                var id = $(this).data('id');
+                var row = $('#row-' + id);
+
+                Swal.fire({
+                    title: 'Xóa yêu cầu này?',
+                    text: "Bạn sẽ không thể khôi phục lại dữ liệu này!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Xóa ngay',
+                    cancelButtonText: 'Hủy'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.post('/Consultations/Delete', { id: id }, function (res) {
+                            if (res.success) {
+                                Swal.fire('Đã xóa!', res.message, 'success');
+                                row.fadeOut(500, function() { $(this).remove(); });
+                            } else {
+                                Swal.fire('Lỗi', res.message, 'error');
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 3. Xử lý Mở Modal hiển thị chi tiết
+            $('.btn-view-note').click(function () {
+                var id = $(this).data('id');
+
+                // Gọi API lấy dữ liệu
+                $.get('/Consultations/GetDetails/' + id, function (data) {
+                    $('#md-name').text(data.fullName);
+                    $('#md-phone span').text(data.phone);
+                    $('#md-phone').attr('href', 'tel:' + data.phone);
+                    $('#md-email').text(data.email);
+                    $('#md-note').text(data.note);
+                    $('#md-time span').text(data.createdAt);
+
+                    var statusBadge = $('#md-status');
+                    if(data.status === 'New') {
+                        statusBadge.removeClass().addClass('badge bg-danger').text('Khách mới');
+                    } else if (data.status === 'Contacted') {
+                        statusBadge.removeClass().addClass('badge bg-success').text('Đã liên hệ');
+                    } else {
+                        statusBadge.removeClass().addClass('badge bg-secondary').text(data.status);
+                    }
+
+                    // Hiển thị modal
+                    var detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+                    detailModal.show();
+                }).fail(function() {
+                    Swal.fire('Lỗi', 'Không thể lấy dữ liệu từ máy chủ.', 'error');
+                });
+            });
+        });
+    </script>
+}

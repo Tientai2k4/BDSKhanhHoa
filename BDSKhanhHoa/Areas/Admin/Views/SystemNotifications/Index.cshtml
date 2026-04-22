@@ -1,0 +1,236 @@
+﻿@{
+    ViewData["Title"] = "Trung tâm Phát thông báo";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+    }
+
+    .form-control, .form-select {
+        border-radius: 12px;
+        border: 1.5px solid #e2e8f0;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        background: #f8fafc;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus, .form-select:focus {
+            background: #fff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+    /* Target Selection Toggle */
+    .target-radio input[type="radio"] {
+        display: none;
+    }
+
+    .target-radio label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 20px;
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 600;
+        color: #64748b;
+    }
+
+    .target-radio input[type="radio"]:checked + label {
+        background: #eff6ff;
+        border-color: #3b82f6;
+        color: #1d4ed8;
+        box-shadow: 0 4px 12px rgba(59,130,246,0.15);
+    }
+
+    /* Live Preview Box */
+    .preview-box {
+        background: #f1f5f9;
+        border-radius: 20px;
+        padding: 30px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .mock-noti {
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        border-left: 4px solid #3b82f6;
+        transition: all 0.3s;
+    }
+</style>
+
+<div class="container-fluid px-4 py-4">
+    <div class="mb-4">
+        <h3 class="fw-bold text-dark mb-1"><i class="bi bi-send-fill text-primary me-2"></i>Phát Thông Báo Hệ Thống</h3>
+        <p class="text-muted">Tính năng cho phép Admin gửi Broadcast đến toàn bộ người dùng hoặc chỉ định cá nhân.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-7">
+            <div class="glass-card p-4 p-md-5">
+                <form id="frmSendNoti">
+                    @Html.AntiForgeryToken()
+
+                    <h5 class="fw-bold mb-4"><i class="bi bi-1-circle text-primary me-2"></i> Đối tượng nhận</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 target-radio">
+                            <input type="radio" name="targetType" id="tgtAll" value="All" checked onchange="toggleSpecificUser(false)">
+                            <label for="tgtAll"><i class="bi bi-people-fill fs-5"></i> Tất cả người dùng</label>
+                        </div>
+                        <div class="col-md-6 target-radio">
+                            <input type="radio" name="targetType" id="tgtSpecific" value="Specific" onchange="toggleSpecificUser(true)">
+                            <label for="tgtSpecific"><i class="bi bi-person-bounding-box fs-5"></i> Chỉ định cụ thể</label>
+                        </div>
+                    </div>
+
+                    <div id="specificUserInput" class="mb-4" style="display:none;">
+                        <label class="fw-bold text-dark mb-2">Nhập ID người dùng (Cách nhau bởi dấu phẩy) <span class="text-danger">*</span></label>
+                        <input type="text" name="targetUserIds" class="form-control" placeholder="VD: 1, 15, 203">
+                    </div>
+
+                    <h5 class="fw-bold mb-4 mt-5"><i class="bi bi-2-circle text-primary me-2"></i> Nội dung thông điệp</h5>
+
+                    <div class="mb-3">
+                        <label class="fw-bold text-dark mb-2">Tiêu đề thông báo <span class="text-danger">*</span></label>
+                        <input type="text" name="title" id="inpTitle" class="form-control" placeholder="VD: Cập nhật chính sách đăng tin mới" required oninput="updatePreview()">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="fw-bold text-dark mb-2">Nội dung chi tiết <span class="text-danger">*</span></label>
+                        <textarea name="content" id="inpContent" class="form-control" rows="4" placeholder="Nhập nội dung thông điệp..." required oninput="updatePreview()"></textarea>
+                    </div>
+
+                    <div class="row g-3 mb-4 mt-2">
+                        <div class="col-md-6">
+                            <label class="fw-bold text-dark mb-2">URL Điều hướng (Tùy chọn)</label>
+                            <input type="text" name="actionUrl" id="inpUrl" class="form-control" placeholder="VD: /Policy/Terms" oninput="updatePreview()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="fw-bold text-dark mb-2">Tên nút hành động</label>
+                            <input type="text" name="actionText" id="inpBtnText" class="form-control" placeholder="VD: Xem chi tiết" oninput="updatePreview()">
+                        </div>
+                    </div>
+
+                    <hr class="my-4 text-muted">
+                    <button type="button" id="btnSubmitSend" class="btn btn-primary btn-lg w-100 fw-bold rounded-pill shadow-sm py-3">
+                        <i class="bi bi-rocket-takeoff-fill me-2"></i> Bắt đầu chiến dịch phát thông báo
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-xl-5">
+            <div class="preview-box">
+                <div class="text-center mb-4">
+                    <span class="badge bg-secondary rounded-pill px-3 py-2"><i class="bi bi-eye-fill me-1"></i> Client Live Preview</span>
+                    <p class="text-muted small mt-2">Đây là những gì người dùng sẽ nhìn thấy trong hộp thư.</p>
+                </div>
+
+                <div class="mock-noti">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width:45px; height:45px; flex-shrink:0;">
+                            <i class="bi bi-info-circle-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark" id="prevTitle">Tiêu đề thông báo...</h6>
+                            <small class="text-muted">Vừa xong</small>
+                        </div>
+                    </div>
+                    <div class="text-secondary small mb-3" id="prevContent" style="white-space: pre-wrap; line-height: 1.6;">
+                        Nội dung thông điệp sẽ hiển thị ở đây...
+                    </div>
+                    <div id="prevActionBox" style="display:none;">
+                        <button class="btn btn-dark btn-sm rounded-pill fw-bold px-3 py-2 pointer-events-none">
+                            <i class="bi bi-cursor-fill text-warning me-1"></i> <span id="prevBtnText">Hành động</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Toggle Specific User Input
+        function toggleSpecificUser(show) {
+            const el = document.getElementById('specificUserInput');
+            if (show) {
+                $(el).slideDown(200);
+            } else {
+                $(el).slideUp(200);
+                el.querySelector('input').value = '';
+            }
+        }
+
+        // Live Preview Realtime Update
+        function updatePreview() {
+            const title = document.getElementById('inpTitle').value;
+            const content = document.getElementById('inpContent').value;
+            const url = document.getElementById('inpUrl').value;
+            const btnText = document.getElementById('inpBtnText').value;
+
+            document.getElementById('prevTitle').innerText = title || "Tiêu đề thông báo...";
+            document.getElementById('prevContent').innerText = content || "Nội dung thông điệp sẽ hiển thị ở đây...";
+
+            const actionBox = document.getElementById('prevActionBox');
+            if (url || btnText) {
+                actionBox.style.display = "block";
+                document.getElementById('prevBtnText').innerText = btnText || "Xem chi tiết";
+            } else {
+                actionBox.style.display = "none";
+            }
+        }
+
+        // Handle Submit AJAX
+        document.getElementById('btnSubmitSend').addEventListener('click', function() {
+            const form = document.getElementById('frmSendNoti');
+            if (!form.reportValidity()) return;
+
+            const btn = this;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang nạp và phát...';
+            btn.disabled = true;
+
+            const fd = new FormData(form);
+
+            fetch('/Admin/SystemNotifications/SendBroadcast', {
+                method: 'POST',
+                body: fd,
+                headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('Thành công', data.message, 'success').then(() => {
+                        form.reset();
+                        updatePreview();
+                    });
+                } else {
+                    Swal.fire('Lỗi phát sinh', data.message, 'error');
+                }
+            })
+            .catch(() => Swal.fire('Lỗi mạng', 'Mất kết nối máy chủ.', 'error'))
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+        });
+    </script>
+}

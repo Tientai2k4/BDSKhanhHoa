@@ -27,6 +27,10 @@ namespace BDSKhanhHoa.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
+        // BỔ SUNG DÒNG NÀY (Cho phép Null vì lúc mới tạo báo cáo thì chưa được xử lý)
+        public DateTime? UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; } = false;
+
         [ForeignKey("PropertyID")]
         public virtual Property? Property { get; set; }
 

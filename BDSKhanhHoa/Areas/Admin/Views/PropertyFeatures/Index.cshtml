@@ -1,85 +1,169 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PropertyFeature>
 @{
-    ViewData["Title"] = "Quản lý Danh mục Tiện ích";
+    ViewData["Title"] = "Quản lý Danh mục Tiện ích gốc";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    var featureGroups = ViewBag.FeatureGroups as List<SelectListItem>;
 }
 
 <div class="container-fluid py-4">
     <div class="row align-items-center mb-4">
         <div class="col-md-6">
-            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-stars text-warning me-2"></i>Quản lý Tiện ích & Thông số</h3>
-            <p class="text-muted small mb-0">Quản lý các thông số, tiện ích được gắn kèm vào Bất động sản.</p>
+            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-ui-checks-grid text-primary me-2"></i>Danh mục Lớp Cha - Lớp Con</h3>
+            <p class="text-muted small mb-0">Quản lý các lựa chọn để hiển thị ra cho Client ghim chọn khi đăng tin.</p>
         </div>
-        <div class="col-md-6">
-            <form action="/Admin/PropertyFeatures/Index" method="get">
+        <div class="col-md-6 d-flex justify-content-end gap-2">
+            <form action="/Admin/PropertyFeatures/Index" method="get" class="d-flex w-100" style="max-width: 350px;">
                 <div class="input-group shadow-sm">
-                    <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control bg-white border-0 py-2 fw-medium" placeholder="Tìm tên tiện ích hoặc giá trị...">
-                    <button class="btn btn-primary px-4 fw-bold" type="submit"><i class="bi bi-search"></i></button>
+                    <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control border-0" placeholder="Tìm tên lớp con...">
+                    <button class="btn btn-primary px-3" type="submit"><i class="bi bi-search"></i></button>
                 </div>
             </form>
+            <button class="btn btn-success shadow-sm fw-bold text-nowrap" data-bs-toggle="modal" data-bs-target="#addFeatureModal">
+                <i class="bi bi-plus-lg me-1"></i> Thêm dữ liệu
+            </button>
         </div>
     </div>
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 fw-medium" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold" style="width: 100px;">Mã BĐS</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold">Tin đăng đính kèm</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Tên thuộc tính</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold">Giá trị</th>
-                        <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Xóa</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
-                    {
-                        <tr>
-                            <td colspan="5" class="text-center py-5">
-                                <i class="bi bi-search display-4 text-muted opacity-25 d-block mb-3"></i>
-                                <h6 class="text-muted fw-bold">Không tìm thấy tiện ích nào.</h6>
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td class="ps-4 py-3">
-                                <span class="badge bg-light text-primary border p-2">#@item.PropertyID</span>
-                            </td>
-                            <td class="py-3">
-                                <a href="/Property/Details/@item.PropertyID" target="_blank" class="fw-bold text-dark text-decoration-none text-truncate d-block" style="max-width: 300px;" title="@item.Property?.Title">
-                                    @item.Property?.Title
-                                </a>
-                            </td>
-                            <td class="py-3 text-center">
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill fw-bold">@item.FeatureName</span>
-                            </td>
-                            <td class="py-3 fw-medium text-dark">
-                                @item.FeatureValue
-                            </td>
-                            <td class="text-end pe-4 py-3">
-                                <form action="/Admin/PropertyFeatures/Delete" method="post" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tiện ích này khỏi BĐS?');">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.FeatureID" />
-                                    <button type="submit" class="btn btn-sm btn-light border text-danger rounded-3 shadow-sm" title="Xóa tiện ích">
-                                        <i class="bi bi-trash3-fill"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+    @if (!Model.Any())
+    {
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white text-center py-5">
+            <i class="bi bi-inboxes display-4 text-muted opacity-25 d-block mb-3"></i>
+            <h6 class="text-muted fw-bold">Chưa có danh mục nào được tạo.</h6>
+        </div>
+    }
+    else
+    {
+        // Hiển thị nhóm theo Lớp Cha (FeatureGroup)
+        var groupedFeatures = Model.GroupBy(f => f.FeatureGroup).ToList();
+
+        <div class="row g-4">
+            @foreach (var group in groupedFeatures)
+            {
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm rounded-4 h-100">
+                        <div class="card-header bg-light border-bottom-0 pt-3 pb-2">
+                            <h5 class="fw-bold text-primary mb-0"><i class="bi bi-collection me-2"></i>Nhóm: @group.Key</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <tbody>
+                                        @foreach (var item in group)
+                                        {
+                                            <tr>
+                                                <td class="ps-4 py-3 fw-bold text-dark w-75">
+                                                    <i class="bi bi-arrow-return-right text-muted me-2"></i>@item.FeatureName
+                                                </td>
+                                                <td class="text-end pe-4 py-3">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-3 shadow-sm me-1" title="Sửa"
+                                                            onclick="openEditModal(@item.FeatureID, '@item.FeatureGroup', '@item.FeatureName')">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                    <form action="/Admin/PropertyFeatures/Delete" method="post" class="d-inline" onsubmit="return confirm('Xóa sẽ làm mất tùy chọn này ở trang của Client. Bạn có chắc chắn?');">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="id" value="@item.FeatureID" />
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 shadow-sm" title="Xóa">
+                                                            <i class="bi bi-trash3-fill"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<div class="modal fade" id="addFeatureModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle-fill text-success me-2"></i>Thêm Lớp Con (Tùy chọn hiển thị)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/Admin/PropertyFeatures/Create" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Lớp cha (Nhóm hiển thị) <span class="text-danger">*</span></label>
+                        <select name="FeatureGroup" class="form-select" required>
+                            <option value="">-- Chọn nhóm gốc --</option>
+                            @foreach (var g in featureGroups)
+                            {
+                                <option value="@g.Value">@g.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Lớp con (Tên hiển thị ra Client) <span class="text-danger">*</span></label>
+                        <input type="text" name="FeatureName" class="form-control" placeholder="VD: Đông Nam, Sổ hồng, Hồ bơi..." required />
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">Tạo mới</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="editFeatureModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i>Sửa Thông Tin</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/Admin/PropertyFeatures/Edit" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="FeatureID" id="edit_FeatureID" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Lớp cha (Nhóm hiển thị)</label>
+                        <select name="FeatureGroup" id="edit_FeatureGroup" class="form-select" required>
+                            @foreach (var g in featureGroups)
+                            {
+                                <option value="@g.Value">@g.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Lớp con (Tên hiển thị ra Client)</label>
+                        <input type="text" name="FeatureName" id="edit_FeatureName" class="form-control" required />
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function openEditModal(id, group, name) {
+            document.getElementById('edit_FeatureID').value = id;
+            document.getElementById('edit_FeatureGroup').value = group;
+            document.getElementById('edit_FeatureName').value = name;
+            var editModal = new bootstrap.Modal(document.getElementById('editFeatureModal'));
+            editModal.show();
+        }
+    </script>
+}

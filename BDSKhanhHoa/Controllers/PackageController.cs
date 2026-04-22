@@ -15,11 +15,10 @@ namespace BDSKhanhHoa.Controllers
             _context = context;
         }
 
-        // Trang hiển thị danh sách các Gói tin để người dùng Mua/Nâng cấp
         [HttpGet]
         public async Task<IActionResult> Buy()
         {
-            // Lấy danh sách gói, sắp xếp ưu tiên từ cao xuống thấp
+            // Lấy danh sách gói tin, sắp xếp ưu tiên hiển thị từ cao xuống thấp
             var packages = await _context.PostServicePackages
                 .OrderByDescending(p => p.PriorityLevel)
                 .ToListAsync();
