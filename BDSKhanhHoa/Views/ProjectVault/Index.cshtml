@@ -1,0 +1,166 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Kho tài liệu & pháp lý";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    int totalProjects = ViewBag.TotalProjects ?? 0;
+    int hasLegalDocs = ViewBag.HasLegalDocs ?? 0;
+    int hasImages = ViewBag.HasImages ?? 0;
+    int hasContent = ViewBag.HasContent ?? 0;
+}
+
+<style>
+    .vault-topbar, .vault-card {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .vault-topbar {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .vault-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .vault-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .vault-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .doc-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #fff;
+        height: 100%;
+    }
+
+    .doc-thumb {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        background: #f8fafc;
+    }
+
+    .doc-body {
+        padding: 18px;
+    }
+
+    .doc-label {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 800;
+        color: #64748b;
+        margin-bottom: 6px;
+    }
+
+    .file-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        font-weight: 800;
+    }
+</style>
+
+<div class="vault-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <div class="vault-title">Kho tài liệu & pháp lý</div>
+        <p class="vault-subtitle">Tập trung các file đã có sẵn trong hồ sơ dự án: ảnh, banner, tài liệu pháp lý, nội dung truyền thông.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <span class="vault-chip"><i class="bi bi-building"></i> @totalProjects dự án</span>
+        <span class="vault-chip"><i class="bi bi-file-earmark-pdf"></i> @hasLegalDocs hồ sơ có file</span>
+        <span class="vault-chip"><i class="bi bi-images"></i> @hasImages có ảnh</span>
+        <span class="vault-chip"><i class="bi bi-file-text"></i> @hasContent có nội dung</span>
+    </div>
+</div>
+
+@if (Model != null && Model.Any())
+{
+    <div class="row g-4">
+        @foreach (var item in Model)
+        {
+            var image = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+            var thumbnail = string.IsNullOrWhiteSpace(item.Thumbnail) ? "/images/no-image.jpg" : item.Thumbnail;
+
+            <div class="col-xl-4 col-lg-6">
+                <div class="doc-card">
+                    <img src="@image" class="doc-thumb" alt="@item.ProjectName" />
+                    <div class="doc-body">
+                        <h5 class="fw-bold mb-2">@item.ProjectName</h5>
+                        <div class="text-muted small mb-3">
+                            @item.Ward?.WardName, @item.Area?.AreaName
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="doc-label">Ảnh đại diện</div>
+                            <a href="@image" target="_blank" class="file-link text-primary">
+                                <i class="bi bi-image"></i> Mở ảnh đại diện
+                            </a>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="doc-label">Ảnh thumbnail</div>
+                            <a href="@thumbnail" target="_blank" class="file-link text-primary">
+                                <i class="bi bi-card-image"></i> Mở thumbnail
+                            </a>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="doc-label">Tài liệu pháp lý</div>
+                            @if (!string.IsNullOrWhiteSpace(item.LegalDocs))
+                            {
+                                <a href="@item.LegalDocs" target="_blank" class="file-link text-success">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i> Xem file pháp lý
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="text-muted">Chưa có file pháp lý.</div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="doc-label">Nội dung mô tả</div>
+                            <div class="text-muted">
+                                @(string.IsNullOrWhiteSpace(item.ContentHtml) ? "Chưa có nội dung chi tiết." : "Đã có nội dung HTML trong hồ sơ dự án.")
+                            </div>
+                        </div>
+
+                        <a href="/Project/Details/@item.ProjectID" class="btn btn-outline-primary rounded-pill fw-bold w-100">
+                            Xem trang dự án
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="vault-card p-5 text-center">
+        <i class="bi bi-folder2-open display-1 text-muted opacity-25"></i>
+        <h5 class="fw-bold mt-3">Chưa có dự án để lưu tài liệu</h5>
+        <div class="text-muted">Khi có dự án, bạn sẽ xem lại toàn bộ ảnh và file đã gắn sẵn ở đây.</div>
+    </div>
+}

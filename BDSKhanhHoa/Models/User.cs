@@ -13,30 +13,36 @@ namespace BDSKhanhHoa.Models
         [Required(ErrorMessage = "Tên đăng nhập là bắt buộc")]
         public string Username { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Mật khẩu là bắt buộc")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Mật khẩu phải từ 6 ký tự trở lên")]
+        [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
+
+        // Trường xác nhận mật khẩu (Không lưu vào DB)
+        [NotMapped]
+        [DataType(DataType.Password)]
+        [Compare("Password", ErrorMessage = "Mật khẩu xác nhận không khớp.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email là bắt buộc")]
         [EmailAddress(ErrorMessage = "Email không đúng định dạng (VD: tenban@gmail.com)")]
         public string Email { get; set; } = string.Empty;
 
-        // ĐÃ BỎ [Required] - Để EF Core tự động check NULL an toàn, không bị crash
         [StringLength(100, ErrorMessage = "Họ tên không được vượt quá 100 ký tự")]
         public string? FullName { get; set; }
 
-        // ĐÃ BỎ [Required] - Tài khoản Google Auth tạo ra sẽ bị NULL Phone nên không được đặt Required ở Model
-        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng số hợp lệ (VD: 09, 03...)")]
+        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số điện thoại không hợp lệ")]
         public string? Phone { get; set; }
 
         public string? Address { get; set; }
 
-        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số Zalo phải gồm 10 chữ số hợp lệ")]
+        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số Zalo không hợp lệ")]
         public string? Zalo { get; set; }
 
-        [Url(ErrorMessage = "Link Facebook không đúng định dạng (VD: https://facebook.com/...)")]
+        [Url(ErrorMessage = "Link Facebook không hợp lệ")]
         public string? Facebook { get; set; }
 
-        [StringLength(500, ErrorMessage = "Giới thiệu bản thân không được vượt quá 500 ký tự")]
+        [StringLength(500, ErrorMessage = "Giới thiệu không được vượt quá 500 ký tự")]
         public string? Bio { get; set; }
 
         [Required]

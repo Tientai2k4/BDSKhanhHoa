@@ -1,0 +1,85 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Quản lý Dự án";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4 mt-4">
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInDown" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+            <span class="fw-bold">@TempData["Success"]</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4 animate__animated animate__shakeX" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+            <span class="fw-bold">@TempData["Error"]</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark mb-0"><i class="bi bi-buildings me-2 text-primary"></i>HỆ THỐNG QUẢN TRỊ DỰ ÁN</h4>
+        <a asp-action="Create" class="btn btn-primary fw-bold rounded-pill px-4 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>ĐĂNG DỰ ÁN MỚI
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light text-uppercase small fw-bold">
+                    <tr>
+                        <th class="ps-4">Dự án</th>
+                        <th>Chủ đầu tư / Vị trí</th>
+                        <th>Thông số kỹ thuật</th>
+                        <th>Trạng thái</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center gap-3">
+                                    <img src="@(item.MainImage ?? "/images/no-image.jpg")" class="rounded-3 border shadow-sm" width="65" height="48" style="object-fit:cover;">
+                                    <div>
+                                        <div class="fw-bold text-dark">@item.ProjectName</div>
+                                        <div class="small text-muted">Loại: @item.ProjectType</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-medium text-primary">@item.Investor</div>
+                                <div class="small text-muted"><i class="bi bi-geo-alt me-1"></i>@item.Area?.AreaName</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-danger">~@item.PriceMin @item.PriceUnit</div>
+                                <div class="small text-muted">DT: @item.AreaMin - @item.AreaMax m²</div>
+                            </td>
+                            <td>
+                                <span class="badge @(item.ProjectStatus == "Đang mở bán" ? "bg-success" : "bg-warning text-dark") px-3 py-2 rounded-pill">
+                                    @item.ProjectStatus
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group shadow-sm rounded-3 overflow-hidden bg-white">
+                                    <a asp-action="Details" asp-route-id="@item.ProjectID" class="btn btn-sm btn-light text-primary" title="Xem bài viết"><i class="bi bi-eye"></i></a>
+                                    <a asp-action="Edit" asp-route-id="@item.ProjectID" class="btn btn-sm btn-light text-warning border-start border-end" title="Sửa thông số"><i class="bi bi-pencil-square"></i></a>
+                                    <form asp-action="Delete" asp-route-id="@item.ProjectID" method="post" onsubmit="return confirm('⚠️ Chú ý: Dự án sẽ được chuyển vào thùng rác. Tiếp tục?')">
+                                        <button type="submit" class="btn btn-sm btn-light text-danger" title="Xóa"><i class="bi bi-trash3"></i></button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

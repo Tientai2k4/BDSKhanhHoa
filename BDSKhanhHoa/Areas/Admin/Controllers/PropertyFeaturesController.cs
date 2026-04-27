@@ -19,15 +19,20 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         // Tạo sẵn các Lớp cha (FeatureGroup) chuẩn để Admin chọn
+        // Tạo sẵn các Lớp cha (FeatureGroup) chuẩn để Admin chọn
         private List<SelectListItem> GetFeatureGroups()
         {
             return new List<SelectListItem>
-            {
-                new SelectListItem { Value = "Hướng nhà", Text = "Hướng nhà" },
-                new SelectListItem { Value = "Pháp lý", Text = "Giấy tờ Pháp lý" },
-                new SelectListItem { Value = "Tiện ích", Text = "Tiện ích nổi bật (Hồ bơi, Gara...)" },
-                new SelectListItem { Value = "Khác", Text = "Đặc điểm Khác" }
-            };
+    {
+        new SelectListItem { Value = "Hướng nhà", Text = "Hướng nhà" },
+        new SelectListItem { Value = "Pháp lý", Text = "Giấy tờ Pháp lý" },
+        new SelectListItem { Value = "Tiện ích", Text = "Tiện ích nổi bật (Hồ bơi, Gara...)" },
+        
+        // Thêm lớp cha "Tình trạng" ở đây
+        new SelectListItem { Value = "Tình trạng", Text = "Tình trạng (Mới, Cũ, Đang xây...)" },
+
+        new SelectListItem { Value = "Khác", Text = "Đặc điểm Khác" }
+    };
         }
 
         [HttpGet]

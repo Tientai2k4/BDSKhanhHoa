@@ -1,137 +1,473 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@using System.Globalization
+
 @{
-    ViewData["Title"] = "Dự Án Bất Động Sản Nổi Bật";
+    ViewData["Title"] = "Dự án Bất động sản Khánh Hòa 2026";
     Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var areas = ViewBag.Areas as IEnumerable<BDSKhanhHoa.Models.Area>;
+    string keyword = ViewBag.Keyword as string ?? "";
+    int? areaId = ViewBag.AreaId as int?;
+    string status = ViewBag.Status as string ?? "";
+    string sort = ViewBag.Sort as string ?? "newest";
+    int totalResults = ViewBag.TotalResults ?? 0;
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
 }
 
 <style>
-    .project-card-large {
+    :root {
+        --glass: rgba(255, 255, 255, 0.88);
+        --grad-primary: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        --grad-gold: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        --soft-border: rgba(148, 163, 184, .18);
+    }
+
+    .project-hero {
+        position: relative;
+        background: linear-gradient(180deg, rgba(2,6,23,.58), rgba(2,6,23,.62)), url('https://images.unsplash.com/photo-1449156001437-3a16d1dfbe69?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+        padding: 110px 0 120px;
+        color: #fff;
+        border-radius: 0 0 44px 44px;
+        overflow: hidden;
+    }
+
+    .hero-title {
+        font-size: clamp(2rem, 4vw, 4rem);
+        font-weight: 900;
+        letter-spacing: -1.5px;
+        line-height: 1.05;
+    }
+
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.18);
+        backdrop-filter: blur(10px);
+        font-weight: 700;
+        font-size: .9rem;
+    }
+
+    .filter-box-floating {
+        margin-top: -56px;
+        background: var(--glass);
+        backdrop-filter: blur(16px);
+        border-radius: 28px;
+        padding: 24px;
+        box-shadow: 0 20px 50px rgba(2, 6, 23, .14);
+        border: 1px solid #fff;
+        position: relative;
+        z-index: 10;
+    }
+
+    .search-input,
+    .search-select {
+        min-height: 52px;
         border-radius: 16px;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
+        font-weight: 600;
+        background: #fff;
+    }
+
+    .btn-search {
+        min-height: 52px;
+        border-radius: 16px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        border: none;
+    }
+
+    .section-title {
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: -0.03em;
+    }
+
+    .pj-modern-card {
+        border: none;
+        border-radius: 28px;
         overflow: hidden;
         background: #fff;
-        border: 1px solid #edf2f7;
-        transition: 0.3s;
-        position: relative;
+        transition: all .35s cubic-bezier(.2,.8,.2,1);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid rgba(148,163,184,.14);
     }
 
-        .project-card-large:hover {
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            transform: translateY(-5px);
+        .pj-modern-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 28px 60px rgba(15, 23, 42, .12);
         }
 
-    .pj-img-box {
-        height: 320px;
+    .pj-img-container {
         position: relative;
+        height: 260px;
         overflow: hidden;
+        background: #e2e8f0;
     }
 
-        .pj-img-box img {
+        .pj-img-container img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: 0.5s;
+            transition: transform .8s ease;
         }
 
-    .project-card-large:hover .pj-img-box img {
-        transform: scale(1.05);
+    .pj-modern-card:hover .pj-img-container img {
+        transform: scale(1.08);
     }
 
-    .status-badge {
+    .pj-badge {
         position: absolute;
-        top: 20px;
-        left: 20px;
-        padding: 6px 15px;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.85rem;
+        top: 18px;
+        left: 18px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: .72rem;
+        text-transform: uppercase;
         color: #fff;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        z-index: 10;
+        box-shadow: 0 8px 18px rgba(0,0,0,.16);
     }
 
-    .status-Sắp.mở.bán {
-        background: #f59e0b;
+    .pj-price-overlay {
+        position: absolute;
+        bottom: 18px;
+        right: 18px;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #111827;
+        padding: 8px 14px;
+        border-radius: 14px;
+        font-weight: 900;
+        font-size: 1rem;
+        box-shadow: 0 10px 22px rgba(245, 158, 11, .28);
     }
 
-    .status-Đang.mở.bán {
-        background: #e81c2e;
+    .pj-content {
+        padding: 22px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
     }
 
-    .status-Đang.bàn.giao {
-        background: #0061f2;
+    .pj-title {
+        font-weight: 900;
+        color: #0f172a;
+        margin-bottom: 8px;
+        font-size: 1.18rem;
+        line-height: 1.35;
     }
 
-    .status-Đã.bàn.giao {
-        background: #16a34a;
+    .pj-loc {
+        font-size: .88rem;
+        color: #64748b;
+        margin-bottom: 14px;
+    }
+
+    .pj-desc {
+        font-size: .94rem;
+        color: #475569;
+        margin-bottom: 18px;
+        line-height: 1.65;
+        min-height: 4.2rem;
+        overflow: hidden;
+    }
+
+    .pj-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .pj-footer {
+        border-top: 1px solid #eef2f7;
+        padding-top: 14px;
+        margin-top: auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .investor-tag {
+        font-weight: 800;
+        color: #2563eb;
+        font-size: .88rem;
+    }
+
+    .action-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+
+    .btn-card {
+        border-radius: 999px;
+        font-weight: 800;
+        padding: 10px 16px;
+    }
+
+    .btn-card-primary {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+        border: none;
+    }
+
+    .btn-card-outline {
+        background: #fff;
+        color: #0f172a;
+        border: 1px solid #dbe3ef;
+    }
+
+    .stat-strip {
+        background: #fff;
+        border-radius: 28px;
+        padding: 24px;
+        margin-top: 34px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .stat-num {
+        font-size: 2.25rem;
+        font-weight: 900;
+        color: #0f172a;
+        display: block;
+        line-height: 1;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: .75rem;
+        letter-spacing: 1px;
+    }
+
+    .empty-state {
+        border: 1px dashed #cbd5e1;
+        border-radius: 28px;
+        padding: 48px 24px;
+        background: #fff;
     }
 </style>
 
-<div class="bg-dark py-5 text-white text-center" style="background: linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.8)), url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1920&q=80') center/cover;">
-    <div class="container py-4">
-        <h1 class="fw-bold display-5 mb-3">KHÁM PHÁ DỰ ÁN TIỀM NĂNG</h1>
-        <p class="fs-5 opacity-75 mb-0">Các dự án đã được xác thực pháp lý, chủ đầu tư uy tín tại Khánh Hòa</p>
+<div class="project-hero animate__animated animate__fadeIn">
+    <div class="container position-relative">
+        <div class="mb-3">
+            <span class="hero-badge"><i class="bi bi-buildings-fill"></i> BDS Khánh Hòa 2026</span>
+        </div>
+        <h1 class="hero-title mb-3">Khám phá dự án, xem mặt bằng, đặt lịch hẹn và nhận tư vấn ngay</h1>
+        <p class="fs-5 opacity-75 mb-0" style="max-width: 760px;">
+            Bộ sưu tập dự án đã duyệt, hiển thị theo khu vực, trạng thái, giá và diện tích để khách hàng chọn nhanh hơn.
+        </p>
     </div>
 </div>
 
-<div class="container my-5">
-    <div class="bg-white p-4 rounded-4 shadow-sm border mb-5">
-        <form action="/Project/Search" method="get" class="row g-3">
-            <div class="col-md-4">
-                <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control form-control-lg bg-light" placeholder="Nhập tên dự án, chủ đầu tư...">
-            </div>
-            <div class="col-md-3">
-                <select name="areaId" class="form-select form-select-lg bg-light">
-                    <option value="">Tất cả khu vực</option>
-                    @foreach (var a in ViewBag.Areas)
-                    {
-                        <option value="@a.AreaID" selected="@(ViewBag.AreaId == a.AreaID ? "selected" : null)">@a.AreaName</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-3">
-                <select name="status" class="form-select form-select-lg bg-light">
-                    <option value="">Tất cả tiến độ</option>
-                    <option value="Sắp mở bán" selected="@(ViewBag.Status == "Sắp mở bán" ? "selected" : null)">Sắp mở bán</option>
-                    <option value="Đang mở bán" selected="@(ViewBag.Status == "Đang mở bán" ? "selected" : null)">Đang mở bán</option>
-                    <option value="Đã bàn giao" selected="@(ViewBag.Status == "Đã bàn giao" ? "selected" : null)">Đã bàn giao</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold"><i class="bi bi-search"></i> LỌC</button>
+<div class="container">
+    <div class="filter-box-floating animate__animated animate__fadeInUp">
+        <form action="/Project/Search" method="get">
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-4">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Tìm dự án</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 rounded-start-4">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" name="keyword" value="@keyword" class="form-control search-input border-start-0 rounded-end-4" placeholder="Tên dự án, địa danh, chủ đầu tư..." />
+                    </div>
+                </div>
+
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Khu vực</label>
+                    <select name="areaId" class="form-select search-select">
+                        <option value="">Tất cả</option>
+                        @if (areas != null)
+                        {
+                            foreach (var a in areas)
+                            {
+                                <option value="@a.AreaID" selected="@(areaId.HasValue && areaId.Value == a.AreaID)">
+                                    @a.AreaName
+                                </option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
+                    <select name="status" class="form-select search-select">
+                        <option value="">Tất cả</option>
+                        <option value="Sắp mở bán" selected="@(status == "Sắp mở bán")">Sắp mở bán</option>
+                        <option value="Đang mở bán" selected="@(status == "Đang mở bán")">Đang mở bán</option>
+                        <option value="Đã bàn giao" selected="@(status == "Đã bàn giao")">Đã bàn giao</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Sắp xếp</label>
+                    <select name="sort" class="form-select search-select">
+                        <option value="newest" selected="@(sort == "newest")">Mới nhất</option>
+                        <option value="price_asc" selected="@(sort == "price_asc")">Giá tăng dần</option>
+                        <option value="price_desc" selected="@(sort == "price_desc")">Giá giảm dần</option>
+                        <option value="area_desc" selected="@(sort == "area_desc")">Diện tích lớn</option>
+                        <option value="name" selected="@(sort == "name")">Tên A-Z</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-2">
+                    <button type="submit" class="btn btn-search w-100 py-3 fw-bold rounded-4 shadow-sm text-white">
+                        TÌM KIẾM NGAY
+                    </button>
+                </div>
             </div>
         </form>
     </div>
 
-    <div class="row g-5">
-        @if (Model != null && Model.Any())
-        {
-            foreach (var item in Model)
+    <div class="my-5 pt-2">
+        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+            <div>
+                <h2 class="section-title mb-1">DỰ ÁN TIÊU BIỂU</h2>
+                <p class="text-muted mb-0">Tổng cộng @totalResults dự án đã phê duyệt</p>
+            </div>
+            <a href="/Project/Search" class="btn btn-outline-primary fw-bold rounded-pill px-4">
+                Xem bộ lọc nâng cao <i class="bi bi-sliders ms-1"></i>
+            </a>
+        </div>
+
+        <div class="row g-4">
+            @if (Model != null && Model.Any())
             {
-                string badgeClass = item.ProjectStatus?.Replace(" ", ".");
-                <div class="col-lg-6">
-                    <a href="/Project/Details/@item.ProjectID" class="text-decoration-none text-dark">
-                        <div class="project-card-large">
-                            <div class="pj-img-box">
-                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)">
-                                <span class="status-badge status-@badgeClass">@item.ProjectStatus</span>
+                foreach (var item in Model)
+                {
+                    string statusColor = item.ProjectStatus == "Đang mở bán" ? "#10b981" :
+                    item.ProjectStatus == "Đã bàn giao" ? "#64748b" : "#f59e0b";
+
+                    string image = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+                    string location = $"{item.Ward?.WardName}, {item.Area?.AreaName}";
+                    string priceText = item.PriceMin.HasValue && item.PriceMax.HasValue
+                    ? $"{item.PriceMin:0.##} - {item.PriceMax:0.##} {item.PriceUnit}"
+                    : $"{item.PriceMin:0.##} {item.PriceUnit}";
+                    string detailUrl = $"/Project/Details/{item.ProjectID}";
+
+                    <div class="col-xl-4 col-lg-6">
+                        <div class="pj-modern-card">
+                            <div class="pj-img-container">
+                                <span class="pj-badge" style="background:@statusColor">@item.ProjectStatus</span>
+                                <img src="@image" alt="@item.ProjectName" />
+                                <div class="pj-price-overlay">@priceText</div>
                             </div>
-                            <div class="p-4">
-                                <h3 class="fw-bold text-dark mb-1">@item.ProjectName</h3>
-                                <p class="text-primary fw-bold mb-3"><i class="bi bi-building-fill-check me-1"></i> Chủ đầu tư: @item.Investor</p>
-                                <p class="text-muted mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @item.Ward?.WardName, @item.Ward?.Area?.AreaName</p>
-                                <div class="bg-light p-3 rounded-3 text-secondary small" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                    @item.Description
+
+                            <div class="pj-content">
+                                <h3 class="pj-title">@item.ProjectName</h3>
+
+                                <div class="pj-loc">
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i> @location
+                                </div>
+
+                                <div class="pj-desc">
+                                    @(!string.IsNullOrWhiteSpace(item.Description) ? item.Description : "Chưa có mô tả ngắn cho dự án này.")
+                                </div>
+
+                                <div class="pj-meta">
+                                    <span class="badge bg-light text-dark border">@(!string.IsNullOrWhiteSpace(item.ProjectType) ? item.ProjectType : "Dự án")</span>
+                                    <span class="badge bg-light text-dark border">
+                                        @(item.AreaMin.HasValue ? $"{item.AreaMin:0.##}" : "--") - @(item.AreaMax.HasValue ? $"{item.AreaMax:0.##}" : "--") m²
+                                    </span>
+                                    <span class="badge bg-light text-dark border">
+                                        @(!string.IsNullOrWhiteSpace(item.Scale) ? item.Scale : "Đang cập nhật")
+                                    </span>
+                                </div>
+
+                                <div class="pj-footer">
+                                    <span class="investor-tag text-truncate" title="@item.Investor">
+                                        <i class="bi bi-patch-check-fill me-1"></i>@item.Investor
+                                    </span>
+                                    <span class="text-muted small">@item.PublishedAt?.ToString("dd/MM/yyyy")</span>
+                                </div>
+
+                                <div class="action-row">
+                                    <a href="@detailUrl" class="btn btn-card btn-card-primary">
+                                        <i class="bi bi-eye me-1"></i> Xem chi tiết
+                                    </a>
+                                    <a href="@detailUrl#booking-form" class="btn btn-card btn-card-outline">
+                                        <i class="bi bi-calendar2-week me-1"></i> Đặt lịch
+                                    </a>
                                 </div>
                             </div>
                         </div>
-                    </a>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="col-12">
+                    <div class="empty-state text-center">
+                        <i class="bi bi-inbox display-1 text-muted opacity-25"></i>
+                        <h4 class="mt-3 fw-bold text-dark">Hiện tại chưa có dự án nào được đăng tải.</h4>
+                        <p class="text-muted mb-0">Hãy đổi bộ lọc hoặc quay lại sau để xem các dự án mới.</p>
+                    </div>
                 </div>
             }
-        }
-        else
-        {
-            <div class="col-12 text-center py-5">
-                <h4 class="text-muted fw-bold">Không tìm thấy dự án nào phù hợp!</h4>
+        </div>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="d-flex justify-content-center mt-4 mb-4">
+            <nav>
+                <ul class="pagination flex-wrap mb-0">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = currentPage - 1 })">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        <li class="page-item @(currentPage == i ? "active" : "")">
+                            <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = i })">@i</a>
+                        </li>
+                    }
+
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = currentPage + 1 })">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+
+    <div class="stat-strip mb-5">
+        <div class="row text-center g-4">
+            <div class="col-md-3 border-end">
+                <span class="stat-num">@totalResults</span>
+                <span class="stat-label">Dự án</span>
             </div>
-        }
+            <div class="col-md-3 border-end">
+                <span class="stat-num">@areas?.Count()</span>
+                <span class="stat-label">Khu vực</span>
+            </div>
+            <div class="col-md-3 border-end">
+                <span class="stat-num">24/7</span>
+                <span class="stat-label">Hỗ trợ</span>
+            </div>
+            <div class="col-md-3">
+                <span class="stat-num">100%</span>
+                <span class="stat-label">Đã duyệt</span>
+            </div>
+        </div>
     </div>
 </div>

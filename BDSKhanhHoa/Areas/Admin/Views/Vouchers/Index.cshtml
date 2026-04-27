@@ -1,0 +1,125 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Voucher>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<div class="animate__animated animate__fadeIn">
+    @if (TempData["Success"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 3000 });</script>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bolder text-dark m-0"><i class="bi bi-ticket-perforated text-success me-2"></i>Chiến dịch Khuyến mãi (Voucher)</h4>
+        <button class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#createVoucherModal">
+            <i class="bi bi-plus-lg me-2"></i>Tạo mã mới
+        </button>
+    </div>
+
+    <div class="bg-white rounded-4 shadow-sm border p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                    <tr>
+                        <th>Mã CODE</th>
+                        <th>Chiết khấu</th>
+                        <th>Giảm tối đa</th>
+                        <th>Số lượng</th>
+                        <th>Đã dùng</th>
+                        <th>Hạn sử dụng</th>
+                        <th>Trạng thái</th>
+                        <th>Khóa/Mở</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        var isExpired = item.ExpiryDate < DateTime.Now;
+                        <tr>
+                            <td><span class="badge bg-dark fs-6 px-3 py-2 border border-secondary shadow-sm" style="letter-spacing: 1px;">@item.Code</span></td>
+                            <td><span class="text-danger fw-bold fs-5">@item.DiscountPercent.ToString("0.##")%</span></td>
+                            <td class="fw-bold text-success">@item.MaxDiscountAmount.ToString("N0") ₫</td>
+                            <td class="fw-bold">@item.Quantity</td>
+                            <td><span class="badge bg-info text-dark rounded-pill">@item.UsedCount / @item.Quantity</span></td>
+                            <td>
+                                <span class="d-block fw-bold @(isExpired ? "text-danger" : "text-dark")">@item.ExpiryDate.ToString("dd/MM/yyyy")</span>
+                            </td>
+                            <td>
+                                @if (isExpired)
+                                {
+                                    <span class="badge bg-danger-subtle text-danger px-2 py-1">Hết hạn</span>
+                                }
+                                else if (item.IsActive && item.UsedCount < item.Quantity)
+                                {
+
+                                    <span class="badge bg-success-subtle text-success px-2 py-1">Đang chạy</span>
+                                }
+                                else
+                                {
+
+                                    <span class="badge bg-secondary-subtle text-secondary px-2 py-1">Đã khóa / Hết lượt</span>
+                                }
+                            </td>
+                            <td>
+                                <form asp-action="ToggleStatus" method="post">
+                                    <input type="hidden" name="id" value="@item.VoucherID" />
+                                    <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-danger" : "btn-outline-success") fw-bold" @(isExpired ? "disabled" : "")>
+                                        <i class="bi @(item.IsActive ? "bi-lock" : "bi-unlock")"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createVoucherModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-success text-white rounded-top-4">
+                <h5 class="modal-title fw-bold"><i class="bi bi-ticket-detailed me-2"></i>Phát hành Voucher mới</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Create" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted">Mã CODE (Viết hoa, không dấu)</label>
+                        <input type="text" name="Code" class="form-control form-control-lg text-uppercase fw-bold" required placeholder="VD: TET2026">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted">% Giảm giá</label>
+                            <input type="number" name="DiscountPercent" class="form-control" required min="1" max="100" placeholder="VD: 20">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted">Giảm tối đa (VNĐ)</label>
+                            <input type="number" name="MaxDiscountAmount" class="form-control" required min="0" placeholder="VD: 500000">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted">Số lượng phát hành</label>
+                            <input type="number" name="Quantity" class="form-control" required min="1" placeholder="VD: 100">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold text-muted">Ngày hết hạn</label>
+                            <input type="datetime-local" name="ExpiryDate" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">Tạo mã ngay</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

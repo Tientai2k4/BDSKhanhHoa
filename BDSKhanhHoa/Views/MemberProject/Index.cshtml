@@ -1,0 +1,491 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.ProjectLead>
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "CRM Quản lý Phễu Khách Hàng";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+
+    int totalLeads = ViewBag.TotalLeads ?? 0;
+    int newLeads = ViewBag.NewLeads ?? 0;
+    int contactedLeads = ViewBag.ContactedLeads ?? 0;
+    int resolvedLeads = ViewBag.ResolvedLeads ?? 0;
+    int totalProjects = ViewBag.TotalProjects ?? 0;
+
+    int totalAppointments = ViewBag.TotalAppointments ?? 0;
+    int todayAppointments = ViewBag.TodayAppointments ?? 0;
+    int pendingAppointments = ViewBag.PendingAppointments ?? 0;
+
+    string currentStatus = ViewBag.CurrentStatus as string;
+    string currentDateRange = ViewBag.CurrentDateRange as string;
+    int? currentProjectId = ViewBag.CurrentProjectId as int?;
+    string keyword = ViewBag.CurrentKeyword as string ?? string.Empty;
+}
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+    body {
+        background: #f4f7fb;
+    }
+
+    .crm-topbar, .crm-panel, .filter-panel {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .crm-topbar {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .crm-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .crm-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .crm-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .crm-stat-card {
+        border-radius: 24px;
+        padding: 22px;
+        color: #fff;
+        min-height: 140px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .bg-total {
+        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    }
+
+    .bg-new {
+        background: linear-gradient(135deg, #b91c1c, #ef4444);
+    }
+
+    .bg-process {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .bg-success {
+        background: linear-gradient(135deg, #047857, #10b981);
+    }
+
+    .bg-appointment {
+        background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+    }
+
+    .crm-stat-card .stat-label {
+        font-size: .8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        opacity: .9;
+        margin-bottom: 10px;
+    }
+
+    .crm-stat-card .stat-value {
+        font-size: 3rem;
+        line-height: 1;
+        font-weight: 900;
+    }
+
+    .filter-panel {
+        padding: 22px;
+        margin-bottom: 18px;
+    }
+
+    .crm-label {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 800;
+        color: #475569;
+        margin-bottom: 8px;
+    }
+
+    .crm-input {
+        border-radius: 16px;
+        min-height: 52px;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
+        font-weight: 600;
+    }
+
+    .btn-crm-primary {
+        min-height: 52px;
+        border-radius: 16px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border: none;
+    }
+
+    .table-modern thead th {
+        background: #f8fafc;
+        color: #475569;
+        font-size: .76rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        padding: 18px;
+        white-space: nowrap;
+    }
+
+    .table-modern tbody td {
+        padding: 18px;
+        vertical-align: top;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .lead-letter {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        color: #1d4ed8;
+        background: #dbeafe;
+        flex: 0 0 auto;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+
+    .st-new {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .st-contact {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .st-resolved {
+        background: #dcfce7;
+        color: #047857;
+    }
+
+    .action-btn {
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-weight: 800;
+        background: #0f172a;
+        color: #fff;
+        border: none;
+    }
+
+        .action-btn:hover {
+            color: #fff;
+            opacity: .95;
+        }
+
+    .pagination .page-link {
+        border: 1px solid #dbe3ef;
+        color: #334155;
+        font-weight: 800;
+        border-radius: 14px;
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 4px;
+    }
+
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+        border-color: transparent;
+    }
+</style>
+
+<div class="container-fluid px-0">
+
+    @if (TempData["Success"] != null)
+    {
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Success"]?.ToString() ?? "")),
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            });
+        </script>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Error"]?.ToString() ?? "")),
+                    showConfirmButton: false,
+                    timer: 3800
+                });
+            });
+        </script>
+    }
+
+    <div class="crm-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="crm-title">CRM Quản lý Phễu Khách Hàng</div>
+            <p class="crm-subtitle">Theo dõi khách hàng quan tâm, lọc theo dự án và chuyển sang trang thao tác riêng.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <span class="crm-chip"><i class="bi bi-building"></i> @totalProjects dự án</span>
+            <span class="crm-chip"><i class="bi bi-calendar2-week"></i> @totalAppointments lịch hẹn</span>
+            <span class="crm-chip"><i class="bi bi-clock-history"></i> @todayAppointments hôm nay</span>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat-card bg-total">
+                <div class="stat-label">Tổng leads</div>
+                <div class="stat-value">@totalLeads</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat-card bg-new">
+                <div class="stat-label">Khách mới</div>
+                <div class="stat-value">@newLeads</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat-card bg-process">
+                <div class="stat-label">Đang chăm sóc</div>
+                <div class="stat-value">@contactedLeads</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat-card bg-success">
+                <div class="stat-label">Đã chốt</div>
+                <div class="stat-value">@resolvedLeads</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-4 col-md-6">
+            <div class="crm-stat-card bg-appointment">
+                <div class="stat-label">Lịch hẹn đang mở</div>
+                <div class="stat-value">@pendingAppointments</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-panel">
+        <form method="get" asp-action="Index" asp-controller="MemberProject" class="row g-3 align-items-end">
+            <div class="col-xl-4 col-lg-6">
+                <label class="form-label crm-label">Lọc theo dự án</label>
+                <select name="projectId" class="form-select crm-input" asp-items="ViewBag.ProjectList">
+                    <option value="">-- Tất cả dự án --</option>
+                </select>
+            </div>
+            <div class="col-xl-2 col-lg-6">
+                <label class="form-label crm-label">Trạng thái</label>
+                <select name="status" class="form-select crm-input">
+                    <option value="">Tất cả</option>
+                    <option value="New" selected="@(currentStatus == "New")">Khách mới</option>
+                    <option value="Contacted" selected="@(currentStatus == "Contacted")">Đang chăm sóc</option>
+                    <option value="Resolved" selected="@(currentStatus == "Resolved")">Đã chốt</option>
+                </select>
+            </div>
+            <div class="col-xl-2 col-lg-6">
+                <label class="form-label crm-label">Thời gian</label>
+                <select name="daterange" class="form-select crm-input">
+                    <option value="">Toàn thời gian</option>
+                    <option value="today" selected="@(currentDateRange == "today")">Hôm nay</option>
+                    <option value="week" selected="@(currentDateRange == "week")">7 ngày qua</option>
+                    <option value="month" selected="@(currentDateRange == "month")">Tháng này</option>
+                </select>
+            </div>
+            <div class="col-xl-3 col-lg-6">
+                <label class="form-label crm-label">Từ khóa</label>
+                <input type="text" name="keyword" value="@keyword" class="form-control crm-input" placeholder="Tên, SĐT, nội dung..." />
+            </div>
+            <div class="col-xl-1 col-lg-6 d-grid">
+                <button type="submit" class="btn btn-crm-primary text-white">Lọc</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="crm-panel">
+        <div class="p-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1 fw-bold">Danh sách khách hàng quan tâm</h5>
+                <div class="text-muted small">Chọn “Xử lý” để sang trang thao tác riêng.</div>
+            </div>
+            <div class="crm-chip">Đang xem @Model?.Count() lead</div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Thông tin liên hệ</th>
+                        <th>Dự án</th>
+                        <th>Ghi chú</th>
+                        <th>Trạng thái</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var lead in Model)
+                        {
+                            var leadName = !string.IsNullOrWhiteSpace(lead.Name) ? lead.Name.Trim() : "Khách";
+                            var firstLetter = leadName.Substring(0, 1).ToUpper();
+                            var projectName = lead.Project?.ProjectName ?? "(Chưa gắn dự án)";
+                            var noteValue = lead.Note ?? "";
+                            var messageValue = lead.Message ?? "";
+                            var leadStatus = lead.LeadStatus ?? "New";
+
+                            <tr>
+                                <td>
+                                    <div class="d-flex gap-3 align-items-start">
+                                        <div class="lead-letter">@firstLetter</div>
+                                        <div>
+                                            <div class="fw-bold">@leadName</div>
+                                            <div class="text-primary fw-bold">
+                                                <a href="tel:@lead.Phone" class="text-decoration-none">@lead.Phone</a>
+                                            </div>
+                                            <div class="text-muted small">@lead.CreatedAt.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="p-3 rounded-4 border bg-light fw-semibold">
+                                        @projectName
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="p-3 rounded-4 border bg-light mb-2">
+                                        <div class="fw-bold mb-1">Khách nhắn:</div>
+                                        @(string.IsNullOrWhiteSpace(messageValue) ? "Không có lời nhắn." : messageValue)
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(noteValue))
+                                    {
+                                        <div class="p-3 rounded-4 border" style="background:#fff7ed;border-color:#fed7aa;">
+                                            <div class="fw-bold mb-1">Note CRM:</div>
+                                            @noteValue
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    @if (leadStatus == "New")
+                                    {
+                                        <span class="status-pill st-new">Khách mới</span>
+                                    }
+                                    else if (leadStatus == "Contacted")
+                                    {
+                                        <span class="status-pill st-contact">Đang tư vấn</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill st-resolved">Thành công</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <a class="btn action-btn w-100"
+                                       asp-action="EditLead"
+                                       asp-controller="MemberProject"
+                                       asp-route-id="@lead.LeadID"
+                                       asp-route-returnUrl="@($"{Context.Request.Path}{Context.Request.QueryString}")">
+                                        <i class="bi bi-pencil-square me-1"></i> Xử lý
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <div class="py-5 text-muted">
+                                    <i class="bi bi-inbox-fill display-1 opacity-25 d-block mb-3"></i>
+                                    <h5 class="fw-bold">Chưa có khách hàng nào</h5>
+                                    <div>Thử đổi bộ lọc hoặc kiểm tra dữ liệu lead.</div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="p-4 border-top">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination mb-0 flex-wrap">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", "MemberProject", new { page = currentPage - 1, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(currentPage == i ? "active" : "")">
+                                <a class="page-link"
+                                   href="@Url.Action("Index", "MemberProject", new { page = i, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", "MemberProject", new { page = currentPage + 1, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

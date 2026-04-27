@@ -250,27 +250,39 @@ namespace BDSKhanhHoa.Controllers
         [HttpGet]
         public async Task<IActionResult> Create()
         {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim, out int userId)) return RedirectToAction("Login", "Account");
+
+            // --- BẮT BUỘC: CHẶN CHỦ ĐẦU TƯ TẠO TIN LẺ ---
+            var isBusiness = await _context.BusinessProfiles
+                .AnyAsync(b => b.UserID == userId && b.VerificationStatus == "Approved");
+
+            if (isBusiness)
+            {
+                TempData["Error"] = "Tài khoản Doanh nghiệp chỉ được phép đăng Dự án, không được đăng tin lẻ.";
+                return RedirectToAction("Index", "Dashboard");
+            }
+            // --------------------------------------------
+
             ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
             var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
             ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
             ViewBag.Areas = new SelectList(await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(), "AreaID", "AreaName");
-
-            // Kéo danh sách Lớp Cha - Con từ Admin tạo truyền ra giao diện
-            ViewBag.MasterFeatures = await _context.PropertyFeatures
-                                                   .Where(f => f.PropertyID == null)
-                                                   .ToListAsync();
+            ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
 
             return View(new Property());
         }
-
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Property prop, IFormFile MainImageFile, List<IFormFile> AdditionalImages)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
+            // --- BẮT BUỘC: CHẶN CHỦ ĐẦU TƯ TẠO TIN LẺ (SERVER-SIDE CHECK) ---
+            var isBusiness = await _context.BusinessProfiles
+                .AnyAsync(b => b.UserID == userId && b.VerificationStatus == "Approved");
 
-            // 1. Kiểm tra Validate của Model (Tránh crash web)
+            if (isBusiness) return Forbid();
             if (!ModelState.IsValid)
             {
                 ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
@@ -278,11 +290,11 @@ namespace BDSKhanhHoa.Controllers
                 ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
                 ViewBag.Areas = new SelectList(await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(), "AreaID", "AreaName");
                 ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
-
                 TempData["Error"] = "Vui lòng kiểm tra lại các thông tin bắt buộc.";
                 return View(prop);
             }
 
+            // Kiểm tra gói tin và ví
             var selectedPackage = await _context.PostServicePackages.FindAsync(prop.PackageID);
             if (selectedPackage == null) return BadRequest("Gói tin không tồn tại.");
 
@@ -308,30 +320,44 @@ namespace BDSKhanhHoa.Controllers
             }
             else { prop.MainImage = "/images/no-image.jpg"; }
 
+            // Thiết lập thông tin cơ bản
             prop.UserID = userId;
-            prop.Status = "Pending";
             prop.Views = 0;
             prop.IsDeleted = false;
             prop.CreatedAt = DateTime.Now;
             prop.UpdatedAt = DateTime.Now;
-            prop.VipExpiryDate = DateTime.Now.AddDays(selectedPackage.DurationDays);
 
-            // 2. SỬ DỤNG TRANSACTION ĐỂ ĐẢM BẢO TOÀN VẸN DỮ LIỆU
+            // LOGIC DUYỆT THÔNG MINH 2026: VIP >= 3 Auto Approve
+            if (selectedPackage.PriorityLevel >= 3)
+            {
+                prop.Status = "Approved";
+                prop.IsAutoApproved = true;
+                prop.ApprovedAt = DateTime.Now;
+                prop.VipExpiryDate = DateTime.Now.AddDays(selectedPackage.DurationDays);
+                TempData["Success"] = "Tin VIP của bạn đã được hệ thống duyệt tự động và hiển thị ngay!";
+            }
+            else
+            {
+                prop.Status = "Pending";
+                prop.IsAutoApproved = false;
+                TempData["Success"] = "Đăng tin thành công! Vui lòng chờ quản trị viên kiểm duyệt.";
+            }
+
             using var dbTransaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Bước A: Lưu bài đăng
                 _context.Properties.Add(prop);
                 await _context.SaveChangesAsync();
 
-                // Bước B: Cập nhật Transaction (Trừ gói tin)
+                // Gán PropertyID vào Transaction để đánh dấu đã dùng lượt
                 creditToUse.PropertyID = prop.PropertyID;
                 _context.Update(creditToUse);
                 await _context.SaveChangesAsync();
 
-                // Bước C: Xử lý Tiện ích (Đã fix lỗi Null FeatureGroup)
+                // Lưu Features (Tiện ích, cấu trúc...)
                 var features = new List<PropertyFeature>();
-                string bedrooms = Request.Form["Bedrooms"], bathrooms = Request.Form["Bathrooms"], direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
+                string bedrooms = Request.Form["Bedrooms"], bathrooms = Request.Form["Bathrooms"],
+                       direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
                 var amenities = Request.Form["Amenities"].ToList();
 
                 if (!string.IsNullOrEmpty(bedrooms)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Cấu trúc", FeatureName = "Phòng ngủ", FeatureValue = bedrooms });
@@ -340,41 +366,41 @@ namespace BDSKhanhHoa.Controllers
                 if (!string.IsNullOrEmpty(legalStatus)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = legalStatus });
                 if (amenities.Any()) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", amenities) });
 
-                if (features.Any()) { _context.PropertyFeatures.AddRange(features); await _context.SaveChangesAsync(); }
+                if (features.Any())
+                {
+                    _context.PropertyFeatures.AddRange(features);
+                    await _context.SaveChangesAsync();
+                }
 
-                // Bước D: Xử lý Ảnh Phụ
+                // Lưu Thư viện ảnh phụ
                 if (AdditionalImages != null && AdditionalImages.Any())
                 {
                     string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
                     if (!Directory.Exists(galleryDir)) Directory.CreateDirectory(galleryDir);
-
-                    var propertyImages = new List<PropertyImage>();
                     foreach (var file in AdditionalImages.Take(10))
                     {
                         if (file.Length > 0)
                         {
                             string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
                             using (var stream = new FileStream(Path.Combine(galleryDir, fileName), FileMode.Create)) { await file.CopyToAsync(stream); }
-                            propertyImages.Add(new PropertyImage { PropertyID = prop.PropertyID, ImageURL = "/uploads/properties/gallery/" + fileName, IsMain = false });
+                            _context.PropertyImages.Add(new PropertyImage { PropertyID = prop.PropertyID, ImageURL = "/uploads/properties/gallery/" + fileName, IsMain = false });
                         }
                     }
-                    if (propertyImages.Any()) { _context.PropertyImages.AddRange(propertyImages); await _context.SaveChangesAsync(); }
+                    await _context.SaveChangesAsync();
                 }
 
-                // Nếu mọi thứ thành công, Commit lưu vào DB thực
                 await dbTransaction.CommitAsync();
             }
             catch (Exception)
             {
-                // Nếu rớt mạng hoặc có lỗi, Rollback không trừ lượt, không lưu rác
                 await dbTransaction.RollbackAsync();
-                TempData["Error"] = "Đã xảy ra lỗi hệ thống khi đăng tin. Vui lòng thử lại!";
+                TempData["Error"] = "Lỗi hệ thống khi lưu dữ liệu. Vui lòng thử lại.";
                 return RedirectToAction("Create");
             }
 
-            TempData["Success"] = "Đăng tin thành công! Vui lòng chờ hệ thống kiểm duyệt.";
             return RedirectToAction("MyAds");
         }
+
 
         // ==========================================
         // 3. SỬA TIN ĐĂNG (EDIT)
@@ -420,12 +446,15 @@ namespace BDSKhanhHoa.Controllers
             {
                 await LoadEditViewBags(existingProp);
                 ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
-                TempData["Error"] = "Vui lòng kiểm tra lại các thông tin bắt buộc.";
+                TempData["Error"] = "Dữ liệu không hợp lệ, vui lòng kiểm tra lại.";
                 return View(prop);
             }
 
-            // 1. Xử lý Logic Gói Tin (Không hoàn trả gói cũ)
-            if (existingProp.PackageID != prop.PackageID)
+            // 1. VÁ LỖ HỔNG HACK LƯỢT: Nếu tin bị Rejected (đã hoàn tiền) hoặc đổi gói -> Buộc trừ lượt mới
+            bool isResubmittingRejected = (existingProp.Status == "Rejected");
+            bool isChangingPackage = (existingProp.PackageID != prop.PackageID);
+
+            if (isChangingPackage || isResubmittingRejected)
             {
                 var newCredit = await _context.Transactions.FirstOrDefaultAsync(t =>
                     t.UserID == userId && t.PackageID == prop.PackageID && t.PropertyID == null && t.Status == "Success");
@@ -434,31 +463,52 @@ namespace BDSKhanhHoa.Controllers
                 {
                     await LoadEditViewBags(existingProp);
                     ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
-                    TempData["Error"] = "Ví của bạn không đủ lượt cho gói tin này. Vui lòng mua thêm!";
+                    TempData["Error"] = isResubmittingRejected
+                        ? "Tin bị từ chối đã được hoàn lượt về ví. Vui lòng chọn lại gói tin trong ví để nộp lại!"
+                        : "Ví của bạn không đủ lượt đăng cho gói mới này.";
                     return View(prop);
                 }
 
-                // Tiêu hao gói mới (Gói cũ vẫn giữ nguyên trạng thái đã sử dụng trong DB lịch sử)
+                // Trừ lượt đăng mới
                 newCredit.PropertyID = existingProp.PropertyID;
                 _context.Update(newCredit);
-
-                var packageInfo = await _context.PostServicePackages.FindAsync(prop.PackageID);
-                existingProp.VipExpiryDate = DateTime.Now.AddDays(packageInfo.DurationDays);
                 existingProp.PackageID = prop.PackageID;
             }
 
-            // 2. Cập nhật thông tin cơ bản
+            // 2. Cập nhật thông tin cơ bản (bao gồm Width/Length mới thêm)
             existingProp.Title = prop.Title;
             existingProp.Description = prop.Description;
             existingProp.Price = prop.Price;
             existingProp.AreaSize = prop.AreaSize;
+            existingProp.Width = prop.Width;
+            existingProp.Length = prop.Length;
             existingProp.AddressDetail = prop.AddressDetail;
             existingProp.TypeID = prop.TypeID;
             existingProp.WardID = prop.WardID;
-            existingProp.Status = "Pending"; // Đưa về chờ duyệt lại
             existingProp.UpdatedAt = DateTime.Now;
 
-            // 3. Xử lý Ảnh Đại Diện (Xóa file vật lý cũ nếu có ảnh mới)
+            // 3. LOGIC DUYỆT THÔNG MINH KHI SỬA
+            var currentPackage = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
+            if (currentPackage != null && currentPackage.PriorityLevel >= 3)
+            {
+                existingProp.Status = "Approved";
+                existingProp.IsAutoApproved = true;
+                existingProp.ApprovedAt = DateTime.Now;
+                existingProp.VipExpiryDate = DateTime.Now.AddDays(currentPackage.DurationDays);
+                TempData["Success"] = "Tin VIP đã được hệ thống tự động duyệt lại sau khi bạn sửa.";
+            }
+            else
+            {
+                existingProp.Status = "Pending";
+                existingProp.IsAutoApproved = false;
+                TempData["Success"] = "Đã cập nhật. Tin đăng đang chờ quản trị viên duyệt lại.";
+            }
+
+            // Quan trọng: Khi sửa tin, coi như bản tin đã mới -> reset cảnh báo trùng lặp và xóa lý do từ chối
+            existingProp.IsDuplicate = false;
+            existingProp.RejectionReason = null;
+
+            // 4. Xử lý Ảnh Đại Diện
             if (MainImageFile != null && MainImageFile.Length > 0)
             {
                 if (!string.IsNullOrEmpty(existingProp.MainImage) && existingProp.MainImage != "/images/no-image.jpg")
@@ -466,7 +516,6 @@ namespace BDSKhanhHoa.Controllers
                     string oldFilePath = Path.Combine(_hostEnvironment.WebRootPath, existingProp.MainImage.TrimStart('/'));
                     if (System.IO.File.Exists(oldFilePath)) System.IO.File.Delete(oldFilePath);
                 }
-
                 string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties");
                 if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
                 string fileName = Guid.NewGuid().ToString() + Path.GetExtension(MainImageFile.FileName);
@@ -474,7 +523,7 @@ namespace BDSKhanhHoa.Controllers
                 existingProp.MainImage = "/uploads/properties/" + fileName;
             }
 
-            // 4. Xóa ảnh phụ cũ theo yêu cầu từ giao diện
+            // 5. Xử lý xóa ảnh phụ
             if (DeletedImageIds != null && DeletedImageIds.Any())
             {
                 var imagesToDelete = await _context.PropertyImages.Where(img => DeletedImageIds.Contains(img.ImageID) && img.PropertyID == id).ToListAsync();
@@ -486,45 +535,40 @@ namespace BDSKhanhHoa.Controllers
                 _context.PropertyImages.RemoveRange(imagesToDelete);
             }
 
-            // 5. Thêm ảnh phụ mới
+            // 6. Xử lý thêm ảnh phụ mới
             if (AdditionalImages != null && AdditionalImages.Any())
             {
                 string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
                 if (!Directory.Exists(galleryDir)) Directory.CreateDirectory(galleryDir);
-
-                var propertyImages = new List<PropertyImage>();
-                foreach (var file in AdditionalImages.Take(10)) // Limit
+                foreach (var file in AdditionalImages.Take(10))
                 {
                     if (file.Length > 0)
                     {
                         string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
                         using (var stream = new FileStream(Path.Combine(galleryDir, fileName), FileMode.Create)) { await file.CopyToAsync(stream); }
-                        propertyImages.Add(new PropertyImage { PropertyID = id, ImageURL = "/uploads/properties/gallery/" + fileName, IsMain = false });
+                        _context.PropertyImages.Add(new PropertyImage { PropertyID = id, ImageURL = "/uploads/properties/gallery/" + fileName, IsMain = false });
                     }
                 }
-                if (propertyImages.Any()) { _context.PropertyImages.AddRange(propertyImages); }
             }
 
-            // 6. Cập nhật Features (Tiện ích, phòng ngủ...) (Đã fix lỗi Null FeatureGroup)
+            // 7. Cập nhật Features
             var oldFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == id).ToListAsync();
             _context.PropertyFeatures.RemoveRange(oldFeatures);
 
-            var newFeatures = new List<PropertyFeature>();
-            string bedrooms = Request.Form["Bedrooms"], bathrooms = Request.Form["Bathrooms"], direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
-            var amenities = Request.Form["Amenities"].ToList();
+            string bds_bedrooms = Request.Form["Bedrooms"], bds_bathrooms = Request.Form["Bathrooms"],
+                   bds_direction = Request.Form["Direction"], bds_legal = Request.Form["LegalStatus"];
+            var bds_amenities = Request.Form["Amenities"].ToList();
 
-            if (!string.IsNullOrEmpty(bedrooms)) newFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng ngủ", FeatureValue = bedrooms });
-            if (!string.IsNullOrEmpty(bathrooms)) newFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng vệ sinh", FeatureValue = bathrooms });
-            if (!string.IsNullOrEmpty(direction)) newFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Hướng nhà", FeatureName = "Hướng nhà", FeatureValue = direction });
-            if (!string.IsNullOrEmpty(legalStatus)) newFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = legalStatus });
-            if (amenities.Any()) newFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", amenities) });
-
-            if (newFeatures.Any()) { _context.PropertyFeatures.AddRange(newFeatures); }
+            if (!string.IsNullOrEmpty(bds_bedrooms)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng ngủ", FeatureValue = bds_bedrooms });
+            if (!string.IsNullOrEmpty(bds_bathrooms)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng vệ sinh", FeatureValue = bds_bathrooms });
+            if (!string.IsNullOrEmpty(bds_direction)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Hướng nhà", FeatureName = "Hướng nhà", FeatureValue = bds_direction });
+            if (!string.IsNullOrEmpty(bds_legal)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = bds_legal });
+            if (bds_amenities.Any()) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", bds_amenities) });
 
             await _context.SaveChangesAsync();
-            TempData["Success"] = "Đã cập nhật tin đăng. Vui lòng chờ hệ thống kiểm duyệt lại!";
             return RedirectToAction("MyAds");
         }
+
 
         // Hàm hỗ trợ Load ViewBag để tái sử dụng, tránh lặp code và tránh crash khi ModelState fail
         private async Task LoadEditViewBags(Property property)
@@ -635,84 +679,86 @@ namespace BDSKhanhHoa.Controllers
             return View(property);
         }
 
+        // ==========================================
+        // CÁC API TƯƠNG TÁC (ĐÃ VÁ BẢO MẬT TRẠNG THÁI TIN)
+        // ==========================================
         [HttpPost]
         public async Task<IActionResult> SubmitReport([FromForm] int propertyId, [FromForm] string reason, [FromForm] string description)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId))
-                return Json(new { success = false, message = "Bạn cần đăng nhập để báo cáo tin này." });
+            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Bạn cần đăng nhập." });
+
+            // CHỐT CHẶN: Chỉ cho thao tác với tin đã duyệt
+            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Hành động bị từ chối. Tin đăng chưa được duyệt." });
 
             var existingReport = await _context.PropertyReports.FirstOrDefaultAsync(r => r.PropertyID == propertyId && r.ReportedBy == userId && r.Status == "Pending");
-            if (existingReport != null) return Json(new { success = false, message = "Bạn đã báo cáo tin này rồi. Hệ thống đang xem xét!" });
+            if (existingReport != null) return Json(new { success = false, message = "Bạn đã báo cáo tin này rồi." });
 
             _context.PropertyReports.Add(new PropertyReport { PropertyID = propertyId, ReportedBy = userId, Reason = reason, Description = description, Status = "Pending", CreatedAt = DateTime.Now });
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Gửi báo cáo thành công! Cảm ơn bạn đã đóng góp." });
+            return Json(new { success = true, message = "Gửi báo cáo thành công!" });
         }
 
         [HttpPost]
         public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] DateTime appointmentDate, [FromForm] string note)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập để đặt lịch." });
+            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
 
-            var property = await _context.Properties.FindAsync(propertyId);
-            if (property == null) return Json(new { success = false, message = "Lỗi dữ liệu." });
+            // CHỐT CHẶN BẢO MẬT
+            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
 
             _context.Appointments.Add(new Appointment { PropertyID = propertyId, BuyerID = userId, SellerID = property.UserID, AppointmentDate = appointmentDate, Note = note ?? "", Status = "Pending", CreatedAt = DateTime.Now });
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp thành công!" });
+            return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp!" });
         }
 
         [HttpPost]
         [AllowAnonymous]
         public async Task<IActionResult> SubmitConsultation([FromForm] int propertyId, [FromForm] string fullName, [FromForm] string phone, [FromForm] string email, [FromForm] string note)
         {
+            // CHỐT CHẶN BẢO MẬT
+            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Bất động sản này không khả dụng." });
+
             _context.Consultations.Add(new Consultation { PropertyID = propertyId, FullName = fullName, Phone = phone, Email = email ?? "", Note = note ?? "", Status = "New", CreatedAt = DateTime.Now });
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Thông tin đã gửi. Chuyên viên tư vấn sẽ sớm gọi lại!" });
+            return Json(new { success = true, message = "Đã gửi thông tin tư vấn!" });
         }
 
         [HttpPost]
         public async Task<IActionResult> SubmitComment([FromForm] int propertyId, [FromForm] string content)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập để bình luận." });
-            if (string.IsNullOrWhiteSpace(content)) return Json(new { success = false, message = "Nội dung không được để trống." });
+            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            if (string.IsNullOrWhiteSpace(content)) return Json(new { success = false, message = "Nội dung trống." });
+
+            // CHỐT CHẶN BẢO MẬT
+            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Không thể bình luận vào tin chưa được duyệt." });
 
             _context.Comments.Add(new Comment { PropertyID = propertyId, UserID = userId, Content = content, CreatedAt = DateTime.Now, IsHidden = true });
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Bình luận của bạn đã gửi và đang chờ Quản trị viên phê duyệt!" });
+            return Json(new { success = true, message = "Bình luận đã gửi." });
         }
 
-        // ==========================================
-        // 6. API GỬI TIN NHẮN NỘI BỘ (CHAT TRỰC TIẾP)
-        // ==========================================
         [HttpPost]
         public async Task<IActionResult> SendMessage([FromForm] int receiverId, [FromForm] int propertyId, [FromForm] string messageContent)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int senderId))
-                return Json(new { success = false, message = "Vui lòng đăng nhập để sử dụng tính năng chat nội bộ." });
+            if (!int.TryParse(userIdStr, out int senderId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            if (senderId == receiverId) return Json(new { success = false, message = "Không thể tự nhắn cho mình." });
 
-            if (string.IsNullOrWhiteSpace(messageContent))
-                return Json(new { success = false, message = "Nội dung tin nhắn không được để trống." });
+            // CHỐT CHẶN BẢO MẬT
+            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Tin đăng chưa duyệt, không thể chat." });
 
-            if (senderId == receiverId)
-                return Json(new { success = false, message = "Bạn không thể tự gửi tin nhắn cho chính mình." });
-
-            _context.UserMessages.Add(new UserMessage
-            {
-                SenderID = senderId,
-                ReceiverID = receiverId,
-                PropertyID = propertyId,
-                MessageContent = messageContent,
-                IsRead = false,
-                CreatedAt = DateTime.Now
-            });
-
+            _context.UserMessages.Add(new UserMessage { SenderID = senderId, ReceiverID = receiverId, PropertyID = propertyId, MessageContent = messageContent, IsRead = false, CreatedAt = DateTime.Now });
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Tin nhắn đã được gửi tới người đăng! Vui lòng kiểm tra hộp thư." });
+            return Json(new { success = true, message = "Tin nhắn đã gửi!" });
         }
+
     }
 }

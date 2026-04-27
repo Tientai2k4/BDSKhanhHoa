@@ -1,0 +1,150 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Kho Dự án đang quản lý";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    // Lấy dictionary số lượng Lead từ Controller
+    var leadCounts = ViewBag.LeadCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
+}
+
+<style>
+    .project-portfolio-card {
+        border: none;
+        border-radius: 24px;
+        transition: all 0.4s ease;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+        .project-portfolio-card:hover {
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+            transform: translateY(-8px);
+        }
+
+    .img-wrapper {
+        height: 220px;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .lead-badge {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        color: #ef4444;
+        padding: 8px 16px;
+        border-radius: 12px;
+        font-weight: 900;
+        font-size: 0.9rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+        backdrop-filter: blur(4px);
+    }
+
+    .project-status {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: #10b981;
+        color: #fff;
+        padding: 6px 16px;
+        border-radius: 50px;
+        font-weight: 800;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .card-footer-custom {
+        background: #f8fafc;
+        border-top: 1px solid #f1f5f9;
+        padding: 15px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: auto;
+    }
+</style>
+
+<div class="container-fluid px-0 animate__animated animate__fadeIn">
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 bg-white p-4 p-md-5 rounded-4 shadow-sm border border-light">
+        <div>
+            <h3 class="fw-black text-dark mb-2"><i class="bi bi-buildings-fill text-primary me-2"></i>KHO DỰ ÁN BẤT ĐỘNG SẢN</h3>
+            <p class="text-muted fs-6 mb-0">Danh sách các siêu dự án đã được Ban quản trị cấp quyền quản lý cho doanh nghiệp của bạn.</p>
+        </div>
+        <div class="mt-4 mt-md-0 text-md-end">
+            <h1 class="display-4 fw-black text-primary mb-0">@Model.Count()</h1>
+            <p class="fw-bold text-uppercase small text-muted letter-spacing-1">Dự án hiện hành</p>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5 my-4 bg-white rounded-5 shadow-sm border border-light">
+            <i class="bi bi-folder-x display-1 text-muted opacity-25 mb-4 d-block"></i>
+            <h4 class="fw-black text-dark mb-3">Chưa có dự án nào được bàn giao</h4>
+            <p class="text-secondary fs-6 mb-4 max-w-500 mx-auto">Tài khoản doanh nghiệp của bạn hiện tại chưa được gán quyền quản lý dự án nào. Vui lòng liên hệ Admin hệ thống để khởi tạo và cấu hình.</p>
+            <a href="tel:19008899" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold shadow"><i class="bi bi-telephone-outbound-fill me-2"></i> Gọi hỗ trợ 1900 88 99</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var item in Model)
+            {
+                // Lấy số Lead của dự án này từ Dictionary, nếu ko có thì là 0
+                int leadCount = leadCounts.ContainsKey(item.ProjectID) ? leadCounts[item.ProjectID] : 0;
+
+                <div class="col-xl-4 col-md-6">
+                    <div class="project-portfolio-card">
+                        <div class="img-wrapper">
+                            <span class="project-status">@item.ProjectStatus</span>
+
+                            @if (leadCount > 0)
+                            {
+                                <div class="lead-badge animate__animated animate__pulse animate__infinite">
+                                    <i class="bi bi-fire me-1"></i> @leadCount Khách
+                                </div>
+                            }
+
+                            <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.ProjectName">
+                        </div>
+
+                        <div class="p-4">
+                            <h4 class="fw-bold text-dark text-truncate mb-2" title="@item.ProjectName">@item.ProjectName</h4>
+                            <p class="text-primary fw-bold small mb-3"><i class="bi bi-building-check me-1"></i> CĐT: @item.Investor</p>
+
+                            <div class="d-flex align-items-center gap-2 mb-2 text-muted small fw-medium">
+                                <i class="bi bi-geo-alt-fill text-danger"></i> @item.Ward?.WardName, @item.Area?.AreaName
+                            </div>
+                            <div class="d-flex align-items-center gap-2 text-muted small fw-medium">
+                                <i class="bi bi-calendar-check-fill text-success"></i> Xuất bản: @item.PublishedAt?.ToString("dd/MM/yyyy")
+                            </div>
+                        </div>
+
+                        <div class="card-footer-custom">
+                            <a href="@item.LegalDocs" target="_blank" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3">
+                                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Pháp lý
+                            </a>
+                            <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-primary fw-bold rounded-pill px-4 shadow-sm">
+                                <i class="bi bi-eye-fill me-1"></i> Xem Web
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

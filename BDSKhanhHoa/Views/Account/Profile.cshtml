@@ -1,11 +1,25 @@
 ﻿@model BDSKhanhHoa.Models.User
 @{
-    ViewData["Title"] = "Quản lý hồ sơ cá nhân";
-    Layout = "~/Views/Shared/_UserLayout.cshtml";
+    ViewData["Title"] = "Quản lý hồ sơ hệ thống";
 
+    // Tự động chuyển đổi Layout dựa trên phân quyền và KYC
     bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
+    var businessProfile = ViewBag.BusinessProfile as BDSKhanhHoa.Models.BusinessProfile;
+    bool isEnterprise = businessProfile != null && businessProfile.VerificationStatus == "Approved";
 
-    // Thuật toán tính độ hoàn thiện hồ sơ (Chính xác & Khoa học)
+    if (isAdminOrStaff)
+    {
+        Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    }
+    else if (isEnterprise)
+    {
+        Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+    }
+    else
+    {
+        Layout = "~/Views/Shared/_UserLayout.cshtml";
+    }
+
     int completionRate = 10;
     if (!string.IsNullOrEmpty(Model.Email)) completionRate += 10;
     if (!string.IsNullOrEmpty(Model.FullName)) completionRate += 15;
@@ -21,25 +35,21 @@
     :root {
         --admin-gradient: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         --member-gradient: linear-gradient(135deg, #0061f2 0%, #00cfd5 100%);
+        --enterprise-gradient: linear-gradient(135deg, #0f172a 0%, #d97706 100%);
     }
 
-    .profile-container {
-        margin-top: -10px;
-    }
-
-    /* Card chính */
     .profile-card {
         background: #fff;
         border-radius: 20px;
         border: 1px solid #eef2f6;
         box-shadow: 0 10px 30px rgba(0,0,0,0.02);
         overflow: hidden;
+        margin-bottom: 24px;
     }
 
-    /* Header Profile */
     .profile-header-bg {
         height: 120px;
-        background: @(isAdminOrStaff ? "var(--admin-gradient)" : "var(--member-gradient)");
+        background: @(isAdminOrStaff ? "var(--admin-gradient)" : (isEnterprise ? "var(--enterprise-gradient)" : "var(--member-gradient)"));
     }
 
     .avatar-section {
@@ -87,7 +97,6 @@
             transform: scale(1.1);
         }
 
-    /* Badge vai trò */
     .role-badge {
         padding: 5px 15px;
         border-radius: 50px;
@@ -109,7 +118,12 @@
         border: 1px solid #bbf7d0;
     }
 
-    /* Stats Box */
+    .badge-enterprise {
+        background: #fef3c7;
+        color: #d97706;
+        border: 1px solid #fde68a;
+    }
+
     .stat-card {
         background: #f8fafc;
         border-radius: 16px;
@@ -137,7 +151,6 @@
             text-transform: uppercase;
         }
 
-    /* Form styling */
     .form-section-title {
         font-family: 'Sora', sans-serif;
         font-weight: 800;
@@ -187,205 +200,281 @@
             font-weight: 500;
             color: #1e293b;
         }
+
+    .biz-info-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+    }
+
+    .biz-info-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .biz-info-value {
+        font-size: 1rem;
+        color: #0f172a;
+        font-weight: 600;
+        padding: 12px 16px;
+        background: #f1f5f9;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+    }
 </style>
 
-<div class="profile-container">
-    <div class="row g-4">
-        <div class="col-lg-4">
-            <div class="profile-card pb-4">
-                <div class="profile-header-bg"></div>
-                <div class="avatar-section text-center">
-                    <div class="avatar-wrapper">
-                        <img src="@(Model.Avatar ?? "/images/avatars/default-user.png")" class="avatar-img" id="avatarPreview">
-                        <form asp-action="UpdateAvatar" method="post" enctype="multipart/form-data" id="formAvatar">
-                            <label for="fileAvatar" class="avatar-edit-btn shadow" title="Thay đổi ảnh đại diện">
-                                <i class="bi bi-camera-fill"></i>
-                            </label>
-                            <input type="file" id="fileAvatar" name="AvatarFile" hidden accept="image/*" onchange="document.getElementById('formAvatar').submit();">
-                        </form>
-                    </div>
+<div class="row g-4 mt-1 animate__animated animate__fadeIn">
+    <div class="col-lg-4">
+        <div class="profile-card pb-4">
+            <div class="profile-header-bg"></div>
+            <div class="avatar-section text-center">
+                <div class="avatar-wrapper">
+                    <img src="@(Model.Avatar ?? "/images/avatars/default-user.png")" class="avatar-img" id="avatarPreview">
+                    <form asp-action="UpdateAvatar" method="post" enctype="multipart/form-data" id="formAvatar">
+                        <label for="fileAvatar" class="avatar-edit-btn shadow" title="Thay đổi ảnh đại diện">
+                            <i class="bi bi-camera-fill"></i>
+                        </label>
+                        <input type="file" id="fileAvatar" name="AvatarFile" hidden accept="image/*" onchange="document.getElementById('formAvatar').submit();">
+                    </form>
+                </div>
 
-                    <div class="mt-3">
-                        <h5 class="fw-bold mb-1">@Model.FullName</h5>
-                        <p class="text-muted small mb-2">@Model.Email</p>
+                <div class="mt-3">
+                    <h5 class="fw-bold mb-1">@Model.FullName</h5>
+                    <p class="text-muted small mb-2">@Model.Email</p>
 
+                    @if (isAdminOrStaff)
+                    {
+                        <span class="role-badge badge-admin"><i class="bi bi-shield-lock-fill me-1"></i> Quản trị viên</span>
+                    }
+                    else if (isEnterprise)
+                    {
+                        <span class="role-badge badge-enterprise"><i class="bi bi-briefcase-fill me-1"></i> Đối tác Doanh nghiệp</span>
+                    }
+                    else
+                    {
+                        <span class="role-badge badge-member"><i class="bi bi-person-check-fill me-1"></i> Thành viên</span>
+                    }
+                </div>
+            </div>
+
+            <div class="px-4 mt-4">
+                <div class="d-flex justify-content-between small fw-bold mb-1">
+                    <span class="text-secondary">Độ hoàn thiện hồ sơ</span>
+                    <span class="text-primary">@completionRate%</span>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 10px; background: #f1f5f9;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated @(completionRate >= 100 ? "bg-success" : "bg-primary")"
+                         style="width: @completionRate%"></div>
+                </div>
+
+                <div class="mt-4 pt-4 border-top">
+                    <h6 class="fw-bold mb-3 small text-uppercase text-secondary">Chỉ số hoạt động</h6>
+                    <div class="row g-2">
                         @if (isAdminOrStaff)
                         {
-                            <span class="role-badge badge-admin"><i class="bi bi-shield-lock-fill me-1"></i> Quản trị viên</span>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <h3>@ViewBag.PendingAds</h3>
+                                    <span>Tin chờ duyệt</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <h3>@ViewBag.NewReports</h3>
+                                    <span>Báo cáo mới</span>
+                                </div>
+                            </div>
                         }
                         else
                         {
-                            <span class="role-badge badge-member"><i class="bi bi-person-check-fill me-1"></i> Thành viên</span>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <h3>@ViewBag.TotalProps</h3>
+                                    <span>Tin rao vặt</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <h3>@ViewBag.TotalProjects</h3>
+                                    <span>Dự án</span>
+                                </div>
+                            </div>
                         }
                     </div>
                 </div>
 
-                <div class="px-4 mt-4">
-                    <div class="d-flex justify-content-between small fw-bold mb-1">
-                        <span class="text-secondary">Độ hoàn thiện hồ sơ</span>
-                        <span class="text-primary">@completionRate%</span>
-                    </div>
-                    <div class="progress" style="height: 8px; border-radius: 10px; background: #f1f5f9;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated @(completionRate == 100 ? "bg-success" : "bg-primary")"
-                             style="width: @completionRate%"></div>
-                    </div>
-
-                    <div class="mt-4 pt-4 border-top">
-                        <h6 class="fw-bold mb-3 small text-uppercase text-secondary">Chỉ số hoạt động</h6>
-                        <div class="row g-2">
-                            @if (isAdminOrStaff)
-                            {
-                                <div class="col-6">
-                                    <div class="stat-card">
-                                        <h3>@ViewBag.PendingAds</h3>
-                                        <span>Tin chờ duyệt</span>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="stat-card">
-                                        <h3>@ViewBag.NewReports</h3>
-                                        <span>Báo cáo mới</span>
-                                    </div>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="col-6">
-                                    <div class="stat-card">
-                                        <h3>@ViewBag.TotalProps</h3>
-                                        <span>Tin đăng</span>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="stat-card">
-                                        <h3>@ViewBag.TotalProjects</h3>
-                                        <span>Dự án</span>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    </div>
-
+                @if (!isAdminOrStaff)
+                {
                     <div class="mt-3">
                         <a href="/Nguoi-Dang-Tin/@Model.UserID" target="_blank" class="btn btn-outline-primary w-100 rounded-pill fw-bold btn-sm py-2">
                             <i class="bi bi-eye-fill me-1"></i> Xem trang công khai
                         </a>
                     </div>
-                </div>
+                }
             </div>
         </div>
+    </div>
 
-        <div class="col-lg-8">
-            <div class="profile-card p-4 p-md-5">
-                <div class="form-section-title">
-                    <i class="bi bi-person-gear text-primary"></i> Chi tiết hồ sơ cá nhân
-                </div>
+    <div class="col-lg-8">
+        <div class="profile-card p-4 p-md-5">
+            <div class="form-section-title">
+                <i class="bi bi-person-gear text-primary"></i> Chi tiết hồ sơ cá nhân
+            </div>
 
-                <form asp-action="UpdateProfile" method="post" id="profileForm">
-                    <input type="hidden" asp-for="UserID" />
+            <form asp-action="UpdateProfile" method="post" id="profileForm">
+                <input type="hidden" asp-for="UserID" />
 
-                    <div class="row g-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                            <div class="input-group-custom">
-                                <i class="bi bi-person"></i>
-                                <input asp-for="FullName" placeholder="Nhập họ tên thật..." required maxlength="100">
-                            </div>
-                            <span asp-validation-for="FullName" class="text-danger small mt-1 d-block"></span>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-person"></i>
+                            <input asp-for="FullName" placeholder="Nhập họ tên thật..." required maxlength="100">
                         </div>
+                        <span asp-validation-for="FullName" class="text-danger small mt-1 d-block"></span>
+                    </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Số điện thoại liên hệ <span class="text-danger">*</span></label>
-                            <div class="input-group-custom">
-                                <i class="bi bi-telephone"></i>
-                                <input asp-for="Phone" type="tel" id="phoneInput" placeholder="Nhập đúng 10 số..."
-                                       required pattern="^0[35789][0-9]{8}$">
-                            </div>
-                            <span asp-validation-for="Phone" class="text-danger small mt-1 d-block"></span>
+                    <div class="col-md-6">
+                        <label class="form-label">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-telephone"></i>
+                            <input asp-for="Phone" type="tel" id="phoneInput" placeholder="Nhập đúng 10 số..."
+                                   required pattern="^0[35789][0-9]{8}$">
                         </div>
+                        <span asp-validation-for="Phone" class="text-danger small mt-1 d-block"></span>
+                    </div>
 
-                        <div class="col-12">
-                            <label class="form-label">Giới thiệu bản thân (Bio)</label>
-                            <div class="input-group-custom align-items-start">
-                                <i class="bi bi-chat-quote mt-2"></i>
-                                <textarea asp-for="Bio" rows="4" maxlength="500"
-                                          placeholder="Chia sẻ kinh nghiệm làm việc hoặc thông tin liên hệ của bạn..."></textarea>
-                            </div>
-                            <div class="d-flex justify-content-between mt-1">
-                                <span asp-validation-for="Bio" class="text-danger small"></span>
-                                <small id="bioCount" class="text-muted small">0/500 ký tự</small>
-                            </div>
+                    <div class="col-12">
+                        <label class="form-label">Giới thiệu bản thân (Bio)</label>
+                        <div class="input-group-custom align-items-start">
+                            <i class="bi bi-chat-quote mt-2"></i>
+                            <textarea asp-for="Bio" rows="4" maxlength="500"
+                                      placeholder="Chia sẻ kinh nghiệm làm việc hoặc thông tin liên hệ của bạn..."></textarea>
                         </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Số Zalo tư vấn</label>
-                            <div class="input-group-custom">
-                                <i class="bi bi-chat-dots-fill text-info"></i>
-                                <input asp-for="Zalo" type="tel" maxlength="10" placeholder="VD: 0912...">
-                            </div>
-                            <span asp-validation-for="Zalo" class="text-danger small mt-1 d-block"></span>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Link Facebook cá nhân</label>
-                            <div class="input-group-custom">
-                                <i class="bi bi-facebook text-primary"></i>
-                                <input asp-for="Facebook" type="url" placeholder="https://fb.com/username">
-                            </div>
-                            <span asp-validation-for="Facebook" class="text-danger small mt-1 d-block"></span>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">Địa chỉ làm việc / Thường trú</label>
-                            <div class="input-group-custom">
-                                <i class="bi bi-geo-alt"></i>
-                                <input asp-for="Address" placeholder="Số nhà, tên đường, Phường/Xã...">
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">Tài khoản Email (Liên kết hệ thống)</label>
-                            <div class="input-group-custom opacity-75" style="background: #f1f5f9;">
-                                <i class="bi bi-envelope-at"></i>
-                                <input asp-for="Email" readonly tabindex="-1">
-                                <i class="bi bi-lock-fill ms-auto text-muted small"></i>
-                            </div>
-                        </div>
-
-                        <div class="col-12 text-end pt-3">
-                            <hr class="mb-4">
-                            <button type="submit" class="btn btn-primary px-5 py-2 fw-bold rounded-pill shadow-sm">
-                                <i class="bi bi-cloud-arrow-up-fill me-2"></i> LƯU THÔNG TIN HỒ SƠ
-                            </button>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span asp-validation-for="Bio" class="text-danger small"></span>
+                            <small id="bioCount" class="text-muted small">0/500 ký tự</small>
                         </div>
                     </div>
-                </form>
-            </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Số Zalo tư vấn</label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-chat-dots-fill text-info"></i>
+                            <input asp-for="Zalo" type="tel" maxlength="10" placeholder="VD: 0912...">
+                        </div>
+                        <span asp-validation-for="Zalo" class="text-danger small mt-1 d-block"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Link Facebook cá nhân</label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-facebook text-primary"></i>
+                            <input asp-for="Facebook" type="url" placeholder="https://fb.com/username">
+                        </div>
+                        <span asp-validation-for="Facebook" class="text-danger small mt-1 d-block"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Địa chỉ làm việc / Thường trú</label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-geo-alt"></i>
+                            <input asp-for="Address" placeholder="Số nhà, tên đường, Phường/Xã...">
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Tài khoản Email (Liên kết hệ thống)</label>
+                        <div class="input-group-custom opacity-75" style="background: #f1f5f9;">
+                            <i class="bi bi-envelope-at"></i>
+                            <input asp-for="Email" readonly tabindex="-1">
+                            <i class="bi bi-lock-fill ms-auto text-muted small"></i>
+                        </div>
+                    </div>
+
+                    <div class="col-12 text-end pt-3">
+                        <button type="submit" class="btn btn-primary px-5 py-2 fw-bold rounded-pill shadow-sm">
+                            <i class="bi bi-cloud-arrow-up-fill me-2"></i> LƯU THÔNG TIN HỒ SƠ
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
+
+        @if (isEnterprise)
+        {
+            <div class="profile-card p-4 p-md-5">
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+                    <div class="form-section-title mb-0">
+                        <i class="bi bi-briefcase-fill text-warning"></i> Hồ sơ Pháp nhân (KYC)
+                    </div>
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill">
+                        <i class="bi bi-check-circle-fill me-1"></i> Đã xác thực
+                    </span>
+                </div>
+
+                <div class="alert alert-warning border-0 bg-warning bg-opacity-10 rounded-3 mb-4 small text-dark">
+                    <i class="bi bi-info-circle-fill me-2"></i> Dữ liệu này được cấp phát và bảo vệ bởi Ban quản trị nền tảng. Mọi yêu cầu thay đổi thông tin định danh doanh nghiệp vui lòng liên hệ Admin.
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="biz-info-row">
+                            <span class="biz-info-label">Tên Doanh nghiệp / Sàn Giao Dịch</span>
+                            <div class="biz-info-value">@businessProfile.BusinessName</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="biz-info-row">
+                            <span class="biz-info-label">Mã số thuế</span>
+                            <div class="biz-info-value font-monospace">@businessProfile.TaxCode</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="biz-info-row">
+                            <span class="biz-info-label">Giấy phép kinh doanh (ĐKKD)</span>
+                            <div class="biz-info-value">@(string.IsNullOrEmpty(businessProfile.BusinessRegistrationNo) ? "N/A" : businessProfile.BusinessRegistrationNo)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="biz-info-row">
+                            <span class="biz-info-label">Email Công ty</span>
+                            <div class="biz-info-value">@(string.IsNullOrEmpty(businessProfile.BusinessEmail) ? "N/A" : businessProfile.BusinessEmail)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="biz-info-row">
+                            <span class="biz-info-label">Ngày cấp quyền</span>
+                            <div class="biz-info-value">@businessProfile.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        // JS Đếm ký tự cho phần Bio
         const bioTextarea = document.querySelector('textarea[name="Bio"]');
         const bioCountLabel = document.getElementById('bioCount');
-
         if(bioTextarea) {
             bioTextarea.addEventListener('input', function() {
-                const length = this.value.length;
-                bioCountLabel.textContent = `${length}/500 ký tự`;
+                bioCountLabel.textContent = `${this.value.length}/500 ký tự`;
             });
-            // Init count
             bioCountLabel.textContent = `${bioTextarea.value.length}/500 ký tự`;
         }
 
-        // Tự động chặn nhập chữ vào ô SDT
         const forceNumeric = (el) => {
-            el.addEventListener('input', function() {
-                this.value = this.value.replace(/[^0-9]/g, '');
-            });
+            if(el) {
+                el.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                });
+            }
         };
         forceNumeric(document.getElementById('phoneInput'));
         forceNumeric(document.querySelector('input[name="Zalo"]'));

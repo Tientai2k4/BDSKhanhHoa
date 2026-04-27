@@ -2,173 +2,231 @@
 @{
     ViewData["Title"] = "Quản lý thành viên";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    // Ép kiểu Role Dictionary
+    var roleDict = ViewBag.RoleDictionary as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var rolesList = ViewBag.Roles as List<BDSKhanhHoa.Models.Role> ?? new List<BDSKhanhHoa.Models.Role>();
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
 }
 
-<div class="container-fluid px-4 mt-4">
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-people me-2 text-primary"></i>QUẢN LÝ THÀNH VIÊN</h4>
+<div class="container-fluid px-4 mt-4 animate__animated animate__fadeIn">
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="p-3 bg-white rounded-4 shadow-sm border border-primary-subtle d-flex align-items-center gap-3">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-people-fill fs-5"></i></div>
+                <div><h4 class="mb-0 fw-bold">@ViewBag.TotalUsers</h4><small class="text-muted fw-medium">Tổng tài khoản</small></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-white rounded-4 shadow-sm border border-success-subtle d-flex align-items-center gap-3">
+                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-person-check-fill fs-5"></i></div>
+                <div><h4 class="mb-0 fw-bold text-success">@ViewBag.ActiveUsers</h4><small class="text-muted fw-medium">Đang hoạt động</small></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-white rounded-4 shadow-sm border border-warning-subtle d-flex align-items-center gap-3">
+                <div class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-person-fill-lock fs-5"></i></div>
+                <div><h4 class="mb-0 fw-bold text-warning">@ViewBag.LockedUsers</h4><small class="text-muted fw-medium">Đang bị khóa</small></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-white rounded-4 shadow-sm border border-danger-subtle d-flex align-items-center gap-3">
+                <div class="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-trash3-fill fs-5"></i></div>
+                <div><h4 class="mb-0 fw-bold text-danger">@ViewBag.TrashCount</h4><small class="text-muted fw-medium">Trong thùng rác</small></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 bg-white p-3 rounded-4 shadow-sm border">
+        <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-person-lines-fill me-2 text-primary"></i>HỒ SƠ NGƯỜI DÙNG</h5>
         <div class="d-flex gap-2">
-            <a asp-action="Trash" class="btn btn-outline-danger shadow-sm px-4">
+            <a asp-action="Trash" class="btn btn-light border shadow-sm px-4 fw-bold text-danger">
                 <i class="bi bi-trash3 me-1"></i> Thùng rác (@ViewBag.TrashCount)
             </a>
-            <a asp-action="Create" class="btn btn-primary shadow-sm px-4">
-                <i class="bi bi-person-plus me-1"></i> Thêm mới
+            <a href="@Url.Action("ExportCsv", new { searchString = ViewBag.SearchString, roleId = ViewBag.RoleId })" class="btn btn-success shadow-sm px-4 fw-bold">
+                <i class="bi bi-file-earmark-excel me-1"></i> Xuất dữ liệu
+            </a>
+            <a asp-action="Create" class="btn btn-primary shadow-sm px-4 fw-bold">
+                <i class="bi bi-person-plus me-1"></i> Cấp tài khoản mới
             </a>
         </div>
     </div>
 
     <div class="card border-0 shadow-sm mb-4 rounded-4">
         <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-lg-6 col-md-12">
-                    <div class="input-group">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-lg-5 col-md-12">
+                    <label class="form-label small fw-bold text-muted text-uppercase">Tìm kiếm hồ sơ</label>
+                    <div class="input-group shadow-sm rounded-3 overflow-hidden">
                         <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" name="searchString" value="@ViewBag.SearchString"
-                               class="form-control border-start-0" placeholder="Tìm kiếm theo Tên, Username hoặc Email...">
+                        <input type="text" name="searchString" value="@ViewBag.SearchString" class="form-control border-start-0" placeholder="Tên, Username, Email, SĐT...">
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <select name="roleId" class="form-select">
-                        <option value="">-- Lọc theo vai trò --</option>
-                        <option value="1" selected="@(ViewBag.RoleId == 1 ? "selected" : null)">Quản trị viên (Admin)</option>
-                        <option value="2" selected="@(ViewBag.RoleId == 2 ? "selected" : null)">Nhân viên (Staff)</option>
-                        <option value="3" selected="@(ViewBag.RoleId == 3 ? "selected" : null)">Thành viên (Member)</option>
+                    <label class="form-label small fw-bold text-muted text-uppercase">Phân quyền</label>
+                    <select name="roleId" class="form-select shadow-sm">
+                        <option value="">-- Tất cả hệ thống --</option>
+                        @foreach (var role in rolesList)
+                        {
+                            <option value="@role.RoleID" selected="@(ViewBag.RoleId == role.RoleID ? "selected" : null)">@role.RoleName</option>
+                        }
                     </select>
                 </div>
-                <div class="col-lg-3 col-md-6">
-                    <button type="submit" class="btn btn-dark w-100 fw-bold"><i class="bi bi-funnel me-1"></i> Lọc dữ liệu</button>
+                <div class="col-lg-4 col-md-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-dark w-100 fw-bold shadow-sm"><i class="bi bi-funnel me-1"></i> Lọc dữ liệu</button>
+                    <a asp-action="Index" class="btn btn-light border fw-bold shadow-sm"><i class="bi bi-arrow-counterclockwise"></i></a>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm overflow-hidden rounded-4">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light text-uppercase">
-                        <tr>
-                            <th class="ps-4 py-3 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Thông tin thành viên</th>
-                            <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Liên hệ</th>
-                            <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Vai trò</th>
-                            <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Trạng thái</th>
-                            <th class="text-center pe-4 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Hành động</th>
+    <div class="card border-0 shadow-sm overflow-hidden rounded-4 mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light text-uppercase">
+                    <tr>
+                        <th class="ps-4 py-3 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Thành viên</th>
+                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Thông tin liên hệ</th>
+                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Quyền hạn (Role)</th>
+                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Trạng thái</th>
+                        <th class="text-center pe-4 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr id="user-row-@item.UserID">
+                            <td class="ps-4 py-3">
+                                <div class="d-flex align-items-center">
+                                    <img src="@(string.IsNullOrEmpty(item.Avatar) ? "/images/avatars/default.png" : item.Avatar)"
+                                         class="rounded-circle border me-3 shadow-sm" width="45" height="45" style="object-fit:cover;">
+                                    <div>
+                                        <div class="fw-bold text-dark fs-6">@(item.FullName ?? item.Username)</div>
+                                        <div class="small text-muted fw-bold">@@@item.Username</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="small text-dark fw-medium mb-1"><i class="bi bi-envelope text-primary me-1"></i> @item.Email</div>
+                                <div class="small text-muted"><i class="bi bi-telephone text-primary me-1"></i> @(item.Phone ?? "Chưa cập nhật SĐT")</div>
+                            </td>
+                            <td>
+                                @{
+                                    string roleStr = roleDict.ContainsKey(item.RoleID) ? roleDict[item.RoleID] : "Không xác định";
+                                    string badgeClass = roleStr.ToLower().Contains("admin") ? "bg-danger-subtle text-danger" :
+                                    roleStr.ToLower().Contains("staff") ? "bg-warning-subtle text-warning-emphasis" :
+                                    "bg-info-subtle text-info-emphasis";
+                                }
+                                <span class="badge @badgeClass px-3 py-2 rounded-pill fw-bold border shadow-sm">
+                                    <i class="bi bi-shield-fill-check me-1"></i> @roleStr.ToUpper()
+                                </span>
+                            </td>
+                            <td>
+                                <div class="form-check form-switch pt-1">
+                                    <input class="form-check-input fs-5 cursor-pointer shadow-sm" type="checkbox" role="switch"
+                                           id="switch-@item.UserID" @(item.IsActive ? "checked" : "")
+                                           onchange="toggleUserStatus(@item.UserID)">
+                                    <label class="form-check-label small ms-1 fw-bold mt-1" for="switch-@item.UserID" id="status-text-@item.UserID" style="color: @(item.IsActive ? "#10b981" : "#ef4444")">
+                                        @(item.IsActive ? "Đang mở" : "Bị khóa")
+                                    </label>
+                                </div>
+                            </td>
+                            <td class="text-center pe-4">
+                                <div class="btn-group shadow-sm border rounded-3 overflow-hidden bg-white">
+                                    <a asp-action="Details" asp-route-id="@item.UserID" class="btn btn-sm btn-light text-primary" title="Chi tiết nhật ký"><i class="bi bi-journal-text"></i></a>
+                                    <a asp-action="Edit" asp-route-id="@item.UserID" class="btn btn-sm btn-light border-start border-end text-warning" title="Chỉnh sửa"><i class="bi bi-pencil-square"></i></a>
+                                    <button type="button" class="btn btn-sm btn-light text-danger" onclick="confirmSoftDelete(@item.UserID)" title="Xóa hồ sơ"><i class="bi bi-trash3"></i></button>
+                                </div>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in Model)
-                        {
-                            <tr id="user-row-@item.UserID">
-                                <td class="ps-4 py-3">
-                                    <div class="d-flex align-items-center">
-                                        <img src="@(string.IsNullOrEmpty(item.Avatar) ? "/images/avatars/default.png" : item.Avatar)"
-                                             class="rounded-circle border me-3 shadow-sm" width="50" height="50" style="object-fit:cover;">
-                                        <div>
-                                            <div class="fw-bold text-dark fs-6">@(item.FullName ?? item.Username)</div>
-                                            <div class="small text-muted">@@@item.Username</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="small text-dark mb-1"><i class="bi bi-envelope text-primary me-1"></i> @item.Email</div>
-                                    <div class="small text-muted"><i class="bi bi-telephone text-primary me-1"></i> @(item.Phone ?? "Chưa cập nhật")</div>
-                                </td>
-                                <td>
-                                    @switch (item.RoleID)
-                                    {
-                                        case 1:
-                                            <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill"><i class="bi bi-shield-lock me-1"></i> ADMIN</span>
-                                            break;
-                                        case 2:
-                                            <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill text-dark"><i class="bi bi-headset me-1"></i> STAFF</span>
-                                            break;
-                                        default:
-                                            <span class="badge bg-info-subtle text-info px-3 py-2 rounded-pill"><i class="bi bi-person me-1"></i> MEMBER</span>
-                                            break;
-                                    }
-                                </td>
-                                <td>
-                                    <div class="form-check form-switch pt-1">
-                                        <input class="form-check-input fs-5 cursor-pointer" type="checkbox" role="switch"
-                                               id="switch-@item.UserID" @(item.IsActive ? "checked" : "")
-                                               onchange="toggleUserStatus(@item.UserID)">
-                                        <label class="form-check-label small ms-1 fw-bold mt-1" for="switch-@item.UserID" id="status-text-@item.UserID" style="color: @(item.IsActive ? "#198754" : "#dc3545")">
-                                            @(item.IsActive ? "Đang mở" : "Đã khóa")
-                                        </label>
-                                    </div>
-                                </td>
-                                <td class="text-center pe-4">
-                                    <div class="btn-group shadow-sm border rounded-3 overflow-hidden">
-                                        <a asp-action="Details" asp-route-id="@item.UserID" class="btn btn-sm btn-light text-primary" title="Xem hồ sơ chi tiết"><i class="bi bi-person-vcard"></i></a>
-                                        <a asp-action="Edit" asp-route-id="@item.UserID" class="btn btn-sm btn-light border-start border-end text-warning" title="Chỉnh sửa quyền & Mật khẩu"><i class="bi bi-pencil-square"></i></a>
-                                        <button type="button" class="btn btn-sm btn-light text-danger" onclick="confirmSoftDelete(@item.UserID)" title="Chuyển vào thùng rác"><i class="bi bi-trash3"></i></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                        @if (!Model.Any())
-                        {
-                            <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-search display-4 d-block mb-3 opacity-50"></i>
-                                    Không tìm thấy dữ liệu người dùng nào phù hợp.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                    }
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-people display-4 d-block mb-3 opacity-25"></i>
+                                <h6 class="fw-bold">Không có dữ liệu!</h6>
+                                <p class="small">Chưa có người dùng nào khớp với bộ lọc hiện tại.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="d-flex justify-content-center p-3 border-top bg-white">
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <a class="page-link shadow-sm rounded-start-3" href="?page=@(currentPage - 1)&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId"><i class="bi bi-chevron-left"></i></a>
+                        </li>
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(currentPage == i ? "active" : "")">
+                                <a class="page-link shadow-sm" href="?page=@i&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId">@i</a>
+                            </li>
+                        }
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <a class="page-link shadow-sm rounded-end-3" href="?page=@(currentPage + 1)&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId"><i class="bi bi-chevron-right"></i></a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        @if (TempData["Success"] != null)
+        {
+            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</text>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</text>
+        }
+
         function toggleUserStatus(id) {
             $.post('/Admin/Users/ToggleStatus/' + id, function(res) {
                 if(res.success) {
                     let label = $('#status-text-' + id);
-                    label.text(res.isActive ? "Đang mở" : "Đã khóa");
-                    label.css("color", res.isActive ? "#198754" : "#dc3545");
-
-                    const Toast = Swal.mixin({
-                        toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
-                    });
-                    Toast.fire({ icon: 'success', title: 'Đã cập nhật trạng thái hoạt động!' });
+                    label.text(res.isActive ? "Đang mở" : "Bị khóa");
+                    label.css("color", res.isActive ? "#10b981" : "#ef4444");
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã cập nhật trạng thái!', showConfirmButton: false, timer: 2000 });
                 } else {
-                    Swal.fire('Lỗi', res.message || 'Không thể thực hiện thao tác này.', 'error');
-                    $('#switch-' + id).prop('checked', !$('#switch-' + id).prop('checked')); // Reset switch
+                    Swal.fire('Lỗi bảo mật', res.message || 'Không thể thực hiện.', 'error');
+                    $('#switch-' + id).prop('checked', !$('#switch-' + id).prop('checked'));
                 }
             });
         }
 
         function confirmSoftDelete(id) {
             Swal.fire({
-                title: 'Đưa vào thùng rác?',
-                text: "Người dùng này sẽ bị vô hiệu hóa và chuyển vào thùng rác.",
+                title: 'Khóa và Đưa vào thùng rác?',
+                text: "Tài khoản sẽ bị vô hiệu hóa hoàn toàn khỏi hệ thống.",
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Đồng ý xóa',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-trash"></i> Xóa tài khoản',
                 cancelButtonText: 'Hủy thao tác'
             }).then((result) => {
                 if (result.isConfirmed) {
                     $.post('/Admin/Users/SoftDelete/' + id, function(res) {
                         if(res.success) {
                             $('#user-row-' + id).fadeOut(400, function() { $(this).remove(); });
-                            Swal.fire('Đã xóa!', 'Người dùng đã được đưa vào thùng rác.', 'success');
+                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã chuyển vào thùng rác!', showConfirmButton: false, timer: 2000 });
                         } else {
-                            Swal.fire('Lỗi', res.message || 'Không thể xóa người dùng này.', 'error');
+                            Swal.fire('Lỗi hệ thống', res.message || 'Không thể xóa.', 'error');
                         }
                     });
                 }

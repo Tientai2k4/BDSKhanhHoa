@@ -23,7 +23,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         public async Task<IActionResult> Index(string status = "")
         {
             var query = _context.Projects
-                .Include(p => p.User)
+                .Include(p => p.Owner)
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Where(p => p.IsDeleted == false)
                 .AsQueryable();
@@ -53,7 +53,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             // Lấy danh sách chỉ có trạng thái Pending
             var pendingProjects = await _context.Projects
-                .Include(p => p.User)
+                .Include(p => p.Owner)
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Where(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false)
                 .OrderByDescending(p => p.CreatedAt)

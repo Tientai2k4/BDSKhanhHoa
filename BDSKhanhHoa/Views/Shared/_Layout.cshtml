@@ -1,70 +1,415 @@
-﻿<!DOCTYPE html>
+﻿@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject BDSKhanhHoa.Data.ApplicationDbContext _context
+
+@{
+    int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
+
+    var businessProfile = currentUserId > 0
+        ? _context.BusinessProfiles.AsNoTracking().FirstOrDefault(b => b.UserID == currentUserId)
+        : null;
+
+    bool isBusinessVerified = businessProfile != null && businessProfile.VerificationStatus == "Approved";
+    bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
+
+    bool canPostSingleAd = User.Identity.IsAuthenticated && !isBusinessVerified && !isAdminOrStaff;
+
+    int unreadCount = 0;
+    var topNotifications = new List<BDSKhanhHoa.Models.Notification>();
+
+    if (User.Identity.IsAuthenticated && currentUserId > 0)
+    {
+        unreadCount = _context.Notifications.Count(n => n.UserID == currentUserId && !n.IsRead);
+        topNotifications = _context.Notifications
+            .AsNoTracking()
+            .Where(n => n.UserID == currentUserId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(5)
+            .ToList();
+    }
+}
+
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - BDSKhanhHoa: Hệ Thống Bất Động Sản AI Số 1 Khánh Hòa</title>
+    <title>@ViewData["Title"] - BDSKhanhHoa</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
     <style>
         :root {
-            --primary: #1a56db;
-            --primary-dark: #1242a8;
-            --primary-light: #ebf2ff;
-            --accent: #f05a28;
-            --accent-light: #fff3ee;
-            --surface: #ffffff;
-            --bg: #f4f6fb;
-            --border: #e4e8f0;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --text-light: #94a3b8;
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 18px;
-            --radius-xl: 24px;
-            --shadow-xs: 0 1px 3px rgba(15,23,42,0.06);
-            --shadow-sm: 0 2px 10px rgba(15,23,42,0.08);
-            --shadow-md: 0 6px 24px rgba(15,23,42,0.10);
-            --shadow-lg: 0 16px 48px rgba(15,23,42,0.12);
-            --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+            --bg: #f5f8fc;
+            --surface: rgba(255,255,255,.92);
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e6edf5;
+            --primary: #2563eb;
+            --primary-2: #1d4ed8;
+            --sea: #0ea5e9;
+            --sea-2: #0284c7;
+            --shadow-sm: 0 8px 22px rgba(15, 23, 42, .06);
+            --shadow-md: 0 16px 38px rgba(15, 23, 42, .10);
+            --radius: 18px;
+            --radius-lg: 22px;
+            --transition: all .22s ease;
         }
 
-        *, *::before, *::after {
+        /* =========================
+           MODERN FOOTER 2026
+           ========================= */
+        .footer-modern {
+            background: radial-gradient(circle at top left, rgba(14, 165, 233, .16), transparent 28%), radial-gradient(circle at top right, rgba(37, 99, 235, .14), transparent 24%), linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+            color: #cbd5e1;
+            margin-top: 72px;
+            position: relative;
+            overflow: hidden;
+        }
+
+            .footer-modern::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(135deg, rgba(255,255,255,.03), transparent 40%);
+                pointer-events: none;
+            }
+
+        .footer-top {
+            position: relative;
+            padding: 56px 0 34px;
+            border-bottom: 1px solid rgba(148, 163, 184, .14);
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+            .footer-brand img {
+                width: 56px;
+                height: 56px;
+                object-fit: contain;
+                flex-shrink: 0;
+            }
+
+        .footer-brand-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.2;
+        }
+
+        .footer-brand-subtitle {
+            margin: 3px 0 0;
+            color: #94a3b8;
+            font-size: .88rem;
+            line-height: 1.5;
+        }
+
+        .footer-desc {
+            color: #cbd5e1;
+            font-size: .94rem;
+            line-height: 1.9;
+            margin-bottom: 18px;
+        }
+
+        .footer-section-title {
+            color: #fff;
+            font-weight: 800;
+            font-size: .95rem;
+            margin-bottom: 18px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: .92rem;
+            padding: 7px 0;
+            transition: all .2s ease;
+        }
+
+            .footer-link:hover {
+                color: #fff;
+                transform: translateX(4px);
+            }
+
+            .footer-link i {
+                color: #60a5fa;
+                flex-shrink: 0;
+            }
+
+        .footer-contact {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .footer-contact-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+            .footer-contact-item .icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+                background: rgba(255,255,255,.06);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: #7dd3fc;
+                flex-shrink: 0;
+            }
+
+            .footer-contact-item .info {
+                min-width: 0;
+            }
+
+            .footer-contact-item .label {
+                display: block;
+                font-size: .74rem;
+                color: #94a3b8;
+                text-transform: uppercase;
+                letter-spacing: .08em;
+                margin-bottom: 4px;
+            }
+
+            .footer-contact-item .value {
+                color: #fff;
+                text-decoration: none;
+                font-weight: 600;
+                line-height: 1.5;
+            }
+
+                .footer-contact-item .value:hover {
+                    color: #7dd3fc;
+                }
+
+        .footer-socials {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .footer-social {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,.06);
+            color: #fff;
+            text-decoration: none;
+            transition: all .2s ease;
+        }
+
+            .footer-social:hover {
+                background: linear-gradient(135deg, #0ea5e9, #2563eb);
+                transform: translateY(-2px);
+                color: #fff;
+            }
+
+        .footer-badges {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .footer-badge {
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255,255,255,.05);
+            border: 1px solid rgba(148, 163, 184, .12);
+            color: #e2e8f0;
+            font-size: .86rem;
+            line-height: 1.5;
+        }
+
+            .footer-badge strong {
+                display: block;
+                color: #fff;
+                font-size: .92rem;
+                margin-bottom: 2px;
+            }
+
+        .footer-newsletter {
+            border-radius: 20px;
+            padding: 18px;
+            background: linear-gradient(135deg, rgba(14, 165, 233, .14), rgba(37, 99, 235, .10));
+            border: 1px solid rgba(125, 211, 252, .16);
+        }
+
+            .footer-newsletter p {
+                color: #dbeafe;
+                font-size: .92rem;
+                margin-bottom: 14px;
+                line-height: 1.7;
+            }
+
+            .footer-newsletter .form-control {
+                background: rgba(15, 23, 42, .55);
+                color: #fff;
+                border: 1px solid rgba(148, 163, 184, .22);
+                border-radius: 14px;
+                box-shadow: none !important;
+            }
+
+                .footer-newsletter .form-control::placeholder {
+                    color: #94a3b8;
+                }
+
+            .footer-newsletter .btn {
+                border-radius: 14px;
+                font-weight: 700;
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+        .footer-trustbar {
+            position: relative;
+            padding: 18px 0;
+            border-bottom: 1px solid rgba(148, 163, 184, .12);
+            background: rgba(255,255,255,.02);
+        }
+
+        .footer-trust-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #e2e8f0;
+            font-size: .9rem;
+            line-height: 1.5;
+        }
+
+            .footer-trust-item i {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                background: rgba(255,255,255,.06);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: #7dd3fc;
+                flex-shrink: 0;
+            }
+
+        .footer-bottom {
+            position: relative;
+            padding: 18px 0;
+            background: rgba(0,0,0,.18);
+        }
+
+        .footer-bottom-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .footer-bottom p {
+            margin: 0;
+            font-size: .88rem;
+            color: #94a3b8;
+        }
+
+        .footer-legal {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+        }
+
+            .footer-legal a {
+                color: #cbd5e1;
+                text-decoration: none;
+                font-size: .88rem;
+            }
+
+                .footer-legal a:hover {
+                    color: #fff;
+                }
+
+        /* responsive */
+        @@media (max-width: 991.98px) {
+            .footer-top {
+                padding: 44px 0 28px;
+            }
+
+            .footer-badges {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom-inner {
+                justify-content: center;
+                text-align: center;
+            }
+
+            .footer-legal {
+                justify-content: center;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .footer-brand {
+                align-items: flex-start;
+            }
+
+                .footer-brand img {
+                    width: 48px;
+                    height: 48px;
+                }
+
+            .footer-newsletter {
+                padding: 16px;
+            }
+        }
+        * {
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'DM Sans', sans-serif;
-            color: var(--text-main);
-            background: var(--bg);
+        html, body {
             margin: 0;
             padding: 0;
             overflow-x: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
             -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
 
-        h1, h2, h3, h4, h5, h6, .navbar-brand {
+        h1, h2, h3, h4, h5, h6, .navbar-brand, .btn, .nav-link {
             font-family: 'Sora', sans-serif;
         }
 
-        /* ===== NAVBAR ===== */
         .header-main {
-            background: rgba(255,255,255,0.97);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow-xs);
             position: sticky;
             top: 0;
             z-index: 1030;
+            background: rgba(255,255,255,.92);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(230, 237, 245, .95);
+            box-shadow: 0 1px 0 rgba(15,23,42,.04);
         }
 
         .navbar {
@@ -72,139 +417,331 @@
         }
 
             .navbar > .container {
-                min-height: 68px;
+                min-height: 78px;
+                display: flex;
+                align-items: center;
             }
 
         .navbar-brand {
-            display: flex;
+            display: inline-flex;
             align-items: center;
+            gap: 10px;
             padding: 0;
+            margin-right: 16px;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
 
             .navbar-brand img {
-                height: 52px;
+                height: 46px;
+                width: auto;
                 object-fit: contain;
+                display: block;
             }
 
+        .navbar-collapse {
+            min-width: 0;
+        }
+
+        .navbar-nav {
+            gap: 2px;
+            flex-wrap: nowrap;
+            align-items: center;
+        }
+
+        .nav-main-link,
         .nav-link {
-            font-family: 'DM Sans', sans-serif;
-            font-weight: 500;
-            font-size: 0.93rem;
-            color: var(--text-muted) !important;
-            padding: 8px 14px !important;
-            border-radius: var(--radius-sm);
+            color: #475569 !important;
+            font-weight: 700;
+            font-size: .94rem;
+            padding: 10px 12px !important;
+            border-radius: 12px;
             transition: var(--transition);
-            letter-spacing: 0.01em;
+            white-space: nowrap;
+            line-height: 1;
         }
 
             .nav-link:hover,
-            .nav-link.active {
+            .nav-link.active,
+            .nav-main-link:hover {
                 color: var(--primary) !important;
-                background: var(--primary-light);
+                background: rgba(37, 99, 235, .08);
             }
 
+        .nav-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .nav-text {
+            white-space: nowrap;
+        }
+
+        .nav-shell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+            margin-left: auto;
+            min-width: 0;
+        }
+
         .btn-post-ad {
-            background: var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: linear-gradient(135deg, var(--sea), var(--sea-2));
             color: #fff !important;
-            font-family: 'Sora', sans-serif;
-            font-weight: 700;
-            font-size: 0.85rem;
-            padding: 10px 22px !important;
-            border-radius: var(--radius-md);
             border: none;
-            letter-spacing: 0.04em;
+            border-radius: 999px;
+            padding: 11px 18px;
+            font-weight: 800;
+            font-size: .88rem;
+            box-shadow: 0 12px 26px rgba(14, 165, 233, .24);
             transition: var(--transition);
-            box-shadow: 0 4px 14px rgba(240,90,40,0.25);
             text-transform: uppercase;
+            letter-spacing: .02em;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
             .btn-post-ad:hover {
-                background: #d44d1e;
-                box-shadow: 0 6px 20px rgba(240,90,40,0.35);
                 transform: translateY(-1px);
+                box-shadow: 0 16px 30px rgba(14, 165, 233, .30);
                 color: #fff !important;
+            }
+
+        .icon-btn {
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #334155;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            flex-shrink: 0;
+            text-decoration: none;
+        }
+
+            .icon-btn:hover {
+                transform: translateY(-1px);
+                color: var(--primary);
+                border-color: rgba(37, 99, 235, .18);
+            }
+
+        .user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 240px;
+            padding: 7px 12px 7px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: var(--shadow-sm);
+            white-space: nowrap;
+        }
+
+            .user-pill img {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 2px solid rgba(148, 163, 184, .35);
+                flex-shrink: 0;
+            }
+
+            .user-pill .name {
+                font-size: .92rem;
+                font-weight: 700;
+                color: #0f172a;
+                max-width: 130px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
         .navbar-toggler {
             border: none;
-            padding: 6px;
+            padding: 8px 10px;
+            box-shadow: none !important;
+            flex-shrink: 0;
         }
 
             .navbar-toggler:focus {
-                box-shadow: none;
+                box-shadow: none !important;
             }
 
-        /* ===== AI CHATBOT ===== */
-        .ai-chatbot-btn {
-            position: fixed;
-            bottom: 28px;
-            right: 28px;
-            width: 58px;
-            height: 58px;
-            background: var(--primary);
-            color: white;
-            border-radius: 50%;
+        .dropdown-menu {
+            border: 1px solid rgba(230,237,245,.96);
+            border-radius: 16px;
+            box-shadow: var(--shadow-md);
+            padding: 10px;
+        }
+
+        .dropdown-item {
+            border-radius: 12px;
+            font-weight: 600;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+            .dropdown-item:active {
+                background: rgba(37, 99, 235, .1);
+                color: var(--text);
+            }
+
+        .notification-list {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .notification-preview {
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .nav-hover-menu {
+            position: relative;
+        }
+
+        .nav-hover-dropdown {
+            min-width: 320px;
+            margin-top: 12px;
+        }
+
+        .dropdown-item-rich {
+            transition: all .22s ease;
+            border: 1px solid transparent;
+        }
+
+            .dropdown-item-rich:hover {
+                background-color: #f8fafc;
+                border-color: #e2e8f0;
+                transform: translateX(4px);
+                box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+            }
+
+        .icon-box-menu {
+            width: 38px;
+            height: 38px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 28px rgba(26,86,219,0.35);
+            border-radius: 10px;
+            transition: all .3s ease;
+            flex-shrink: 0;
+        }
+
+        .dropdown-item-rich:hover .icon-box-menu {
+            transform: scale(1.08);
+        }
+
+        .nav-dd-title {
+            font-size: .94rem;
+        }
+
+        @@media (min-width: 1200px) {
+            .nav-hover-menu .dropdown-menu {
+                display: block;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(10px);
+                pointer-events: none;
+                transition: all .22s ease;
+            }
+
+            .nav-hover-menu:hover .dropdown-menu {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+        }
+
+        main {
+            min-height: 60vh;
+        }
+
+        .ai-chatbot-btn {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,.35);
+            background: linear-gradient(135deg, var(--primary), #3b82f6);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 14px 34px rgba(37,99,235,.28);
             cursor: pointer;
             z-index: 2000;
             transition: var(--transition);
-            border: 3px solid rgba(255,255,255,0.3);
         }
 
             .ai-chatbot-btn:hover {
-                transform: scale(1.08);
-                box-shadow: 0 12px 36px rgba(26,86,219,0.45);
-            }
-
-            .ai-chatbot-btn i {
-                font-size: 1.4rem;
+                transform: scale(1.06);
             }
 
         .chat-widget {
             position: fixed;
-            bottom: 100px;
-            right: 28px;
+            right: 24px;
+            bottom: 94px;
             width: 380px;
             height: 580px;
-            background: var(--surface);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-lg);
-            z-index: 2001;
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(15,23,42,.18);
             overflow: hidden;
             display: none;
             flex-direction: column;
-            border: 1px solid var(--border);
+            z-index: 2001;
+            border: 1px solid rgba(229,234,242,.95);
         }
 
         .chat-header {
-            background: var(--primary);
-            color: white;
-            padding: 16px 20px;
+            padding: 16px 18px;
+            background: linear-gradient(135deg, var(--primary), #3b82f6);
+            color: #fff;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
         }
 
             .chat-header h6 {
-                font-family: 'Sora', sans-serif;
-                font-size: 0.95rem;
                 margin: 0;
-                font-weight: 700;
+                font-size: .96rem;
+                font-weight: 800;
             }
 
             .chat-header small {
-                font-size: 0.78rem;
-                opacity: 0.8;
+                opacity: .85;
             }
 
         .chat-body {
             flex: 1;
             padding: 16px;
             overflow-y: auto;
-            background: var(--bg);
+            background: #f8fafc;
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -223,187 +760,227 @@
             }
 
         .bubble {
-            padding: 10px 15px;
-            font-size: 0.9rem;
-            line-height: 1.55;
-            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: .92rem;
         }
 
         .user .bubble {
             background: var(--primary);
-            color: white;
-            border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+            color: #fff;
+            border-radius: 16px 16px 4px 16px;
         }
 
         .bot .bubble {
-            background: var(--surface);
-            color: var(--text-main);
+            background: #fff;
+            color: var(--text);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px;
+            border-radius: 16px 16px 16px 4px;
         }
 
         .typing-dots {
             display: flex;
-            gap: 4px;
-            padding: 8px 4px;
+            gap: 5px;
+            padding: 6px 2px;
         }
 
             .typing-dots span {
                 width: 6px;
                 height: 6px;
-                background: var(--text-light);
                 border-radius: 50%;
+                background: #94a3b8;
                 animation: bounce 1.3s infinite ease-in-out;
             }
 
                 .typing-dots span:nth-child(2) {
-                    animation-delay: 0.18s;
+                    animation-delay: .18s;
                 }
 
                 .typing-dots span:nth-child(3) {
-                    animation-delay: 0.36s;
+                    animation-delay: .36s;
                 }
 
         @@keyframes bounce {
-            0%, 80%, 100%
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
 
-        {
-            transform: scale(0);
-        }
-
-        40% {
-            transform: scale(1);
-        }
-
+            40% {
+                transform: scale(1);
+            }
         }
 
         .chat-footer {
-            padding: 12px 14px;
-            background: var(--surface);
+            padding: 12px;
+            background: #fff;
             border-top: 1px solid var(--border);
         }
 
-            .chat-footer .input-group .form-control {
-                border-radius: var(--radius-md) 0 0 var(--radius-md);
+            .chat-footer .form-control {
+                border-radius: 14px 0 0 14px;
                 border: 1px solid var(--border);
-                font-size: 0.9rem;
-                padding: 10px 14px;
+                box-shadow: none !important;
             }
 
             .chat-footer .btn {
-                border-radius: 0 var(--radius-md) var(--radius-md) 0;
-                background: var(--primary);
-                border-color: var(--primary);
+                border-radius: 0 14px 14px 0;
             }
 
-        /* ===== FOOTER ===== */
         footer {
-            background: #0d1529;
-            color: #7a8fb5;
-            padding-top: 70px;
+            background: #0f172a;
+            color: #94a3b8;
             margin-top: 72px;
         }
 
-        .footer-logo-text {
-            font-family: 'Sora', sans-serif;
-            font-size: 1.25rem;
-            font-weight: 800;
-            color: #fff;
-            margin-bottom: 12px;
-        }
-
-        .footer-title {
-            font-family: 'Sora', sans-serif;
-            color: #fff;
-            font-weight: 700;
-            font-size: 0.95rem;
-            margin-bottom: 20px;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
         .footer-link {
-            color: #7a8fb5;
+            color: #94a3b8;
             text-decoration: none;
             display: block;
             margin-bottom: 10px;
-            font-size: 0.9rem;
-            transition: var(--transition);
         }
 
             .footer-link:hover {
                 color: #fff;
-                transform: translateX(4px);
             }
 
+        .footer-title {
+            color: #fff;
+            font-weight: 800;
+            margin-bottom: 18px;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            font-size: .92rem;
+        }
+
         .footer-social {
-            width: 36px;
-            height: 36px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.1);
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: rgba(255,255,255,.07);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: var(--radius-sm);
             color: #fff;
             text-decoration: none;
-            transition: var(--transition);
-            font-size: 0.95rem;
+            margin-right: 8px;
         }
 
             .footer-social:hover {
                 background: var(--primary);
-                border-color: var(--primary);
                 color: #fff;
             }
 
         .footer-contact-item {
             display: flex;
-            align-items: flex-start;
             gap: 10px;
+            align-items: flex-start;
             margin-bottom: 12px;
-            font-size: 0.88rem;
-            line-height: 1.5;
         }
 
             .footer-contact-item i {
-                color: var(--primary);
-                margin-top: 2px;
-                flex-shrink: 0;
-                font-size: 0.95rem;
+                color: #60a5fa;
+                margin-top: 3px;
             }
 
         .copyright-bar {
-            background: rgba(0,0,0,0.25);
-            padding: 22px 0;
-            margin-top: 56px;
-            border-top: 1px solid rgba(255,255,255,0.05);
+            padding: 18px 0;
+            border-top: 1px solid rgba(255,255,255,.06);
+            background: rgba(0,0,0,.18);
         }
 
             .copyright-bar p {
                 margin: 0;
-                font-size: 0.82rem;
-                color: #5a6e8e;
+                font-size: .86rem;
             }
 
-            .copyright-bar span {
-                color: #5a9bff;
-                font-family: 'Sora', sans-serif;
-                font-weight: 600;
+        @@media (max-width: 1399.98px) {
+            .navbar > .container {
+                min-height: 72px;
             }
 
-        /* ===== UTILITIES ===== */
-        .text-primary-custom {
-            color: var(--primary) !important;
+            .nav-main-link, .nav-link {
+                font-size: .90rem;
+                padding: 9px 10px !important;
+            }
+
+            .user-pill {
+                max-width: 200px;
+            }
+
+                .user-pill .name {
+                    max-width: 100px;
+                }
         }
 
-        .text-accent {
-            color: var(--accent) !important;
+        @@media (max-width: 1199.98px) {
+            .navbar > .container {
+                min-height: 68px;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
+        }
+
+        @@media (max-width: 991.98px) {
+            .navbar-collapse {
+                padding: 12px 0 16px;
+            }
+
+            .navbar-nav {
+                flex-wrap: wrap;
+                gap: 6px;
+                align-items: stretch;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            }
+
+            .user-pill {
+                max-width: 100%;
+            }
+
+            .nav-hover-dropdown {
+                position: static !important;
+                transform: none !important;
+                margin-top: 8px;
+            }
+
+            .chat-widget {
+                width: calc(100vw - 24px);
+                right: 12px;
+                left: 12px;
+                height: 72vh;
+            }
+
+            .ai-chatbot-btn {
+                right: 14px;
+                bottom: 14px;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .navbar-brand img {
+                height: 40px;
+            }
+
+            .btn-post-ad {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
         }
     </style>
 </head>
 <body>
-
     <header class="header-main">
         <nav class="navbar navbar-expand-xl">
             <div class="container">
@@ -411,43 +988,165 @@
                     <img src="/images/logo.png" alt="BDS Khánh Hòa Logo">
                 </a>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
-                    <i class="bi bi-list fs-2 text-primary"></i>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent" aria-controls="navContent" aria-expanded="false" aria-label="Mở menu">
+                    <i class="bi bi-list fs-1 text-primary"></i>
                 </button>
 
                 <div class="collapse navbar-collapse" id="navContent">
-                    <ul class="navbar-nav mx-auto gap-1 mb-2 mb-xl-0">
-                        <li class="nav-item">
-                            <a class="nav-link" asp-controller="Home" asp-action="Index"><i class="bi bi-house me-1"></i>Trang chủ</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/BatDongSan/NhaDatBan"><i class="bi bi-building me-1"></i>Nhà đất bán</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/BatDongSan/NhaDatChoThue"><i class="bi bi-key me-1"></i>Cho thuê</a>
-                        </li>
+                    <div class="nav-shell w-100">
+                        <ul class="navbar-nav mx-xl-auto mb-2 mb-xl-0">
+                            <li class="nav-item">
+                                <a class="nav-link nav-main-link" asp-controller="Home" asp-action="Index">
+                                    <i class="bi bi-house me-1"></i><span class="nav-text">Trang chủ</span>
+                                </a>
+                            </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Project"><i class="bi bi-buildings me-1"></i>Dự án</a>
-                        </li>
+                            @await Component.InvokeAsync("NavbarMenu")
 
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Blog"><i class="bi bi-newspaper me-1"></i>Tin thị trường</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" asp-controller="Contact" asp-action="Index"><i class="bi bi-chat-dots me-1"></i>Liên hệ</a>
-                        </li>
-                    </ul>
+                            <li class="nav-item">
+                                <a class="nav-link nav-main-link" href="/Project">
+                                    <i class="bi bi-buildings me-1"></i><span class="nav-text">Dự án</span>
+                                </a>
+                            </li>
 
-                    <div class="d-flex align-items-center gap-3">
-                        <partial name="_LoginPartial" />
+                            <li class="nav-item">
+                                <a class="nav-link nav-main-link" href="/Blog">
+                                    <i class="bi bi-newspaper me-1"></i><span class="nav-text">Tin thị trường</span>
+                                </a>
+                            </li>
 
-                        @if (User.Identity.IsAuthenticated && User.IsInRole("Member"))
-                        {
-                            <a href="/Property/Create" class="btn btn-post-ad d-none d-sm-inline-flex align-items-center gap-2">
-                                <i class="bi bi-plus-circle"></i> Đăng tin
-                            </a>
-                        }
+                            <li class="nav-item">
+                                <a class="nav-link nav-main-link" asp-controller="Contact" asp-action="Index">
+                                    <i class="bi bi-chat-dots me-1"></i><span class="nav-text">Liên hệ</span>
+                                </a>
+                            </li>
+                        </ul>
+
+                        <div class="header-actions">
+                            @if (User.Identity.IsAuthenticated)
+                            {
+                                @if (canPostSingleAd)
+                                {
+                                    <a href="/Property/Create" class="btn-post-ad">
+                                        <i class="bi bi-plus-circle"></i>
+                                        <span>Đăng tin</span>
+                                    </a>
+                                }
+
+                                <div class="dropdown">
+                                    <a href="#" class="icon-btn position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Thông báo">
+                                        <i class="bi bi-bell-fill"></i>
+                                        @if (unreadCount > 0)
+                                        {
+                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size:.63rem;">
+                                                @(unreadCount > 9 ? "9+" : unreadCount.ToString())
+                                            </span>
+                                        }
+                                    </a>
+
+                                    <div class="dropdown-menu dropdown-menu-end p-0" style="width:320px; overflow:hidden;">
+                                        <div class="px-3 py-2 fw-bold text-white" style="background: linear-gradient(135deg, var(--primary), #3b82f6);">
+                                            Thông báo của bạn
+                                        </div>
+
+                                        <div class="notification-list">
+                                            @if (topNotifications.Any())
+                                            {
+                                                foreach (var noti in topNotifications)
+                                                {
+                                                    <a href="/Notification/Details/@noti.NotificationID"
+                                                       class="dropdown-item border-bottom @(noti.IsRead ? "" : "bg-light")">
+                                                        <div class="fw-bold text-dark text-truncate">@noti.Title</div>
+                                                        <div class="text-muted small notification-preview">@noti.Content</div>
+                                                    </a>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="p-4 text-center text-muted small">Không có thông báo mới</div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dropdown">
+                                    <button class="btn p-0 border-0 bg-transparent" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span class="user-pill">
+                                            <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")" alt="Avatar">
+                                            <span class="name">@User.Identity.Name</span>
+                                            <i class="bi bi-chevron-down text-secondary ms-1"></i>
+                                        </span>
+                                    </button>
+
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        @if (isAdminOrStaff)
+                                        {
+                                            <li><h6 class="dropdown-header text-danger">Hệ thống quản trị</h6></li>
+                                            <li>
+                                                <a class="dropdown-item" href="/Admin/Dashboard">
+                                                    <i class="bi bi-speedometer2 me-2 text-danger"></i>Bảng điều khiển Admin
+                                                </a>
+                                            </li>
+                                        }
+                                        else if (isBusinessVerified)
+                                        {
+                                            <li><h6 class="dropdown-header text-primary fw-bold text-uppercase small" style="letter-spacing: 1px;">Cổng Chủ Đầu Tư</h6></li>
+                                            <li>
+                                                <a class="dropdown-item py-2" href="/MemberProject/Index">
+                                                    <i class="bi bi-funnel-fill me-2 text-success"></i>Quản lý khách hàng (CRM)
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item py-2" href="/MemberProject/MyProjects">
+                                                    <i class="bi bi-buildings-fill me-2 text-primary"></i>Kho dự án đang quản lý
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item py-2" href="/Account/Profile">
+                                                    <i class="bi bi-person-vcard me-2 text-info"></i>Hồ sơ pháp nhân (KYC)
+                                                </a>
+                                            </li>
+                                        }
+                                        else
+                                        {
+                                            <li><h6 class="dropdown-header text-muted">Tài khoản cá nhân</h6></li>
+                                            <li>
+                                                <a class="dropdown-item" href="/Account/Profile">
+                                                    <i class="bi bi-person-circle me-2 text-primary"></i>Hồ sơ của tôi
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" href="/Property/MyAds">
+                                                    <i class="bi bi-card-checklist me-2 text-primary"></i>Quản lý tin đăng
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" href="/Favorite/Index">
+                                                    <i class="bi bi-heart-fill me-2 text-danger"></i>Tin đã yêu thích
+                                                </a>
+                                            </li>
+                                        }
+
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger fw-bold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i>Thoát tài khoản
+                                                </button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                            }
+                            else
+                            {
+                                <a href="/Account/Login" class="btn-post-ad">
+                                    <i class="bi bi-person-lock"></i>
+                                    <span>Đăng nhập</span>
+                                </a>
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
@@ -458,12 +1157,10 @@
         @RenderBody()
     </main>
 
-    <!-- Chatbot Toggle Button -->
     <div class="ai-chatbot-btn" id="chatbotToggle" title="Trợ lý AI">
         <i class="bi bi-robot"></i>
     </div>
 
-    <!-- Chat Widget -->
     <div id="chatWidget" class="chat-widget">
         <div class="chat-header">
             <div class="d-flex align-items-center gap-2">
@@ -473,7 +1170,7 @@
                     <small>Tư vấn BĐS 24/7</small>
                 </div>
             </div>
-            <i class="bi bi-x-lg fs-5" id="chatClose" style="cursor:pointer;opacity:0.8;"></i>
+            <i class="bi bi-x-lg fs-5" id="chatClose" style="cursor:pointer;opacity:.85;"></i>
         </div>
 
         <div id="chatBody" class="chat-body">
@@ -494,73 +1191,209 @@
         </div>
     </div>
 
-    <!-- FOOTER -->
-    <footer>
-        <div class="container pb-5">
-            <div class="row g-5">
-                <div class="col-lg-4">
-                    <div class="footer-logo-text">BĐS Khánh Hòa</div>
-                    <p style="font-size:0.88rem; line-height:1.75; margin-bottom:20px;">
-                        Cổng thông tin bất động sản hàng đầu tỉnh Khánh Hòa. Tích hợp AI để giúp bạn tìm được tổ ấm lý tưởng nhanh chóng và dễ dàng.
-                    </p>
-                    <div class="d-flex gap-2">
-                        <a href="#" class="footer-social"><i class="bi bi-facebook"></i></a>
-                        <a href="#" class="footer-social"><i class="bi bi-youtube"></i></a>
-                        <a href="#" class="footer-social"><i class="bi bi-tiktok"></i></a>
-                        <a href="#" class="footer-social"><i class="bi bi-instagram"></i></a>
+    <footer class="footer-modern">
+        <div class="footer-top">
+            <div class="container">
+                <div class="row g-4">
+                    <div class="col-lg-4 col-md-6">
+                        <div class="footer-brand">
+                            <img src="/images/logo.png" alt="BĐS Khánh Hòa">
+                            <div>
+                                <p class="footer-brand-title">BĐS Khánh Hòa</p>
+                                <p class="footer-brand-subtitle">Sàn tin đăng bất động sản tại Khánh Hòa</p>
+                            </div>
+                        </div>
+
+                        <p class="footer-desc">
+                            Nền tảng đăng tin, tìm kiếm và kết nối bất động sản tại Khánh Hòa.
+                            Hỗ trợ tin bán, tin thuê, dự án, chủ đầu tư, môi giới và khách mua
+                            với trải nghiệm rõ ràng, nhanh và minh bạch.
+                        </p>
+
+                        <div class="footer-badges">
+                            <div class="footer-badge">
+                                <strong>Giao dịch minh bạch</strong>
+                                Tin đăng được phân loại rõ ràng, dễ kiểm duyệt và dễ tìm kiếm.
+                            </div>
+                            <div class="footer-badge">
+                                <strong>Hỗ trợ nhanh</strong>
+                                Tư vấn liên hệ, phản hồi và cập nhật thông tin liên tục.
+                            </div>
+                        </div>
+
+                        <div class="footer-socials">
+                            <a href="#" class="footer-social" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                            <a href="#" class="footer-social" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+                            <a href="#" class="footer-social" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                            <a href="#" class="footer-social" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                            <a href="#" class="footer-social" aria-label="Zalo"><i class="bi bi-chat-dots"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-2 col-md-6 col-6">
+                        <div class="footer-section-title">Khám phá</div>
+                        <a class="footer-link" href="/BatDongSan/NhaDatBan">
+                            <i class="bi bi-house-door-fill"></i><span>Nhà đất bán</span>
+                        </a>
+                        <a class="footer-link" href="/BatDongSan/NhaDatChoThue">
+                            <i class="bi bi-key-fill"></i><span>Nhà đất cho thuê</span>
+                        </a>
+                        <a class="footer-link" href="/Project">
+                            <i class="bi bi-buildings-fill"></i><span>Dự án</span>
+                        </a>
+                        <a class="footer-link" href="/Blog">
+                            <i class="bi bi-newspaper"></i><span>Tin thị trường</span>
+                        </a>
+                        <a class="footer-link" href="/Favorite/Index">
+                            <i class="bi bi-heart-fill"></i><span>Tin yêu thích</span>
+                        </a>
+                    </div>
+
+                    <div class="col-lg-2 col-md-6 col-6">
+                        <div class="footer-section-title">Hỗ trợ</div>
+                        <a class="footer-link" href="/Account/Profile">
+                            <i class="bi bi-person-circle"></i><span>Hồ sơ tài khoản</span>
+                        </a>
+                        <a class="footer-link" href="/Property/MyAds">
+                            <i class="bi bi-card-checklist"></i><span>Quản lý tin đăng</span>
+                        </a>
+                        <a class="footer-link" href="/Contact">
+                            <i class="bi bi-headset"></i><span>Liên hệ hỗ trợ</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-question-circle"></i><span>Hỏi đáp thường gặp</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-megaphone-fill"></i><span>Báo giá đăng tin</span>
+                        </a>
+                    </div>
+
+                    <div class="col-lg-2 col-md-6 col-6">
+                        <div class="footer-section-title">Pháp lý</div>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-shield-lock-fill"></i><span>Chính sách bảo mật</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-file-earmark-text"></i><span>Điều khoản sử dụng</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-file-check-fill"></i><span>Quy định đăng tin</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-cash-coin"></i><span>Chính sách VIP</span>
+                        </a>
+                        <a class="footer-link" href="#">
+                            <i class="bi bi-exclamation-triangle"></i><span>Chống spam / lừa đảo</span>
+                        </a>
+                    </div>
+
+                    <div class="col-lg-2 col-md-6">
+                        <div class="footer-section-title">Liên hệ</div>
+                        <div class="footer-contact">
+                            <div class="footer-contact-item">
+                                <div class="icon"><i class="bi bi-geo-alt-fill"></i></div>
+                                <div class="info">
+                                    <span class="label">Địa chỉ</span>
+                                    <a href="#" class="value">02 Nguyễn Đình Chiểu, Vĩnh Thọ, Nha Trang, Khánh Hòa</a>
+                                </div>
+                            </div>
+
+                            <div class="footer-contact-item">
+                                <div class="icon"><i class="bi bi-telephone-fill"></i></div>
+                                <div class="info">
+                                    <span class="label">Hotline</span>
+                                    <a href="tel:1900889900" class="value">1900 88 99</a>
+                                </div>
+                            </div>
+
+                            <div class="footer-contact-item">
+                                <div class="icon"><i class="bi bi-envelope-fill"></i></div>
+                                <div class="info">
+                                    <span class="label">Email</span>
+                                    <a href="mailto:support@bdskhanhhoa.vn" class="value">support@bdskhanhhoa.vn</a>
+                                </div>
+                            </div>
+
+                            <div class="footer-contact-item">
+                                <div class="icon"><i class="bi bi-clock-fill"></i></div>
+                                <div class="info">
+                                    <span class="label">Giờ làm việc</span>
+                                    <span class="value">08:00 - 17:30, Thứ 2 - Thứ 7</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="col-lg-2 col-6">
-                    <div class="footer-title">Khám phá</div>
-                    <a href="#" class="footer-link">Nhà đất bán</a>
-                    <a href="#" class="footer-link">Đất nền</a>
-                    <a href="#" class="footer-link">Căn hộ</a>
-                    <a href="#" class="footer-link">Cho thuê</a>
-                    <a href="#" class="footer-link">Tin mới nhất</a>
-                </div>
-
-                <div class="col-lg-2 col-6">
-                    <div class="footer-title">Hỗ trợ</div>
-                    <a href="#" class="footer-link">Điều khoản sử dụng</a>
-                    <a href="#" class="footer-link">Quy định đăng tin</a>
-                    <a href="#" class="footer-link">Chính sách bảo mật</a>
-                    <a href="#" class="footer-link">Báo giá VIP</a>
-                </div>
-
-                <div class="col-lg-4">
-                    <div class="footer-title">Liên hệ</div>
-                    <div class="footer-contact-item">
-                        <i class="bi bi-geo-alt-fill"></i>
-                        <span>02 Nguyễn Đình Chiểu, Vĩnh Thọ, Nha Trang, Khánh Hòa</span>
-                    </div>
-                    <div class="footer-contact-item">
-                        <i class="bi bi-telephone-fill"></i>
-                        <span>Hotline: <a href="tel:1900889900" style="color:#5a9bff;text-decoration:none;">1900 88 99</a></span>
-                    </div>
-                    <div class="footer-contact-item">
-                        <i class="bi bi-envelope-fill"></i>
-                        <span><a href="mailto:support@bdskhanhhoa.vn" style="color:#5a9bff;text-decoration:none;">support@bdskhanhhoa.vn</a></span>
+                <div class="footer-newsletter mt-4">
+                    <div class="row align-items-center g-3">
+                        <div class="col-lg-7">
+                            <h5 class="text-white fw-bold mb-2">Nhận tin bất động sản mới mỗi ngày</h5>
+                            <p class="mb-0">
+                                Đăng ký để nhận cập nhật dự án, tin bán, tin thuê và các cơ hội nổi bật tại Khánh Hòa.
+                            </p>
+                        </div>
+                        <div class="col-lg-5">
+                            <form class="d-flex gap-2">
+                                <input type="email" class="form-control" placeholder="Nhập email của bạn">
+                                <button type="submit" class="btn btn-info text-white fw-bold px-4">
+                                    Đăng ký
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="copyright-bar text-center">
+        <div class="footer-trustbar">
             <div class="container">
-                <p>
-                    © 2026 Đồ án tốt nghiệp CNTT – Đại học Nha Trang<br>
-                    <span>Phát triển bởi: Nguyễn Tiến Tài</span>
-                </p>
+                <div class="row g-3">
+                    <div class="col-lg-4 col-md-4">
+                        <div class="footer-trust-item">
+                            <i class="bi bi-check2-circle"></i>
+                            <span>Tin đăng phân loại rõ: bán, thuê, dự án, thị trường</span>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-4">
+                        <div class="footer-trust-item">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Ưu tiên kiểm soát spam, trùng tin và nội dung sai lệch</span>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-4">
+                        <div class="footer-trust-item">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                            <span>Hỗ trợ duyệt nhanh, hiển thị nhanh và tối ưu trải nghiệm</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="container">
+                <div class="footer-bottom-inner">
+                    <p>
+                        © 2026 BĐS Khánh Hòa. Phát triển bởi Nguyễn Tiến Tài.
+                    </p>
+
+                    <div class="footer-legal">
+                        <a href="#">Chính sách bảo mật</a>
+                        <a href="#">Điều khoản</a>
+                        <a href="#">Quy định đăng tin</a>
+                        <a href="#">Liên hệ</a>
+                    </div>
+                </div>
             </div>
         </div>
     </footer>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        $(document).ready(function () {
+        $(function () {
             const $btn = $('#chatbotToggle');
             const $widget = $('#chatWidget');
             const $input = $('#chatInput');
@@ -568,24 +1401,27 @@
 
             $btn.on('click', function () {
                 if ($widget.is(':visible')) {
-                    $widget.fadeOut(250);
+                    $widget.fadeOut(200);
                 } else {
-                    $widget.fadeIn(250).css('display', 'flex');
-                    $input.focus();
+                    $widget.fadeIn(200).css('display', 'flex');
+                    $input.trigger('focus');
                 }
             });
 
-            $('#chatClose').on('click', function () { $widget.fadeOut(250); });
+            $('#chatClose').on('click', function () {
+                $widget.fadeOut(200);
+            });
 
             function appendMessage(text, sender) {
                 const html = `<div class="chat-message ${sender} animate__animated animate__fadeInUp animate__faster"><div class="bubble">${text}</div></div>`;
                 $body.append(html);
-                $body.animate({ scrollTop: $body[0].scrollHeight }, 300);
+                $body.scrollTop($body[0].scrollHeight);
             }
 
             async function handleChat() {
                 const message = $input.val().trim();
                 if (!message) return;
+
                 appendMessage(message, 'user');
                 $input.val('');
 
@@ -599,25 +1435,38 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message })
                     });
+
                     if (!response.ok) throw new Error('API Error');
+
                     const data = await response.json();
                     $(`#${loadingId}`).remove();
                     appendMessage(data.message, 'bot');
 
                     if (data.suggestedProperties && data.suggestedProperties.length > 0) {
                         data.suggestedProperties.forEach(p => {
-                            $body.append(`<div class="chat-message bot animate__animated animate__fadeIn mt-2"><div class="bubble p-3" style="border-left:3px solid var(--primary);background:#fff;"><div class="fw-bold text-dark mb-1" style="font-size:.88rem;">${p.title}</div><div style="color:var(--accent);font-weight:700;font-size:.9rem;margin-bottom:8px;">${p.price}</div><a href="${p.link}" target="_blank" class="btn btn-sm btn-outline-primary w-100" style="font-size:.82rem;">Xem chi tiết</a></div></div>`);
+                            $body.append(`
+                                <div class="chat-message bot animate__animated animate__fadeIn mt-2">
+                                    <div class="bubble p-3" style="background:#fff;border-left:3px solid var(--primary);">
+                                        <div class="fw-bold text-dark mb-1" style="font-size:.88rem;">${p.title}</div>
+                                        <div style="color:var(--sea);font-weight:700;font-size:.9rem;margin-bottom:8px;">${p.price}</div>
+                                        <a href="${p.link}" target="_blank" class="btn btn-sm btn-outline-primary w-100" style="font-size:.82rem;">Xem chi tiết</a>
+                                    </div>
+                                </div>
+                            `);
                         });
                     }
                 } catch (e) {
                     $(`#${loadingId}`).remove();
                     appendMessage('Lỗi kết nối. Vui lòng thử lại sau.', 'bot');
                 }
-                $body.animate({ scrollTop: $body[0].scrollHeight }, 300);
+
+                $body.scrollTop($body[0].scrollHeight);
             }
 
             $('#chatSendBtn').on('click', handleChat);
-            $input.on('keypress', function (e) { if (e.which === 13) handleChat(); });
+            $input.on('keypress', function (e) {
+                if (e.which === 13) handleChat();
+            });
         });
     </script>
 

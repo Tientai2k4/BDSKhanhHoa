@@ -1,152 +1,208 @@
 ﻿using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace BDSKhanhHoa.Controllers
 {
-    [Authorize]
     public class ProjectController : Controller
     {
         private readonly ApplicationDbContext _context;
-        private readonly IWebHostEnvironment _hostEnvironment;
 
-        public ProjectController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment)
+        public ProjectController(ApplicationDbContext context)
         {
             _context = context;
-            _hostEnvironment = hostEnvironment;
         }
 
-        // ==========================================
-        // 1. QUẢN LÝ DỰ ÁN CÁ NHÂN (Dành cho Member)
-        // ==========================================
-        public async Task<IActionResult> MyProjects()
+        private async Task LoadProjectFiltersAsync()
         {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdClaim, out int userId)) return RedirectToAction("Login", "Account");
+            ViewBag.Areas = await _context.Areas
+                .AsNoTracking()
+                .OrderBy(a => a.AreaName)
+                .ToListAsync();
+        }
 
-            var projects = await _context.Projects
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Where(p => p.UserID == userId && p.IsDeleted == false)
-                .OrderByDescending(p => p.CreatedAt)
+        private IQueryable<Project> BuildBaseQuery()
+        {
+            return _context.Projects
+                .AsNoTracking()
+                .Include(p => p.Area)
+                .Include(p => p.Ward)
+                .Include(p => p.Owner)
+                .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false);
+        }
+
+        // =================================================================================
+        // 1. TRANG CHỦ DỰ ÁN
+        // =================================================================================
+        [HttpGet]
+        [Route("Project")]
+        public async Task<IActionResult> Index()
+        {
+            await LoadProjectFiltersAsync();
+
+            var projects = await BuildBaseQuery()
+                .OrderByDescending(p => p.PublishedAt)
+                .Take(12)
                 .ToListAsync();
 
-            return View(projects);
+            ViewData["Title"] = "Dự án Bất động sản tại Khánh Hòa";
+            ViewBag.Keyword = "";
+            ViewBag.AreaId = null;
+            ViewBag.Status = "";
+            ViewBag.Sort = "newest";
+            ViewBag.TotalResults = await BuildBaseQuery().CountAsync();
+
+            return View("Search", projects);
         }
 
-        // ==========================================
-        // 2. GỬI HỒ SƠ ĐĂNG DỰ ÁN MỚI
-        // ==========================================
+        // =================================================================================
+        // 2. TÌM KIẾM NÂNG CAO
+        // =================================================================================
         [HttpGet]
-        public async Task<IActionResult> Create()
-        {
-            ViewBag.Areas = new SelectList(await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(), "AreaID", "AreaName");
-            return View(new Project());
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Project project, IFormFile MainImageFile, IFormFile LegalDocsFile)
-        {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdClaim, out int userId)) return RedirectToAction("Login", "Account");
-
-            project.UserID = userId;
-            project.ApprovalStatus = "Pending"; // Mặc định phải chờ Admin kiểm duyệt hồ sơ
-            project.CreatedAt = DateTime.Now;
-            project.UpdatedAt = DateTime.Now;
-
-            // Xử lý Ảnh phối cảnh
-            if (MainImageFile != null && MainImageFile.Length > 0)
-            {
-                string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/projects/images");
-                if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
-                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(MainImageFile.FileName);
-                using (var stream = new FileStream(Path.Combine(uploadDir, fileName), FileMode.Create)) { await MainImageFile.CopyToAsync(stream); }
-                project.MainImage = "/uploads/projects/images/" + fileName;
-            }
-
-            // Xử lý Hồ sơ pháp lý (BẮT BUỘC: Hợp đồng, GPKD, 1/500...)
-            if (LegalDocsFile != null && LegalDocsFile.Length > 0)
-            {
-                string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/projects/legals");
-                if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
-                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(LegalDocsFile.FileName);
-                using (var stream = new FileStream(Path.Combine(uploadDir, fileName), FileMode.Create)) { await LegalDocsFile.CopyToAsync(stream); }
-                project.LegalDocs = "/uploads/projects/legals/" + fileName;
-            }
-            else
-            {
-                ModelState.AddModelError("LegalDocs", "Hệ thống bắt buộc bạn phải tải lên hồ sơ pháp lý (GPKD, QĐ 1/500,...) để bảo vệ quyền lợi người mua.");
-                ViewBag.Areas = new SelectList(await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(), "AreaID", "AreaName");
-                return View(project);
-            }
-
-            _context.Projects.Add(project);
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã gửi hồ sơ dự án! Ban quản trị sẽ tiến hành xác minh tính pháp lý và phản hồi trong 24h.";
-            return RedirectToAction("MyProjects");
-        }
-
-        // ==========================================
-        // 3. TÌM KIẾM & DANH SÁCH DỰ ÁN NỔI BẬT
-        // ==========================================
-        [AllowAnonymous]
         [Route("Project/Search")]
-        public async Task<IActionResult> Search(string keyword, int? areaId, string status, int page = 1)
+        public async Task<IActionResult> Search(
+            string? keyword,
+            int? areaId,
+            string? status,
+            string? sort = "newest",
+            int page = 1)
         {
-            int pageSize = 9;
-            var query = _context.Projects
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
-                .AsQueryable();
+            await LoadProjectFiltersAsync();
 
-            if (!string.IsNullOrEmpty(keyword)) query = query.Where(p => p.ProjectName.Contains(keyword) || p.Investor.Contains(keyword));
-            if (areaId.HasValue) query = query.Where(p => p.AreaID == areaId);
-            if (!string.IsNullOrEmpty(status)) query = query.Where(p => p.ProjectStatus == status);
+            const int pageSize = 12;
 
-            int totalItems = await query.CountAsync();
-            ViewBag.TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            ViewBag.CurrentPage = page;
+            var query = BuildBaseQuery();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim();
+                query = query.Where(p =>
+                    (p.ProjectName != null && EF.Functions.Like(p.ProjectName, $"%{keyword}%")) ||
+                    (p.Investor != null && EF.Functions.Like(p.Investor, $"%{keyword}%")) ||
+                    (p.AddressDetail != null && EF.Functions.Like(p.AddressDetail, $"%{keyword}%")) ||
+                    (p.Scale != null && EF.Functions.Like(p.Scale, $"%{keyword}%")) ||
+                    (p.ProjectType != null && EF.Functions.Like(p.ProjectType, $"%{keyword}%")));
+            }
+
+            if (areaId.HasValue && areaId.Value > 0)
+            {
+                query = query.Where(p => p.AreaID == areaId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(p => p.ProjectStatus == status);
+            }
+
+            query = (sort ?? "newest").Trim().ToLowerInvariant() switch
+            {
+                "price_asc" => query.OrderBy(p => p.PriceMin ?? decimal.MaxValue),
+                "price_desc" => query.OrderByDescending(p => p.PriceMax ?? 0),
+                "area_asc" => query.OrderBy(p => p.AreaMin ?? double.MaxValue),
+                "area_desc" => query.OrderByDescending(p => p.AreaMax ?? 0),
+                "name" => query.OrderBy(p => p.ProjectName),
+                _ => query.OrderByDescending(p => p.PublishedAt)
+            };
+
+            int totalResults = await query.CountAsync();
+            int totalPages = (int)Math.Ceiling(totalResults / (double)pageSize);
+            if (totalPages < 1) totalPages = 1;
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+
+            var results = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
             ViewBag.Keyword = keyword;
             ViewBag.AreaId = areaId;
             ViewBag.Status = status;
-            ViewBag.TotalItems = totalItems;
+            ViewBag.Sort = sort;
+            ViewBag.TotalResults = totalResults;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
 
-            ViewBag.Areas = await _context.Areas.OrderBy(a => a.AreaName).ToListAsync();
-
-            var projects = await query.OrderByDescending(p => p.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-            return View(projects);
+            ViewData["Title"] = "Tìm kiếm dự án BĐS";
+            return View(results);
         }
 
-        // ==========================================
-        // 4. XEM CHI TIẾT DỰ ÁN & CÁC BĐS TRONG DỰ ÁN
-        // ==========================================
-        [AllowAnonymous]
+        // =================================================================================
+        // 3. CHI TIẾT DỰ ÁN
+        // =================================================================================
+        [HttpGet]
         [Route("Project/Details/{id}")]
         public async Task<IActionResult> Details(int id)
         {
             var project = await _context.Projects
+                .AsNoTracking()
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Include(p => p.User)
-                .FirstOrDefaultAsync(p => p.ProjectID == id && p.ApprovalStatus == "Approved" && p.IsDeleted == false);
+                .Include(p => p.Owner)
+                .FirstOrDefaultAsync(p => p.ProjectID == id && p.IsDeleted == false);
 
-            if (project == null) return RedirectToAction("Search");
+            if (project == null || project.ApprovalStatus != "Approved")
+            {
+                return NotFound();
+            }
 
-            // Lấy danh sách các BĐS (Tin đăng) đang thuộc dự án này
-            ViewBag.PropertiesInProject = await _context.Properties
-                .Include(p => p.PropertyType)
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Where(p => p.ProjectID == id && p.Status == "Approved" && p.IsDeleted == false)
-                .OrderByDescending(p => p.PackageID).ThenByDescending(p => p.CreatedAt)
-                .Take(6)
+            var relatedProjects = await _context.Projects
+                .AsNoTracking()
+                .Include(p => p.Ward)
+                .Include(p => p.Area)
+                .Where(p => p.ProjectID != id
+                            && p.ApprovalStatus == "Approved"
+                            && p.IsDeleted == false
+                            && p.AreaID == project.AreaID)
+                .OrderByDescending(p => p.PublishedAt)
+                .Take(3)
                 .ToListAsync();
 
+            ViewBag.RelatedProjects = relatedProjects;
+            ViewBag.LeadCount = await _context.ProjectLeads.CountAsync(l => l.ProjectID == id);
+            ViewBag.TotalViews = await _context.Properties
+                .Where(x => x.ProjectID == id && x.IsDeleted != true)
+                .SumAsync(x => (int?)x.Views) ?? 0;
+
+            ViewBag.TotalProperties = await _context.Properties
+                .CountAsync(x => x.ProjectID == id && x.IsDeleted != true);
+
+            ViewData["Title"] = project.ProjectName + " - Tổng quan & Bảng giá";
             return View(project);
+        }
+
+        // =================================================================================
+        // 4. TIẾP NHẬN YÊU CẦU TƯ VẤN
+        // =================================================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SubmitLead(ProjectLead model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Vui lòng nhập đầy đủ thông tin liên hệ hợp lệ.";
+                return RedirectToAction("Details", new { id = model.ProjectID });
+            }
+
+            try
+            {
+                model.CreatedAt = DateTime.Now;
+                model.LeadStatus = "New";
+
+                _context.ProjectLeads.Add(model);
+                await _context.SaveChangesAsync();
+
+                TempData["Success"] = "Gửi yêu cầu tư vấn thành công! Chuyên viên dự án sẽ liên hệ với bạn sớm nhất.";
+            }
+            catch
+            {
+                TempData["Error"] = "Hệ thống bận, vui lòng thử lại sau.";
+            }
+
+            return RedirectToAction("Details", new { id = model.ProjectID });
         }
     }
 }

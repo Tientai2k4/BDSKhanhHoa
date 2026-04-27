@@ -30,10 +30,15 @@ namespace BDSKhanhHoa.Models
 
         [Column(TypeName = "decimal(10,2)")]
         public decimal? AreaSize { get; set; }
+        [Column(TypeName = "decimal(10,2)")]
+        public decimal? Width { get; set; }
+
+        [Column(TypeName = "decimal(10,2)")]
+        public decimal? Length { get; set; }
 
         [StringLength(20)]
         public string? Status { get; set; } = "Pending";
-
+        public DateTime? ApprovedAt { get; set; }
         public string? MainImage { get; set; }
 
         // --- CÁC TRƯỜNG ĐƯỢC BỔ SUNG ĐỂ SỬA LỖI BIÊN DỊCH ---
@@ -44,6 +49,11 @@ namespace BDSKhanhHoa.Models
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         public DateTime? UpdatedAt { get; set; } = DateTime.Now;
+
+        public bool IsAutoApproved { get; set; } = false;
+        public bool IsDuplicate { get; set; } = false;
+        public string? DuplicateReason { get; set; }
+
 
         public bool? IsDeleted { get; set; } = false;
         public string? RejectionReason { get; set; }

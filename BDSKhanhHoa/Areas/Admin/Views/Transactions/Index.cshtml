@@ -1,0 +1,550 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Transaction>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    decimal totalRevenue = ViewBag.TotalRevenue ?? 0m;
+    decimal todayRevenue = ViewBag.TodayRevenue ?? 0m;
+    decimal thisMonthRevenue = ViewBag.ThisMonthRevenue ?? 0m;
+    decimal thisYearRevenue = ViewBag.ThisYearRevenue ?? 0m;
+    int pendingCount = ViewBag.PendingCount ?? 0;
+    int successCount = ViewBag.SuccessCount ?? 0;
+    int totalTransactions = ViewBag.TotalTransactions ?? 0;
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+}
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+<style>
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(12px);
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        padding: 28px;
+        margin-bottom: 28px;
+    }
+
+    .finance-kpi-card {
+        border-radius: 18px;
+        padding: 26px;
+        position: relative;
+        overflow: hidden;
+        color: white;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.06);
+        z-index: 1;
+    }
+
+        .finance-kpi-card:hover {
+            transform: translateY(-8px) scale(1.02);
+        }
+
+        .finance-kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+            z-index: -1;
+        }
+
+        .finance-kpi-card i.bg-icon {
+            position: absolute;
+            right: -15px;
+            bottom: -15px;
+            font-size: 9rem;
+            opacity: 0.12;
+            transform: rotate(-20deg);
+            z-index: -1;
+            transition: transform 0.5s ease;
+        }
+
+        .finance-kpi-card:hover i.bg-icon {
+            transform: rotate(0deg) scale(1.1);
+        }
+
+    .grad-total {
+        background: linear-gradient(135deg, #4f46e5 0%, #312e81 100%);
+    }
+
+    .grad-year {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+    }
+
+    .grad-month {
+        background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+    }
+
+    .grad-day {
+        background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+    }
+
+    .chart-container {
+        height: 350px;
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    .data-table-wrapper {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+        border: 1px solid #f1f5f9;
+        overflow: hidden;
+    }
+
+    .data-table thead th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 18px 24px;
+        border-bottom: 2px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    .data-table tbody td {
+        padding: 18px 24px;
+        vertical-align: middle;
+        border-bottom: 1px dashed #e2e8f0;
+        font-weight: 500;
+        color: #334155;
+    }
+
+    .data-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .action-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        border: none;
+        outline: none;
+    }
+
+        .action-btn.approve {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+            .action-btn.approve:hover {
+                background: #10b981;
+                color: #fff;
+                transform: translateY(-3px);
+                box-shadow: 0 6px 15px rgba(16,185,129,0.3);
+            }
+
+        .action-btn.reject {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+            .action-btn.reject:hover {
+                background: #ef4444;
+                color: #fff;
+                transform: translateY(-3px);
+                box-shadow: 0 6px 15px rgba(239,68,68,0.3);
+            }
+
+    .page-link {
+        border-radius: 10px;
+        margin: 0 5px;
+        font-weight: 600;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
+    .page-item.active .page-link {
+        background: #4f46e5;
+        border-color: #4f46e5;
+        color: white;
+        box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+    }
+</style>
+
+<div class="animate__animated animate__fadeInUp">
+
+    @if (TempData["Success"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</script>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-black text-dark m-0"><i class="bi bi-bank text-primary me-2"></i>TRUNG TÂM TÀI CHÍNH & ĐỐI SOÁT</h3>
+            <p class="text-muted mt-2 mb-0 fs-6">Hệ thống phân tích dòng tiền và kiểm duyệt giao dịch tự động</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary fw-bold rounded-pill px-4 shadow-sm" onclick="window.print()">
+                <i class="bi bi-printer me-2"></i>In trang
+            </button>
+            <a href="@Url.Action("ExportCsv", new { searchString = ViewBag.CurrentSearch, statusFilter = ViewBag.CurrentStatus, startDate = ViewBag.StartDate, endDate = ViewBag.EndDate })" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm">
+                <i class="bi bi-file-earmark-excel me-2"></i>Xuất Excel / CSV
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="finance-kpi-card grad-day">
+                <p class="mb-2 opacity-75 fw-bold fs-6 letter-spacing-1">DOANH THU HÔM NAY</p>
+                <h2 class="fw-black mb-0 display-6">@todayRevenue.ToString("N0")<span class="fs-5 ms-1">đ</span></h2>
+                <div class="mt-3 fs-6 opacity-75"><i class="bi bi-arrow-up-circle-fill me-1"></i>Đang theo dõi realtime</div>
+                <i class="bi bi-lightning-charge-fill bg-icon"></i>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="finance-kpi-card grad-month">
+                <p class="mb-2 opacity-75 fw-bold fs-6 letter-spacing-1">DOANH THU THÁNG NÀY</p>
+                <h2 class="fw-black mb-0 display-6">@thisMonthRevenue.ToString("N0")<span class="fs-5 ms-1">đ</span></h2>
+                <div class="mt-3 fs-6 opacity-75"><i class="bi bi-calendar-month me-1"></i>Tháng @DateTime.Now.Month</div>
+                <i class="bi bi-wallet2 bg-icon"></i>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="finance-kpi-card grad-year">
+                <p class="mb-2 opacity-75 fw-bold fs-6 letter-spacing-1">DOANH THU NĂM @DateTime.Now.Year</p>
+                <h2 class="fw-black mb-0 display-6">@thisYearRevenue.ToString("N0")<span class="fs-5 ms-1">đ</span></h2>
+                <div class="mt-3 fs-6 opacity-75"><i class="bi bi-bar-chart-fill me-1"></i>Tăng trưởng ổn định</div>
+                <i class="bi bi-pie-chart-fill bg-icon"></i>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="finance-kpi-card grad-total">
+                <p class="mb-2 opacity-75 fw-bold fs-6 letter-spacing-1">TỔNG DOANH THU LŨY KẾ</p>
+                <h2 class="fw-black mb-0 display-6">@totalRevenue.ToString("N0")<span class="fs-5 ms-1">đ</span></h2>
+                <div class="mt-3 fs-6"><span class="badge bg-white text-primary rounded-pill px-3">@successCount GD thành công</span></div>
+                <i class="bi bi-safe-fill bg-icon"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-panel">
+        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-activity text-primary me-2"></i>Phân tích dòng tiền (30 ngày gần nhất)</h5>
+        <div class="chart-container">
+            <canvas id="revenueChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass-panel">
+        <form method="get" asp-action="Index" id="filterForm">
+            <div class="row g-3 align-items-end">
+                <div class="col-xl-3 col-lg-4">
+                    <label class="form-label text-secondary fw-bold small text-uppercase">Tra cứu từ khóa</label>
+                    <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="searchString" value="@ViewBag.CurrentSearch" class="form-control border-start-0 ps-0" placeholder="Mã GD, tên khách, SĐT...">
+                    </div>
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <label class="form-label text-secondary fw-bold small text-uppercase">Phân loại Trạng thái</label>
+                    <select name="statusFilter" class="form-select shadow-sm">
+                        <option value="All" selected="@(ViewBag.CurrentStatus == "All" || string.IsNullOrEmpty(ViewBag.CurrentStatus))">Tất cả hồ sơ</option>
+                        <option value="Pending" selected="@(ViewBag.CurrentStatus == "Pending")">⏳ Đang chờ duyệt (@pendingCount)</option>
+                        <option value="Success" selected="@(ViewBag.CurrentStatus == "Success")">✅ Giao dịch thành công</option>
+                        <option value="Rejected" selected="@(ViewBag.CurrentStatus == "Rejected")">❌ Đã bị từ chối</option>
+                    </select>
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <label class="form-label text-secondary fw-bold small text-uppercase">Từ ngày</label>
+                    <input type="date" name="startDate" value="@ViewBag.StartDate" class="form-control shadow-sm">
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <label class="form-label text-secondary fw-bold small text-uppercase">Đến ngày</label>
+                    <input type="date" name="endDate" value="@ViewBag.EndDate" class="form-control shadow-sm">
+                </div>
+                <div class="col-xl-3 col-lg-8 d-flex gap-2">
+                    <button type="submit" class="btn btn-dark fw-bold flex-grow-1 shadow-sm px-4"><i class="bi bi-funnel-fill me-2"></i> Lọc dữ liệu</button>
+                    <a href="/Admin/Transactions/Index" class="btn btn-outline-secondary fw-bold shadow-sm" title="Đặt lại bộ lọc"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="data-table-wrapper pb-4">
+        <div class="d-flex justify-content-between align-items-center p-4 border-bottom bg-white">
+            <h5 class="fw-bold m-0 text-dark"><i class="bi bi-list-ul text-primary me-2"></i>Hồ sơ giao dịch (@totalTransactions kết quả)</h5>
+            @if (pendingCount > 0)
+            {
+                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fs-6 border border-warning animate__animated animate__pulse animate__infinite">Có @pendingCount hồ sơ cần duyệt gấp</span>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table data-table mb-0">
+                <thead>
+                    <tr>
+                        <th width="12%">Mã Phiếu</th>
+                        <th width="20%">Đối tác / Khách hàng</th>
+                        <th width="15%">Số tiền</th>
+                        <th width="22%">Chi tiết dịch vụ</th>
+                        <th width="13%">Thời gian tạo</th>
+                        <th width="10%">Trạng thái</th>
+                        <th width="8%" class="text-center">Điều lệnh</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="badge bg-light text-dark border px-3 py-2 fs-6 fw-bold shadow-sm">#@item.TransactionCode</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <img src="@(item.User?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle shadow-sm border" width="45" height="45" style="object-fit:cover;">
+                                        <div>
+                                            <span class="d-block fw-bold text-dark fs-6">@(item.User?.FullName ?? item.User?.Username)</span>
+                                            <small class="text-muted fw-medium"><i class="bi bi-telephone-fill me-1"></i>@item.User?.Phone</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="text-success fw-black fs-5">+ @item.Amount.ToString("N0") ₫</span>
+                                </td>
+                                <td>
+                                    <p class="m-0 fw-bold text-dark text-truncate" style="max-width:260px;" title="@item.Description">@item.Description</p>
+                                    @if (item.Package != null)
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary mt-1 px-2 py-1 border border-primary-subtle"><i class="bi bi-gem me-1"></i>@item.Package.PackageName (x@item.Quantity)</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="d-block fw-bold text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                    <small class="text-muted fw-bold"><i class="bi bi-clock me-1"></i>@item.CreatedAt.ToString("HH:mm:ss")</small>
+                                </td>
+                                <td>
+                                    @if (item.Status == "Success" || item.Status == "Completed")
+                                    {
+                                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill border border-success-subtle shadow-sm"><i class="bi bi-check-circle-fill me-1"></i>Thành công</span>
+                                    }
+                                    else if (item.Status == "Pending")
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis px-3 py-2 rounded-pill border border-warning-subtle shadow-sm"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill border border-danger-subtle shadow-sm"><i class="bi bi-x-circle-fill me-1"></i>Từ chối</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (item.Status == "Pending")
+                                    {
+                                        <div class="d-flex justify-content-center gap-2">
+                                            <button type="button" class="action-btn approve" title="Xác nhận nhận tiền và duyệt" onclick="confirmApprove(@item.TransactionID, '@item.TransactionCode', @item.Amount)">
+                                                <i class="bi bi-check-lg fs-5"></i>
+                                            </button>
+                                            <button type="button" class="action-btn reject" title="Từ chối hồ sơ này" onclick="confirmReject(@item.TransactionID, '@item.TransactionCode')">
+                                                <i class="bi bi-x-lg fs-5"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small fw-bold bg-light px-3 py-2 rounded-pill border"><i class="bi bi-shield-lock-fill me-1"></i>Khóa</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="p-5">
+                                    <i class="bi bi-folder-x display-1 text-muted opacity-25"></i>
+                                    <h5 class="text-muted fw-bold mt-3">Khu vực trống</h5>
+                                    <p class="text-muted">Không tìm thấy dữ liệu giao dịch nào khớp với bộ lọc hiện tại.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="d-flex justify-content-center mt-4">
+                <nav>
+                    <ul class="pagination pagination-lg">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="#" onclick="changePage(@(currentPage - 1))"><i class="bi bi-chevron-left"></i></a>
+                        </li>
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                            {
+                                <li class="page-item @(currentPage == i ? "active" : "")">
+                                    <a class="page-link" href="#" onclick="changePage(@i)">@i</a>
+                                </li>
+                            }
+                            else if (i == currentPage - 3 || i == currentPage + 3)
+                            {
+                                <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+                            }
+                        }
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <a class="page-link" href="#" onclick="changePage(@(currentPage + 1))"><i class="bi bi-chevron-right"></i></a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+
+    <form id="statusForm" asp-action="UpdateStatus" method="post" style="display:none;">
+        <input type="hidden" name="id" id="formTransId" />
+        <input type="hidden" name="status" id="formStatus" />
+        <input type="hidden" name="adminNote" id="formAdminNote" />
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        function changePage(page) {
+            let url = new URL(window.location.href);
+            url.searchParams.set("page", page);
+            window.location.href = url.toString();
+        }
+
+        function confirmApprove(id, code, amount) {
+            let formattedAmount = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+            Swal.fire({
+                title: 'BỘ PHẬN TÀI CHÍNH',
+                html: `<div class="text-start">
+                        <p>Xác nhận duyệt khoản thu: <b class="text-success fs-5">${formattedAmount}</b></p>
+                        <p>Mã hệ thống: <b>#${code}</b></p>
+                        <div class="alert alert-warning border-0 small mt-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Hành động này sẽ tự động cấp phát gói VIP và không thể hoàn tác.</div>
+                       </div>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-check-circle me-1"></i> Xác nhận đã thu tiền',
+                cancelButtonText: 'Đóng'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('formTransId').value = id;
+                    document.getElementById('formStatus').value = 'Success';
+                    document.getElementById('statusForm').submit();
+                }
+            })
+        }
+
+        function confirmReject(id, code) {
+            Swal.fire({
+                title: 'TỪ CHỐI GIAO DỊCH',
+                text: `Nhập lý do từ chối mã #${code} để gửi Notification cho khách hàng:`,
+                input: 'textarea',
+                inputPlaceholder: 'Ví dụ: Sai nội dung chuyển khoản, Không tìm thấy giao dịch tại ngân hàng...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> Khóa hồ sơ này',
+                cancelButtonText: 'Đóng',
+                inputValidator: (value) => {
+                    if (!value) return 'Vui lòng nhập lý do từ chối!'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('formTransId').value = id;
+                    document.getElementById('formStatus').value = 'Rejected';
+                    document.getElementById('formAdminNote').value = result.value;
+                    document.getElementById('statusForm').submit();
+                }
+            })
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const rawLabels = @Html.Raw(ViewBag.ChartLabels);
+            const rawData = @Html.Raw(ViewBag.ChartValues);
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+
+            let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(79, 70, 229, 0.5)');
+            gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: rawLabels,
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: rawData,
+                        borderColor: '#4f46e5',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#4f46e5',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleFont: { size: 14, family: "'Inter', sans-serif" },
+                            bodyFont: { size: 15, weight: 'bold', family: "'Inter', sans-serif" },
+                            padding: 14,
+                            cornerRadius: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(context.parsed.y);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { borderDash: [6, 6], color: '#f1f5f9', drawBorder: false },
+                            ticks: {
+                                color: '#64748b',
+                                font: { family: "'Inter', sans-serif", size: 12 },
+                                callback: function(value) {
+                                    if(value >= 1000000) return (value / 1000000) + 'M';
+                                    if(value >= 1000) return (value / 1000) + 'K';
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: { display: false, drawBorder: false },
+                            ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", weight: '600' }, maxTicksLimit: 15 }
+                        }
+                    },
+                    animation: {
+                        y: { duration: 2000, easing: 'easeOutQuart' }
+                    }
+                }
+            });
+        });
+    </script>
+}

@@ -1,18 +1,31 @@
 ﻿@using BDSKhanhHoa.Data
 @using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
+@using BDSKhanhHoa.Models
 @inject ApplicationDbContext _context
+
 @{
+    /* =========================================================================================
+       PHẦN 1: TRÍCH XUẤT DỮ LIỆU CỐT LÕI (CORE DATA & AUTHENTICATION)
+       ========================================================================================= */
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
+    var userName = User.Identity.Name ?? "Thành viên hệ thống";
+    var userAvatar = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png";
+    var userRole = User.FindFirstValue(ClaimTypes.Role);
 
-    // Kiểm tra xem user có phải người bán không (có BĐS nào không)
+    /* =========================================================================================
+       PHẦN 2: BUSINESS LOGIC - THÀNH VIÊN CÁ NHÂN
+       ========================================================================================= */
     bool isSeller = _context.Properties.Any(p => p.UserID == currentUserId && p.IsDeleted == false);
-
-    // Nhận biến isOwner từ Controller (Dùng cho trang Chi tiết BĐS)
     bool isOwner = ViewData["IsOwner"] as bool? ?? false;
 
+    /* =========================================================================================
+       PHẦN 3: BỘ ĐẾM THỜI GIAN THỰC (GIAO DỊCH CÁ NHÂN)
+       ========================================================================================= */
+    int unreadMessages = _context.UserMessages.Count(m => m.ReceiverID == currentUserId && m.IsRead == false);
+    int pendingAppointments = _context.Appointments.Count(a => (a.BuyerID == currentUserId || a.SellerID == currentUserId) && a.Status == "Pending");
+
     int newLeadsCount = 0;
-    int unreadMessages = 0;
     int unreadComments = 0;
 
     if (isSeller)
@@ -21,449 +34,643 @@
         unreadComments = _context.Comments.Count(c => c.Property != null && c.Property.UserID == currentUserId && c.IsHidden == false);
     }
 
-    int pendingAppointments = _context.Appointments.Count(a => (a.BuyerID == currentUserId || a.SellerID == currentUserId) && a.Status == "Pending");
-    unreadMessages = _context.UserMessages.Count(m => m.ReceiverID == currentUserId && m.IsRead == false);
+    int totalSystemAlerts = unreadMessages + pendingAppointments + newLeadsCount + unreadComments;
 }
+
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" dir="ltr">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - BDS KHÁNH HÒA Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>@ViewData["Title"] - Cổng Thành Viên | BDS KHÁNH HÒA</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
     <style>
+        /* --- 1. BIẾN TOÀN CỤC (CSS VARIABLES) --- */
         :root {
-            --primary: #0061f2;
-            --success-color: #00ac69;
-            --warning-color: #f4a100;
+            --primary-color: #2563eb;
+            --primary-hover: #1e40af;
+            --primary-soft: #eff6ff;
+            --secondary-bg: #f4f7fb;
+            --sidebar-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --success: #059669;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --info: #0284c7;
+            --sidebar-width: 300px;
+            --header-height: 85px;
+            --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-fast: 0.15s ease-in-out;
+            --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.03);
+            --shadow-float: 0 20px 40px rgba(0,0,0,0.12);
+            --radius-md: 14px;
+            --radius-lg: 20px;
         }
 
+        /* --- 2. THIẾT LẬP CƠ BẢN (RESET & BASE) --- */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f4f6f9;
+            background-color: var(--secondary-bg);
+            color: var(--text-main);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* --- Siderbar & Navbar CSS --- */
-        .sidebar {
-            width: 280px;
-            height: 100vh;
+        h1, h2, h3, h4, h5, h6, .brand-text {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+            }
+
+        /* --- 3. KHU VỰC SIDEBAR (THANH ĐIỀU HƯỚNG TRÁI) --- */
+        .sidebar-wrapper {
             position: fixed;
-            background: #ffffff;
-            border-right: 1px solid #e5e7eb;
-            box-shadow: 2px 0 15px rgba(0,0,0,0.03);
-            z-index: 1000;
-            overflow-y: auto;
-        }
-
-            .sidebar::-webkit-scrollbar {
-                width: 5px;
-            }
-
-            .sidebar::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 10px;
-            }
-
-        .sidebar-header {
-            padding: 25px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            text-align: center;
-            position: sticky;
             top: 0;
-            background: #fff;
-            z-index: 10;
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--sidebar-bg);
+            border-right: 1px solid #e2e8f0;
+            box-shadow: var(--shadow-sm);
+            z-index: 1040;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition-smooth);
         }
 
-        .sidebar-menu {
-            padding: 15px;
-            list-style: none;
-            margin: 0;
-        }
-
-        .sidebar-heading {
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            font-weight: 800;
-            color: #64748b;
-            letter-spacing: 0.8px;
-            margin: 25px 0 10px 10px;
-            border-bottom: 1px dashed #e2e8f0;
-            padding-bottom: 5px;
-        }
-
-        .sidebar-menu li {
-            margin-bottom: 4px;
-        }
-
-        .sidebar-menu a {
+        .sidebar-brand {
+            height: var(--header-height);
             display: flex;
             align-items: center;
-            padding: 12px 15px;
-            color: #475569;
-            text-decoration: none;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.2s ease-in-out;
+            justify-content: center;
+            border-bottom: 1px solid #f8fafc;
+            flex-shrink: 0;
+            background: #fff;
         }
 
-            .sidebar-menu a:hover {
-                background: #f8fafc;
-                color: var(--primary);
-                transform: translateX(3px);
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 18px 40px 18px;
+        }
+
+        .menu-category {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            color: #94a3b8;
+            letter-spacing: 1.5px;
+            margin: 30px 0 12px 15px;
+            display: block;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 18px;
+            color: #475569;
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+            transition: var(--transition-fast);
+        }
+
+            .menu-item:hover {
+                background-color: #f1f5f9;
+                color: var(--primary-color);
+                transform: translateX(4px);
             }
 
-            .sidebar-menu a.active {
-                background: #e0e7ff;
-                color: var(--primary);
+            .menu-item.active {
+                background-color: var(--primary-soft);
+                color: var(--primary-color);
                 font-weight: 700;
             }
 
-            .sidebar-menu a i {
-                font-size: 1.25rem;
-                margin-right: 12px;
-                width: 24px;
+            .menu-item i.menu-icon {
+                font-size: 1.3rem;
+                margin-right: 16px;
+                width: 26px;
                 text-align: center;
+                transition: var(--transition-fast);
             }
 
-        .main-content {
-            margin-left: 280px;
-            padding: 30px;
-            min-height: 100vh;
+            .menu-item:hover i.menu-icon {
+                transform: scale(1.15);
+            }
+
+        .menu-badge {
+            margin-left: auto;
+            font-size: 0.72rem;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-weight: 800;
         }
 
-        .top-navbar {
-            background: #fff;
-            padding: 15px 30px;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-            margin-bottom: 30px;
+        /* --- 4. MAIN PANEL (KHU VỰC NỘI DUNG CHÍNH) --- */
+        .main-panel {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition-smooth);
+        }
+
+        .top-header {
+            height: var(--header-height);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border: 1px solid #edf2f7;
+            padding: 0 35px;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
         }
 
-        /* --- CSS cho Action Buttons --- */
-        .action-btns {
+        .content-body {
+            padding: 35px;
+            flex: 1;
+        }
+
+        /* User Dropdown Pill */
+        .user-profile-pill {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 6px 6px 20px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+
+            .user-profile-pill:hover {
+                border-color: var(--primary-color);
+            }
+
+        /* Action Buttons */
+        .quick-actions {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 30px;
             flex-wrap: wrap;
         }
 
-        .action-btn {
+        .btn-quick {
+            padding: 12px 24px;
+            border-radius: var(--radius-md);
+            border: none;
+            font-weight: 700;
+            color: #fff;
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
+            gap: 10px;
+            transition: var(--transition-fast);
             font-size: 0.95rem;
-            transition: all 0.2s;
-            color: #fff;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
-            .action-btn:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+            .btn-quick:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+                color: #fff;
             }
 
-        .ab-consult {
-            background: var(--warning-color);
+        .btn-q-consult {
+            background: linear-gradient(135deg, #f59e0b, #b45309);
         }
 
-        .ab-chat {
-            background: var(--primary);
+        .btn-q-chat {
+            background: linear-gradient(135deg, #2563eb, #1e3a8a);
         }
 
-        .ab-appt {
-            background: var(--success-color);
+        .btn-q-appt {
+            background: linear-gradient(135deg, #10b981, #047857);
+        }
+
+        /* Animations */
+        .bell-shake {
+            animation: bellShake 2.5s infinite;
+            transform-origin: top center;
+            display: inline-block;
+        }
+
+        @@keyframes bellShake {
+            0%, 100% {
+                transform: rotate(0);
+            }
+
+            5%, 15%, 25%, 35%, 45% {
+                transform: rotate(10deg);
+            }
+
+            10%, 20%, 30%, 40% {
+                transform: rotate(-10deg);
+            }
+
+            50% {
+                transform: rotate(0);
+            }
+        }
+
+        /* --- 6. RESPONSIVE ĐA MÀN HÌNH --- */
+        .mobile-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            z-index: 1035;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition-smooth);
+        }
+
+            .mobile-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
+
+        @@media (max-width: 991.98px) {
+            .sidebar-wrapper {
+                transform: translateX(-100%);
+            }
+
+                .sidebar-wrapper.show {
+                    transform: translateX(0);
+                }
+
+            .main-panel {
+                margin-left: 0;
+            }
+
+            .top-header {
+                padding: 0 20px;
+            }
+
+            .content-body {
+                padding: 20px 16px;
+            }
         }
     </style>
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <a href="/" class="text-decoration-none">
-                <h4 class="fw-bolder text-primary mb-0 d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi bi-building-fill-check fs-3"></i> BDS KHÁNH HÒA
-                </h4>
+
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <aside class="sidebar-wrapper" id="sidebar">
+        <div class="sidebar-brand">
+            <a href="/" class="text-decoration-none d-flex align-items-center gap-3">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                    <i class="bi bi-buildings-fill fs-4"></i>
+                </div>
+                <h4 class="brand-text fw-bolder text-dark mb-0" style="letter-spacing: -0.5px;">BDS KHÁNH HÒA</h4>
             </a>
-            <span class="badge bg-primary-subtle text-primary mt-2 px-3 py-1 rounded-pill border border-primary-subtle">MEMBER DASHBOARD</span>
         </div>
 
-        <ul class="sidebar-menu">
-            <li>
-                <a href="/Dashboard/Index" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Index" && (ViewContext.RouteData.Values["Controller"]?.ToString() == "Dashboard" || ViewContext.RouteData.Values["Controller"]?.ToString() == "Home") ? "active" : "")">
-                    <i class="bi bi-speedometer2"></i> Theo dõi & Hoạt động của tôi
-                </a>
-            </li>
+        <div class="sidebar-content">
+            <div class="text-center mb-4 pb-2 border-bottom border-dashed">
+                @if (User.IsInRole("Admin") || User.IsInRole("Staff"))
+                {
+                    <span class="badge bg-danger-soft text-danger border border-danger fw-bold rounded-pill px-4 py-2 shadow-sm"><i class="bi bi-shield-lock-fill me-1"></i> HỆ THỐNG QUẢN TRỊ</span>
+                }
+                else
+                {
+                    <span class="badge bg-primary-soft text-primary border border-primary fw-bold rounded-pill px-4 py-2 shadow-sm"><i class="bi bi-person-circle me-1"></i> THÀNH VIÊN CÁ NHÂN</span>
+                }
+            </div>
 
-            <li class="sidebar-heading text-primary"><i class="bi bi-house-door me-1"></i> Bất động sản của tôi</li>
-            <li><a href="/Property/Create" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Create" && ViewContext.RouteData.Values["Controller"]?.ToString() == "Property" ? "active" : "") text-primary"><i class="bi bi-plus-circle-fill"></i> Đăng tin BĐS mới</a></li>
-            <li><a href="/Property/MyAds" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "MyAds" ? "active" : "")"><i class="bi bi-card-list"></i> Danh sách tin đã đăng</a></li>
-            <li><a href="/Favorite/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Favorite" ? "active" : "")"><i class="bi bi-heart text-danger"></i> Bất động sản đã lưu</a></li>
+            @if (User.IsInRole("Admin") || User.IsInRole("Staff"))
+            {
+                <span class="menu-category text-danger fw-bolder"><i class="bi bi-gear-fill me-1"></i> Khu Vực Điều Hành</span>
+                <a href="/Admin/Dashboard" class="menu-item"><i class="bi bi-speedometer2 menu-icon"></i> Dashboard Hệ Thống</a>
+                <a href="/Admin/Projects/Verify" class="menu-item"><i class="bi bi-building-check menu-icon text-warning"></i> Thẩm định Dự án</a>
+                <a href="/Admin/Properties/Verify" class="menu-item"><i class="bi bi-house-check menu-icon text-info"></i> Duyệt Tin rao vặt</a>
+                <hr class="mx-3 my-4 opacity-25">
+            }
 
-            <li class="sidebar-heading text-info"><i class="bi bi-calendar2-heart me-1"></i> Tương tác & Hỗ trợ</li>
-            <li>
-                <a href="/UserMessage/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "UserMessage" ? "active" : "")">
-                    <i class="bi bi-envelope-paper"></i> Hộp thư nội bộ
-                    @if (unreadMessages > 0)
-                    {
-                        <span class="badge bg-danger rounded-pill ms-auto">@unreadMessages</span>
-                    }
-                </a>
-            </li>
-            <li>
-                <a href="/Appointments/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Appointments" ? "active" : "")">
-                    <i class="bi bi-calendar-check"></i> Lịch hẹn xem nhà
-                    @if (pendingAppointments > 0)
-                    {
-                        <span class="badge bg-danger rounded-pill ms-auto">@pendingAppointments</span>
-                    }
-                </a>
-            </li>
-            <li><a href="/Chat/History" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Chat" ? "active" : "")"><i class="bi bi-chat-dots text-info"></i> Trò chuyện AI & Hỗ trợ</a></li>
+            <span class="menu-category mt-2">Theo dõi chung</span>
+            <a href="/Dashboard/Index" class="menu-item @(ViewContext.RouteData.Values["Action"]?.ToString() == "Index" && ViewContext.RouteData.Values["Controller"]?.ToString() == "Dashboard" ? "active" : "")">
+                <i class="bi bi-grid-1x2-fill menu-icon text-primary"></i> Bảng điều khiển
+            </a>
+
+            <span class="menu-category mt-4">Giao dịch cá nhân</span>
+            <a href="/Property/Create" class="menu-item"><i class="bi bi-plus-circle-fill menu-icon text-success"></i> Đăng tin Mua/Bán lẻ</a>
+            <a href="/Property/MyAds" class="menu-item"><i class="bi bi-card-list menu-icon text-primary"></i> Quản lý tin đã đăng</a>
+            <a href="/Favorite/Index" class="menu-item"><i class="bi bi-heart-fill menu-icon text-danger"></i> BĐS đã lưu</a>
 
             @if (isSeller)
             {
-                <li class="sidebar-heading text-success"><i class="bi bi-briefcase me-1"></i> Dành cho Người bán</li>
-                <li>
-                    <a href="/Consultations/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Consultations" ? "active" : "")">
-                        <i class="bi bi-people"></i> Khách hàng quan tâm (Leads)
-                        @if (newLeadsCount > 0)
-                        {
-                            <span class="badge bg-danger rounded-pill ms-auto">@newLeadsCount</span>
-                        }
-                    </a>
-                </li>
-                <li><a href="/Comments/MyPropertyComments" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Comments" ? "active" : "")"><i class="bi bi-chat-left-text"></i> Quản lý Bình luận</a></li>
-                <li><a href="/Dashboard/Statistics" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Statistics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Thống kê hiệu quả tin</a></li>
+                <span class="menu-category mt-4 text-success">Khu vực Người Bán</span>
+                <a href="/Consultations/Index" class="menu-item">
+                    <i class="bi bi-people-fill menu-icon text-success"></i> Khách hỏi mua lẻ
+                    @if (newLeadsCount > 0)
+                    {
+                        <span class="badge bg-danger menu-badge shadow-sm">@newLeadsCount</span>
+                    }
+                </a>
+                <a href="/Comments/MyPropertyComments" class="menu-item">
+                    <i class="bi bi-chat-left-quote-fill menu-icon text-info"></i> Quản lý Bình luận
+                    @if (unreadComments > 0)
+                    {
+                        <span class="badge bg-danger menu-badge shadow-sm">@unreadComments</span>
+                    }
+                </a>
             }
 
-            <li class="sidebar-heading text-danger"><i class="bi bi-wallet2 me-1"></i> Gói Dịch vụ & Thanh toán</li>
-            <li><a href="/Package/Buy" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Buy" ? "active" : "")"><i class="bi bi-gem text-danger"></i> Mua gói đăng tin VIP</a></li>
-            <li><a href="/Voucher/MyVouchers" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Voucher" ? "active" : "")"><i class="bi bi-ticket-perforated"></i> Voucher / Mã giảm giá</a></li>
-            <li><a href="/Payment/History" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" ? "active" : "")"><i class="bi bi-receipt"></i> Lịch sử thanh toán</a></li>
+            <span class="menu-category mt-4">Kênh tương tác liên lạc</span>
+            <a href="/UserMessage/Index" class="menu-item">
+                <i class="bi bi-envelope-paper-fill menu-icon text-primary"></i> Hộp thư nội bộ
+                @if (unreadMessages > 0)
+                {
+                    <span class="badge bg-danger menu-badge shadow-sm">@unreadMessages</span>
+                }
+            </a>
+            <a href="/Appointments/Index" class="menu-item">
+                <i class="bi bi-calendar-check-fill menu-icon text-success"></i> Lịch hẹn xem BĐS
+                @if (pendingAppointments > 0)
+                {
+                    <span class="badge bg-warning text-dark menu-badge shadow-sm">@pendingAppointments</span>
+                }
+            </a>
+            <a href="/Chat/History" class="menu-item"><i class="bi bi-robot menu-icon text-info"></i> Trợ lý ảo AI Support</a>
 
-            <li class="sidebar-heading"><i class="bi bi-gear me-1"></i> Tài khoản cá nhân</li>
-            <li><a href="/Notification/Index" class="@(ViewContext.RouteData.Values["Controller"]?.ToString() == "Notification" ? "active" : "")"><i class="bi bi-bell"></i> Thông báo hệ thống</a></li>
-            <li><a href="/Account/Profile" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "Profile" ? "active" : "")"><i class="bi bi-person-circle"></i> Hồ sơ & Xác thực (KYC)</a></li>
-            <li><a href="/Account/ChangePassword" class="@(ViewContext.RouteData.Values["Action"]?.ToString() == "ChangePassword" ? "active" : "")"><i class="bi bi-shield-lock"></i> Đổi mật khẩu</a></li>
+            <span class="menu-category mt-4">Dịch vụ & Tài chính</span>
+            <a href="/Package/Buy" class="menu-item"><i class="bi bi-gem menu-icon text-warning"></i> Nạp gói Tin VIP Hệ thống</a>
+            <a href="/Voucher/MyVouchers" class="menu-item"><i class="bi bi-ticket-detailed-fill menu-icon text-danger"></i> Kho Voucher của tôi</a>
+            <a href="/Payment/History" class="menu-item"><i class="bi bi-receipt menu-icon text-secondary"></i> Đối soát giao dịch</a>
 
-            <li><hr class="text-muted opacity-25 my-4"></li>
-            <li><a href="/" class="text-secondary"><i class="bi bi-box-arrow-up-right"></i> Về Trang chủ (Xem Web)</a></li>
-            <li>
-                <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0 p-0">
-                    <a href="javascript:document.getElementById('logoutForm').submit()" class="text-danger fw-bold">
-                        <i class="bi bi-power"></i> Đăng xuất an toàn
-                    </a>
-                </form>
-            </li>
-        </ul>
+            <span class="menu-category mt-4">Bảo mật tài khoản</span>
+            <a href="/Notification/Index" class="menu-item"><i class="bi bi-bell-fill menu-icon text-warning"></i> Thông báo hệ thống</a>
+            <a href="/Account/Profile" class="menu-item"><i class="bi bi-person-bounding-box menu-icon text-primary"></i> Cập nhật Hồ sơ cá nhân</a>
+            <a href="/Account/ChangePassword" class="menu-item"><i class="bi bi-shield-lock-fill menu-icon text-success"></i> Đổi Mật khẩu an toàn</a>
+
+            <hr class="opacity-10 my-4 mx-3 border-secondary">
+
+            <a href="/" class="menu-item text-secondary"><i class="bi bi-box-arrow-up-right menu-icon"></i> Trở về Trang chủ Public</a>
+
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0 p-0">
+                @Html.AntiForgeryToken()
+                <a href="javascript:void(0)" onclick="document.getElementById('logoutForm').submit()" class="menu-item text-danger fw-bold">
+                    <i class="bi bi-power menu-icon"></i> Đăng xuất phiên làm việc
+                </a>
+            </form>
+        </div>
     </aside>
 
-    <div class="main-content">
-        <div class="top-navbar">
-            <h4 class="mb-0 fw-bold text-dark">@ViewData["Title"]</h4>
-            <div class="d-flex align-items-center gap-4">
-                <a href="/Notification/Index" class="position-relative text-secondary transition-hover">
-                    <i class="bi bi-bell-fill fs-4"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size: 0.65rem; display: none;" id="topNotiBadge">0</span>
-                </a>
-                <div class="d-flex align-items-center gap-3 border-start ps-4">
-                    <div class="text-end d-none d-sm-block">
-                        <span class="d-block fw-bold text-dark lh-1">@User.Identity.Name</span>
-                        <small class="text-success fw-bold" style="font-size: 0.75rem;"><i class="bi bi-patch-check-fill"></i> Thành viên uy tín</small>
-                    </div>
-                    <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
-                         class="rounded-circle border border-2 border-primary-subtle shadow-sm"
-                         width="45" height="45" style="object-fit:cover;">
+    <div class="main-panel">
+        <header class="top-header">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-light border-0 shadow-sm d-lg-none me-3 rounded-circle" style="width: 45px; height: 45px;" id="btnToggleSidebar">
+                    <i class="bi bi-list fs-4"></i>
+                </button>
+                <div>
+                    <h4 class="mb-0 fw-bolder text-dark d-none d-sm-block letter-spacing-1">@ViewData["Title"]</h4>
+                    <small class="text-muted fw-medium d-none d-md-block text-uppercase" style="letter-spacing: 1px;">Control Center</small>
                 </div>
             </div>
-        </div>
 
-        @if (TempData["Success"] != null)
-        {
-            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4" role="alert">
-                <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
-                <span class="fw-medium">@TempData["Success"]</span>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="d-flex align-items-center gap-3 gap-md-4">
+                <a href="/Notification/Index" class="position-relative text-secondary text-decoration-none">
+                    <i class="bi bi-bell-fill fs-4 @(totalSystemAlerts > 0 ? "bell-shake text-warning" : "")"></i>
+                    @if (totalSystemAlerts > 0)
+                    {
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white shadow-sm" style="font-size: 0.65rem;">
+                            @(totalSystemAlerts > 9 ? "9+" : totalSystemAlerts)
+                        </span>
+                    }
+                </a>
+
+                <div class="vr bg-secondary opacity-25 d-none d-sm-block" style="height: 32px; width: 2px;"></div>
+
+                <div class="dropdown">
+                    <div class="user-profile-pill" data-bs-toggle="dropdown">
+                        <div class="text-end d-none d-sm-block">
+                            <h6 class="mb-0 fw-bold text-dark lh-1">@userName</h6>
+                            <small class="text-muted fw-medium" style="font-size: 0.72rem;">@userRole</small>
+                        </div>
+                        <img src="@userAvatar" class="rounded-circle border border-3 border-primary-soft shadow-sm" width="45" height="45" style="object-fit:cover;">
+                    </div>
+
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-3 p-2 rounded-4 animate__animated animate__fadeIn" style="min-width: 250px;">
+                        <li><div class="dropdown-header text-dark fw-bold pb-2 text-uppercase small">Tài khoản của tôi</div></li>
+                        <li><a class="dropdown-item rounded-3 py-2 fw-medium" href="/Account/Profile"><i class="bi bi-person-badge me-2 text-primary"></i> Quản lý hồ sơ</a></li>
+                        <li><a class="dropdown-item rounded-3 py-2 fw-medium" href="/Property/MyAds"><i class="bi bi-card-list me-2 text-success"></i> Kho tin BĐS cá nhân</a></li>
+                        <li><hr class="dropdown-divider my-2"></li>
+                        <li>
+                            <form asp-controller="Account" asp-action="Logout" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="dropdown-item text-danger rounded-3 py-2 fw-bold"><i class="bi bi-box-arrow-right me-2"></i> Đăng xuất an toàn</button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
-                <span class="fw-medium">@TempData["Error"]</span>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        }
+        </header>
 
-        @if (ViewData["ShowActionButtons"] as bool? == true)
-        {
-            <div class="action-btns">
-                <button type="button" class="action-btn ab-consult" data-bs-toggle="modal" data-bs-target="#consultationModal">
-                    <i class="bi bi-headset fs-5"></i> Yêu cầu tư vấn
-                </button>
+        <main class="content-body">
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__fadeInDown" role="alert">
+                    <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+                    <span class="fw-bold">@TempData["Success"]</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__shakeX" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+                    <span class="fw-bold">@TempData["Error"]</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
 
-                @if (!isOwner)
-                {
-                    <button type="button" class="action-btn ab-chat" data-bs-toggle="modal" data-bs-target="#internalChatModal">
-                        <i class="bi bi-chat-dots-fill fs-5"></i> Chat trực tiếp
+            @if (ViewData["ShowActionButtons"] as bool? == true)
+            {
+                <div class="quick-actions">
+                    <button type="button" class="btn-quick btn-q-consult" data-bs-toggle="modal" data-bs-target="#consultationModal">
+                        <i class="bi bi-headset fs-5"></i> Đăng ký nhận tư vấn
                     </button>
-                    <button type="button" class="action-btn ab-appt" data-bs-toggle="modal" data-bs-target="#appointmentModal">
-                        <i class="bi bi-calendar-check-fill fs-5"></i> Đặt lịch xem nhà
-                    </button>
-                }
-            </div>
-        }
 
-        <div class="animate__animated animate__fadeIn animate__faster">
-            @RenderBody()
-        </div>
+                    @if (!isOwner)
+                    {
+                        <button type="button" class="btn-quick btn-q-chat" data-bs-toggle="modal" data-bs-target="#internalChatModal">
+                            <i class="bi bi-chat-dots-fill fs-5"></i> Chat với người bán
+                        </button>
+                        <button type="button" class="btn-quick btn-q-appt" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+                            <i class="bi bi-calendar2-check-fill fs-5"></i> Đặt lịch hẹn xem
+                        </button>
+                    }
+                </div>
+            }
+
+            <div class="animate__animated animate__fadeIn">
+                @RenderBody()
+            </div>
+        </main>
     </div>
 
-    <div class="modal fade" id="consultationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="consultationModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning">
-                    <h5 class="modal-title fw-bold text-white"><i class="bi bi-headset"></i> Yêu cầu tư vấn miễn phí</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-warning border-0">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-headset"></i> Đăng ký nhận tư vấn chuyên sâu</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmConsultation">
-                    <div class="modal-body">
+                    <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label">Số điện thoại của bạn</label>
-                            <input type="tel" name="phoneNumber" class="form-control" required placeholder="Nhập số điện thoại...">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Số điện thoại của bạn <span class="text-danger">*</span></label>
+                            <input type="tel" name="phoneNumber" class="form-control form-control-lg bg-light border-0 shadow-sm" required placeholder="Nhập SĐT để chuyên viên gọi lại...">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Lời nhắn (không bắt buộc)</label>
-                            <textarea name="message" class="form-control" rows="3" placeholder="Ví dụ: Tôi muốn hỏi về pháp lý dự án này..."></textarea>
+                            <label class="form-label fw-bold text-muted small text-uppercase">Lời nhắn / Yêu cầu riêng</label>
+                            <textarea name="message" class="form-control bg-light border-0 shadow-sm" rows="3" placeholder="Ví dụ: Tôi muốn hỏi về tính pháp lý, giá thương lượng..."></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                        <button type="submit" class="btn btn-warning text-white fw-bold">Gửi yêu cầu</button>
+                    <div class="modal-footer border-0 bg-white p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-warning text-dark fw-bold rounded-pill px-5 shadow-sm">Gửi Yêu Cầu Tư Vấn</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="internalChatModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="internalChatModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill"></i> Nhắn tin trực tiếp</h5>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white border-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill"></i> Nhắn tin bảo mật 2 chiều</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmInternalChat">
-                    <div class="modal-body">
+                    <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label">Nội dung tin nhắn</label>
-                            <textarea name="chatMessage" class="form-control" rows="4" required placeholder="Nhập nội dung bạn muốn trao đổi với người bán..."></textarea>
+                            <label class="form-label fw-bold text-muted small text-uppercase">Nội dung trao đổi <span class="text-danger">*</span></label>
+                            <textarea name="chatMessage" class="form-control bg-light border-0 shadow-sm" rows="4" required placeholder="Nhập câu hỏi để thương lượng trực tiếp với người bán..."></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                        <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-send"></i> Gửi tin nhắn</button>
+                    <div class="modal-footer border-0 bg-white p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Đóng cửa sổ</button>
+                        <button type="submit" class="btn btn-primary fw-bold rounded-pill px-5 shadow-sm"><i class="bi bi-send-fill me-1"></i> Bắt đầu Trò chuyện</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="appointmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="appointmentModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill"></i> Đặt lịch xem nhà</h5>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-success text-white border-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill"></i> Đặt lịch hẹn xem Bất động sản</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmAppointment">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Ngày muốn xem</label>
-                            <input type="date" name="appointmentDate" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Giờ dự kiến</label>
-                            <input type="time" name="appointmentTime" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Ghi chú thêm</label>
-                            <textarea name="notes" class="form-control" rows="2" placeholder="Ví dụ: Vui lòng gọi trước khi đến..."></textarea>
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Ngày xem <span class="text-danger">*</span></label>
+                                <input type="date" name="appointmentDate" class="form-control form-control-lg bg-light border-0 shadow-sm" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Giờ dự kiến <span class="text-danger">*</span></label>
+                                <input type="time" name="appointmentTime" class="form-control form-control-lg bg-light border-0 shadow-sm" required>
+                            </div>
+                            <div class="col-12 mt-3">
+                                <label class="form-label fw-bold text-muted small text-uppercase">Ghi chú cho người bán</label>
+                                <textarea name="notes" class="form-control bg-light border-0 shadow-sm" rows="2" placeholder="Ví dụ: Vui lòng gọi trước 30 phút khi tôi đến..."></textarea>
+                            </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                        <button type="submit" class="btn btn-success fw-bold">Xác nhận lịch</button>
+                    <div class="modal-footer border-0 bg-white p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy lịch</button>
+                        <button type="submit" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm">Xác Nhận Đặt Lịch</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
     <script>
         $(document).ready(function () {
-            // Tự động ẩn thông báo sau 5 giây
-            setTimeout(function () { $('.alert').fadeOut('slow'); }, 5000);
+            setTimeout(function () { $('.alert-dismissible').fadeOut('slow'); }, 5000);
 
-            // Cập nhật số lượng thông báo Navbar
-            var totalNoti = @newLeadsCount + @unreadMessages + @pendingAppointments;
-            if (totalNoti > 0) {
-                $('#topNotiBadge').text(totalNoti).show();
-            }
+            const $sidebar = $('#sidebar');
+            const $overlay = $('#mobileOverlay');
 
-            // --- XỬ LÝ AJAX CHO CÁC MODALS ---
-
-            // 1. Xử lý Form Tư vấn
-            $('#frmConsultation').on('submit', function(e) {
-                e.preventDefault();
-                // Thay thế URL bằng đường dẫn API/Controller thực tế của bạn
-                let formData = $(this).serialize();
-                console.log("Dữ liệu gửi đi (Tư vấn):", formData);
-
-                // Mẫu gọi AJAX
-                /*
-                $.post('/Consultations/Create', formData, function(response) {
-                    if(response.success) {
-                        alert("Gửi yêu cầu thành công!");
-                        $('#consultationModal').modal('hide');
-                    }
-                });
-                */
-               alert("Đã ghi nhận yêu cầu tư vấn! (Cần ráp API Backend)");
-               $('#consultationModal').modal('hide');
+            $('#btnToggleSidebar').click(function() {
+                $sidebar.addClass('show');
+                $overlay.addClass('active');
             });
 
-            // 2. Xử lý Form Chat
+            $overlay.click(function() {
+                $sidebar.removeClass('show');
+                $(this).removeClass('active');
+            });
+
+            $('#frmConsultation').on('submit', function(e) {
+                e.preventDefault();
+                alert("Hệ thống: Đã ghi nhận yêu cầu tư vấn! (Chờ đấu nối API Backend)");
+                $('#consultationModal').modal('hide');
+                this.reset();
+            });
+
             $('#frmInternalChat').on('submit', function(e) {
                 e.preventDefault();
-                let formData = $(this).serialize();
-                console.log("Dữ liệu gửi đi (Chat):", formData);
-                alert("Tin nhắn đã được gửi! (Cần ráp API Backend)");
+                alert("Hệ thống: Tin nhắn đã được gửi an toàn! (Chờ đấu nối API Backend)");
                 $('#internalChatModal').modal('hide');
                 this.reset();
             });
 
-            // 3. Xử lý Form Đặt lịch
             $('#frmAppointment').on('submit', function(e) {
                 e.preventDefault();
-                let formData = $(this).serialize();
-                console.log("Dữ liệu gửi đi (Đặt lịch):", formData);
-                alert("Yêu cầu đặt lịch thành công! (Cần ráp API Backend)");
+                alert("Hệ thống: Đã gửi yêu cầu đặt lịch hẹn thành công! (Chờ đấu nối API Backend)");
                 $('#appointmentModal').modal('hide');
+                this.reset();
             });
         });
     </script>
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

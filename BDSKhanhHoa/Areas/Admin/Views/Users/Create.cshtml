@@ -1,71 +1,144 @@
 ﻿@model BDSKhanhHoa.Models.User
 @{
-    ViewData["Title"] = "Thêm thành viên mới";
+    ViewData["Title"] = "Cấp tài khoản hệ thống";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container py-4">
+<style>
+    /* Bo góc cho input group */
+    .input-group-text-pwd {
+        cursor: pointer;
+        background-color: #fff !important;
+        border: none !important;
+        border-radius: 0 10px 10px 0 !important;
+        color: #6c757d;
+        transition: 0.2s;
+    }
+
+        .input-group-text-pwd:hover {
+            color: #2563eb;
+        }
+
+    .pwd-input {
+        border-radius: 10px 0 0 10px !important;
+    }
+</style>
+
+<div class="container py-4 animate__animated animate__fadeIn">
     <div class="row justify-content-center">
-        <div class="col-xl-8 col-lg-10">
+        <div class="col-xl-10">
             <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
                 <div class="card-header bg-primary text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold"><i class="bi bi-person-plus me-2"></i>THÊM THÀNH VIÊN MỚI</h5>
-                        <a asp-action="Index" class="btn btn-sm btn-light text-primary fw-bold rounded-pill px-3">Quay lại</a>
+                        <h5 class="mb-0 fw-bold"><i class="bi bi-person-plus-fill me-2"></i>THIẾT LẬP TÀI KHOẢN MỚI</h5>
+                        <a asp-action="Index" class="btn btn-sm btn-light text-primary fw-bold rounded-pill px-3 shadow-sm">Trở lại</a>
                     </div>
                 </div>
 
                 <div class="card-body p-4 p-md-5 bg-light">
-                    <form asp-action="Create" method="post">
+                    <form asp-action="Create" method="post" enctype="multipart/form-data">
                         @Html.AntiForgeryToken()
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3 small fw-bold"></div>
 
-                        <h6 class="fw-bold text-uppercase text-muted border-bottom pb-2 mb-4">Thông tin đăng nhập</h6>
-                        <div class="row g-4 mb-4">
+                        <h6 class="fw-bold text-uppercase text-info border-bottom border-info pb-2 mb-4 mt-4">III. ẢNH ĐẠI DIỆN</h6>
+                        <div class="row">
                             <div class="col-md-6">
-                                <label asp-for="Username" class="form-label fw-bold small text-dark">Tên đăng nhập (Username) <span class="text-danger">*</span></label>
-                                <input asp-for="Username" class="form-control rounded-3 py-2 border-0 shadow-sm" placeholder="VD: nguyenvan_a" required />
+                                <label class="form-label fw-bold small">Chọn ảnh đại diện</label>
+                                <input type="file" name="AvatarFile" class="form-control border-0 shadow-sm" accept="image/*" />
+                                <small class="text-muted italic">Nếu để trống, hệ thống sẽ dùng ảnh mặc định.</small>
+                            </div>
+                        </div>
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <label asp-for="Username" class="form-label fw-bold small text-dark">Tên đăng nhập <span class="text-danger">*</span></label>
+                                <input asp-for="Username" class="form-control rounded-3 border-0 shadow-sm" required />
                                 <span asp-validation-for="Username" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-6">
-                                <label asp-for="Password" class="form-label fw-bold small text-dark">Mật khẩu <span class="text-danger">*</span></label>
-                                <input asp-for="Password" type="password" class="form-control rounded-3 py-2 border-0 shadow-sm" placeholder="Ít nhất 6 ký tự" required />
+
+                            <div class="col-md-3">
+                                <label asp-for="Password" class="form-label fw-bold small text-dark">Mật khẩu khởi tạo <span class="text-danger">*</span></label>
+                                <div class="input-group shadow-sm rounded-3">
+                                    <input asp-for="Password" type="password" id="pwdMain" class="form-control border-0 pwd-input" required />
+                                    <span class="input-group-text input-group-text-pwd" onclick="togglePassword('pwdMain', 'eyeMain')">
+                                        <i class="bi bi-eye-slash" id="eyeMain"></i>
+                                    </span>
+                                </div>
                                 <span asp-validation-for="Password" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label asp-for="ConfirmPassword" class="form-label fw-bold small text-dark">Xác nhận mật khẩu <span class="text-danger">*</span></label>
+                                <div class="input-group shadow-sm rounded-3">
+                                    <input asp-for="ConfirmPassword" type="password" id="pwdConfirm" class="form-control border-0 pwd-input" required />
+                                    <span class="input-group-text input-group-text-pwd" onclick="togglePassword('pwdConfirm', 'eyeConfirm')">
+                                        <i class="bi bi-eye-slash" id="eyeConfirm"></i>
+                                    </span>
+                                </div>
+                                <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label asp-for="RoleID" class="form-label fw-bold small text-danger">Nhóm quyền hạn</label>
+                                <select asp-for="RoleID" id="roleSelect" asp-items="ViewBag.RolesList" class="form-select rounded-3 shadow-sm border-danger text-danger fw-bold"></select>
                             </div>
                         </div>
 
-                        <h6 class="fw-bold text-uppercase text-muted border-bottom pb-2 mb-4 mt-4">Thông tin cá nhân</h6>
-                        <div class="row g-4">
+                        <div class="row mb-4">
                             <div class="col-md-6">
-                                <label asp-for="Email" class="form-label fw-bold small text-dark">Email <span class="text-danger">*</span></label>
-                                <input asp-for="Email" type="email" class="form-control rounded-3 py-2 border-0 shadow-sm" placeholder="VD: email@domain.com" required />
-                                <span asp-validation-for="Email" class="text-danger small"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="FullName" class="form-label fw-bold small text-dark">Họ và tên</label>
-                                <input asp-for="FullName" class="form-control rounded-3 py-2 border-0 shadow-sm" placeholder="VD: Nguyễn Văn A" />
-                                <span asp-validation-for="FullName" class="text-danger small"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="RoleID" class="form-label fw-bold small text-primary">Phân quyền hệ thống</label>
-                                <select asp-for="RoleID" class="form-select rounded-3 py-2 shadow-sm border-primary">
-                                    <option value="3">Thành viên (Khách hàng/Môi giới)</option>
-                                    <option value="2">Nhân viên (Kiểm duyệt viên)</option>
-                                    <option value="1">Quản trị viên (Admin)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-dark">Trạng thái khởi tạo</label>
                                 <div class="form-check form-switch pt-2">
-                                    <input class="form-check-input fs-5" type="checkbox" asp-for="IsActive" checked>
-                                    <label class="form-check-label mt-1 ms-2" asp-for="IsActive">Cho phép đăng nhập ngay</label>
+                                    <input class="form-check-input fs-4 shadow-sm" type="checkbox" asp-for="IsActive" checked>
+                                    <label class="form-check-label mt-1 ms-2 fw-medium" asp-for="IsActive">Kích hoạt tài khoản ngay</label>
                                 </div>
                             </div>
                         </div>
 
+                        <div id="businessSection" style="display: none;">
+                            <div class="alert bg-white border-warning shadow-sm rounded-4 p-4 mb-5">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input fs-4" type="checkbox" id="checkIsBusiness" name="IsBusiness">
+                                    <label class="form-check-label fw-bold text-dark fs-5 ms-2" for="checkIsBusiness">
+                                        Kích hoạt Đặc quyền Chủ Đầu Tư / Sàn Giao Dịch
+                                    </label>
+                                </div>
+                                <p class="text-muted small border-bottom pb-2 mb-4">Sau khi kích hoạt, tài khoản này sẽ có quyền truy cập vào <b>Cổng Quản Trị Dự Án (CMS)</b>.</p>
+
+                                <div id="businessFields" style="display: none;">
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label fw-bold small">Tên chính thức của Doanh nghiệp / Dự án</label>
+                                            <input type="text" name="BusinessName" class="form-control border-0 shadow-sm" placeholder="VD: Tập đoàn Vingroup..." />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold small">Mã số thuế</label>
+                                            <input type="text" name="TaxCode" class="form-control border-0 shadow-sm" placeholder="Mã số thuế..." />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h6 class="fw-bold text-uppercase text-success border-bottom border-success pb-2 mb-4">II. THÔNG TIN CHUYÊN VIÊN / QUẢN LÝ DỰ ÁN</h6>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label asp-for="FullName" class="form-label fw-bold small">Họ và tên Quản lý/Chuyên viên</label>
+                                <input asp-for="FullName" class="form-control rounded-3 border-0 shadow-sm" placeholder="Họ tên người phụ trách chính..." />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Email" class="form-label fw-bold small">Email nhận thông báo <span class="text-danger">*</span></label>
+                                <input asp-for="Email" type="email" class="form-control rounded-3 border-0 shadow-sm" required />
+                                <span asp-validation-for="Email" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Phone" class="form-label fw-bold small">Số điện thoại di động</label>
+                                <input asp-for="Phone" class="form-control rounded-3 border-0 shadow-sm" />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Address" class="form-label fw-bold small">Địa chỉ văn phòng</label>
+                                <input asp-for="Address" class="form-control rounded-3 border-0 shadow-sm" />
+                            </div>
+                        </div>
+
                         <div class="mt-5 pt-4 border-top text-end">
-                            <a asp-action="Index" class="btn btn-secondary rounded-pill px-4 me-2">Hủy bỏ</a>
-                            <button type="submit" class="btn btn-primary rounded-pill px-5 shadow fw-bold"><i class="bi bi-save me-2"></i> TẠO TÀI KHOẢN</button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-5 py-2 shadow fw-bold"><i class="bi bi-shield-lock-fill me-2"></i> XÁC NHẬN CẤP TÀI KHOẢN</button>
                         </div>
                     </form>
                 </div>
@@ -75,7 +148,40 @@
 </div>
 
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Hàm ẩn hiện mật khẩu
+        function togglePassword(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.replace("bi-eye-slash", "bi-eye");
+            } else {
+                input.type = "password";
+                icon.classList.replace("bi-eye", "bi-eye-slash");
+            }
+        }
+
+        $(document).ready(function() {
+            // Logic hiện khung CĐT
+            $('#roleSelect').change(function() {
+                var selectedText = $("#roleSelect option:selected").text().toLowerCase();
+                if (selectedText.includes('member')) {
+                    $('#businessSection').slideDown();
+                } else {
+                    $('#businessSection').slideUp();
+                    $('#checkIsBusiness').prop('checked', false).trigger('change');
+                }
+            }).trigger('change');
+
+            $('#checkIsBusiness').change(function() {
+                if ($(this).is(':checked')) {
+                    $('#businessFields').slideDown();
+                } else {
+                    $('#businessFields').slideUp();
+                }
+            });
+        });
+    </script>
 }

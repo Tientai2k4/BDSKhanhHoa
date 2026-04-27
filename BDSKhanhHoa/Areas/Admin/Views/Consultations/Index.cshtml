@@ -1,0 +1,102 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Consultation>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    int newLeads = ViewBag.NewLeads ?? 0;
+}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<div class="animate__animated animate__fadeIn">
+    @if (TempData["Success"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bolder text-dark m-0"><i class="bi bi-headset text-warning me-2"></i>Yêu Cầu Tư Vấn BĐS</h4>
+            <p class="text-muted m-0">Khu vực chăm sóc và điều phối khách hàng tiềm năng</p>
+        </div>
+        @if (newLeads > 0)
+        {
+            <div class="badge bg-danger fs-5 px-4 py-2 rounded-pill animate__animated animate__pulse animate__infinite shadow-sm">
+                Có @newLeads khách chờ liên hệ!
+            </div>
+        }
+    </div>
+
+    <div class="bg-white rounded-4 shadow-sm border p-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                    <tr>
+                        <th width="20%">Khách hàng</th>
+                        <th width="15%">Liên hệ</th>
+                        <th width="30%">Nội dung / Bất động sản quan tâm</th>
+                        <th width="15%">Thời gian</th>
+                        <th width="10%">Trạng thái</th>
+                        <th width="10%" class="text-end">Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>
+                                <span class="fw-bold text-dark fs-6 d-block">@item.FullName</span>
+                            </td>
+                            <td>
+                                <a href="tel:@item.Phone" class="btn btn-sm btn-light border text-primary fw-bold mb-1 w-100 text-start"><i class="bi bi-telephone-fill me-1"></i>@item.Phone</a>
+                                @if (!string.IsNullOrEmpty(item.Email))
+                                {
+                                    <span class="d-block small text-muted text-truncate"><i class="bi bi-envelope"></i> @item.Email</span>
+                                }
+                            </td>
+                            <td>
+                                <p class="mb-1 text-dark small fw-medium" style="max-width:300px; white-space:pre-wrap;">@item.Note</p>
+                                @if (item.Property != null)
+                                {
+                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="badge bg-info-subtle text-info-emphasis text-decoration-none">
+                                        <i class="bi bi-link-45deg"></i> Mã BĐS: #@item.PropertyID - Xem BĐS
+                                    </a>
+                                }
+                            </td>
+                            <td>
+                                <span class="d-block fw-bold text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                <small class="text-muted">@item.CreatedAt.ToString("HH:mm")</small>
+                            </td>
+                            <td>
+                                @if (item.Status == "New")
+                                {
+                                    <span class="badge bg-danger-subtle text-danger px-2 py-1">Khách Mới</span>
+                                }
+                                else if (item.Status == "Contacted")
+                                {
+
+                                    <span class="badge bg-warning-subtle text-warning-emphasis px-2 py-1">Đang chăm sóc</span>
+                                }
+                                else
+                                {
+
+                                    <span class="badge bg-success-subtle text-success px-2 py-1">Đã chốt xong</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <form asp-action="UpdateStatus" method="post" class="d-flex flex-column gap-1">
+                                    <input type="hidden" name="id" value="@item.ConsultID" />
+                                    @if (item.Status == "New")
+                                    {
+                                        <button type="submit" name="status" value="Contacted" class="btn btn-sm btn-warning fw-bold text-dark">Đã gọi KH</button>
+                                    }
+                                    @if (item.Status != "Resolved")
+                                    {
+                                        <button type="submit" name="status" value="Resolved" class="btn btn-sm btn-success fw-bold text-white">Hoàn tất</button>
+                                    }
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

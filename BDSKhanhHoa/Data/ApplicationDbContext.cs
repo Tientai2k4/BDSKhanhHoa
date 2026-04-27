@@ -41,10 +41,10 @@ namespace BDSKhanhHoa.Data
         public DbSet<Appointment> Appointments { get; set; }
         public DbSet<Voucher> Vouchers { get; set; }
         public DbSet<UserMessage> UserMessages { get; set; }
+        public DbSet<Role> Roles { get; set; }
+        public DbSet<ProjectLead> ProjectLeads { get; set; }
 
-        // =======================================================
-        // BỔ SUNG: Khai báo bảng Notifications ở đây để fix lỗi
-        // =======================================================
+        public DbSet<BusinessProfile> BusinessProfiles { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -1,0 +1,231 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Báo cáo hiệu suất";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    int totalProjects = ViewBag.TotalProjects ?? 0;
+    int totalLeads = ViewBag.TotalLeads ?? 0;
+    int newLeads = ViewBag.NewLeads ?? 0;
+    int contactedLeads = ViewBag.ContactedLeads ?? 0;
+    int resolvedLeads = ViewBag.ResolvedLeads ?? 0;
+    int totalAppointments = ViewBag.TotalAppointments ?? 0;
+    int confirmedAppointments = ViewBag.ConfirmedAppointments ?? 0;
+    int completedAppointments = ViewBag.CompletedAppointments ?? 0;
+    int pendingAppointments = ViewBag.PendingAppointments ?? 0;
+    int totalViews = ViewBag.TotalViews ?? 0;
+
+    var leadMap = ViewBag.LeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var appointmentMap = ViewBag.AppointmentMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var viewMap = ViewBag.ViewMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+}
+
+<style>
+    .ana-topbar, .ana-card {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .ana-topbar {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .ana-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .ana-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .ana-stat {
+        border-radius: 24px;
+        padding: 22px;
+        color: #fff;
+        min-height: 140px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+    }
+
+    .bg-blue {
+        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    }
+
+    .bg-amber {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .bg-emerald {
+        background: linear-gradient(135deg, #047857, #10b981);
+    }
+
+    .bg-indigo {
+        background: linear-gradient(135deg, #4338ca, #6366f1);
+    }
+
+    .ana-stat .stat-label {
+        font-size: .8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        opacity: .9;
+        margin-bottom: 10px;
+    }
+
+    .ana-stat .stat-value {
+        font-size: 3rem;
+        line-height: 1;
+        font-weight: 900;
+    }
+
+    .perf-table thead th {
+        background: #f8fafc;
+        color: #475569;
+        font-size: .76rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        padding: 18px;
+        white-space: nowrap;
+    }
+
+    .perf-table tbody td {
+        padding: 18px;
+        border-top: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+</style>
+
+<div class="ana-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <div class="ana-title">Báo cáo hiệu suất</div>
+        <p class="ana-subtitle">Thống kê lead, lịch hẹn, lượt xem dự án bằng dữ liệu có sẵn trong hệ thống.</p>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat bg-blue">
+            <div class="stat-label">Tổng dự án</div>
+            <div class="stat-value">@totalProjects</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat bg-amber">
+            <div class="stat-label">Tổng leads</div>
+            <div class="stat-value">@totalLeads</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat bg-indigo">
+            <div class="stat-label">Tổng lịch hẹn</div>
+            <div class="stat-value">@totalAppointments</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat bg-emerald">
+            <div class="stat-label">Tổng lượt xem</div>
+            <div class="stat-value">@totalViews</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="ana-card p-4">
+            <h6 class="fw-bold mb-3">Phễu lead</h6>
+            <div class="d-flex justify-content-between mb-2">
+                <span>New</span><strong>@newLeads</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span>Contacted</span><strong>@contactedLeads</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Resolved</span><strong>@resolvedLeads</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="ana-card p-4">
+            <h6 class="fw-bold mb-3">Lịch hẹn</h6>
+            <div class="d-flex justify-content-between mb-2">
+                <span>Pending</span><strong>@pendingAppointments</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span>Confirmed</span><strong>@confirmedAppointments</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Completed</span><strong>@completedAppointments</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="ana-card p-4">
+            <h6 class="fw-bold mb-3">Ghi chú</h6>
+            <div class="text-muted">
+                Các chỉ số này đang lấy từ dữ liệu thực tế có sẵn trong hệ thống, không cần thêm bảng mới.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="ana-card">
+    <div class="p-4 border-bottom">
+        <h5 class="fw-bold mb-1">Hiệu suất theo dự án</h5>
+        <div class="text-muted small">Số lead, lịch hẹn và lượt xem từng dự án.</div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table perf-table mb-0">
+            <thead>
+                <tr>
+                    <th>Dự án</th>
+                    <th>Lead</th>
+                    <th>Lịch hẹn</th>
+                    <th>Lượt xem</th>
+                    <th>Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        var leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
+                        var appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
+                        var viewCount = viewMap.ContainsKey(item.ProjectID) ? viewMap[item.ProjectID] : 0;
+
+                        <tr>
+                            <td>
+                                <div class="fw-bold">@item.ProjectName</div>
+                                <div class="text-muted small">@item.Ward?.WardName, @item.Area?.AreaName</div>
+                            </td>
+                            <td>@leadCount</td>
+                            <td>@appointmentCount</td>
+                            <td>@viewCount</td>
+                            <td>
+                                <span class="badge @(item.ProjectStatus == "Đang mở bán" ? "bg-success" : "bg-secondary")">
+                                    @item.ProjectStatus
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <div class="text-muted">Chưa có dữ liệu dự án để thống kê.</div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

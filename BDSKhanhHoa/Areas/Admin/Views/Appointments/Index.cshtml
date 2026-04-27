@@ -1,0 +1,204 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Appointment>
+@using System.Globalization
+@{
+    ViewData["Title"] = "Quản lý Lịch hẹn";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string status = ViewBag.Status as string ?? "All";
+    string keyword = ViewBag.Keyword as string ?? "";
+    string source = ViewBag.Source as string ?? "All";
+
+    int total = ViewBag.TotalAppointments ?? 0;
+    int pending = ViewBag.PendingAppointments ?? 0;
+    int confirmed = ViewBag.ConfirmedAppointments ?? 0;
+    int completed = ViewBag.CompletedAppointments ?? 0;
+    int cancelled = ViewBag.CancelledAppointments ?? 0;
+}
+
+<style>
+    .admin-box {
+        background: #fff;
+        border-radius: 24px;
+        border: 1px solid rgba(148,163,184,.16);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+    }
+
+    .stat {
+        padding: 18px;
+        border-radius: 20px;
+        color: #fff;
+        min-height: 120px;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+    }
+
+        .stat .label {
+            text-transform: uppercase;
+            font-size: .75rem;
+            letter-spacing: .08em;
+            opacity: .85;
+            font-weight: 800;
+        }
+
+        .stat .value {
+            font-size: 2.3rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+    .soft-input {
+        min-height: 48px;
+        border-radius: 14px;
+    }
+
+    .table thead th {
+        background: #f8fafc;
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        color: #475569;
+        white-space: nowrap;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div>
+        <h3 class="fw-black mb-1">Quản lý Lịch hẹn</h3>
+        <div class="text-muted">Xem toàn hệ thống, hỗ trợ giải quyết tranh chấp và theo dõi trạng thái lịch.</div>
+    </div>
+    <a href="/Admin/SupportTickets/Index" class="btn btn-outline-primary rounded-pill fw-bold">
+        <i class="bi bi-life-preserver me-1"></i> Sang Yêu cầu từ CĐT
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Tổng lịch</div><div class="value">@total</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Pending</div><div class="value">@pending</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Confirmed</div><div class="value">@confirmed</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Completed</div><div class="value">@completed</div></div></div>
+</div>
+
+<div class="admin-box p-3 p-md-4 mb-4">
+    <form method="get" asp-action="Index" asp-controller="Appointments" asp-area="Admin" class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
+            <select name="status" class="form-select soft-input">
+                <option value="All" selected="@(status == "All")">All</option>
+                <option value="Pending" selected="@(status == "Pending")">Pending</option>
+                <option value="Confirmed" selected="@(status == "Confirmed")">Confirmed</option>
+                <option value="Completed" selected="@(status == "Completed")">Completed</option>
+                <option value="Cancelled" selected="@(status == "Cancelled")">Cancelled</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold small text-muted text-uppercase">Nguồn</label>
+            <select name="source" class="form-select soft-input">
+                <option value="All" selected="@(source == "All")">All</option>
+                <option value="Property" selected="@(source == "Property")">Property</option>
+                <option value="Project" selected="@(source == "Project")">Project</option>
+                <option value="Lead" selected="@(source == "Lead")">Lead</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Từ khóa</label>
+            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Khách, SĐT, dự án, tin đăng..." />
+        </div>
+        <div class="col-12">
+            <button class="btn btn-primary rounded-pill fw-bold px-4">
+                <i class="bi bi-filter me-1"></i> Lọc
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-box p-3 p-md-4">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Khách</th>
+                    <th>Nguồn</th>
+                    <th>Nhân sự</th>
+                    <th>Trạng thái</th>
+                    <th>Kết quả</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var a in Model)
+                    {
+                        var sourceName = a.Property?.Title ?? a.Project?.ProjectName ?? a.Lead?.Project?.ProjectName ?? "N/A";
+                        var customerName = a.CustomerName ?? a.Buyer?.FullName ?? a.Buyer?.Username ?? "Khách";
+                        <tr>
+                            <td>
+                                <div class="fw-bold">@a.AppointmentDate.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                                <div class="text-muted small">@a.CreatedAt.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold">@customerName</div>
+                                <div class="text-muted small">@a.CustomerPhone</div>
+                                <div class="text-muted small">@a.CustomerEmail</div>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@sourceName</div>
+                                <div class="small text-muted">
+                                    @if (a.PropertyID.HasValue)
+                                    {
+                                        <span>PropertyID: @a.PropertyID</span>
+                                    }
+                                    else if (a.ProjectID.HasValue)
+                                    {
+
+                                        <span>ProjectID: @a.ProjectID</span>
+                                    }
+                                    else if (a.LeadID.HasValue)
+                                    {
+
+                                        <span>LeadID: @a.LeadID</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@a.AssignedStaffName</div>
+                                <div class="text-muted small">@a.AssignedStaffPhone</div>
+                                <div class="text-muted small">@a.MeetingLocation</div>
+                            </td>
+                            <td><span class="badge bg-secondary">@a.Status</span></td>
+                            <td>
+                                <div class="small fw-semibold">@a.ResultStatus</div>
+                                <div class="small text-muted">@a.ResultNote</div>
+                            </td>
+                            <td class="text-end">
+                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@a.AppointmentID" />
+                                    <input type="hidden" name="status" value="Confirmed" />
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill">Confirm</button>
+                                </form>
+                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@a.AppointmentID" />
+                                    <input type="hidden" name="status" value="Completed" />
+                                    <button class="btn btn-sm btn-outline-success rounded-pill">Complete</button>
+                                </form>
+                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@a.AppointmentID" />
+                                    <input type="hidden" name="status" value="Cancelled" />
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill">Cancel</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-4">Chưa có lịch hẹn</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

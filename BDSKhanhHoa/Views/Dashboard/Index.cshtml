@@ -1,14 +1,19 @@
 ﻿@using BDSKhanhHoa.Models
 @{
-    Layout = "~/Views/Shared/_UserLayout.cshtml"; // 
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
 
-    // Ép kiểu dữ liệu từ ViewBag an toàn
+    // Ép kiểu dữ liệu an toàn
+    var user = ViewBag.CurrentUser as User;
     int totalProps = ViewBag.TotalProperties ?? 0;
     int activeProps = ViewBag.ActiveProperties ?? 0;
+    int pendingProps = ViewBag.PendingProperties ?? 0;
     int totalViews = ViewBag.TotalViews ?? 0;
-    int pendingAppts = ViewBag.PendingAppointments ?? 0;
+    int pendingApptsCount = ViewBag.PendingAppointmentsCount ?? 0;
     int newConsults = ViewBag.NewConsultations ?? 0;
+    int totalFavs = ViewBag.TotalFavorites ?? 0;
 
+    var upcomingAppointments = ViewBag.UpcomingAppointments as List<Appointment> ?? new List<Appointment>();
+    var recentTransactions = ViewBag.RecentTransactions as List<Transaction> ?? new List<Transaction>();
     var recentProperties = ViewBag.RecentProperties as List<Property> ?? new List<Property>();
     var recentNotifications = ViewBag.RecentNotifications as List<Notification> ?? new List<Notification>();
 }
@@ -17,111 +22,71 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
 <style>
-    /* CSS UI/UX Chuẩn 2026 - Tối ưu hiển thị & Tương tác */
+    /* CSS UI/UX Chuẩn 2026 */
     .dashboard-header {
-        background: linear-gradient(135deg, #0061f2 0%, #003b93 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         border-radius: 20px;
-        padding: 30px;
+        padding: 35px 30px;
         color: white;
         margin-bottom: 30px;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 10px 30px rgba(0, 97, 242, 0.2);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
     }
 
         .dashboard-header::after {
             content: '';
             position: absolute;
             top: -50%;
-            right: -10%;
-            width: 300px;
-            height: 300px;
-            background: rgba(255, 255, 255, 0.1);
+            right: -5%;
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(255,255,255,0) 70%);
             border-radius: 50%;
-            backdrop-filter: blur(10px);
         }
 
-    /* Thẻ Thống kê (Stat Cards) với hiệu ứng Glassmorphism nhẹ */
     .stat-card {
         background: #ffffff;
         border-radius: 16px;
         padding: 25px;
-        border: 1px solid #edf2f7;
+        border: 1px solid #e2e8f0;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
+        height: 100%;
     }
 
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.08);
-            border-color: #e2e8f0;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 4px;
-            border-radius: 4px 0 0 4px;
-        }
-
-        .stat-card.primary::before {
-            background: #0061f2;
-        }
-
-        .stat-card.success::before {
-            background: #00ac69;
-        }
-
-        .stat-card.warning::before {
-            background: #f4a100;
-        }
-
-        .stat-card.danger::before {
-            background: #e81500;
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.06);
+            border-color: #cbd5e1;
         }
 
     .stat-icon {
-        width: 60px;
-        height: 60px;
-        border-radius: 15px;
+        width: 55px;
+        height: 55px;
+        border-radius: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.8rem;
+        font-size: 1.6rem;
     }
 
-    .bg-primary-soft {
-        background: rgba(0, 97, 242, 0.1);
-        color: #0061f2;
+    /* Các Widget bên phải */
+    .widget-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+        padding: 20px;
+        margin-bottom: 24px;
     }
 
-    .bg-success-soft {
-        background: rgba(0, 172, 105, 0.1);
-        color: #00ac69;
-    }
-
-    .bg-warning-soft {
-        background: rgba(244, 161, 0, 0.1);
-        color: #f4a100;
-    }
-
-    .bg-danger-soft {
-        background: rgba(232, 21, 0, 0.1);
-        color: #e81500;
-    }
-
-    /* Custom Table Chuẩn 2026 */
     .modern-table {
         background: #fff;
         border-radius: 16px;
+        border: 1px solid #e2e8f0;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
         overflow: hidden;
     }
@@ -132,29 +97,38 @@
             font-weight: 600;
             font-size: 0.85rem;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
             padding: 15px 20px;
-            border-bottom: 1px solid #edf2f7;
         }
 
         .modern-table tbody td {
             padding: 15px 20px;
             vertical-align: middle;
             border-bottom: 1px solid #f1f5f9;
-            color: #334155;
             font-weight: 500;
+        }
+
+    .appt-item {
+        padding: 15px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border-left: 4px solid #3b82f6;
+        transition: 0.2s;
+    }
+
+        .appt-item:hover {
+            background: #f1f5f9;
         }
 
     /* Timeline thông báo */
     .timeline {
+        padding-left: 20px;
         position: relative;
-        padding-left: 30px;
     }
 
         .timeline::before {
             content: '';
             position: absolute;
-            left: 7px;
+            left: 0;
             top: 0;
             bottom: 0;
             width: 2px;
@@ -163,90 +137,101 @@
 
     .timeline-item {
         position: relative;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
     }
 
         .timeline-item::before {
             content: '';
             position: absolute;
-            left: -28px;
+            left: -25px;
             top: 5px;
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background: #0061f2;
+            background: #3b82f6;
             border: 3px solid #e0e7ff;
         }
 </style>
 
 <div class="container-fluid p-0 animate__animated animate__fadeIn">
 
-    <div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div class="position-relative z-1">
-            <h2 class="fw-bolder mb-1">Chào mừng trở lại, @User.Identity.Name! 👋</h2>
-            <p class="mb-0 text-white-50 fw-medium">Hôm nay là @DateTime.Now.ToString("dd/MM/yyyy") - Chúc bạn một ngày giao dịch thành công.</p>
+    <div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-4">
+        <div class="position-relative z-1 d-flex align-items-center gap-4">
+            <img src="@(user?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border border-3 border-light shadow" width="80" height="80" style="object-fit:cover;">
+            <div>
+                <h2 class="fw-bolder mb-1 text-white">Xin chào, @(user?.FullName ?? user?.Username)!</h2>
+                <p class="mb-0 text-white-50 fw-medium">
+                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>Khu vực Khánh Hòa |
+                    <i class="bi bi-clock me-1"></i>Hôm nay: @DateTime.Now.ToString("dd/MM/yyyy")
+                </p>
+            </div>
         </div>
         <div class="d-flex gap-2 position-relative z-1">
-            <a href="/Property/Create" class="btn btn-light text-primary fw-bold px-4 py-2 rounded-pill shadow-sm">
-                <i class="bi bi-plus-circle-fill me-2"></i>Đăng tin mới
+            <a href="/Property/Create" class="btn btn-primary fw-bold px-4 py-2 rounded-pill shadow-sm border border-primary-subtle">
+                <i class="bi bi-plus-circle-fill me-2"></i>Đăng tin BĐS
             </a>
-            <a href="/Package/Buy" class="btn btn-warning text-white fw-bold px-4 py-2 rounded-pill shadow-sm">
-                <i class="bi bi-gem me-2"></i>Nạp VIP
+            <a href="/Package/Buy" class="btn btn-warning text-dark fw-bold px-4 py-2 rounded-pill shadow-sm">
+                <i class="bi bi-lightning-charge-fill me-2"></i>Nâng cấp VIP
             </a>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
         <div class="col-xl-3 col-md-6">
-            <div class="stat-card primary">
-                <div>
-                    <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tổng Tin Của Bạn</p>
-                    <h2 class="fw-black mb-0 text-dark display-6 fw-bold">@totalProps</h2>
-                    <small class="text-success fw-bold"><i class="bi bi-arrow-up-short"></i>@activeProps tin đang hiển thị</small>
-                </div>
-                <div class="stat-icon bg-primary-soft">
-                    <i class="bi bi-houses"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card success">
-                <div>
-                    <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tổng Lượt Xem</p>
-                    <h2 class="fw-black mb-0 text-dark display-6 fw-bold">@totalViews</h2>
-                    <small class="text-secondary fw-medium">Lượt tiếp cận khách hàng</small>
-                </div>
-                <div class="stat-icon bg-success-soft">
-                    <i class="bi bi-eye"></i>
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tin Đăng Của Bạn</p>
+                        <h2 class="fw-black mb-1 text-dark">@totalProps <small class="fs-6 text-muted fw-medium">tin</small></h2>
+                        <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>@activeProps đang hiển thị</span>
+                    </div>
+                    <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-houses"></i></div>
                 </div>
             </div>
         </div>
 
         <div class="col-xl-3 col-md-6">
-            <div class="stat-card warning">
-                <div>
-                    <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Khách Yêu Cầu</p>
-                    <h2 class="fw-black mb-0 text-dark display-6 fw-bold">@newConsults</h2>
-                    <small class="text-danger fw-bold animate__animated animate__flash animate__infinite animate__slower">
-                        <i class="bi bi-fire"></i> Khách đang chờ tư vấn!
-                    </small>
-                </div>
-                <div class="stat-icon bg-warning-soft">
-                    <i class="bi bi-headset"></i>
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tương Tác & Lượt Xem</p>
+                        <h2 class="fw-black mb-1 text-dark">@totalViews <small class="fs-6 text-muted fw-medium">lượt</small></h2>
+                        <span class="badge bg-danger-subtle text-danger"><i class="bi bi-heart-fill me-1"></i>@totalFavs lượt lưu tin</span>
+                    </div>
+                    <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-eye"></i></div>
                 </div>
             </div>
         </div>
 
         <div class="col-xl-3 col-md-6">
-            <div class="stat-card danger">
-                <div>
-                    <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Lịch Hẹn Xem Nhà</p>
-                    <h2 class="fw-black mb-0 text-dark display-6 fw-bold">@pendingAppts</h2>
-                    <small class="text-secondary fw-medium">Lịch hẹn đang chờ xác nhận</small>
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Yêu Cầu Tư Vấn (Leads)</p>
+                        <h2 class="fw-black mb-1 text-dark">@newConsults <small class="fs-6 text-muted fw-medium">khách</small></h2>
+                        @if (newConsults > 0)
+                        {
+                            <span class="badge bg-warning text-dark animate__animated animate__pulse animate__infinite"><i class="bi bi-fire me-1"></i>Cần liên hệ ngay!</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-light text-secondary border">Chưa có yêu cầu mới</span>
+                        }
+                    </div>
+                    <div class="stat-icon bg-warning-subtle text-warning-emphasis"><i class="bi bi-headset"></i></div>
                 </div>
-                <div class="stat-icon bg-danger-soft">
-                    <i class="bi bi-calendar-check"></i>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Lịch Hẹn Xem Nhà</p>
+                        <h2 class="fw-black mb-1 text-dark">@pendingApptsCount <small class="fs-6 text-muted fw-medium">lịch</small></h2>
+                        <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-calendar-event me-1"></i>Đang chờ xác nhận</span>
+                    </div>
+                    <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-calendar-check"></i></div>
                 </div>
             </div>
         </div>
@@ -254,72 +239,73 @@
 
     <div class="row g-4 mb-4">
         <div class="col-xl-8">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white border-bottom-0 pt-4 pb-0 px-4 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Biểu đồ tương tác (7 ngày qua)</h5>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-light border fw-bold text-muted dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            Tuần này
-                        </button>
-                    </div>
+            <div class="modern-table h-100 d-flex flex-column">
+                <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Lưu lượng truy cập (7 ngày qua)</h5>
                 </div>
-                <div class="card-body p-4">
-                    <canvas id="interactionChart" height="100"></canvas>
+                <div class="p-4 flex-grow-1">
+                    <canvas id="viewChart" style="min-height: 280px;"></canvas>
                 </div>
             </div>
         </div>
 
         <div class="col-xl-4">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white border-bottom-0 pt-4 pb-0 px-4">
-                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-activity text-danger me-2"></i>Hoạt động mới nhất</h5>
+            <div class="widget-card bg-primary text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border:none;">
+                <h6 class="fw-bold opacity-75 mb-3 text-uppercase"><i class="bi bi-shield-check me-2"></i>Trạng thái tài khoản</h6>
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <i class="bi bi-patch-check-fill text-warning" style="font-size: 2.5rem;"></i>
+                    <div>
+                        <h4 class="fw-bold mb-0">Thành viên Tiêu chuẩn</h4>
+                        <small class="opacity-75">Tham gia từ @user?.CreatedAt?.ToString("MM/yyyy")</small>
+                    </div>
                 </div>
-                <div class="card-body p-4">
-                    @if (recentNotifications.Any())
-                    {
-                        <div class="timeline">
-                            @foreach (var noti in recentNotifications.Take(4))
-                            {
-                                <div class="timeline-item">
-                                    <h6 class="fw-bold text-dark mb-1">@noti.Title</h6>
-                                    <p class="text-muted small mb-1 line-clamp-2">@noti.Content</p>
-                                    <small class="text-primary fw-medium"><i class="bi bi-clock me-1"></i>@noti.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</small>
-                                </div>
-                            }
-                        </div>
-                        <div class="text-center mt-3">
-                            <a href="/Notification/Index" class="text-decoration-none fw-bold text-primary">Xem tất cả thông báo <i class="bi bi-arrow-right"></i></a>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="text-center py-5">
-                            <img src="/images/empty-state.png" alt="Trống" style="width: 100px; opacity: 0.5; margin-bottom: 15px;" onerror="this.style.display='none'">
-                            <p class="text-muted fw-medium">Chưa có hoạt động nào gần đây.</p>
-                        </div>
-                    }
+                <a href="/Account/Profile" class="btn btn-light btn-sm fw-bold w-100 text-primary">Cập nhật hồ sơ xác thực (KYC)</a>
+            </div>
+
+            <div class="widget-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-calendar-range text-success me-2"></i>Lịch hẹn sắp tới</h6>
+                    <a href="/Appointments/Index" class="small fw-bold text-decoration-none">Xem tất cả</a>
                 </div>
+                @if (upcomingAppointments.Any())
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var appt in upcomingAppointments)
+                        {
+                            <div class="appt-item">
+                                <h6 class="fw-bold text-dark mb-1 fs-6">@appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</h6>
+                                <p class="mb-1 text-muted small text-truncate">Gặp: <strong>@(appt.Buyer?.FullName ?? "Khách hàng")</strong></p>
+                                <p class="mb-0 text-primary small text-truncate"><i class="bi bi-house me-1"></i>@appt.Property?.Title</p>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-3">
+                        <i class="bi bi-calendar-x fs-1 text-muted opacity-25"></i>
+                        <p class="text-muted small mt-2 m-0">Bạn chưa có lịch hẹn nào sắp tới.</p>
+                    </div>
+                }
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-12">
-            <div class="modern-table pb-2">
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="modern-table pb-2 h-100">
                 <div class="d-flex justify-content-between align-items-center p-4 border-bottom">
-                    <h5 class="fw-bold mb-0"><i class="bi bi-card-list text-success me-2"></i>Tin đăng gần đây của bạn</h5>
-                    <a href="/Property/MyAds" class="btn btn-sm btn-outline-primary fw-bold">Quản lý toàn bộ tin</a>
+                    <h5 class="fw-bold mb-0"><i class="bi bi-card-list text-success me-2"></i>Bất động sản mới đăng</h5>
+                    <a href="/Property/MyAds" class="btn btn-sm btn-outline-primary fw-bold">Quản lý kho tin</a>
                 </div>
-
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th width="40%">Bất động sản</th>
+                                <th width="45%">Thông tin BĐS</th>
                                 <th>Mức giá</th>
-                                <th>Ngày đăng</th>
                                 <th>Trạng thái</th>
-                                <th class="text-end">Hành động</th>
+                                <th class="text-end">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -329,40 +315,33 @@
                                 {
                                     <tr>
                                         <td>
-                                            <div class="d-flex align-items-center gap-3">
-                                                <img src="@(string.IsNullOrEmpty(prop.MainImage) ? "/images/default-house.jpg" : prop.MainImage)"
-                                                     class="rounded-3 object-fit-cover" width="60" height="60" onerror="this.src='https://via.placeholder.com/60x60?text=No+Image'">
+                                            <div class="d-flex gap-3 align-items-center">
+                                                <img src="@(string.IsNullOrEmpty(prop.MainImage) ? "/images/default-house.jpg" : prop.MainImage)" class="rounded-3 object-fit-cover shadow-sm" width="65" height="65">
                                                 <div>
-                                                    <h6 class="fw-bold mb-1 text-truncate" style="max-width: 250px;">@prop.Title</h6>
-                                                    <small class="text-muted"><i class="bi bi-geo-alt-fill text-danger"></i> Mã tin: #@prop.PropertyID</small>
+                                                    <h6 class="fw-bold mb-1 text-dark text-truncate" style="max-width: 250px;" title="@prop.Title">@prop.Title</h6>
+                                                    <small class="text-muted"><i class="bi bi-clock me-1"></i>@prop.CreatedAt.ToString("dd/MM/yyyy")</small>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <span class="text-danger fw-bold fs-6">
-                                                @(prop.Price.HasValue? prop.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")
-                                            </span>
-                                        </td>
-                                        <td>@prop.CreatedAt.ToString("dd/MM/yyyy")</td>
+                                        <td><span class="text-danger fw-bold">@(prop.Price.HasValue? prop.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")</span></td>
                                         <td>
                                             @if (prop.Status == "Approved" || prop.Status == "Active")
                                             {
-                                                <span class="badge bg-success-soft px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Đang hiển thị</span>
+                                                <span class="badge bg-success-subtle text-success px-2 py-1">Hiển thị</span>
                                             }
                                             else if (prop.Status == "Pending")
                                             {
-                                                <span class="badge bg-warning-soft px-3 py-2 rounded-pill"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
+
+                                                <span class="badge bg-warning-subtle text-warning-emphasis px-2 py-1">Chờ duyệt</span>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-danger-soft px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Từ chối/Ẩn</span>
+
+                                                <span class="badge bg-danger-subtle text-danger px-2 py-1">Bị từ chối</span>
                                             }
                                         </td>
                                         <td class="text-end">
-                                            <div class="btn-group">
-                                                <a href="/Property/Details/@prop.PropertyID" class="btn btn-sm btn-light border text-primary" title="Xem trên Web" target="_blank"><i class="bi bi-eye"></i></a>
-                                                <a href="/Property/Edit/@prop.PropertyID" class="btn btn-sm btn-light border text-warning" title="Chỉnh sửa"><i class="bi bi-pencil-square"></i></a>
-                                            </div>
+                                            <a href="/Property/Edit/@prop.PropertyID" class="btn btn-sm btn-light border text-warning"><i class="bi bi-pencil-square"></i></a>
                                         </td>
                                     </tr>
                                 }
@@ -370,10 +349,9 @@
                             else
                             {
                                 <tr>
-                                    <td colspan="5" class="text-center py-5 text-muted fw-medium">
-                                        <i class="bi bi-folder2-open display-4 d-block mb-3 text-secondary opacity-50"></i>
-                                        Bạn chưa đăng bất động sản nào.<br>
-                                        <a href="/Property/Create" class="btn btn-primary mt-3 fw-bold shadow-sm"><i class="bi bi-plus-circle me-2"></i>Đăng tin đầu tiên ngay</a>
+                                    <td colspan="4" class="text-center py-5 text-muted fw-medium">
+                                        <i class="bi bi-folder2-open display-4 opacity-50 d-block mb-2"></i>
+                                        Bạn chưa đăng bất động sản nào.
                                     </td>
                                 </tr>
                             }
@@ -382,49 +360,109 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-xl-4">
+            <div class="widget-card mb-4">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-receipt text-secondary me-2"></i>Giao dịch gần đây</h6>
+                    <a href="/Payment/History" class="small fw-bold text-decoration-none">Chi tiết</a>
+                </div>
+                @if (recentTransactions.Any())
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var trans in recentTransactions)
+                        {
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1 text-dark fw-bold text-truncate" style="max-width: 150px; font-size:0.9rem;">@trans.Type</h6>
+                                    <small class="text-muted">@trans.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="d-block fw-bold text-danger">-@trans.Amount.ToString("N0")đ</span>
+                                    @if (trans.Status == "Success")
+                                    {
+                                        <small class="text-success fw-bold">Thành công</small>
+                                    }
+                                    else
+                                    {
+
+                                        <small class="text-warning fw-bold">Chờ xử lý</small>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center text-muted small m-0 py-2">Chưa có giao dịch phát sinh.</p>
+                }
+            </div>
+
+            <div class="widget-card">
+                <h6 class="fw-bold border-bottom pb-3 mb-3"><i class="bi bi-bell text-warning me-2"></i>Thông báo hệ thống</h6>
+                @if (recentNotifications.Any())
+                {
+                    <div class="timeline">
+                        @foreach (var noti in recentNotifications)
+                        {
+                            <div class="timeline-item">
+                                <h6 class="fw-bold text-dark mb-1 fs-6">@noti.Title</h6>
+                                <p class="text-muted small mb-1 line-clamp-2">@noti.Content</p>
+                                <small class="text-primary fw-medium">@noti.CreatedAt.ToString("HH:mm - dd/MM")</small>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-center text-muted small m-0 py-2">Không có thông báo mới.</p>
+                }
+            </div>
+        </div>
     </div>
 </div>
 
 @section Scripts {
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            // CẤU HÌNH BIỂU ĐỒ CHART.JS (Chuẩn 2026 - Mượt mà, Gradient đẹp)
-            const ctx = document.getElementById('interactionChart').getContext('2d');
+            // Lấy dữ liệu biểu đồ từ Controller đẩy xuống
+            const rawLabels = @Html.Raw(ViewBag.ChartLabels);
+            const rawData = @Html.Raw(ViewBag.ChartData);
 
-            // Tạo Gradient màu cho vùng bên dưới đường Line
-            let gradient = ctx.createLinearGradient(0, 0, 0, 400);
-            gradient.addColorStop(0, 'rgba(0, 97, 242, 0.4)');   // Màu xanh đậm ở trên
-            gradient.addColorStop(1, 'rgba(0, 97, 242, 0.0)');   // Trong suốt ở dưới
+            const ctx = document.getElementById('viewChart').getContext('2d');
 
-            const interactionChart = new Chart(ctx, {
+            // Tạo Gradient màu cực đẹp
+            let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)'); // Blue
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+            new Chart(ctx, {
                 type: 'line',
                 data: {
-                    // Trục X (7 Ngày qua) - Có thể fetch bằng AJAX sau này
-                    labels: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'],
+                    labels: rawLabels,
                     datasets: [{
                         label: 'Lượt xem trang',
-                        data: [12, 19, 15, 25, 22, 30, @(totalViews > 30 ? totalViews / 2 : 45)], // Fake data nhẹ trộn với data thật
-                        borderColor: '#0061f2',
-                        backgroundColor: gradient, // Đổ màu Gradient
+                        data: rawData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: gradient,
                         borderWidth: 3,
                         pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#0061f2',
+                        pointBorderColor: '#3b82f6',
                         pointBorderWidth: 2,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                        fill: true, // Kích hoạt đổ màu vùng dưới
-                        tension: 0.4 // Độ cong của đường (0 = thẳng, 0.4 = cong mượt)
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.4 // Đường cong mượt
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            display: false // Ẩn chú thích vì chỉ có 1 đường
-                        },
+                        legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            backgroundColor: '#1e293b',
                             titleFont: { size: 13, family: "'Inter', sans-serif" },
                             bodyFont: { size: 14, weight: 'bold', family: "'Inter', sans-serif" },
                             padding: 12,
@@ -435,31 +473,16 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: {
-                                color: '#f1f5f9',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { family: "'Inter', sans-serif", size: 12 }
-                            }
+                            grid: { borderDash: [5, 5], color: '#f1f5f9', drawBorder: false },
+                            ticks: { color: '#94a3b8', font: { family: "'Inter', sans-serif" }, stepSize: 1 }
                         },
                         x: {
-                            grid: {
-                                display: false,
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: '#64748b',
-                                font: { family: "'Inter', sans-serif", weight: '500' }
-                            }
+                            grid: { display: false, drawBorder: false },
+                            ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", weight: '500' } }
                         }
                     },
                     animation: {
-                        y: {
-                            duration: 2000,
-                            easing: 'easeOutElastic'
-                        }
+                        y: { duration: 1500, easing: 'easeOutElastic' }
                     }
                 }
             });

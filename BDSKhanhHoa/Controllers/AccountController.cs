@@ -19,8 +19,10 @@ namespace BDSKhanhHoa.Controllers
         private readonly EmailSender _emailSender;
         private readonly IWebHostEnvironment _hostEnvironment;
 
+        // ĐÃ KHẮC PHỤC LỖI TẠI ĐÂY: Khai báo đầy đủ các hằng số Session
         private const string SESSION_OTP = "RegOTP";
         private const string SESSION_USER = "PendingUser";
+        private const string SESSION_USER_ID = "PendingUserID"; // <-- Bổ sung biến này
         private const string SESSION_OTP_TIME = "LastOTPTime";
 
         public AccountController(ApplicationDbContext db, EmailSender emailSender, IWebHostEnvironment hostEnvironment)
@@ -30,9 +32,6 @@ namespace BDSKhanhHoa.Controllers
             _hostEnvironment = hostEnvironment;
         }
 
-        // ===============================================
-        // HÀM UPDATE CLAIMS CHO COOKIE AUTHENTICATION
-        // ===============================================
         private async Task UpdateUserClaims(User user)
         {
             var claims = new List<Claim> {
@@ -42,28 +41,20 @@ namespace BDSKhanhHoa.Controllers
                 new Claim(ClaimTypes.Role, user.RoleID == 1 ? "Admin" : (user.RoleID == 2 ? "Staff" : "Member")),
                 new Claim("Avatar", user.Avatar ?? "/images/avatars/default-user.png")
             };
-
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var principal = new ClaimsPrincipal(identity);
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
         }
 
-        // ===============================================
-        // HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO TÀI KHOẢN MỚI
-        // ===============================================
         private async Task GrantWelcomeFreeCredits(int userId)
         {
-            // 1. Tìm gói "Tin Thường" trên hệ thống (hoặc gói có giá rẻ nhất/miễn phí)
             var normalPackage = await _db.PostServicePackages
                 .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường" || p.Price == 0);
 
-            // Nếu không có gói "Tin Thường", lấy đại gói có giá thấp nhất làm gói mặc định
             if (normalPackage == null)
             {
                 normalPackage = await _db.PostServicePackages.OrderBy(p => p.Price).FirstOrDefaultAsync();
             }
 
-            // 2. Nếu tìm thấy gói, tiến hành nạp 5 lượt vào ví (Bảng Transactions)
             if (normalPackage != null)
             {
                 for (int i = 0; i < 5; i++)
@@ -72,9 +63,9 @@ namespace BDSKhanhHoa.Controllers
                     {
                         UserID = userId,
                         PackageID = normalPackage.PackageID,
-                        PropertyID = null, // Lượt đăng được lưu trong ví (chưa dùng cho BĐS nào)
+                        PropertyID = null,
                         Amount = 0,
-                        Type = "Tặng lượt đăng tin thường", // Đảm bảo cột Type không bị NULL
+                        Type = "Tặng lượt đăng tin thường",
                         PaymentMethod = "System Gift",
                         TransactionCode = "WELCOME" + DateTime.Now.ToString("yyyyMMddHHmmss") + userId + i,
                         Status = "Success",
@@ -85,15 +76,11 @@ namespace BDSKhanhHoa.Controllers
                 await _db.SaveChangesAsync();
             }
         }
-        // ===============================================
-        // XEM HỒ SƠ CÔNG KHAI (PUBLIC PROFILE)
-        // Dành cho khách hàng xem uy tín của người đăng tin
-        // ===============================================
+
         [AllowAnonymous]
         [Route("Nguoi-Dang-Tin/{id}")]
         public async Task<IActionResult> UserProfile(int id)
         {
-            // Lấy thông tin user
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == id && !u.IsDeleted);
             if (user == null)
             {
@@ -101,20 +88,18 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            // Lấy danh sách tin đang hiển thị (Approved) của user này
             var activeProperties = await _db.Properties
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Include(p => p.PropertyType)
-                .Include(p => p.PostServicePackage) // Để lấy màu sắc/badge gói VIP
+                .Include(p => p.PostServicePackage)
                 .Where(p => p.UserID == id && p.Status == "Approved" && p.IsDeleted == false)
-                .OrderByDescending(p => p.PackageID) // Ưu tiên tin VIP lên trước
+                .OrderByDescending(p => p.PackageID)
                 .ThenByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
             ViewBag.ActiveProperties = activeProperties;
             ViewBag.TotalActive = activeProperties.Count;
 
-            // Tính toán độ uy tín (Profile Completion) để hiển thị
             int completionRate = 20;
             if (!string.IsNullOrEmpty(user.FullName)) completionRate += 20;
             if (!string.IsNullOrEmpty(user.Phone)) completionRate += 20;
@@ -124,10 +109,10 @@ namespace BDSKhanhHoa.Controllers
             if (!string.IsNullOrEmpty(user.Facebook)) completionRate += 10;
 
             ViewBag.TrustScore = completionRate;
-
             return View(user);
         }
-        #region ĐĂNG KÝ & ĐĂNG NHẬP
+
+        #region ĐĂNG KÝ & ĐĂNG NHẬP (TIER 1 AUTH)
         [HttpGet]
         public IActionResult Register() => View(new RegisterViewModel());
 
@@ -137,81 +122,89 @@ namespace BDSKhanhHoa.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
-            var exist = await _db.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-            if (exist != null)
+            var existUser = await _db.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
+            if (existUser != null)
             {
-                ModelState.AddModelError("Email", "Email này đã được đăng ký trên hệ thống.");
-                return View(model);
+                if (existUser.IsEmailVerified == true)
+                {
+                    ModelState.AddModelError("Email", "Email này đã được đăng ký và xác thực. Vui lòng đăng nhập.");
+                    return View(model);
+                }
+                // Nếu tồn tại rác chưa verify -> Xóa để tạo lại phiên mới
+                _db.Users.Remove(existUser);
+                await _db.SaveChangesAsync();
             }
 
-            string avatarPath = "/images/avatars/default-user.png";
-            if (model.AvatarFile != null)
-            {
-                string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "images/avatars");
-                if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
-                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(model.AvatarFile.FileName);
-                using (var stream = new FileStream(Path.Combine(uploadDir, fileName), FileMode.Create)) { await model.AvatarFile.CopyToAsync(stream); }
-                avatarPath = "/images/avatars/" + fileName;
-            }
-
-            string otpCode = new Random().Next(100000, 999999).ToString();
-            var pendingUser = new User
+            // Mặc định tài khoản tạo ra bị KHÓA (IsEmailVerified = false)
+            var newUser = new User
             {
                 FullName = model.FullName,
                 Email = model.Email,
-                Phone = model.Phone,
-                Password = PasswordHasher.HashPassword(model.Password),
-                Avatar = avatarPath,
                 Username = model.Email,
-                Address = model.Address ?? "",
-                RoleID = 3, // Member
+                Password = PasswordHasher.HashPassword(model.Password),
+                Avatar = "/images/avatars/default-user.png",
+                RoleID = 3,
                 IsActive = true,
-                IsEmailVerified = true,
+                IsEmailVerified = false,
                 CreatedAt = DateTime.Now
             };
 
+            _db.Users.Add(newUser);
+            await _db.SaveChangesAsync();
+
+            string otpCode = new Random().Next(100000, 999999).ToString();
             HttpContext.Session.SetString(SESSION_OTP, otpCode);
-            HttpContext.Session.SetString(SESSION_USER, JsonConvert.SerializeObject(pendingUser));
+            HttpContext.Session.SetInt32(SESSION_USER_ID, newUser.UserID);
 
-            // Code gửi Email OTP (Mở comment nếu đã cấu hình SMTP)
-            // await _emailSender.SendEmailAsync(model.Email, "MÃ XÁC THỰC OTP", $"Mã xác thực BDS Khánh Hòa của bạn là: {otpCode}");
+            // TODO: Bật _emailSender khi triển khai thực tế
+            // await _emailSender.SendEmailAsync(model.Email, "Xác thực OTP - BDS Khánh Hòa", $"Mã xác thực của bạn là: {otpCode}");
 
-            Console.WriteLine($"OTP CODE CHO {model.Email} LA: {otpCode}");
+            Console.WriteLine($"[HỆ THỐNG DEV] MÃ OTP CHO {model.Email} LÀ: {otpCode}");
 
+            TempData["EmailToVerify"] = model.Email;
             return RedirectToAction("VerifyOTP");
         }
 
         [HttpGet]
-        public IActionResult VerifyOTP() => View();
+        public IActionResult VerifyOTP()
+        {
+            if (HttpContext.Session.GetInt32(SESSION_USER_ID) == null)
+                return RedirectToAction("Register");
+            return View();
+        }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyOTP(string otp)
         {
             var serverOtp = HttpContext.Session.GetString(SESSION_OTP);
-            if (otp == serverOtp) return await FinalizeRegistration();
+            var pendingUserId = HttpContext.Session.GetInt32(SESSION_USER_ID);
+
+            if (pendingUserId == null || serverOtp == null)
+                return RedirectToAction("Register");
+
+            if (otp == serverOtp)
+            {
+                var user = await _db.Users.FindAsync(pendingUserId);
+                if (user != null)
+                {
+                    // Cấp phép sử dụng tài khoản
+                    user.IsEmailVerified = true;
+                    await _db.SaveChangesAsync();
+
+                    HttpContext.Session.Remove(SESSION_OTP);
+                    HttpContext.Session.Remove(SESSION_USER_ID);
+
+                    // Quà tặng thành viên mới
+                    await GrantWelcomeFreeCredits(user.UserID);
+
+                    TempData["Success"] = "Xác thực thành công! Bạn được tặng 5 lượt đăng tin miễn phí. Hãy đăng nhập để trải nghiệm.";
+                    return RedirectToAction("Login");
+                }
+            }
+
             ViewBag.Error = "Mã OTP không chính xác. Vui lòng thử lại.";
             return View();
-        }
-
-        private async Task<IActionResult> FinalizeRegistration()
-        {
-            var userJson = HttpContext.Session.GetString(SESSION_USER);
-            if (string.IsNullOrEmpty(userJson)) return RedirectToAction("Register");
-
-            var user = JsonConvert.DeserializeObject<User>(userJson);
-
-            // Lưu User mới vào hệ thống
-            _db.Users.Add(user);
-            await _db.SaveChangesAsync();
-
-            // GỌI HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO USER MỚI
-            await GrantWelcomeFreeCredits(user.UserID);
-
-            HttpContext.Session.Remove(SESSION_OTP);
-            HttpContext.Session.Remove(SESSION_USER);
-            TempData["Success"] = "Đăng ký thành công! Bạn được tặng 5 lượt đăng tin thường vào ví. Hãy đăng nhập để bắt đầu.";
-            return RedirectToAction("Login");
         }
 
         [HttpGet]
@@ -225,21 +218,38 @@ namespace BDSKhanhHoa.Controllers
 
             var user = await _db.Users.FirstOrDefaultAsync(u => (u.Email == model.AccountName || u.Username == model.AccountName) && !u.IsDeleted);
 
-            if (user != null && user.IsActive && PasswordHasher.VerifyPassword(model.Password, user.Password))
+            if (user != null && PasswordHasher.VerifyPassword(model.Password, user.Password))
             {
+                if (user.IsActive == false)
+                {
+                    ModelState.AddModelError("", "Tài khoản của bạn đã bị khóa bởi Ban Quản Trị.");
+                    return View(model);
+                }
+
+                // LOGIC CHẶN CỬA BẢO MẬT KÉP: Chưa verify email thì cấm đăng nhập
+                if (user.IsEmailVerified == false || user.IsEmailVerified == null)
+                {
+                    string newOtp = new Random().Next(100000, 999999).ToString();
+                    HttpContext.Session.SetString(SESSION_OTP, newOtp);
+                    HttpContext.Session.SetInt32(SESSION_USER_ID, user.UserID);
+
+                    Console.WriteLine($"[HỆ THỐNG DEV] RESEND OTP: {newOtp}");
+
+                    TempData["Warning"] = "Bạn chưa hoàn tất xác thực Email. Chúng tôi vừa gửi lại mã OTP cho bạn.";
+                    TempData["EmailToVerify"] = user.Email;
+                    return RedirectToAction("VerifyOTP");
+                }
+
                 await UpdateUserClaims(user);
 
                 if (user.RoleID == 1 || user.RoleID == 2) return RedirectToAction("Index", "Dashboard", new { area = "Admin" });
-                return RedirectToAction("MyAds", "Property");
+                return RedirectToAction("Index", "Home");
             }
 
-            ModelState.AddModelError("", "Tài khoản, mật khẩu không đúng hoặc tài khoản bị khóa.");
+            ModelState.AddModelError("", "Tài khoản, mật khẩu không đúng hoặc tài khoản không tồn tại.");
             return View(model);
         }
 
-        // ===============================================
-        // ĐĂNG NHẬP BẰNG GOOGLE (AUTH)
-        // ===============================================
         [AllowAnonymous]
         [HttpGet("Account/LoginGoogle")]
         public IActionResult LoginGoogle()
@@ -263,15 +273,14 @@ namespace BDSKhanhHoa.Controllers
 
             if (user == null)
             {
-                // Nếu chưa có tài khoản -> Tự động tạo mới
                 user = new User
                 {
                     FullName = name,
                     Email = email,
                     Username = email,
-                    Password = "GOOGLE_AUTH", // Mật khẩu đánh dấu sinh từ Google
-                    RoleID = 3, // Member
-                    IsEmailVerified = true,
+                    Password = "GOOGLE_AUTH",
+                    RoleID = 3,
+                    IsEmailVerified = true, // Đăng nhập Google được tính là đã xác thực email
                     CreatedAt = DateTime.Now,
                     Avatar = "/images/avatars/default-user.png",
                     IsActive = true
@@ -279,8 +288,6 @@ namespace BDSKhanhHoa.Controllers
 
                 _db.Users.Add(user);
                 await _db.SaveChangesAsync();
-
-                // GỌI HÀM TẶNG 5 LƯỢT ĐĂNG TIN THƯỜNG CHO USER MỚI (TẠO TỪ GOOGLE)
                 await GrantWelcomeFreeCredits(user.UserID);
             }
 
@@ -304,25 +311,28 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login");
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == userId);
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId);
             if (user == null) return NotFound();
 
-            // Thống kê dành cho Member
-            ViewBag.TotalProps = await _db.Properties.CountAsync(p => p.UserID == userId && !p.IsDeleted.Value);
-            ViewBag.TotalProjects = await _db.Projects.CountAsync(p => p.UserID == userId && !p.IsDeleted.Value);
+            // 1. Thống kê chỉ số hoạt động cá nhân
+            ViewBag.TotalProps = await _db.Properties.CountAsync(p => p.UserID == userId && p.IsDeleted == false);
+            ViewBag.TotalProjects = await _db.Projects.CountAsync(p => p.OwnerUserID == userId && p.IsDeleted == false);
 
-            // Kiểm tra quyền: Nếu là Admin (1) hoặc Staff (2)
+            // 2. TRÍCH XUẤT DỮ LIỆU PHÁP NHÂN (BUSINESS PROFILE)
+            // Dữ liệu này sẽ được truyền sang View để render phân hệ "Hồ sơ Doanh nghiệp"
+            ViewBag.BusinessProfile = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(b => b.UserID == userId);
+
+            // 3. Phân luồng giao diện cho Quản trị viên
             if (user.RoleID == 1 || user.RoleID == 2)
             {
-                ViewBag.PendingAds = await _db.Properties.CountAsync(p => p.Status == "Pending" && !p.IsDeleted.Value);
+                ViewBag.PendingAds = await _db.Properties.CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
                 ViewBag.TotalUsers = await _db.Users.CountAsync(u => !u.IsDeleted);
-                ViewBag.NewReports = await _db.PropertyReports.CountAsync(r => r.Status == "Pending");
+                ViewBag.NewReports = await _db.PropertyReports.CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
 
-                // Trả về View riêng dành cho Admin
-                return View("AdminProfile", user);
+                // Nếu Admin có giao diện Profile riêng thì dùng "AdminProfile", nếu không cứ return View(user)
+                return View(user);
             }
 
-            // Trả về View dành cho Member
             return View(user);
         }
         [HttpPost]
@@ -339,7 +349,6 @@ namespace BDSKhanhHoa.Controllers
                 user.FullName = model.FullName;
                 user.Phone = model.Phone;
                 user.Address = model.Address;
-                // Zalo & FB
                 user.Zalo = model.Zalo;
                 user.Facebook = model.Facebook;
                 user.Bio = model.Bio;
@@ -383,17 +392,15 @@ namespace BDSKhanhHoa.Controllers
         {
             return View();
         }
-        // ===============================================
-        // TRANG TỪ CHỐI QUYỀN TRUY CẬP (HTTP 403)
-        // ===============================================
+
         [AllowAnonymous]
         [HttpGet]
         public IActionResult AccessDenied(string? ReturnUrl = null)
         {
-            // Trả về đường dẫn mà người dùng cố gắng truy cập nhưng bị chặn
             ViewBag.ReturnUrl = ReturnUrl;
             return View();
         }
+
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]

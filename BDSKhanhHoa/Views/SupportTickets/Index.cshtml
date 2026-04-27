@@ -1,0 +1,126 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Trung tâm hỗ trợ";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    string businessName = ViewBag.BusinessName as string ?? "Doanh nghiệp đối tác";
+    int projectCount = ViewBag.ProjectCount ?? 0;
+}
+
+<style>
+    .ticket-topbar, .ticket-card {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .ticket-topbar {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .ticket-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .ticket-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .ticket-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .ticket-input {
+        border-radius: 16px;
+        min-height: 52px;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
+        font-weight: 600;
+    }
+</style>
+
+<div class="ticket-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <div class="ticket-title">Trung tâm hỗ trợ</div>
+        <p class="ticket-subtitle">Gửi yêu cầu cập nhật dự án, đổi ảnh, đổi giá, hoặc hỏi admin duyệt hồ sơ.</p>
+        <div class="mt-2 text-muted small fw-semibold">@businessName</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <span class="ticket-chip"><i class="bi bi-building"></i> @projectCount dự án</span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <div class="ticket-card p-4">
+            <h5 class="fw-bold mb-3">Gửi yêu cầu hỗ trợ</h5>
+
+            <form asp-action="Submit" asp-controller="SupportTickets" method="post" class="row g-3">
+                @Html.AntiForgeryToken()
+
+                <div class="col-12">
+                    <label class="form-label fw-bold">Chủ đề</label>
+                    <input type="text" name="subject" class="form-control ticket-input" placeholder="Ví dụ: Cập nhật ảnh bìa dự án" required />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label fw-bold">Dự án liên quan</label>
+                    <select name="projectId" class="form-select ticket-input">
+                        <option value="">-- Chọn dự án --</option>
+                        @if (Model != null)
+                        {
+                            foreach (var p in Model)
+                            {
+                                <option value="@p.ProjectID">@p.ProjectName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label fw-bold">Nội dung</label>
+                    <textarea name="message" class="form-control ticket-input" rows="6" placeholder="Nêu rõ phần cần thay đổi, lý do, file đính kèm nếu có..." required></textarea>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary rounded-pill fw-bold px-4">
+                        Gửi yêu cầu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-xl-5">
+        <div class="ticket-card p-4 mb-4">
+            <h5 class="fw-bold mb-3">Nguyên tắc xử lý</h5>
+            <div class="text-muted">
+                CĐT không tự ý sửa trực tiếp các phần đã quản lý tập trung. Hãy gửi yêu cầu để admin duyệt theo đúng quy trình.
+            </div>
+        </div>
+
+        <div class="ticket-card p-4">
+            <h5 class="fw-bold mb-3">Các nhóm yêu cầu thường gặp</h5>
+            <ul class="mb-0 text-muted">
+                <li>Đổi ảnh bìa hoặc ảnh thumbnail</li>
+                <li>Điều chỉnh giá min/max</li>
+                <li>Cập nhật mô tả dự án</li>
+                <li>Thêm file pháp lý mới</li>
+                <li>Thông báo chỉnh sửa thông tin quy mô</li>
+            </ul>
+        </div>
+    </div>
+</div>

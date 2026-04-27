@@ -1,0 +1,233 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@{
+    ViewData["Title"] = "Nhật ký giai đoạn dự án";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    int totalProjects = ViewBag.TotalProjects ?? 0;
+    int activeProjects = ViewBag.ActiveProjects ?? 0;
+    int completedProjects = ViewBag.CompletedProjects ?? 0;
+    int pendingProjects = ViewBag.PendingProjects ?? 0;
+    string businessName = ViewBag.BusinessName as string ?? "Doanh nghiệp đối tác";
+}
+
+<style>
+    .timeline-topbar, .timeline-card {
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border: 1px solid rgba(148,163,184,.15);
+    }
+
+    .timeline-topbar {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .timeline-title {
+        font-size: 1.45rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .timeline-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .timeline-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 700;
+        color: #334155;
+    }
+
+    .phase-box {
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        padding: 18px;
+        height: 100%;
+    }
+
+    .phase-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        margin-top: 7px;
+        flex: 0 0 auto;
+        background: #2563eb;
+    }
+
+        .phase-dot.green {
+            background: #10b981;
+        }
+
+        .phase-dot.yellow {
+            background: #f59e0b;
+        }
+
+        .phase-dot.gray {
+            background: #64748b;
+        }
+
+    .project-block {
+        border-radius: 24px;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+        margin-bottom: 18px;
+    }
+
+    .project-head {
+        padding: 20px 22px;
+        border-bottom: 1px solid #f1f5f9;
+        background: linear-gradient(135deg, #f8fafc, #fff);
+    }
+
+    .project-body {
+        padding: 22px;
+    }
+
+    .project-cover {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .badge-soft {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+</style>
+
+<div class="timeline-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <div class="timeline-title">Nhật ký giai đoạn dự án</div>
+        <p class="timeline-subtitle">Theo dõi tiến độ theo dữ liệu hiện có của dự án, không cần thêm bảng mới.</p>
+        <div class="mt-2 text-muted small fw-semibold">@businessName</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <span class="timeline-chip"><i class="bi bi-building"></i> @totalProjects dự án</span>
+        <span class="timeline-chip"><i class="bi bi-rocket-takeoff"></i> @activeProjects đang mở bán</span>
+        <span class="timeline-chip"><i class="bi bi-check2-circle"></i> @completedProjects hoàn tất</span>
+        <span class="timeline-chip"><i class="bi bi-shield-exclamation"></i> @pendingProjects chờ duyệt</span>
+    </div>
+</div>
+
+@if (Model != null && Model.Any())
+{
+    foreach (var item in Model)
+    {
+        var cover = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+        var approvalBadge = item.ApprovalStatus == "Approved" ? "badge bg-success" : "badge bg-warning text-dark";
+        var statusBadge = item.ProjectStatus == "Đang mở bán" ? "badge bg-primary" : "badge bg-secondary";
+
+        <div class="project-block">
+            <div class="project-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-1 fw-bold">@item.ProjectName</h5>
+                    <div class="text-muted small">
+                        @item.Ward?.WardName, @item.Area?.AreaName
+                    </div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="@statusBadge">@item.ProjectStatus</span>
+                    <span class="@approvalBadge">@item.ApprovalStatus</span>
+                </div>
+            </div>
+
+            <div class="project-body">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <img src="@cover" alt="@item.ProjectName" class="project-cover" />
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="phase-box">
+                                    <div class="d-flex gap-3">
+                                        <span class="phase-dot gray"></span>
+                                        <div>
+                                            <div class="fw-bold">Khởi tạo</div>
+                                            <div class="text-muted small">Tạo hồ sơ dự án</div>
+                                            <div class="fw-semibold mt-1">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="phase-box">
+                                    <div class="d-flex gap-3">
+                                        <span class="phase-dot yellow"></span>
+                                        <div>
+                                            <div class="fw-bold">Xuất bản</div>
+                                            <div class="text-muted small">Đưa lên hệ thống</div>
+                                            <div class="fw-semibold mt-1">
+                                                @(item.PublishedAt.HasValue? item.PublishedAt.Value.ToString("dd/MM/yyyy HH:mm") : "Chưa xuất bản")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="phase-box">
+                                    <div class="d-flex gap-3">
+                                        <span class="phase-dot green"></span>
+                                        <div>
+                                            <div class="fw-bold">Cập nhật gần nhất</div>
+                                            <div class="text-muted small">Thông tin điều phối</div>
+                                            <div class="fw-semibold mt-1">
+                                                @(item.UpdatedAt.HasValue? item.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm") : "Chưa cập nhật")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="phase-box">
+                                    <div class="fw-bold mb-2">Ghi chú giai đoạn</div>
+                                    <div class="text-muted">
+                                        @if (string.IsNullOrWhiteSpace(item.Description))
+                                        {
+                                            <span>Chưa có mô tả tiến độ.</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@item.Description</span>
+                                        }
+                                    </div>
+                                    <div class="mt-3">
+                                        <a href="/Project/Details/@item.ProjectID" class="btn btn-outline-primary rounded-pill fw-bold">
+                                            Xem chi tiết dự án
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="timeline-card p-5 text-center">
+        <i class="bi bi-inbox display-1 text-muted opacity-25"></i>
+        <h5 class="fw-bold mt-3">Chưa có dự án nào</h5>
+        <div class="text-muted">Khi bạn có dự án, hệ thống sẽ hiển thị nhật ký giai đoạn ở đây.</div>
+    </div>
+}
