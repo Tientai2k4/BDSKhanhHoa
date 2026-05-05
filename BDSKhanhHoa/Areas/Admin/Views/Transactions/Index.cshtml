@@ -98,6 +98,7 @@
         overflow: hidden;
     }
 
+    /* Bảng cho Desktop */
     .data-table thead th {
         background: #f8fafc;
         color: #475569;
@@ -122,6 +123,7 @@
         background-color: #f8fafc;
     }
 
+    /* Nút Thao tác */
     .action-btn {
         width: 38px;
         height: 38px;
@@ -172,6 +174,57 @@
         color: white;
         box-shadow: 0 4px 12px rgba(79,70,229,0.3);
     }
+
+    /* KIẾN TRÚC RESPONSIVE CHO MOBILE (Dạng Card) */
+    @@media (max-width: 991.98px) {
+        .data-table thead {
+            display: none;
+        }
+
+        .data-table tbody tr {
+            display: block;
+            margin: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1rem;
+            background: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .data-table tbody td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: none;
+            padding: 0.75rem 0;
+            border-bottom: 1px dashed #f1f5f9;
+            text-align: right;
+        }
+
+            .data-table tbody td:last-child {
+                border-bottom: none;
+                padding-top: 1rem;
+            }
+            /* Tự động gắn nhãn tiêu đề trước nội dung */
+            .data-table tbody td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                color: #64748b;
+                text-transform: uppercase;
+                font-size: 0.75rem;
+                text-align: left;
+                flex-shrink: 0;
+                width: 40%;
+            }
+
+            .data-table tbody td > div,
+            .data-table tbody td > span,
+            .data-table tbody td > p {
+                text-align: right;
+                margin: 0;
+                justify-content: flex-end;
+            }
+    }
 </style>
 
 <div class="animate__animated animate__fadeInUp">
@@ -185,7 +238,7 @@
         <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</script>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
             <h3 class="fw-black text-dark m-0"><i class="bi bi-bank text-primary me-2"></i>TRUNG TÂM TÀI CHÍNH & ĐỐI SOÁT</h3>
             <p class="text-muted mt-2 mb-0 fs-6">Hệ thống phân tích dòng tiền và kiểm duyệt giao dịch tự động</p>
@@ -289,11 +342,11 @@
             <table class="table data-table mb-0">
                 <thead>
                     <tr>
-                        <th width="12%">Mã Phiếu</th>
+                        <th width="15%">Mã Cụm GD</th>
                         <th width="20%">Đối tác / Khách hàng</th>
-                        <th width="15%">Số tiền</th>
-                        <th width="22%">Chi tiết dịch vụ</th>
-                        <th width="13%">Thời gian tạo</th>
+                        <th width="15%">Tổng tiền</th>
+                        <th width="20%">Chi tiết dịch vụ</th>
+                        <th width="12%">Thời gian tạo</th>
                         <th width="10%">Trạng thái</th>
                         <th width="8%" class="text-center">Điều lệnh</th>
                     </tr>
@@ -304,33 +357,34 @@
                         foreach (var item in Model)
                         {
                             <tr>
-                                <td>
+                                <td data-label="Mã Cụm GD">
                                     <span class="badge bg-light text-dark border px-3 py-2 fs-6 fw-bold shadow-sm">#@item.TransactionCode</span>
                                 </td>
-                                <td>
+                                <td data-label="Khách hàng">
                                     <div class="d-flex align-items-center gap-3">
                                         <img src="@(item.User?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle shadow-sm border" width="45" height="45" style="object-fit:cover;">
-                                        <div>
-                                            <span class="d-block fw-bold text-dark fs-6">@(item.User?.FullName ?? item.User?.Username)</span>
+                                        <div class="text-start">
+                                            <span class="d-block fw-bold text-dark fs-6 text-truncate" style="max-width: 150px;">@(item.User?.FullName ?? item.User?.Username)</span>
                                             <small class="text-muted fw-medium"><i class="bi bi-telephone-fill me-1"></i>@item.User?.Phone</small>
                                         </div>
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="Tổng tiền">
                                     <span class="text-success fw-black fs-5">+ @item.Amount.ToString("N0") ₫</span>
                                 </td>
-                                <td>
-                                    <p class="m-0 fw-bold text-dark text-truncate" style="max-width:260px;" title="@item.Description">@item.Description</p>
+                                <td data-label="Chi tiết dịch vụ">
                                     @if (item.Package != null)
                                     {
-                                        <span class="badge bg-primary-subtle text-primary mt-1 px-2 py-1 border border-primary-subtle"><i class="bi bi-gem me-1"></i>@item.Package.PackageName (x@item.Quantity)</span>
+                                        <span class="badge bg-primary-subtle text-primary mt-1 px-3 py-2 border border-primary-subtle fs-6">
+                                            <i class="bi bi-gem me-1"></i>@item.Package.PackageName (Số lượng: <b>@item.Quantity</b>)
+                                        </span>
                                     }
                                 </td>
-                                <td>
+                                <td data-label="Thời gian">
                                     <span class="d-block fw-bold text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
                                     <small class="text-muted fw-bold"><i class="bi bi-clock me-1"></i>@item.CreatedAt.ToString("HH:mm:ss")</small>
                                 </td>
-                                <td>
+                                <td data-label="Trạng thái">
                                     @if (item.Status == "Success" || item.Status == "Completed")
                                     {
                                         <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill border border-success-subtle shadow-sm"><i class="bi bi-check-circle-fill me-1"></i>Thành công</span>
@@ -344,21 +398,22 @@
                                         <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill border border-danger-subtle shadow-sm"><i class="bi bi-x-circle-fill me-1"></i>Từ chối</span>
                                     }
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center" data-label="Điều lệnh">
                                     @if (item.Status == "Pending")
                                     {
-                                        <div class="d-flex justify-content-center gap-2">
-                                            <button type="button" class="action-btn approve" title="Xác nhận nhận tiền và duyệt" onclick="confirmApprove(@item.TransactionID, '@item.TransactionCode', @item.Amount)">
+                                        <div class="d-flex justify-content-end justify-content-lg-center gap-2">
+                                            <!-- ĐÃ SỬA: Đẩy BaseCode thay vì ID -->
+                                            <button type="button" class="action-btn approve" title="Xác nhận nhận tiền và duyệt" onclick="confirmApprove('@item.TransactionCode', @item.Amount)">
                                                 <i class="bi bi-check-lg fs-5"></i>
                                             </button>
-                                            <button type="button" class="action-btn reject" title="Từ chối hồ sơ này" onclick="confirmReject(@item.TransactionID, '@item.TransactionCode')">
+                                            <button type="button" class="action-btn reject" title="Từ chối hồ sơ này" onclick="confirmReject('@item.TransactionCode')">
                                                 <i class="bi bi-x-lg fs-5"></i>
                                             </button>
                                         </div>
                                     }
                                     else
                                     {
-                                        <span class="text-muted small fw-bold bg-light px-3 py-2 rounded-pill border"><i class="bi bi-shield-lock-fill me-1"></i>Khóa</span>
+                                        <span class="text-muted small fw-bold bg-light px-3 py-2 rounded-pill border"><i class="bi bi-shield-lock-fill me-1"></i>Đã Khóa</span>
                                     }
                                 </td>
                             </tr>
@@ -382,9 +437,9 @@
 
         @if (totalPages > 1)
         {
-            <div class="d-flex justify-content-center mt-4">
+            <div class="d-flex justify-content-center mt-4 pb-3">
                 <nav>
-                    <ul class="pagination pagination-lg">
+                    <ul class="pagination pagination-lg flex-wrap mb-0">
                         <li class="page-item @(currentPage == 1 ? "disabled" : "")">
                             <a class="page-link" href="#" onclick="changePage(@(currentPage - 1))"><i class="bi bi-chevron-left"></i></a>
                         </li>
@@ -410,8 +465,9 @@
         }
     </div>
 
+    <!-- ĐÃ SỬA: Form gửi BaseCode thay vì ID -->
     <form id="statusForm" asp-action="UpdateStatus" method="post" style="display:none;">
-        <input type="hidden" name="id" id="formTransId" />
+        <input type="hidden" name="baseCode" id="formBaseCode" />
         <input type="hidden" name="status" id="formStatus" />
         <input type="hidden" name="adminNote" id="formAdminNote" />
     </form>
@@ -425,14 +481,14 @@
             window.location.href = url.toString();
         }
 
-        function confirmApprove(id, code, amount) {
+        function confirmApprove(baseCode, amount) {
             let formattedAmount = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
             Swal.fire({
                 title: 'BỘ PHẬN TÀI CHÍNH',
                 html: `<div class="text-start">
-                        <p>Xác nhận duyệt khoản thu: <b class="text-success fs-5">${formattedAmount}</b></p>
-                        <p>Mã hệ thống: <b>#${code}</b></p>
-                        <div class="alert alert-warning border-0 small mt-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Hành động này sẽ tự động cấp phát gói VIP và không thể hoàn tác.</div>
+                        <p>Xác nhận duyệt tổng khoản thu: <b class="text-success fs-5">${formattedAmount}</b></p>
+                        <p>Mã hệ thống: <b>#${baseCode}</b></p>
+                        <div class="alert alert-warning border-0 small mt-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Hành động này sẽ duyệt <b>TOÀN BỘ SỐ LƯỢNG GÓI TIN</b> trong cụm giao dịch này.</div>
                        </div>`,
                 icon: 'question',
                 showCancelButton: true,
@@ -442,31 +498,31 @@
                 cancelButtonText: 'Đóng'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    document.getElementById('formTransId').value = id;
+                    document.getElementById('formBaseCode').value = baseCode;
                     document.getElementById('formStatus').value = 'Success';
                     document.getElementById('statusForm').submit();
                 }
             })
         }
 
-        function confirmReject(id, code) {
+        function confirmReject(baseCode) {
             Swal.fire({
                 title: 'TỪ CHỐI GIAO DỊCH',
-                text: `Nhập lý do từ chối mã #${code} để gửi Notification cho khách hàng:`,
+                text: `Nhập lý do từ chối cụm giao dịch #${baseCode} để gửi Notification cho khách hàng:`,
                 input: 'textarea',
                 inputPlaceholder: 'Ví dụ: Sai nội dung chuyển khoản, Không tìm thấy giao dịch tại ngân hàng...',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> Khóa hồ sơ này',
+                confirmButtonText: '<i class="bi bi-trash-fill me-1"></i> Khóa cụm hồ sơ này',
                 cancelButtonText: 'Đóng',
                 inputValidator: (value) => {
                     if (!value) return 'Vui lòng nhập lý do từ chối!'
                 }
             }).then((result) => {
                 if (result.isConfirmed) {
-                    document.getElementById('formTransId').value = id;
+                    document.getElementById('formBaseCode').value = baseCode;
                     document.getElementById('formStatus').value = 'Rejected';
                     document.getElementById('formAdminNote').value = result.value;
                     document.getElementById('statusForm').submit();

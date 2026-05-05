@@ -1463,30 +1463,7 @@
                 </div>
             </div>
 
-            @* ── SELLER'S OTHER LISTINGS ── *@
-            @if (userProps.Any())
-            {
-                <div class="sec-card fade-up fade-up-4">
-                    <div class="sec-title"><i class="bi bi-person-lines-fill"></i> Tin khác của người đăng</div>
-                    <div class="row g-3">
-                        @foreach (var p in userProps)
-                        {
-                            string pPrice = p.Price.HasValue
-                            ? (p.Price >= 1_000_000_000 ? (p.Price / 1_000_000_000M)?.ToString("0.##") + " Tỷ" : (p.Price / 1_000_000M)?.ToString("0.##") + " Tr")
-                            : "Thỏa thuận";
-                            <div class="col-6 col-md-3">
-                                <a href="/Property/Details/@p.PropertyID" class="seller-listing-card">
-                                    <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)" onerror="this.src='/images/no-image.jpg'" />
-                                    <div class="slc-body">
-                                        <div class="slc-title">@p.Title</div>
-                                        <div class="slc-price">@pPrice</div>
-                                    </div>
-                                </a>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
+          
 
             @* ── COMMENTS ── *@
             <div class="sec-card fade-up fade-up-4">
@@ -1847,7 +1824,11 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-bold">Số điện thoại liên hệ <span class="text-danger">*</span></label>
-                        <input type="tel" id="apptPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" value="@autoPhone" required />
+                        <input type="tel" id="apptPhone" class="form-control" placeholder="Ví dụ: 0987654321" value="@autoPhone" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Địa điểm hẹn <span class="text-danger">*</span></label>
+                        <input type="text" id="apptLocation" class="form-control" placeholder="Ví dụ: Tại BĐS hoặc quán cafe..." required />
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-bold">Thời gian hẹn <span class="text-danger">*</span></label>
@@ -1888,7 +1869,7 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" value="@autoPhone" required />
+                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987654321" value="@autoPhone" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);" required />
                     </div>
                     <div class="col-12">
                         <label class="form-label">Email (tùy chọn)</label>
@@ -2039,20 +2020,25 @@
         document.getElementById('btnAppt')?.addEventListener('click', async function() {
             const name = document.getElementById('apptName').value.trim();
             const phone = document.getElementById('apptPhone').value.trim();
+            const loc = document.getElementById('apptLocation').value.trim();
             const d = document.getElementById('apptDate').value;
 
-            if (!name || !phone) { Swal.fire('Lỗi', 'Vui lòng nhập Họ tên và Số điện thoại!', 'warning'); return; }
+            if (!name || !phone || !loc) { Swal.fire('Lỗi', 'Vui lòng nhập đầy đủ Họ tên, Số điện thoại và Địa điểm hẹn!', 'warning'); return; }
+            const phoneRegex = /^[0-9]{10}$/;
+            if (!phoneRegex.test(phone)) { Swal.fire('Lỗi', 'Số điện thoại không hợp lệ (phải đủ 10 chữ số)!', 'warning'); return; }
             if (!d) { Swal.fire('Lỗi', 'Vui lòng chọn ngày & giờ hẹn!', 'warning'); return; }
 
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('customerName', name);
             fd.append('customerPhone', phone);
+            fd.append('meetingLocation', loc);
             fd.append('appointmentDate', d);
             fd.append('note', document.getElementById('apptNote').value);
 
             if (await ajaxPost('/Property/BookAppointment', fd, this, 'Đang đặt lịch...', '<i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch', 'appointmentModal')) {
-                // Chúng ta không xóa giá trị phone/name nếu muốn giữ auto-fill, chỉ xóa note và date
+                // Xóa nội dung nhưng giữ lại Tên, SDT cho lần gửi sau
+                document.getElementById('apptLocation').value = '';
                 document.getElementById('apptDate').value = '';
                 document.getElementById('apptNote').value = '';
             }
@@ -2062,13 +2048,18 @@
         document.getElementById('btnConsult')?.addEventListener('click', async function() {
             const name  = document.getElementById('csName').value.trim();
             const phone = document.getElementById('csPhone').value.trim();
+
             if (!name || !phone) { Swal.fire('Thiếu thông tin', 'Họ tên và số điện thoại là bắt buộc!', 'warning'); return; }
+            const phoneRegex = /^[0-9]{10}$/;
+            if (!phoneRegex.test(phone)) { Swal.fire('Lỗi', 'Số điện thoại không hợp lệ (phải đủ 10 chữ số)!', 'warning'); return; }
+
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('fullName', name);
             fd.append('phone', phone);
             fd.append('email', document.getElementById('csEmail').value);
             fd.append('note',  document.getElementById('csNote').value);
+
             if (await ajaxPost('/Property/SubmitConsultation', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi yêu cầu', 'consultationModal')) {
                 document.getElementById('csNote').value = '';
             }

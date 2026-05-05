@@ -9,7 +9,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
     [Authorize(Roles = "Admin, Staff")] // Phân quyền quản trị
-    [Route("Admin/[controller]/[action]")]
+    [Route("Admin/[controller]")] // SỬA LỖI TẠI ĐÂY: Chỉ định nghĩa Route cha
     public class ContactController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -20,9 +20,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         // ==========================================
-        // 1. DANH SÁCH & TÌM KIẾM LIÊN HỆ (CHỈ KHÁCH VÃNG LAI)
+        // 1. DANH SÁCH & TÌM KIẾM LIÊN HỆ 
         // ==========================================
-        [HttpGet]
+        [HttpGet("")]      // Cho phép truy cập bằng: /Admin/Contact
+        [HttpGet("Index")] // Cho phép truy cập bằng: /Admin/Contact/Index
         public async Task<IActionResult> Index(string? keyword, string? status)
         {
             // BỘ LỌC THÉP: Chỉ lấy liên hệ công khai (Không có UserID và Không có ProjectID)
@@ -54,9 +55,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         // ==========================================
-        // 2. XEM CHI TIẾT (Kèm bảo mật id)
+        // 2. XEM CHI TIẾT
         // ==========================================
-        [HttpGet]
+        [HttpGet("Details/{id?}")] // Xử lý chuẩn cho URL: /Admin/Contact/Details/3
         public async Task<IActionResult> Details(int id)
         {
             // Chỉ tìm đúng trong nhóm khách vãng lai
@@ -71,7 +72,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         // ==========================================
         // 3. CẬP NHẬT TRẠNG THÁI
         // ==========================================
-        [HttpPost]
+        [HttpPost("UpdateStatus")] // Xử lý cho Form submit tới: /Admin/Contact/UpdateStatus
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, string status)
         {
@@ -95,7 +96,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         // ==========================================
         // 4. XÓA TIN NHẮN
         // ==========================================
-        [HttpPost]
+        [HttpPost("Delete")] // Xử lý cho Form submit tới: /Admin/Contact/Delete
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {

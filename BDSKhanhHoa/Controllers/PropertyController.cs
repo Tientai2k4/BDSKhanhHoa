@@ -21,15 +21,35 @@ namespace BDSKhanhHoa.Controllers
             _hostEnvironment = hostEnvironment;
         }
 
-        // ==========================================
-        // 0. TRANG INDEX (Xem toàn bộ tin Bán & Cho thuê)
-        // ==========================================
         [AllowAnonymous]
         public IActionResult Index()
         {
             return RedirectToAction("Search");
         }
 
+        // ==========================================
+        // API TÌM KIẾM ĐỀ XUẤT THÔNG MINH (AUTO-SUGGEST)
+        // ==========================================
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> Suggest(string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword)) return Json(new List<string>());
+
+            var suggestions = await _context.Properties
+                .AsNoTracking()
+                .Where(p => p.Status == "Approved" && p.IsDeleted == false && p.Title.Contains(keyword))
+                .Select(p => p.Title)
+                .Distinct()
+                .Take(5)
+                .ToListAsync();
+
+            return Json(suggestions);
+        }
+
+        // ==========================================
+        // 0. TRANG SEARCH CHÍNH (ĐÃ TỐI ƯU SẮP XẾP)
+        // ==========================================
         [AllowAnonymous]
         [Route("Property/Search")]
         public async Task<IActionResult> Search(
@@ -46,7 +66,6 @@ namespace BDSKhanhHoa.Controllers
             if (string.IsNullOrEmpty(transactionType)) transactionType = "buy";
             keyword = keyword?.Trim().ToLower();
 
-            // 1. ĐỒNG BỘ MỨC GIÁ TỪ TRANG CHỦ
             if (!string.IsNullOrEmpty(priceRange) && !minPrice.HasValue && !maxPrice.HasValue)
             {
                 var parts = priceRange.Split('-');
@@ -61,7 +80,7 @@ namespace BDSKhanhHoa.Controllers
                 .AsNoTracking()
                 .Include(p => p.PropertyType)
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Include(p => p.PostServicePackage) // QUAN TRỌNG: Phải Include để lấy được PriorityLevel
+                .Include(p => p.PostServicePackage)
                 .Where(p => p.Status == "Approved" && p.IsDeleted == false)
                 .AsQueryable();
 
@@ -75,10 +94,8 @@ namespace BDSKhanhHoa.Controllers
             if (wardId.HasValue) query = query.Where(p => p.WardID == wardId);
             if (packageId.HasValue) query = query.Where(p => p.PackageID == packageId);
 
-            // Tính theo đơn vị Triệu VNĐ
             if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value * 1000000);
             if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value * 1000000);
-
             if (minSize.HasValue) query = query.Where(p => p.AreaSize >= minSize.Value);
             if (maxSize.HasValue) query = query.Where(p => p.AreaSize <= maxSize.Value);
 
@@ -93,7 +110,6 @@ namespace BDSKhanhHoa.Controllers
             if (!string.IsNullOrEmpty(legalStatus))
                 query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Pháp lý" && f.FeatureValue == legalStatus));
 
-            // Dùng mảng string thay vì Convert.ToInt32 để tránh lỗi Exception SQL
             if (!string.IsNullOrEmpty(bedrooms))
             {
                 if (bedrooms == "5")
@@ -128,13 +144,26 @@ namespace BDSKhanhHoa.Controllers
                 }
             }
 
-            // 3. SẮP XẾP CHUẨN MỰC: Điểm ưu tiên (PriorityLevel) luôn lên đầu tuyệt đối
+            // SẮP XẾP KHOA HỌC CHUẨN XÁC
+            // Ưu tiên 1: PriorityLevel (Số càng nhỏ càng nằm trên: Kim cương=10, Vàng=40. Tin thường cho số 9999 để nằm chót)
+            // Ưu tiên 2: Mới tới các tiêu chí Giá hoặc Diện tích NẰM TRONG CÙNG 1 LOẠI VIP
             query = sortOrder switch
             {
-                "price_asc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenBy(p => p.Price),
-                "price_desc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.Price),
-                "area_desc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.AreaSize),
-                _ => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.CreatedAt)
+                "price_asc" => query
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
+                    .ThenBy(p => p.Price), // Thấp -> Cao
+
+                "price_desc" => query
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
+                    .ThenByDescending(p => p.Price), // Cao -> Thấp
+
+                "area_desc" => query
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
+                    .ThenByDescending(p => p.AreaSize), // Rộng -> Hẹp
+
+                _ => query
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
+                    .ThenByDescending(p => p.CreatedAt) // Mặc định: Tin VIP ưu tiên, nếu cùng VIP thì tin mới nhất lên trước
             };
 
             int totalItems = await query.CountAsync();
@@ -142,6 +171,27 @@ namespace BDSKhanhHoa.Controllers
             if (page > totalPages) page = totalPages;
 
             var results = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+            // 1. GỬI RA VIEW DANH SÁCH DỰ ÁN THỰC TẾ
+            ViewBag.LatestProjects = await _context.Projects
+                .AsNoTracking()
+                .Include(p => p.Area)
+                .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
+                .OrderByDescending(p => p.PublishedAt)
+                .Take(4)
+                .ToListAsync();
+
+            // 2. GỬI RA VIEW DANH SÁCH ID TIN ĐÃ LƯU ĐỂ HIỂN THỊ TIM ĐỎ
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            List<int> favoritedIds = new List<int>();
+            if (int.TryParse(userIdClaim, out int userIdToken))
+            {
+                favoritedIds = await _context.Favorites
+                    .Where(f => f.UserID == userIdToken)
+                    .Select(f => f.PropertyID)
+                    .ToListAsync();
+            }
+            ViewBag.FavoritedIds = favoritedIds;
 
             var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
             ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
@@ -151,6 +201,12 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
+
+            // KIỂM TRA NẾU LÀ YÊU CẦU AJAX THÌ CHỈ TRẢ VỀ PARTIAL (HTML CỦA DANH SÁCH) MÀ KHÔNG LOAD LẠI BỘ LỌC
+            if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+            {
+                return PartialView("_PropertyGridPartial", results);
+            }
 
             return View("Search", results);
         }
@@ -181,6 +237,7 @@ namespace BDSKhanhHoa.Controllers
 
             var myProperties = await _context.Properties
                 .Include(p => p.PropertyType)
+                .Include(p => p.PostServicePackage)
                 .Where(p => p.UserID == userId && p.IsDeleted == false)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
@@ -188,9 +245,6 @@ namespace BDSKhanhHoa.Controllers
             return View(myProperties);
         }
 
-        // =========================================================
-        // TÍNH NĂNG MỚI: ĐÁNH DẤU TIN ĐÃ GIAO DỊCH THÀNH CÔNG
-        // =========================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsTransacted(int id, string transactionStatus)
@@ -225,16 +279,12 @@ namespace BDSKhanhHoa.Controllers
             return RedirectToAction("MyAds");
         }
 
-        // =========================================================
-        // API LẤY DANH SÁCH GÓI TIN ĐANG SỞ HỮU TRONG VÍ (AJAX)
-        // =========================================================
         [HttpGet]
         public async Task<IActionResult> GetAvailablePackages()
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
 
-            // FIX LỖI VÔ HẠN GÓI: Dùng chuỗi tiếng Anh không dấu "System Gift" để check, tuyệt đối không bao giờ lỗi Unicode
             bool hasReceivedGift = await _context.Transactions.AnyAsync(t => t.UserID == userId && t.PaymentMethod == "System Gift");
 
             if (!hasReceivedGift)
@@ -250,11 +300,11 @@ namespace BDSKhanhHoa.Controllers
                         {
                             UserID = userId,
                             PackageID = normalPackage.PackageID,
-                            PropertyID = null, // Vẫn bằng null để tính là 1 lượt chưa dùng
-                            Quantity = 1,      // Đồng bộ với cấu trúc DB mới
+                            PropertyID = null,
+                            Quantity = 1,
                             Amount = 0,
                             Type = "Tặng lượt đăng tin thường",
-                            PaymentMethod = "System Gift", // Cột này dùng làm "Chìa khóa" nhận diện an toàn
+                            PaymentMethod = "System Gift",
                             TransactionCode = "WELCOME" + DateTime.Now.ToString("yyyyMMddHHmmss") + userId + i,
                             Status = "Success",
                             CreatedAt = DateTime.Now
@@ -287,21 +337,24 @@ namespace BDSKhanhHoa.Controllers
                     price = p.Price,
                     availableCount = a.Count.ToString()
                 };
-            }).OrderByDescending(x => x.priority).ToList();
+            }).OrderBy(x => x.priority).ToList();
 
             return Json(new { success = true, data = resultData });
         }
 
-        // ==========================================
-        // 2. ĐĂNG TIN MỚI (CREATE)
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Create()
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdClaim, out int userId)) return RedirectToAction("Login", "Account");
 
-            // --- BẮT BUỘC: CHẶN CHỦ ĐẦU TƯ TẠO TIN LẺ ---
+            var currentUser = await _context.Users.FindAsync(userId);
+            if (currentUser == null || string.IsNullOrWhiteSpace(currentUser.Phone))
+            {
+                TempData["Error"] = "Bạn phải cập nhật Số Điện Thoại trong tài khoản trước khi đăng tin để khách hàng có thể liên hệ!";
+                return RedirectToAction("Profile", "Account");
+            }
+
             var isBusiness = await _context.BusinessProfiles
                 .AnyAsync(b => b.UserID == userId && b.VerificationStatus == "Approved");
 
@@ -310,7 +363,6 @@ namespace BDSKhanhHoa.Controllers
                 TempData["Error"] = "Tài khoản Doanh nghiệp chỉ được phép đăng Dự án, không được đăng tin lẻ.";
                 return RedirectToAction("Index", "Dashboard");
             }
-            // --------------------------------------------
 
             ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
             var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
@@ -327,11 +379,18 @@ namespace BDSKhanhHoa.Controllers
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
-            // --- BẮT BUỘC: CHẶN CHỦ ĐẦU TƯ TẠO TIN LẺ (SERVER-SIDE CHECK) ---
+
+            var currentUser = await _context.Users.FindAsync(userId);
+            if (currentUser == null || string.IsNullOrWhiteSpace(currentUser.Phone))
+            {
+                TempData["Error"] = "Tài khoản chưa có Số Điện Thoại, không thể đăng tin.";
+                return RedirectToAction("Profile", "Account");
+            }
+
             var isBusiness = await _context.BusinessProfiles
                 .AnyAsync(b => b.UserID == userId && b.VerificationStatus == "Approved");
-
             if (isBusiness) return Forbid();
+
             if (!ModelState.IsValid)
             {
                 ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
@@ -343,7 +402,6 @@ namespace BDSKhanhHoa.Controllers
                 return View(prop);
             }
 
-            // Kiểm tra gói tin và ví
             var selectedPackage = await _context.PostServicePackages.FindAsync(prop.PackageID);
             if (selectedPackage == null) return BadRequest("Gói tin không tồn tại.");
 
@@ -358,7 +416,6 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Create");
             }
 
-            // Xử lý Upload Ảnh Đại Diện
             if (MainImageFile != null && MainImageFile.Length > 0)
             {
                 string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties");
@@ -369,27 +426,28 @@ namespace BDSKhanhHoa.Controllers
             }
             else { prop.MainImage = "/images/no-image.jpg"; }
 
-            // Thiết lập thông tin cơ bản
             prop.UserID = userId;
             prop.Views = 0;
             prop.IsDeleted = false;
             prop.CreatedAt = DateTime.Now;
             prop.UpdatedAt = DateTime.Now;
 
-            // LOGIC DUYỆT THÔNG MINH 2026: VIP >= 3 Auto Approve
-            if (selectedPackage.PriorityLevel >= 3)
+            bool isDiamond = !string.IsNullOrEmpty(selectedPackage.PackageType) &&
+                             selectedPackage.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+
+            if (isDiamond)
             {
                 prop.Status = "Approved";
                 prop.IsAutoApproved = true;
                 prop.ApprovedAt = DateTime.Now;
                 prop.VipExpiryDate = DateTime.Now.AddDays(selectedPackage.DurationDays);
-                TempData["Success"] = "Tin VIP của bạn đã được hệ thống duyệt tự động và hiển thị ngay!";
+                TempData["Success"] = $"Tin VIP '{selectedPackage.PackageName}' của bạn đã được hệ thống duyệt tự động và hiển thị ngay lập tức!";
             }
             else
             {
                 prop.Status = "Pending";
                 prop.IsAutoApproved = false;
-                TempData["Success"] = "Đăng tin thành công! Vui lòng chờ quản trị viên kiểm duyệt.";
+                TempData["Success"] = $"Đăng tin thành công với gói '{selectedPackage.PackageName}'. Vui lòng chờ quản trị viên kiểm duyệt để được hiển thị.";
             }
 
             using var dbTransaction = await _context.Database.BeginTransactionAsync();
@@ -398,12 +456,10 @@ namespace BDSKhanhHoa.Controllers
                 _context.Properties.Add(prop);
                 await _context.SaveChangesAsync();
 
-                // Gán PropertyID vào Transaction để đánh dấu đã dùng lượt
                 creditToUse.PropertyID = prop.PropertyID;
                 _context.Update(creditToUse);
                 await _context.SaveChangesAsync();
 
-                // Lưu Features (Tiện ích, cấu trúc...)
                 var features = new List<PropertyFeature>();
                 string bedrooms = Request.Form["Bedrooms"], bathrooms = Request.Form["Bathrooms"],
                        direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
@@ -421,7 +477,6 @@ namespace BDSKhanhHoa.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                // Lưu Thư viện ảnh phụ
                 if (AdditionalImages != null && AdditionalImages.Any())
                 {
                     string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
@@ -450,10 +505,6 @@ namespace BDSKhanhHoa.Controllers
             return RedirectToAction("MyAds");
         }
 
-
-        // ==========================================
-        // 3. SỬA TIN ĐĂNG (EDIT)
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
@@ -471,11 +522,7 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("MyAds");
             }
 
-            // Kéo danh sách Lớp Cha - Con (Tiện ích, Hướng nhà...) do Admin quản lý truyền ra View
-            ViewBag.MasterFeatures = await _context.PropertyFeatures
-                .Where(f => f.PropertyID == null)
-                .ToListAsync();
-
+            ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
             await LoadEditViewBags(property);
 
             return View(property);
@@ -493,15 +540,35 @@ namespace BDSKhanhHoa.Controllers
 
             if (!ModelState.IsValid)
             {
+                prop.MainImage = existingProp.MainImage;
+                prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
                 await LoadEditViewBags(existingProp);
                 ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
                 TempData["Error"] = "Dữ liệu không hợp lệ, vui lòng kiểm tra lại.";
                 return View(prop);
             }
 
-            // 1. VÁ LỖ HỔNG HACK LƯỢT: Nếu tin bị Rejected (đã hoàn tiền) hoặc đổi gói -> Buộc trừ lượt mới
-            bool isResubmittingRejected = (existingProp.Status == "Rejected");
+            var currentPackage = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
+            var newPackage = await _context.PostServicePackages.FindAsync(prop.PackageID);
+
+            if (currentPackage != null && newPackage != null)
+            {
+                if (newPackage.PriorityLevel > currentPackage.PriorityLevel)
+                {
+                    prop.MainImage = existingProp.MainImage;
+                    prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                    await LoadEditViewBags(existingProp);
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
+
+                    TempData["Error"] = $"Hệ thống không cho phép hạ cấp từ '{currentPackage.PackageName}' xuống '{newPackage.PackageName}'. Vui lòng giữ nguyên hoặc nâng cấp lên gói cao hơn!";
+                    return View(prop);
+                }
+            }
+
             bool isChangingPackage = (existingProp.PackageID != prop.PackageID);
+            bool isResubmittingRejected = (existingProp.Status == "Rejected");
 
             if (isChangingPackage || isResubmittingRejected)
             {
@@ -510,21 +577,22 @@ namespace BDSKhanhHoa.Controllers
 
                 if (newCredit == null)
                 {
+                    prop.MainImage = existingProp.MainImage;
+                    prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
                     await LoadEditViewBags(existingProp);
                     ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
                     TempData["Error"] = isResubmittingRejected
                         ? "Tin bị từ chối đã được hoàn lượt về ví. Vui lòng chọn lại gói tin trong ví để nộp lại!"
-                        : "Ví của bạn không đủ lượt đăng cho gói mới này.";
+                        : $"Ví của bạn không đủ lượt đăng cho gói '{newPackage?.PackageName}'. Vui lòng mua thêm gói.";
                     return View(prop);
                 }
 
-                // Trừ lượt đăng mới
                 newCredit.PropertyID = existingProp.PropertyID;
                 _context.Update(newCredit);
                 existingProp.PackageID = prop.PackageID;
             }
 
-            // 2. Cập nhật thông tin cơ bản (bao gồm Width/Length mới thêm)
             existingProp.Title = prop.Title;
             existingProp.Description = prop.Description;
             existingProp.Price = prop.Price;
@@ -536,28 +604,33 @@ namespace BDSKhanhHoa.Controllers
             existingProp.WardID = prop.WardID;
             existingProp.UpdatedAt = DateTime.Now;
 
-            // 3. LOGIC DUYỆT THÔNG MINH KHI SỬA
-            var currentPackage = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
-            if (currentPackage != null && currentPackage.PriorityLevel >= 3)
+            var packageToApplyStatus = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
+            bool isDiamondStatus = packageToApplyStatus != null &&
+                                   packageToApplyStatus.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+
+            if (isDiamondStatus)
             {
                 existingProp.Status = "Approved";
                 existingProp.IsAutoApproved = true;
                 existingProp.ApprovedAt = DateTime.Now;
-                existingProp.VipExpiryDate = DateTime.Now.AddDays(currentPackage.DurationDays);
-                TempData["Success"] = "Tin VIP đã được hệ thống tự động duyệt lại sau khi bạn sửa.";
+
+                if (isChangingPackage)
+                {
+                    existingProp.VipExpiryDate = DateTime.Now.AddDays(packageToApplyStatus.DurationDays);
+                }
+
+                TempData["Success"] = "Bạn đang sử dụng gói Kim Cương, tin VIP đã được tự động duyệt lại thành công.";
             }
             else
             {
                 existingProp.Status = "Pending";
                 existingProp.IsAutoApproved = false;
-                TempData["Success"] = "Đã cập nhật. Tin đăng đang chờ quản trị viên duyệt lại.";
+                TempData["Success"] = "Đã cập nhật nội dung. Tin đăng của bạn đã được chuyển sang trạng thái CHỜ DUYỆT để Admin kiểm tra.";
             }
 
-            // Quan trọng: Khi sửa tin, coi như bản tin đã mới -> reset cảnh báo trùng lặp và xóa lý do từ chối
             existingProp.IsDuplicate = false;
             existingProp.RejectionReason = null;
 
-            // 4. Xử lý Ảnh Đại Diện
             if (MainImageFile != null && MainImageFile.Length > 0)
             {
                 if (!string.IsNullOrEmpty(existingProp.MainImage) && existingProp.MainImage != "/images/no-image.jpg")
@@ -572,7 +645,6 @@ namespace BDSKhanhHoa.Controllers
                 existingProp.MainImage = "/uploads/properties/" + fileName;
             }
 
-            // 5. Xử lý xóa ảnh phụ
             if (DeletedImageIds != null && DeletedImageIds.Any())
             {
                 var imagesToDelete = await _context.PropertyImages.Where(img => DeletedImageIds.Contains(img.ImageID) && img.PropertyID == id).ToListAsync();
@@ -584,7 +656,6 @@ namespace BDSKhanhHoa.Controllers
                 _context.PropertyImages.RemoveRange(imagesToDelete);
             }
 
-            // 6. Xử lý thêm ảnh phụ mới
             if (AdditionalImages != null && AdditionalImages.Any())
             {
                 string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
@@ -600,7 +671,6 @@ namespace BDSKhanhHoa.Controllers
                 }
             }
 
-            // 7. Cập nhật Features
             var oldFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == id).ToListAsync();
             _context.PropertyFeatures.RemoveRange(oldFeatures);
 
@@ -618,8 +688,6 @@ namespace BDSKhanhHoa.Controllers
             return RedirectToAction("MyAds");
         }
 
-
-        // Hàm hỗ trợ Load ViewBag để tái sử dụng, tránh lặp code và tránh crash khi ModelState fail
         private async Task LoadEditViewBags(Property property)
         {
             ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
@@ -641,9 +709,6 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.OldImages = await _context.PropertyImages.Where(i => i.PropertyID == property.PropertyID && i.IsMain == false).ToListAsync();
         }
 
-        // ==========================================
-        // 4. XÓA TIN DÀNH CHO MEMBER
-        // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteMyAd(int id)
@@ -662,9 +727,7 @@ namespace BDSKhanhHoa.Controllers
             }
             return RedirectToAction("MyAds");
         }
-        // ==========================================
-        // 5. TRANG CHI TIẾT VÀ CÁC API KHÁC
-        // ==========================================
+
         [AllowAnonymous]
         [Route("Property/Details/{id}")]
         public async Task<IActionResult> Details(int id)
@@ -678,7 +741,6 @@ namespace BDSKhanhHoa.Controllers
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Include(p => p.User)
                 .Include(p => p.PostServicePackage)
-                // Đã thêm Include Project để lấy dữ liệu Tên dự án
                 .Include(p => p.Project)
                 .FirstOrDefaultAsync(p => p.PropertyID == id && p.IsDeleted == false);
 
@@ -717,7 +779,7 @@ namespace BDSKhanhHoa.Controllers
                 .OrderByDescending(c => c.CreatedAt).ToListAsync();
 
             bool isFavorited = false;
-            User currentUserInfo = null; // Thêm biến lưu thông tin User đăng nhập
+            User currentUserInfo = null;
             if (currentUserId > 0)
             {
                 isFavorited = await _context.Favorites.AnyAsync(f => f.PropertyID == id && f.UserID == currentUserId);
@@ -725,13 +787,13 @@ namespace BDSKhanhHoa.Controllers
             }
 
             ViewBag.IsFavorited = isFavorited;
-            ViewBag.CurrentUserInfo = currentUserInfo; // Gửi dữ liệu User ra View
+            ViewBag.CurrentUserInfo = currentUserInfo;
 
             return View(property);
         }
 
         // ==========================================
-        // CÁC API TƯƠNG TÁC (ĐÃ VÁ BẢO MẬT TRẠNG THÁI TIN)
+        // CÁC API TƯƠNG TÁC (ĐÃ FIX: TỰ ĐỘNG SINH THÔNG BÁO)
         // ==========================================
         [HttpPost]
         public async Task<IActionResult> SubmitReport([FromForm] int propertyId, [FromForm] string reason, [FromForm] string description)
@@ -739,7 +801,6 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Bạn cần đăng nhập." });
 
-            // CHỐT CHẶN: Chỉ cho thao tác với tin đã duyệt
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
             if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Hành động bị từ chối. Tin đăng chưa được duyệt." });
 
@@ -752,17 +813,19 @@ namespace BDSKhanhHoa.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] string customerName, [FromForm] string customerPhone, [FromForm] DateTime appointmentDate, [FromForm] string note)
+        public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] string customerName, [FromForm] string customerPhone, [FromForm] string meetingLocation, [FromForm] DateTime appointmentDate, [FromForm] string note)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
 
-            // CHỐT CHẶN BẢO MẬT
+            if (string.IsNullOrWhiteSpace(customerPhone) || customerPhone.Trim().Length != 10)
+                return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
+
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
             if (property == null || property.Status != "Approved")
                 return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
 
-            // Lưu lịch hẹn cùng Tên và Số điện thoại người đi xem
+            // 1. Lưu lịch hẹn
             _context.Appointments.Add(new Appointment
             {
                 PropertyID = propertyId,
@@ -770,9 +833,22 @@ namespace BDSKhanhHoa.Controllers
                 SellerID = property.UserID,
                 CustomerName = customerName.Trim(),
                 CustomerPhone = customerPhone.Trim(),
+                MeetingLocation = meetingLocation?.Trim(),
                 AppointmentDate = appointmentDate,
                 Note = note ?? "",
                 Status = "Pending",
+                CreatedAt = DateTime.Now
+            });
+
+            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
+            _context.Notifications.Add(new Notification
+            {
+                UserID = property.UserID,
+                Title = "Lịch hẹn xem nhà mới",
+                Content = $"Khách hàng {customerName} ({customerPhone}) vừa đặt lịch hẹn xem bất động sản '{property.Title}' vào lúc {appointmentDate:HH:mm dd/MM/yyyy}.",
+                ActionUrl = "/Appointments/Index",
+                ActionText = "Xem lịch hẹn",
+                IsRead = false,
                 CreatedAt = DateTime.Now
             });
 
@@ -784,12 +860,13 @@ namespace BDSKhanhHoa.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> SubmitConsultation([FromForm] int propertyId, [FromForm] string fullName, [FromForm] string phone, [FromForm] string email, [FromForm] string note)
         {
-            // CHỐT CHẶN BẢO MẬT
+            if (string.IsNullOrWhiteSpace(phone) || phone.Trim().Length != 10)
+                return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
+
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
             if (property == null || property.Status != "Approved")
                 return Json(new { success = false, message = "Bất động sản này không khả dụng." });
 
-            // MẤU CHỐT SỬA LỖI Ở ĐÂY: Lấy ID người dùng đang đăng nhập (Nếu có)
             int? senderId = null;
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int parsedId))
@@ -797,22 +874,35 @@ namespace BDSKhanhHoa.Controllers
                 senderId = parsedId;
             }
 
-            // Lưu yêu cầu tư vấn kèm theo SenderID
+            // 1. Lưu yêu cầu tư vấn
             _context.Consultations.Add(new Consultation
             {
                 PropertyID = propertyId,
-                FullName = fullName,
-                Phone = phone,
+                FullName = fullName.Trim(),
+                Phone = phone.Trim(),
                 Email = email ?? "",
                 Note = note ?? "",
-                SenderID = senderId, // <-- Đã gán ID người mua vào đây
+                SenderID = senderId,
                 Status = "New",
+                CreatedAt = DateTime.Now
+            });
+
+            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
+            _context.Notifications.Add(new Notification
+            {
+                UserID = property.UserID,
+                Title = "Yêu cầu tư vấn mới",
+                Content = $"Khách hàng {fullName} ({phone}) đang quan tâm và cần tư vấn về bất động sản '{property.Title}'.",
+                ActionUrl = "/Consultations/Index",
+                ActionText = "Xem chi tiết",
+                IsRead = false,
                 CreatedAt = DateTime.Now
             });
 
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Đã gửi thông tin tư vấn!" });
         }
+
         [HttpPost]
         public async Task<IActionResult> SubmitComment([FromForm] int propertyId, [FromForm] string content)
         {
@@ -820,15 +910,27 @@ namespace BDSKhanhHoa.Controllers
             if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
             if (string.IsNullOrWhiteSpace(content)) return Json(new { success = false, message = "Nội dung trống." });
 
-            // CHỐT CHẶN BẢO MẬT
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
             if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Không thể bình luận vào tin chưa được duyệt." });
 
+            // 1. Lưu bình luận
             _context.Comments.Add(new Comment { PropertyID = propertyId, UserID = userId, Content = content, CreatedAt = DateTime.Now, IsHidden = true });
+
+            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
+            _context.Notifications.Add(new Notification
+            {
+                UserID = property.UserID,
+                Title = "Bình luận mới trên tin đăng",
+                Content = $"Một khách hàng vừa để lại bình luận trên bất động sản '{property.Title}' của bạn. Vui lòng kiểm tra và phản hồi.",
+                ActionUrl = $"/Property/Details/{propertyId}",
+                ActionText = "Xem bình luận",
+                IsRead = false,
+                CreatedAt = DateTime.Now
+            });
+
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Bình luận đã gửi." });
         }
-
         [HttpPost]
         public async Task<IActionResult> SendMessage([FromForm] int receiverId, [FromForm] int propertyId, [FromForm] string messageContent)
         {
@@ -836,7 +938,6 @@ namespace BDSKhanhHoa.Controllers
             if (!int.TryParse(userIdStr, out int senderId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
             if (senderId == receiverId) return Json(new { success = false, message = "Không thể tự nhắn cho mình." });
 
-            // CHỐT CHẶN BẢO MẬT
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
             if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Tin đăng chưa duyệt, không thể chat." });
 
@@ -844,6 +945,5 @@ namespace BDSKhanhHoa.Controllers
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Tin nhắn đã gửi!" });
         }
-
     }
 }

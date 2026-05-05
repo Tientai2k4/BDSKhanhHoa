@@ -27,25 +27,10 @@
     decimal currentMinArea = filters?.minSize != null ? Convert.ToDecimal(filters.minSize) : areaMinLimit;
     decimal currentMaxArea = filters?.maxSize != null ? Convert.ToDecimal(filters.maxSize) : areaMaxLimit;
 
-    ViewData["Title"] = transactionType == "rent"
-        ? "Cho thuê Bất động sản Khánh Hòa"
-        : "Mua bán Bất động sản Khánh Hòa";
+    ViewData["Title"] = transactionType == "rent" ? "Cho thuê Bất động sản Khánh Hòa" : "Mua bán Bất động sản Khánh Hòa";
 }
 
 @functions {
-    public string FormatPrice(object priceObj, string transType)
-    {
-        if (priceObj == null) return "Thỏa thuận";
-        try
-        {
-            decimal price = Convert.ToDecimal(priceObj);
-            string result = price >= 1000000000m ? $"{(price / 1000000000m):0.##} Tỷ" : $"{(price / 1000000m):0.##} Triệu";
-            if (transType == "rent") result += "/tháng";
-            return result;
-        }
-        catch { return "Thỏa thuận"; }
-    }
-
     public string FormatRangeLabel(decimal value) => value >= 1000m ? $"{(value / 1000m):0.##} Tỷ" : $"{value:0.##} Triệu";
     public string FormatAreaLabel(decimal value) => $"{value:0.##} m²";
 }
@@ -59,7 +44,7 @@
         --muted: #64748b;
         --primary: #2563eb;
         --primary-2: #1d4ed8;
-        --danger: #dc2626; /* Đỏ giá tiền nổi bật */
+        --danger: #dc2626;
         --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.05);
         --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08);
         --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
@@ -84,13 +69,32 @@
         margin-top: 0;
     }
 
-    .filter-shell {
-        position: sticky;
-        top: 92px;
-        z-index: 10;
+    /* ---- STICKY SIDEBAR ---- */
+    @@media (min-width: 992px) {
+        .filter-wrapper {
+            position: sticky;
+            top: 92px; /* Phụ thuộc vào chiều cao của Navbar trên trang web của bạn */
+            z-index: 10;
+            height: calc(100vh - 110px);
+            overflow-y: auto;
+            border-radius: 24px;
+        }
+
+            .filter-wrapper::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .filter-wrapper::-webkit-scrollbar-thumb {
+                background-color: #cbd5e1;
+                border-radius: 10px;
+            }
+
+        .col-lg-3 {
+            align-self: start;
+        }
+        /* Quan trọng để Sticky hoạt động trong flexbox */
     }
 
-    /* Filter Sidebar */
     .filter-card {
         background: rgba(255,255,255,.94);
         backdrop-filter: blur(12px);
@@ -118,7 +122,42 @@
         padding: 18px;
     }
 
-    /* Filter Controls */
+    /* Auto Suggest Dropdown */
+    .suggest-box {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 0 0 14px 14px;
+        box-shadow: var(--shadow-lg);
+        z-index: 50;
+        display: none;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .suggest-item {
+        padding: 10px 14px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+        color: var(--text);
+        font-weight: 600;
+    }
+
+        .suggest-item:hover {
+            background: #eef2ff;
+            color: var(--primary);
+        }
+
+        .suggest-item:last-child {
+            border-bottom: none;
+        }
+
+    /* UI Các bộ lọc khác */
     .segmented-control {
         display: flex;
         gap: 10px;
@@ -147,6 +186,7 @@
 
     .field {
         margin-bottom: 16px;
+        position: relative;
     }
 
         .field label {
@@ -172,7 +212,6 @@
             background: #fff !important;
         }
 
-    /* Sliders & Checkboxes */
     .range-box {
         background: #fff;
         border: 1px solid var(--border);
@@ -331,28 +370,11 @@
         color: var(--primary-2);
     }
 
-    /* Action Buttons */
     .action-group {
         display: grid;
         gap: 10px;
         margin-top: 18px;
     }
-
-    .action-primary {
-        border: 0;
-        border-radius: 16px;
-        padding: 13px 16px;
-        font-weight: 800;
-        background: linear-gradient(135deg, var(--primary), var(--primary-2));
-        color: #fff;
-        box-shadow: 0 10px 24px rgba(37, 99, 235, .22);
-        transition: var(--transition);
-    }
-
-        .action-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 14px 28px rgba(37, 99, 235, .28);
-        }
 
     .action-secondary {
         border-radius: 16px;
@@ -370,9 +392,11 @@
             box-shadow: var(--shadow-sm);
         }
 
-    /* Results Header */
+    /* Results UI */
     .results-shell {
         background: transparent;
+        position: relative;
+        min-height: 500px;
     }
 
     .results-card {
@@ -421,9 +445,34 @@
             cursor: pointer;
         }
 
-    /* =========================================================
-           PROPERTY CARD - CHUẨN UI VIP 2026
-           ========================================================= */
+    /* Loader Overlay */
+    #loadingOverlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,0.7);
+        z-index: 10;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 24px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Property Card UI */
     .property-grid {
         margin-top: 18px;
     }
@@ -471,7 +520,6 @@
         pointer-events: none;
     }
 
-    /* Huy hiệu VIP Classes (Góc trái trên) */
     .property-badge {
         position: absolute;
         top: 12px;
@@ -517,7 +565,6 @@
         border: 1px solid #e2e8f0;
     }
 
-    /* Nút tim (Góc phải trên) */
     .prop-fav {
         position: absolute;
         top: 12px;
@@ -546,11 +593,11 @@
             color: var(--muted);
         }
 
-        .prop-fav:hover i {
-            color: #e81c2e;
+        .prop-fav.active i, .prop-fav:hover i {
+            color: #dc2626;
         }
+    /* Active (Đã lưu) sẽ có tim đỏ */
 
-    /* Tag BÁN / CHO THUÊ (Góc phải dưới ảnh) */
     .prop-trans-tag {
         position: absolute;
         bottom: 12px;
@@ -569,13 +616,11 @@
     .tag-buy {
         background: #ea4335;
     }
-    /* Đỏ chuẩn */
+
     .tag-rent {
         background: #3b82f6;
     }
-    /* Xanh biển chuẩn */
 
-    /* Nội dung thẻ */
     .property-body {
         padding: 16px;
     }
@@ -624,7 +669,6 @@
             max-width: 50%;
         }
 
-    /* Pagination */
     .pagination-wrap {
         margin-top: 32px;
     }
@@ -672,14 +716,75 @@
             margin-bottom: 16px;
         }
 
-    /* Mobile adjustments */
+    /* Dự án nổi bật */
+    .project-card {
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        background: var(--surface);
+        box-shadow: var(--shadow-md);
+        transition: var(--transition);
+        text-decoration: none;
+        display: block;
+        border: 1px solid var(--border);
+    }
+
+        .project-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+    .project-img-wrap {
+        position: relative;
+        height: 180px;
+        overflow: hidden;
+    }
+
+        .project-img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+    .project-card:hover .project-img-wrap img {
+        transform: scale(1.05);
+    }
+
+    .project-body {
+        padding: 16px;
+    }
+
+    .project-investor {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    .project-name {
+        font-family: 'Playfair Display',serif;
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .project-loc {
+        font-size: 0.85rem;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+    }
+
     @@media (max-width: 991.98px) {
         .page-shell {
             padding-top: 12px;
-        }
-
-        .filter-shell {
-            position: static;
         }
 
         .results-card {
@@ -693,311 +798,245 @@
         .amenity-list {
             grid-template-columns: 1fr;
         }
+
+        .sort-wrap {
+            width: 100%;
+        }
     }
 </style>
 
 <div class="container page-shell">
     <div class="row g-4 page-layout">
+
+        <!-- Khối Offcanvas bộ lọc -->
         <div class="col-lg-3">
-            <div class="offcanvas-lg offcanvas-start filter-shell" tabindex="-1" id="filterPanel" aria-labelledby="filterPanelLabel">
-                <div class="offcanvas-header d-lg-none">
-                    <h5 class="offcanvas-title fw-bold" id="filterPanelLabel">Bộ lọc tìm kiếm</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-                </div>
+            <div class="filter-wrapper">
+                <div class="offcanvas-lg offcanvas-start" tabindex="-1" id="filterPanel" aria-labelledby="filterPanelLabel">
+                    <div class="offcanvas-header d-lg-none border-bottom">
+                        <h5 class="offcanvas-title fw-bold" id="filterPanelLabel"><i class="bi bi-sliders2 text-primary me-2"></i>Bộ lọc tìm kiếm</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#filterPanel" aria-label="Close"></button>
+                    </div>
 
-                <div class="offcanvas-body p-0">
-                    <div class="filter-card">
-                        <div class="filter-head">
-                            <h3 class="filter-title"><i class="bi bi-sliders2 text-primary me-2"></i>Bộ lọc nâng cao</h3>
-                            <div class="text-muted small mt-1">Hỗ trợ tìm kiếm trên 64 phường xã Khánh Hòa</div>
-                        </div>
+                    <div class="offcanvas-body p-0">
+                        <div class="filter-card">
+                            <div class="filter-head d-none d-lg-block">
+                                <h3 class="filter-title"><i class="bi bi-sliders2 text-primary me-2"></i>Bộ lọc nâng cao</h3>
+                                <div class="text-muted small mt-1">Lọc tự động không cần load lại trang</div>
+                            </div>
 
-                        <div class="filter-body">
-                            <form id="filterForm" action="/Property/Search" method="get">
-                                <input type="hidden" name="transactionType" id="transTypeInput" value="@transactionType" />
-                                <input type="hidden" name="page" id="pageInput" value="@currentPage" />
-                                <input type="hidden" name="sortOrder" id="sortInput" value="@(filters?.sortOrder ?? "")" />
+                            <div class="filter-body">
+                                <form id="filterForm" action="/Property/Search" method="get" onsubmit="event.preventDefault(); triggerFilter();">
+                                    <input type="hidden" name="transactionType" id="transTypeInput" value="@transactionType" />
+                                    <input type="hidden" name="page" id="pageInput" value="@currentPage" />
+                                    <input type="hidden" name="sortOrder" id="sortInput" value="@(filters?.sortOrder ?? "")" />
 
-                                <div class="segmented-control">
-                                    <button type="button" class="segmented-item @(isBuy ? "active" : "")" data-trans="buy">
-                                        <i class="bi bi-house me-1"></i>Mua bán
-                                    </button>
-                                    <button type="button" class="segmented-item @(!isBuy ? "active" : "")" data-trans="rent">
-                                        <i class="bi bi-key me-1"></i>Cho thuê
-                                    </button>
-                                </div>
-
-                                <div class="field">
-                                    <label for="keywordInput">Từ khóa</label>
-                                    <input type="text" id="keywordInput" name="keyword" class="form-control soft-input" placeholder="Tiêu đề, địa chỉ, dự án..." value="@(filters?.keyword ?? "")" />
-                                </div>
-
-                                <div class="field">
-                                    <label for="subTypeSelect">Loại bất động sản</label>
-                                    <select name="typeId" id="subTypeSelect" class="form-select soft-select">
-                                        <option value="">Tất cả loại hình</option>
-                                    </select>
-                                </div>
-
-                                <div class="field">
-                                    <label for="areaSelect">Khu vực</label>
-                                    <select name="areaId" id="areaSelect" class="form-select soft-select">
-                                        <option value="">Toàn tỉnh Khánh Hòa</option>
-                                        @foreach (var a in ViewBag.Areas)
-                                        {
-                                            <option value="@a.AreaID" selected="@(filters?.areaId != null && Convert.ToString(filters.areaId) == Convert.ToString(a.AreaID) ? "selected" : null)">@a.AreaName</option>
-                                        }
-                                    </select>
-                                </div>
-
-                                <div class="field">
-                                    <label for="wardSelect">Phường / Xã</label>
-                                    <select name="wardId" id="wardSelect" class="form-select soft-select">
-                                        <option value="">Tất cả Phường / Xã</option>
-                                        @if (filters?.wardId != null)
-                                        {
-                                            <option value="@filters.wardId" selected>Đang chọn</option>
-                                        }
-                                    </select>
-                                </div>
-
-                                <div class="field">
-                                    <label>Mức giá</label>
-                                    <div class="range-box">
-                                        <div class="range-values">
-                                            <span>Từ: <strong id="priceMinLabel">@FormatRangeLabel(currentMinPrice)</strong></span>
-                                            <span>Đến: <strong id="priceMaxLabel">@FormatRangeLabel(currentMaxPrice)</strong></span>
-                                        </div>
-                                        <div class="range-slider">
-                                            <input type="range" id="priceMinRange" name="minPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMinPrice" />
-                                            <input type="range" id="priceMaxRange" name="maxPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMaxPrice" />
-                                            <div class="range-track" id="priceTrack"></div>
-                                        </div>
+                                    <div class="segmented-control">
+                                        <button type="button" class="segmented-item @(isBuy ? "active" : "")" data-trans="buy">
+                                            <i class="bi bi-house me-1"></i>Mua bán
+                                        </button>
+                                        <button type="button" class="segmented-item @(!isBuy ? "active" : "")" data-trans="rent">
+                                            <i class="bi bi-key me-1"></i>Cho thuê
+                                        </button>
                                     </div>
-                                </div>
 
-                                <div class="field">
-                                    <label>Diện tích (m²)</label>
-                                    <div class="range-box">
-                                        <div class="range-values">
-                                            <span>Từ: <strong id="areaMinLabel">@FormatAreaLabel(currentMinArea)</strong></span>
-                                            <span>Đến: <strong id="areaMaxLabel">@FormatAreaLabel(currentMaxArea)</strong></span>
-                                        </div>
-                                        <div class="range-slider">
-                                            <input type="range" id="areaMinRange" name="minSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMinArea" />
-                                            <input type="range" id="areaMaxRange" name="maxSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMaxArea" />
-                                            <div class="range-track" id="areaTrack"></div>
-                                        </div>
+                                    <div class="field">
+                                        <label for="keywordInput">Từ khóa</label>
+                                        <input type="text" id="keywordInput" name="keyword" class="form-control soft-input" placeholder="Tiêu đề, địa chỉ, dự án..." value="@(filters?.keyword ?? "")" autocomplete="off" />
+                                        <div id="suggestBox" class="suggest-box"></div>
                                     </div>
-                                </div>
 
-                                <div class="field">
-                                    <label>Phòng ngủ</label>
-                                    <div class="pill-grid">
-                                        @foreach (var n in new[] { "1", "2", "3", "4", "5" })
-                                        {
-                                            var checkedBedroom = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
-                                            <div>
-                                                <input class="btn-check" type="radio" name="bedrooms" id="bed_@n" value="@n" @(checkedBedroom ? "checked" : "") />
-                                                <label class="pill-btn" for="bed_@n">@(n == "5" ? "5+" : n)</label>
+                                    <div class="field">
+                                        <label for="subTypeSelect">Loại bất động sản</label>
+                                        <select name="typeId" id="subTypeSelect" class="form-select soft-select">
+                                            <option value="">Tất cả loại hình</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="field">
+                                        <label for="areaSelect">Khu vực</label>
+                                        <select name="areaId" id="areaSelect" class="form-select soft-select">
+                                            <option value="">Toàn tỉnh Khánh Hòa</option>
+                                            @foreach (var a in ViewBag.Areas)
+                                            {
+                                                <option value="@a.AreaID" selected="@(filters?.areaId != null && Convert.ToString(filters.areaId) == Convert.ToString(a.AreaID) ? "selected" : null)">@a.AreaName</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="field">
+                                        <label for="wardSelect">Phường / Xã</label>
+                                        <select name="wardId" id="wardSelect" class="form-select soft-select">
+                                            <option value="">Tất cả Phường / Xã</option>
+                                            @if (filters?.wardId != null)
+                                            {
+                                                <option value="@filters.wardId" selected>Đang chọn</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="field">
+                                        <label>Mức giá</label>
+                                        <div class="range-box">
+                                            <div class="range-values">
+                                                <span>Từ: <strong id="priceMinLabel">@FormatRangeLabel(currentMinPrice)</strong></span>
+                                                <span>Đến: <strong id="priceMaxLabel">@FormatRangeLabel(currentMaxPrice)</strong></span>
                                             </div>
-                                        }
-                                    </div>
-                                </div>
-
-                                <div class="field">
-                                    <label>Phòng tắm</label>
-                                    <div class="pill-grid">
-                                        @foreach (var n in new[] { "1", "2", "3", "4" })
-                                        {
-                                            var checkedBathroom = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
-                                            <div>
-                                                <input class="btn-check" type="radio" name="bathrooms" id="bath_@n" value="@n" @(checkedBathroom ? "checked" : "") />
-                                                <label class="pill-btn" for="bath_@n">@(n == "4" ? "4+" : n)</label>
+                                            <div class="range-slider">
+                                                <input type="range" id="priceMinRange" name="minPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMinPrice" />
+                                                <input type="range" id="priceMaxRange" name="maxPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMaxPrice" />
+                                                <div class="range-track" id="priceTrack"></div>
                                             </div>
-                                        }
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="field">
-                                    <label for="directionSelect">Hướng nhà</label>
-                                    <select name="direction" id="directionSelect" class="form-select soft-select">
-                                        <option value="">Tất cả hướng</option>
-                                        @foreach (var direction in new[] { "Đông", "Đông Nam", "Nam", "Tây Nam", "Tây", "Tây Bắc", "Bắc", "Đông Bắc" })
-                                        {
-                                            <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">@direction</option>
-                                        }
-                                    </select>
-                                </div>
+                                    <div class="field">
+                                        <label>Diện tích (m²)</label>
+                                        <div class="range-box">
+                                            <div class="range-values">
+                                                <span>Từ: <strong id="areaMinLabel">@FormatAreaLabel(currentMinArea)</strong></span>
+                                                <span>Đến: <strong id="areaMaxLabel">@FormatAreaLabel(currentMaxArea)</strong></span>
+                                            </div>
+                                            <div class="range-slider">
+                                                <input type="range" id="areaMinRange" name="minSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMinArea" />
+                                                <input type="range" id="areaMaxRange" name="maxSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMaxArea" />
+                                                <div class="range-track" id="areaTrack"></div>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                <div class="field">
-                                    <label for="legalStatusSelect">Pháp lý</label>
-                                    <select name="legalStatus" id="legalStatusSelect" class="form-select soft-select">
-                                        <option value="">Tất cả</option>
-                                        @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Hợp đồng mua bán" })
-                                        {
-                                            <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">@legal</option>
-                                        }
-                                    </select>
-                                </div>
+                                    <div class="field">
+                                        <label>Phòng ngủ</label>
+                                        <div class="pill-grid">
+                                            @foreach (var n in new[] { "1", "2", "3", "4", "5" })
+                                            {
+                                                var checkedBedroom = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
+                                                <div>
+                                                    <input class="btn-check" type="radio" name="bedrooms" id="bed_@n" value="@n" @(checkedBedroom ? "checked" : "") />
+                                                    <label class="pill-btn" for="bed_@n">@(n == "5" ? "5+" : n)</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
 
-                                <div class="field">
-                                    <label>Tiện ích (Bắt buộc thỏa mãn tất cả ô được chọn)</label>
-                                    <ul class="amenity-list">
-                                        @foreach (var am in new[] { "Gần chợ", "Gần trường học", "Gần bệnh viện", "Có thang máy", "Hồ bơi", "Gym", "An ninh 24/7", "Ban công", "Bãi đỗ xe", "Sân vườn", "Công viên", "Siêu thị" })
-                                        {
-                                            var checkedAmenity = currentAmenities.Contains(am);
-                                            <li class="amenity-item @(checkedAmenity ? "is-checked" : "")">
-                                                <label class="amenity-label">
-                                                    <input type="checkbox" name="amenities" value="@am" @(checkedAmenity ? "checked" : "") />
-                                                    <span>@am</span>
-                                                </label>
-                                            </li>
-                                        }
-                                    </ul>
-                                </div>
+                                    <div class="field">
+                                        <label>Phòng tắm</label>
+                                        <div class="pill-grid">
+                                            @foreach (var n in new[] { "1", "2", "3", "4" })
+                                            {
+                                                var checkedBathroom = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
+                                                <div>
+                                                    <input class="btn-check" type="radio" name="bathrooms" id="bath_@n" value="@n" @(checkedBathroom ? "checked" : "") />
+                                                    <label class="pill-btn" for="bath_@n">@(n == "4" ? "4+" : n)</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
 
-                                <div class="action-group">
-                                    <button type="submit" class="action-primary"><i class="bi bi-search me-2"></i>Áp dụng bộ lọc</button>
-                                    <a href="/Property/Search?transactionType=@transactionType" class="action-secondary text-center text-decoration-none"><i class="bi bi-arrow-counterclockwise me-2"></i>Xóa bộ lọc</a>
-                                </div>
-                            </form>
+                                    <div class="field">
+                                        <label for="directionSelect">Hướng nhà</label>
+                                        <select name="direction" id="directionSelect" class="form-select soft-select">
+                                            <option value="">Tất cả hướng</option>
+                                            @foreach (var direction in new[] { "Đông", "Đông Nam", "Nam", "Tây Nam", "Tây", "Tây Bắc", "Bắc", "Đông Bắc" })
+                                            {
+                                                <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">@direction</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="field">
+                                        <label for="legalStatusSelect">Pháp lý</label>
+                                        <select name="legalStatus" id="legalStatusSelect" class="form-select soft-select">
+                                            <option value="">Tất cả</option>
+                                            @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Hợp đồng mua bán" })
+                                            {
+                                                <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">@legal</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="field">
+                                        <label>Tiện ích (Bắt buộc thỏa mãn tất cả ô được chọn)</label>
+                                        <ul class="amenity-list">
+                                            @foreach (var am in new[] { "Gần chợ", "Gần trường học", "Gần bệnh viện", "Có thang máy", "Hồ bơi", "Gym", "An ninh 24/7", "Ban công", "Bãi đỗ xe", "Sân vườn", "Công viên", "Siêu thị" })
+                                            {
+                                                var checkedAmenity = currentAmenities.Contains(am);
+                                                <li class="amenity-item @(checkedAmenity ? "is-checked" : "")">
+                                                    <label class="amenity-label">
+                                                        <input type="checkbox" name="amenities" value="@am" @(checkedAmenity ? "checked" : "") />
+                                                        <span>@am</span>
+                                                    </label>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+
+                                    <div class="action-group">
+                                        <button type="button" onclick="resetFilters()" class="action-secondary text-center text-decoration-none"><i class="bi bi-arrow-counterclockwise me-2"></i>Xóa bộ lọc</button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Khối kết quả -->
         <div class="col-lg-9 results-shell">
+
+            <!-- NÚT MỞ BỘ LỌC DÀNH CHO MOBILE RẤT TO VÀ HIỆN ĐẠI -->
+            <div class="d-lg-none mb-3">
+                <button class="btn w-100 fw-bold py-3 d-flex align-items-center justify-content-center gap-2"
+                        style="background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border-radius: 16px; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);"
+                        type="button"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#filterPanel"
+                        aria-controls="filterPanel">
+                    <i class="bi bi-sliders2 fs-5"></i>
+                    <span style="font-size: 1.05rem;">Mở Bộ Lọc Nâng Cao</span>
+                </button>
+            </div>
+
+        
+
             <div class="results-card">
+                <div id="loadingOverlay">
+                    <div class="spinner"></div>
+                </div>
+
                 <div class="results-top">
                     <div>
                         <h2 class="results-title">@ViewData["Title"]</h2>
                         <p class="results-meta mb-0">
-                            Đang hiển thị <strong class="text-primary">@totalItems</strong> kết quả phù hợp.
+                            Đang hiển thị <strong class="text-primary" id="totalItemsCountUI">@totalItems</strong> kết quả phù hợp.
                         </p>
                     </div>
 
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <button class="btn btn-outline-primary d-lg-none fw-bold" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterPanel">
-                            <i class="bi bi-funnel me-1"></i>Bộ lọc
-                        </button>
-
+                    <div class="d-flex align-items-center gap-2 flex-wrap w-100-mobile">
                         <div class="sort-wrap">
                             <label class="form-label fw-bold text-secondary mb-2 d-none d-md-block" style="font-size:0.85rem">Sắp xếp theo</label>
                             <select id="sortSelect" class="form-select text-dark">
-                                <option value="" selected="@(string.IsNullOrEmpty(filters?.sortOrder) ? "selected" : null)">Tin mới nhất</option>
-                                <option value="price_asc" selected="@(Convert.ToString(filters?.sortOrder) == "price_asc" ? "selected" : null)">Giá thấp → cao</option>
-                                <option value="price_desc" selected="@(Convert.ToString(filters?.sortOrder) == "price_desc" ? "selected" : null)">Giá cao → thấp</option>
-                                <option value="area_desc" selected="@(Convert.ToString(filters?.sortOrder) == "area_desc" ? "selected" : null)">Diện tích lớn nhất</option>
+                                <option value="" selected="@(string.IsNullOrEmpty(filters?.sortOrder) ? "selected" : null)">Tin Mới nhất (VIP ưu tiên)</option>
+                                <option value="price_asc" selected="@(Convert.ToString(filters?.sortOrder) == "price_asc" ? "selected" : null)">Giá Tăng dần (VIP ưu tiên)</option>
+                                <option value="price_desc" selected="@(Convert.ToString(filters?.sortOrder) == "price_desc" ? "selected" : null)">Giá Giảm dần (VIP ưu tiên)</option>
+                                <option value="area_desc" selected="@(Convert.ToString(filters?.sortOrder) == "area_desc" ? "selected" : null)">Diện tích lớn nhất (VIP ưu tiên)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="property-grid">
-                    <div class="row g-4">
-                        @if (Model != null && Model.Any())
-                        {
-                            foreach (var item in Model)
-                            {
-                                // XỬ LÝ LOGIC UI VIP & TIN THƯỜNG
-                                string badgeClass = "badge-normal";
-                                string tierLabel = "Tin Thường";
-                                string tierIcon = "bi-tag-fill";
-
-                                int priority = item.PostServicePackage?.PriorityLevel ?? 0;
-                                string pkgType = item.PostServicePackage?.PackageType ?? "Tin Thường";
-
-                                if (pkgType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase) || priority >= 4)
-                                { badgeClass = "badge-diamond"; tierLabel = "Kim Cương"; tierIcon = "bi-gem"; }
-                                else if (pkgType.Contains("Vàng", StringComparison.OrdinalIgnoreCase) || priority == 3)
-                                { badgeClass = "badge-gold"; tierLabel = "Vàng"; tierIcon = "bi-star-fill"; }
-                                else if (pkgType.Contains("Bạc", StringComparison.OrdinalIgnoreCase) || priority == 2)
-                                { badgeClass = "badge-silver"; tierLabel = "Bạc"; tierIcon = "bi-shield-fill"; }
-                                else if (pkgType.Contains("Đồng", StringComparison.OrdinalIgnoreCase) || priority == 1)
-                                { badgeClass = "badge-bronze"; tierLabel = "Đồng"; tierIcon = "bi-award-fill"; }
-
-                                string typeName = item.PropertyType?.TypeName?.ToLower() ?? "";
-                                bool isRent = typeName.Contains("thuê") || typeName.Contains("trọ");
-                                string transTagClass = isRent ? "tag-rent" : "tag-buy";
-                                string transTagText = isRent ? "CHO THUÊ" : "BÁN";
-
-                                <div class="col-12 col-sm-6 col-xl-4">
-                                    <a href="/Property/Details/@item.PropertyID" class="text-decoration-none">
-                                        <article class="property-card">
-                                            <div class="property-media">
-                                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.Title" loading="lazy" onerror="this.src='/images/no-image.jpg'" />
-                                                <div class="property-overlay"></div>
-
-                                                <span class="prop-trans-tag @transTagClass">@transTagText</span>
-
-                                                <div class="property-badge @badgeClass">
-                                                    <i class="bi @tierIcon"></i> @tierLabel
-                                                </div>
-
-                                                <button class="prop-fav" type="button" onclick="event.preventDefault();toggleFav(this)" title="Lưu tin">
-                                                    <i class="bi bi-heart"></i>
-                                                </button>
-                                            </div>
-
-                                            <div class="property-body">
-                                                <div class="property-price">@FormatPrice(item.Price, transactionType)</div>
-                                                <h3 class="property-title">@item.Title</h3>
-                                                <div class="property-meta">
-                                                    <span title="Diện tích"><i class="bi bi-rulers"></i> @item.AreaSize m²</span>
-                                                    <span class="text-truncate" title="Khu vực"><i class="bi bi-geo-alt"></i> @(item.Ward?.Area?.AreaName ?? "Khánh Hòa")</span>
-                                                </div>
-                                            </div>
-                                        </article>
-                                    </a>
-                                </div>
-                            }
-                        }
-                        else
-                        {
-                            <div class="col-12">
-                                <div class="empty-state text-center">
-                                    <img src="/images/not-found.svg" alt="Không tìm thấy" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'" />
-                                    <h3 class="fw-black mb-2" style="font-weight:900;">Không tìm thấy kết quả phù hợp</h3>
-                                    <p class="text-secondary mb-4">Hãy thử mở rộng khu vực, giảm điều kiện hoặc xóa toàn bộ bộ lọc.</p>
-                                    <div class="d-flex gap-2 justify-content-center flex-wrap">
-                                        <a href="/Property/Search?transactionType=@transactionType" class="btn btn-primary px-4 py-2 fw-bold">Xóa bộ lọc ngay</a>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </div>
+                <!-- Khu vực Partial View sẽ được Render thay thế bằng AJAX -->
+                <div id="partialRenderArea">
+                    <partial name="_PropertyGridPartial" model="Model" />
                 </div>
+
             </div>
-
-            @if (totalPages > 1)
-            {
-                <div class="pagination-wrap">
-                    <nav aria-label="Phân trang">
-                        <ul class="pagination justify-content-center mb-0">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button type="button" class="page-link" onclick="submitPage(@(currentPage - 1))"><i class="bi bi-chevron-left"></i></button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(currentPage == i ? "active" : "")">
-                                    <button type="button" class="page-link" onclick="submitPage(@i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button type="button" class="page-link" onclick="submitPage(@(currentPage + 1))"><i class="bi bi-chevron-right"></i></button>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            }
-
         </div>
     </div>
 </div>
 
 @section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         const subTypesData = @Html.Raw(string.IsNullOrWhiteSpace(subTypesJson) ? "[]" : subTypesJson);
         const initialTransaction = '@transactionType';
@@ -1015,12 +1054,148 @@
         const wardSelect = document.getElementById('wardSelect');
         const sortSelect = document.getElementById('sortSelect');
 
-        function submitPage(pageNum) {
-            pageInput.value = pageNum;
-            filterForm.submit();
+        // =====================================
+        // LOGIC LƯU TIN (TRÁI TIM) - BẰNG AJAX
+        // =====================================
+        async function toggleFav(propertyId, btnElement) {
+            try {
+                const response = await fetch('/Home/ToggleFavorite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `propertyId=${propertyId}`
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const icon = btnElement.querySelector('i');
+                    if (result.isSaved) {
+                        btnElement.classList.add('active');
+                        Swal.fire({ icon: 'success', title: 'Đã lưu', text: 'Bất động sản đã được lưu vào danh sách yêu thích!', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
+                    } else {
+                        btnElement.classList.remove('active');
+                        Swal.fire({ icon: 'info', title: 'Đã bỏ lưu', text: 'Đã xóa khỏi danh sách yêu thích.', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
+                    }
+                } else {
+                    Swal.fire({ icon: 'warning', title: 'Chưa đăng nhập', text: result.message, showConfirmButton: true, confirmButtonText: 'Đăng nhập ngay' }).then((res) => {
+                        if(res.isConfirmed) { window.location.href = '/Account/Login'; }
+                    });
+                }
+            } catch (error) {
+                console.error("Lỗi khi lưu tin:", error);
+            }
         }
 
-        // Logic xử lý Dual Range Slider mượt mà
+        // =====================================
+        // LOGIC LỌC TỰ ĐỘNG KHÔNG CẦN NÚT (AJAX)
+        // =====================================
+        let filterTimeout;
+        function triggerFilter() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(async () => {
+                const overlay = document.getElementById('loadingOverlay');
+                if(overlay) overlay.style.display = 'flex'; // Hiện spinner
+
+                const formData = new FormData(filterForm);
+                const params = new URLSearchParams(formData);
+                // Bắt buộc đẩy giá trị Sort đang chọn vào request
+                params.set('sortOrder', sortSelect.value);
+
+                const url = '/Property/Search?' + params.toString();
+                history.pushState(null, '', url); // Cập nhật URL trên thanh địa chỉ
+
+                try {
+                    const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const html = await response.text();
+
+                    // Đổ HTML Partial lấy được vào vùng chứa
+                    document.getElementById('partialRenderArea').innerHTML = html;
+
+                    // Cập nhật con số đếm kết quả ở phía trên
+                    const newTotalElement = document.getElementById('hiddenTotalCount');
+                    if(newTotalElement) {
+                        document.getElementById('totalItemsCountUI').innerText = newTotalElement.innerText;
+                    }
+                } catch (e) {
+                    console.error("Lỗi filter: ", e);
+                } finally {
+                    if(overlay) overlay.style.display = 'none'; // Tắt spinner
+                }
+            }, 600); // Đợi 600ms user ngừng thao tác mới gửi Request (Chống giật lag)
+        }
+
+        // Gắn sự kiện Change/Input cho toàn bộ Form
+        filterForm.querySelectorAll('input, select').forEach(el => {
+            if(el.type === 'text' || el.type === 'range') {
+                el.addEventListener('input', triggerFilter); // Kéo slider / Gõ text
+            } else {
+                el.addEventListener('change', triggerFilter); // Checkbox / Dropdown
+            }
+        });
+
+        if (sortSelect) {
+            sortSelect.addEventListener('change', () => {
+                pageInput.value = 1; // Sắp xếp lại thì quay về trang 1
+                triggerFilter();
+            });
+        }
+
+        // Checkbox đổi màu UI
+        document.querySelectorAll('.amenity-item input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', function() {
+                this.closest('.amenity-item').classList.toggle('is-checked', this.checked);
+            });
+        });
+
+        function submitPage(pageNum) {
+            pageInput.value = pageNum;
+            triggerFilter();
+            window.scrollTo({ top: 200, behavior: 'smooth' }); // Tự cuộn lên đầu danh sách
+        }
+
+        function resetFilters() {
+            window.location.href = '/Property/Search?transactionType=' + transTypeInput.value;
+        }
+
+        // =====================================
+        // AUTO SUGGESTION BOX (TÌM KIẾM ĐỀ XUẤT)
+        // =====================================
+        const keywordInput = document.getElementById('keywordInput');
+        const suggestBox = document.getElementById('suggestBox');
+
+        keywordInput.addEventListener('input', async function() {
+            const kw = this.value.trim();
+            if(kw.length < 2) { suggestBox.style.display = 'none'; return; }
+
+            try {
+                const res = await fetch(`/Property/Suggest?keyword=${encodeURIComponent(kw)}`);
+                const data = await res.json();
+
+                if(data && data.length > 0) {
+                    suggestBox.innerHTML = data.map(d => `<div class="suggest-item" onclick="selectSuggest(this)">${d}</div>`).join('');
+                    suggestBox.style.display = 'block';
+                } else {
+                    suggestBox.style.display = 'none';
+                }
+            } catch(e) {}
+        });
+
+        // Ẩn Suggest Box khi click ra ngoài
+        document.addEventListener('click', function(e) {
+            if (e.target !== keywordInput && e.target !== suggestBox) {
+                suggestBox.style.display = 'none';
+            }
+        });
+
+        function selectSuggest(el) {
+            keywordInput.value = el.innerText;
+            suggestBox.style.display = 'none';
+            triggerFilter();
+        }
+
+        // =====================================
+        // LOGIC RANGE SLIDER & UI CƠ BẢN
+        // =====================================
         function syncSliderUI(minRange, maxRange, minLabel, maxLabel, trackEl, limitMin, limitMax, formatter) {
             let minVal = parseFloat(minRange.value);
             let maxVal = parseFloat(maxRange.value);
@@ -1100,42 +1275,20 @@
                 btn.classList.toggle('active', btn.dataset.trans === type);
             });
             renderSubTypes(type, subTypeSelect.value || initialTypeId);
+            triggerFilter();
         }
 
         document.querySelectorAll('[data-trans]').forEach(btn => {
             btn.addEventListener('click', function () { setTransaction(this.dataset.trans); });
         });
 
-        // TÍNH NĂNG CHỐT: Khi chọn sắp xếp -> Nạp value vào Form và Gửi lên Server chạy Query
-        if (sortSelect) {
-            sortSelect.addEventListener('change', function () {
-                sortInput.value = this.value;
-                pageInput.value = 1;
-                filterForm.submit();
-            });
-        }
-
         areaSelect.addEventListener('change', async function () {
             pageInput.value = 1;
             await loadWards(this.value, '');
         });
 
-        document.querySelectorAll('.amenity-item input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', function() {
-                this.closest('.amenity-item').classList.toggle('is-checked', this.checked);
-            });
-        });
-
-        function toggleFav(btn) {
-            const i = btn.querySelector('i');
-            i.classList.toggle('bi-heart');
-            i.classList.toggle('bi-heart-fill');
-            if(i.classList.contains('bi-heart-fill')) i.style.color='#dc2626';
-            else i.style.color='';
-        }
-
         document.addEventListener('DOMContentLoaded', async function () {
-            setTransaction(initialTransaction);
+            renderSubTypes(initialTransaction, initialTypeId);
             await loadWards(initialAreaId, initialWardId);
 
             initDualSlider('price', @priceMinLimit, @priceMaxLimit, formatMoneyLabel);

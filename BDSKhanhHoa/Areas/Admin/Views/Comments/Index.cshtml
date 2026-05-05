@@ -5,24 +5,44 @@
 }
 
 <div class="container-fluid py-4">
+    <!-- Thống kê nhanh -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3 bg-primary text-white" style="border-radius: 12px;">
+                <small>Tổng bình luận</small>
+                <h3 class="fw-bold mb-0">@Model.Count()</h3>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow-sm border-0" style="border-radius: 16px;">
         <div class="card-header bg-white border-0 pt-4 pb-0">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-chat-left-text me-2"></i>Quản lý Bình Luận</h4>
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-chat-dots me-2"></i>Quản lý Bình Luận</h4>
+                </div>
+                <div class="col-md-8">
+                    <form method="get" class="d-flex gap-2 justify-content-end">
+                        <input type="text" name="searchString" class="form-control rounded-pill w-50" placeholder="Tìm tên, nội dung..." value="@ViewBag.SearchString">
+                        <select name="status" class="form-select rounded-pill w-auto">
+                            <option value="">Tất cả</option>
+                            <option value="visible" selected="@(ViewBag.Status == "visible")">Đang hiện</option>
+                            <option value="pending" selected="@(ViewBag.Status == "pending")">Chờ duyệt (Bị ẩn)</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">Lọc</button>
+                    </form>
+                </div>
+            </div>
 
-                <form method="get" class="d-flex gap-2">
-                    <input type="text" name="searchString" class="form-control rounded-pill" placeholder="Tìm tên, nội dung..." value="@ViewBag.SearchString">
-                    <select name="status" class="form-select rounded-pill">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="visible" selected="@(ViewBag.Status == "visible")">Đang hiện</option>
-                        <option value="hidden" selected="@(ViewBag.Status == "hidden")">Bị ẩn</option>
-                    </select>
-                    <select name="dateSort" class="form-select rounded-pill">
-                        <option value="desc" selected="@(ViewBag.DateSort == "desc")">Mới nhất</option>
-                        <option value="asc" selected="@(ViewBag.DateSort == "asc")">Cũ nhất</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4"><i class="bi bi-funnel"></i> Lọc</button>
-                </form>
+            <!-- THANH CÔNG CỤ DUYỆT NHANH (Sẽ ẩn/hiện khi check) -->
+            <div id="bulkActions" class="mt-3 p-2 bg-light rounded-3 d-none animate__animated animate__fadeIn">
+                <span class="ms-2 fw-bold text-dark"><span id="selectedCount">0</span> mục đã chọn:</span>
+                <button class="btn btn-sm btn-success ms-3 rounded-pill px-3" onclick="bulkApprove()">
+                    <i class="bi bi-check-all"></i> Duyệt hiển thị hàng loạt
+                </button>
+                <button class="btn btn-sm btn-danger ms-2 rounded-pill px-3" onclick="bulkDelete()">
+                    <i class="bi bi-trash"></i> Xóa hàng loạt
+                </button>
             </div>
         </div>
 
@@ -31,12 +51,15 @@
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll">
+                            </th>
                             <th>Người dùng</th>
-                            <th>Nội dung</th>
-                            <th>Bài viết (BĐS)</th>
-                            <th>Ngày đăng</th>
+                            <th>Nội dung bình luận</th>
+                            <th>Liên quan tin</th>
+                            <th>Thời gian</th>
                             <th>Trạng thái</th>
-                            <th class="text-end">Hành động</th>
+                            <th class="text-end">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -44,33 +67,32 @@
                         {
                             <tr id="row-@item.CommentID">
                                 <td>
+                                    <input type="checkbox" class="form-check-input row-checkbox" data-id="@item.CommentID">
+                                </td>
+                                <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="@(item.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-2" width="40" height="40" style="object-fit:cover;">
-                                        <strong>@item.User?.FullName</strong>
+                                        <img src="@(item.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-2 border" width="35" height="35">
+                                        <div class="d-flex flex-column">
+                                            <span class="fw-bold small">@item.User?.FullName</span>
+                                        </div>
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="d-inline-block text-truncate" style="max-width: 250px;">
-                                        @item.Content
-                                    </span>
+                                    <p class="mb-0 text-truncate" style="max-width: 300px;" title="@item.Content">@item.Content</p>
                                 </td>
-                                <td><a href="/Property/Details/@item.PropertyID" target="_blank" class="text-decoration-none">Xem tin <i class="bi bi-box-arrow-up-right"></i></a></td>
-                                <td class="text-muted small">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td><a href="/Property/Details/@item.PropertyID" target="_blank" class="badge bg-light text-primary text-decoration-none">#@item.PropertyID <i class="bi bi-link"></i></a></td>
+                                <td class="small text-muted">@item.TimeAgo</td>
                                 <td>
-                                    <span class="badge @(item.IsHidden ? "bg-danger" : "bg-success") status-badge-@item.CommentID">
-                                        @(item.IsHidden ? "Đã Ẩn" : "Hiển thị")
+                                    <span class="badge @(item.IsHidden ? "bg-warning text-dark" : "bg-success") status-badge-@item.CommentID">
+                                        @(item.IsHidden ? "Chờ duyệt" : "Đang hiện")
                                     </span>
                                 </td>
                                 <td class="text-end">
-                                    <a href="/Admin/Comments/Details/@item.CommentID" class="btn btn-sm btn-outline-info rounded-circle" title="Xem chi tiết">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <button class="btn btn-sm btn-outline-warning rounded-circle btn-toggle-admin" data-id="@item.CommentID" title="Ẩn/Hiện">
-                                        <i class="bi bi-shield-lock"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger rounded-circle btn-delete-admin" data-id="@item.CommentID" title="Xóa vĩnh viễn">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                    <div class="btn-group">
+                                        <a href="/Admin/Comments/Details/@item.CommentID" class="btn btn-sm btn-light border-0 rounded-circle me-1"><i class="bi bi-eye"></i></a>
+                                        <button class="btn btn-sm btn-light border-0 text-warning rounded-circle btn-toggle-admin me-1" data-id="@item.CommentID"><i class="bi bi-shield-check"></i></button>
+                                        <button class="btn btn-sm btn-light border-0 text-danger rounded-circle btn-delete-admin" data-id="@item.CommentID"><i class="bi bi-trash"></i></button>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -85,17 +107,62 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         $(document).ready(function () {
+            // Xử lý Checkbox chọn tất cả
+            $('#selectAll').click(function () {
+                $('.row-checkbox').prop('checked', this.checked);
+                toggleBulkActions();
+            });
+
+            $('.row-checkbox').change(function () {
+                toggleBulkActions();
+            });
+
+            function toggleBulkActions() {
+                var count = $('.row-checkbox:checked').length;
+                $('#selectedCount').text(count);
+                if (count > 0) {
+                    $('#bulkActions').removeClass('d-none');
+                } else {
+                    $('#bulkActions').addClass('d-none');
+                }
+            }
+
+            // --- HÀNH ĐỘNG HÀNG LOẠT ---
+            window.bulkApprove = function() {
+                var ids = $('.row-checkbox:checked').map(function() { return $(this).data('id'); }).get();
+                confirmBulk('/Admin/Comments/ApproveSelected', ids, 'Duyệt hiển thị các bình luận đã chọn?');
+            }
+
+            window.bulkDelete = function() {
+                var ids = $('.row-checkbox:checked').map(function() { return $(this).data('id'); }).get();
+                confirmBulk('/Admin/Comments/DeleteSelected', ids, 'Xóa vĩnh viễn các bình luận đã chọn?');
+            }
+
+            function confirmBulk(url, ids, message) {
+                Swal.fire({
+                    title: 'Xác nhận?', text: message, icon: 'question',
+                    showCancelButton: true, confirmButtonText: 'Đồng ý'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(ids)
+                        }).then(res => res.json()).then(data => {
+                            if (data.success) {
+                                Swal.fire('Thành công', data.message, 'success').then(() => location.reload());
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Giữ lại các Ajax lẻ cũ của bạn (ToggleVisibility, Delete...)
             $('.btn-toggle-admin').click(function () {
                 var id = $(this).data('id');
                 $.post('/Admin/Comments/ToggleVisibility', { id: id }, function (res) {
                     if (res.success) {
-                        var badge = $('.status-badge-' + id);
-                        if(res.isHidden) {
-                            badge.removeClass('bg-success').addClass('bg-danger').text('Đã Ẩn');
-                        } else {
-                            badge.removeClass('bg-danger').addClass('bg-success').text('Hiển thị');
-                        }
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cập nhật thành công', showConfirmButton: false, timer: 1500 });
+                        location.reload(); // Cách đơn giản nhất để cập nhật badge và UI
                     }
                 });
             });
@@ -103,18 +170,12 @@
             $('.btn-delete-admin').click(function () {
                 var id = $(this).data('id');
                 Swal.fire({
-                    title: 'Xóa vĩnh viễn?',
-                    text: "Không thể khôi phục dữ liệu này!",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Đồng ý xóa'
+                    title: 'Xóa bình luận?', text: "Hành động này không thể hoàn tác!",
+                    icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $.post('/Admin/Comments/Delete', { id: id }, function (res) {
-                            if (res.success) {
-                                $('#row-' + id).fadeOut();
-                            }
+                            if (res.success) $('#row-' + id).fadeOut();
                         });
                     }
                 });

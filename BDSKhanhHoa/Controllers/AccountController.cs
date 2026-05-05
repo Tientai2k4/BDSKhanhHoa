@@ -18,7 +18,8 @@ namespace BDSKhanhHoa.Controllers
         private readonly ApplicationDbContext _db;
         private readonly EmailSender _emailSender;
         private readonly IWebHostEnvironment _hostEnvironment;
-
+        private const string SESSION_RESET_TOKEN = "ResetToken";
+        private const string SESSION_RESET_EMAIL = "ResetEmail";
         private const string SESSION_OTP = "RegOTP";
         private const string SESSION_USER = "PendingUser";
         private const string SESSION_USER_ID = "PendingUserID";
@@ -426,5 +427,115 @@ namespace BDSKhanhHoa.Controllers
             return View();
         }
         #endregion
+        #region QUÊN MẬT KHẨU
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult ForgotPassword()
+        {
+            return View(new ForgotPasswordViewModel());
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == model.Email && !u.IsDeleted);
+
+            if (user == null)
+            {
+                ModelState.AddModelError("Email", "Email này không tồn tại trong hệ thống.");
+                return View(model);
+            }
+
+            // Tạo mã xác nhận 8 ký tự (chữ + số)
+            string resetToken = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
+
+            // Lưu vào Session
+            HttpContext.Session.SetString(SESSION_RESET_TOKEN, resetToken);
+            HttpContext.Session.SetString(SESSION_RESET_EMAIL, model.Email);
+
+            // [DEV TEST] In ra cửa sổ output để dev dễ test không cần check mail thật
+            Console.WriteLine($"[HỆ THỐNG DEV] MÃ RESET PASSWORD CHO {model.Email} LÀ: {resetToken}");
+
+            // Gửi email (Sử dụng service EmailSender đã được inject sẵn của bạn)
+            try
+            {
+                string subject = "Yêu cầu khôi phục mật khẩu - Bất Động Sản Khánh Hòa";
+                string message = $"Chào {user.FullName},<br><br>Mã xác nhận để đặt lại mật khẩu của bạn là: <strong style='color:red; font-size:18px;'>{resetToken}</strong>.<br>Mã này chỉ có hiệu lực trong phiên làm việc hiện tại. Vui lòng không chia sẻ mã này cho bất kỳ ai.";
+
+                // Cần đảm bảo _emailSender có hàm SendEmailAsync (hoặc sửa lại tên hàm cho đúng với helper của bạn)
+                await _emailSender.SendEmailAsync(model.Email, subject, message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Lỗi gửi mail: " + ex.Message);
+                // Có thể ẩn lỗi này đi ở môi trường Production
+            }
+
+            TempData["Success"] = "Mã xác nhận đã được gửi đến Email của bạn. Vui lòng kiểm tra hộp thư (bao gồm cả thư rác).";
+            return RedirectToAction("ResetPassword");
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult ResetPassword()
+        {
+            // Chặn người dùng truy cập thẳng vào trang này nếu chưa qua trang ForgotPassword
+            if (string.IsNullOrEmpty(HttpContext.Session.GetString(SESSION_RESET_EMAIL)))
+            {
+                return RedirectToAction("ForgotPassword");
+            }
+            return View();
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken] // Chống tấn công CSRF
+        public async Task<IActionResult> ResetPassword(string token, string newPassword)
+        {
+            var sessionToken = HttpContext.Session.GetString(SESSION_RESET_TOKEN);
+            var sessionEmail = HttpContext.Session.GetString(SESSION_RESET_EMAIL);
+
+            if (string.IsNullOrEmpty(sessionToken) || string.IsNullOrEmpty(sessionEmail))
+            {
+                ViewBag.Error = "Phiên làm việc đã hết hạn. Vui lòng thực hiện lại yêu cầu quên mật khẩu.";
+                return View();
+            }
+
+            if (token.Trim().ToUpper() != sessionToken)
+            {
+                ViewBag.Error = "Mã xác nhận không chính xác.";
+                return View();
+            }
+
+            if (newPassword.Length < 6)
+            {
+                ViewBag.Error = "Mật khẩu mới phải từ 6 ký tự trở lên.";
+                return View();
+            }
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == sessionEmail);
+            if (user != null)
+            {
+                // Mã hóa mật khẩu mới và lưu vào DB
+                user.Password = PasswordHasher.HashPassword(newPassword);
+                await _db.SaveChangesAsync();
+
+                // Xóa Session sau khi xong
+                HttpContext.Session.Remove(SESSION_RESET_TOKEN);
+                HttpContext.Session.Remove(SESSION_RESET_EMAIL);
+
+                TempData["Success"] = "Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.";
+                return RedirectToAction("Login");
+            }
+
+            ViewBag.Error = "Đã có lỗi xảy ra. Không tìm thấy người dùng.";
+            return View();
+        }
+        #endregion
+
     }
 }

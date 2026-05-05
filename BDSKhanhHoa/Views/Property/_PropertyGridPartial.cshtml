@@ -1,0 +1,106 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+@using BDSKhanhHoa.Models
+
+<div class="row g-4" id="propertyListArea">
+    @if (Model != null && Model.Any())
+    {
+        foreach (var item in Model)
+        {
+            string badgeClass = "badge-normal";
+            string tierLabel = "Tin Thường";
+            string tierIcon = "bi-tag-fill";
+
+            int priority = item.PostServicePackage?.PriorityLevel ?? 0;
+            string pkgType = item.PostServicePackage?.PackageType ?? "Tin Thường";
+
+            if (pkgType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase) || priority >= 4)
+            { badgeClass = "badge-diamond"; tierLabel = "Kim Cương"; tierIcon = "bi-gem"; }
+            else if (pkgType.Contains("Vàng", StringComparison.OrdinalIgnoreCase) || priority == 3)
+            { badgeClass = "badge-gold"; tierLabel = "Vàng"; tierIcon = "bi-star-fill"; }
+            else if (pkgType.Contains("Bạc", StringComparison.OrdinalIgnoreCase) || priority == 2)
+            { badgeClass = "badge-silver"; tierLabel = "Bạc"; tierIcon = "bi-shield-fill"; }
+            else if (pkgType.Contains("Đồng", StringComparison.OrdinalIgnoreCase) || priority == 1)
+            { badgeClass = "badge-bronze"; tierLabel = "Đồng"; tierIcon = "bi-award-fill"; }
+
+            string typeName = item.PropertyType?.TypeName?.ToLower() ?? "";
+            bool isRent = typeName.Contains("thuê") || typeName.Contains("trọ");
+            string transTagClass = isRent ? "tag-rent" : "tag-buy";
+            string transTagText = isRent ? "CHO THUÊ" : "BÁN";
+
+            // Nhận diện tim đỏ
+            var favIds = ViewBag.FavoritedIds as List<int> ?? new List<int>();
+            bool isFav = favIds.Contains(item.PropertyID);
+            string heartIconClass = isFav ? "bi-heart-fill text-danger" : "bi-heart";
+
+            <div class="col-12 col-sm-6 col-xl-4 prop-item" data-mode="@(isRent ? "rent" : "buy")" data-typeid="@item.TypeID" data-priority="@priority">
+                <a href="/Property/Details/@item.PropertyID" class="text-decoration-none d-block h-100">
+                    <article class="property-card">
+                        <div class="property-media">
+                            <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.Title" loading="lazy" onerror="this.src='/images/no-image.jpg'" />
+                            <div class="property-overlay"></div>
+
+                            <span class="prop-trans-tag @transTagClass">@transTagText</span>
+
+                            <div class="property-badge @badgeClass">
+                                <i class="bi @tierIcon"></i> @tierLabel
+                            </div>
+
+                            <button class="prop-fav @(isFav ? "active" : "")" type="button" onclick="event.preventDefault();toggleFav(@item.PropertyID, this)" title="@(isFav ? "Bỏ lưu tin" : "Lưu tin")">
+                                <i class="bi @heartIconClass"></i>
+                            </button>
+                        </div>
+
+                        <div class="property-body">
+                            <div class="property-price">
+                                @(item.Price.HasValue ? (item.Price >= 1000000000m ? (item.Price.Value / 1000000000m).ToString("0.##") + " Tỷ" : (item.Price.Value / 1000000m).ToString("0.##") + " Triệu") : "Thỏa thuận")
+                            </div>
+                            <h3 class="property-title" title="@item.Title">@item.Title</h3>
+                            <div class="property-meta">
+                                <span title="Diện tích"><i class="bi bi-rulers"></i> @item.AreaSize m²</span>
+                                <span class="text-truncate" title="Khu vực"><i class="bi bi-geo-alt"></i> @(item.Ward?.Area?.AreaName ?? "Khánh Hòa")</span>
+                            </div>
+                        </div>
+                    </article>
+                </a>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="empty-state text-center">
+                <img src="/images/not-found.svg" alt="Không tìm thấy" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'" />
+                <h3 class="fw-black mb-2" style="font-weight:900;">Không tìm thấy kết quả phù hợp</h3>
+                <p class="text-secondary mb-4">Hãy thử mở rộng khu vực, giảm điều kiện hoặc xóa toàn bộ bộ lọc.</p>
+                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                    <button type="button" onclick="resetFilters()" class="btn btn-primary px-4 py-2 fw-bold">Xóa bộ lọc ngay</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (ViewBag.TotalPages > 1)
+{
+    <div class="pagination-wrap" id="paginationArea">
+        <nav aria-label="Phân trang">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item @(ViewBag.CurrentPage <= 1 ? "disabled" : "")">
+                    <button type="button" class="page-link" onclick="submitPage(@(ViewBag.CurrentPage - 1))"><i class="bi bi-chevron-left"></i></button>
+                </li>
+                @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                {
+                    <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                        <button type="button" class="page-link" onclick="submitPage(@i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(ViewBag.CurrentPage >= ViewBag.TotalPages ? "disabled" : "")">
+                    <button type="button" class="page-link" onclick="submitPage(@(ViewBag.CurrentPage + 1))"><i class="bi bi-chevron-right"></i></button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+<!-- Element ẩn lưu tổng số kết quả trả về để update UI -->
+<span id="hiddenTotalCount" style="display:none;">@ViewBag.TotalItems</span>

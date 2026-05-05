@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace BDSKhanhHoa.Controllers
 {
@@ -15,56 +14,61 @@ namespace BDSKhanhHoa.Controllers
     public class NotificationController : Controller
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILogger<NotificationController> _logger;
 
-        public NotificationController(ApplicationDbContext context, ILogger<NotificationController> logger)
+        public NotificationController(ApplicationDbContext context)
         {
             _context = context;
-            _logger = logger;
         }
 
-        // Hàm an toàn để lấy ID người dùng hiện tại
-        private bool TryGetCurrentUserId(out int userId)
+        private int GetCurrentUserId()
         {
-            userId = 0;
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return int.TryParse(userIdStr, out userId);
+            int.TryParse(userIdStr, out int userId);
+            return userId;
         }
 
         // ==========================================
-        // 1. TRANG QUẢN LÝ THÔNG BÁO TỔNG HỢP
+        // 1. TRANG QUẢN LÝ HỘP THƯ
         // ==========================================
         [HttpGet]
         public async Task<IActionResult> Index(string filter = "all", int page = 1)
         {
-            if (!TryGetCurrentUserId(out int userId)) return RedirectToAction("Login", "Account");
+            int userId = GetCurrentUserId();
+            if (userId <= 0) return RedirectToAction("Login", "Account");
 
             int pageSize = 12;
-
-            // Khởi tạo Query cơ bản lấy thông báo của User hiện tại
             var query = _context.Notifications.AsNoTracking().Where(n => n.UserID == userId);
 
-            // Xử lý bộ lọc chi tiết cho từng loại thông báo
             filter = filter.ToLower().Trim();
-            if (filter == "unread")
-                query = query.Where(n => n.IsRead == false);
-            else if (filter == "action")
-                query = query.Where(n => n.ActionUrl != null && n.ActionUrl != "");
-            else if (filter == "appointment")
-                query = query.Where(n => n.Title.ToLower().Contains("lịch hẹn") || n.Content.ToLower().Contains("lịch hẹn"));
-            else if (filter == "consultation")
-                query = query.Where(n => n.Title.ToLower().Contains("tư vấn") || n.Title.ToLower().Contains("liên hệ"));
-            else if (filter == "system")
-                query = query.Where(n => n.Title.ToLower().Contains("vi phạm") || n.Title.ToLower().Contains("khóa") || n.Title.ToLower().Contains("cảnh cáo") || n.Title.ToLower().Contains("từ chối"));
 
-            // Đếm tổng số lượng cho các tab (Badge)
-            ViewBag.TotalCount = await _context.Notifications.CountAsync(n => n.UserID == userId);
-            ViewBag.UnreadCount = await _context.Notifications.CountAsync(n => n.UserID == userId && n.IsRead == false);
-            ViewBag.ActionCount = await _context.Notifications.CountAsync(n => n.UserID == userId && n.ActionUrl != null && n.ActionUrl != "" && n.IsRead == false);
-            ViewBag.AppointmentCount = await _context.Notifications.CountAsync(n => n.UserID == userId && (n.Title.ToLower().Contains("lịch hẹn") || n.Content.ToLower().Contains("lịch hẹn")) && n.IsRead == false);
-            ViewBag.ConsultationCount = await _context.Notifications.CountAsync(n => n.UserID == userId && (n.Title.ToLower().Contains("tư vấn") || n.Title.ToLower().Contains("liên hệ")) && n.IsRead == false);
+            // Xử lý đếm Badges trước khi áp dụng filter
+            ViewBag.TotalCount = await query.CountAsync();
+            ViewBag.UnreadCount = await query.CountAsync(n => n.IsRead == false);
+            ViewBag.ActionCount = await query.CountAsync(n => n.ActionUrl != null && n.ActionUrl != "" && n.IsRead == false);
 
-            // Xử lý phân trang an toàn
+            // Lọc theo keyword chính xác như đã setup ở PropertyController
+            ViewBag.AppointmentCount = await query.CountAsync(n => n.Title.Contains("Lịch hẹn") && n.IsRead == false);
+            ViewBag.ConsultationCount = await query.CountAsync(n => (n.Title.Contains("Tư vấn") || n.Title.Contains("Bình luận")) && n.IsRead == false);
+
+            switch (filter)
+            {
+                case "unread":
+                    query = query.Where(n => n.IsRead == false);
+                    break;
+                case "action":
+                    query = query.Where(n => n.ActionUrl != null && n.ActionUrl != "");
+                    break;
+                case "appointment":
+                    query = query.Where(n => n.Title.Contains("Lịch hẹn"));
+                    break;
+                case "consultation":
+                    query = query.Where(n => n.Title.Contains("Tư vấn") || n.Title.Contains("Bình luận"));
+                    break;
+                case "system":
+                    query = query.Where(n => !n.Title.Contains("Lịch hẹn") && !n.Title.Contains("Tư vấn") && !n.Title.Contains("Bình luận"));
+                    break;
+            }
+
             int totalItems = await query.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
             page = Math.Clamp(page, 1, totalPages);
@@ -82,16 +86,13 @@ namespace BDSKhanhHoa.Controllers
             return View(notifications);
         }
 
-        // ==========================================
-        // 2. XEM CHI TIẾT & ĐÁNH DẤU ĐÃ ĐỌC
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Details(int id)
         {
-            if (!TryGetCurrentUserId(out int userId)) return RedirectToAction("Login", "Account");
+            int userId = GetCurrentUserId();
+            if (userId <= 0) return RedirectToAction("Login", "Account");
 
-            var notification = await _context.Notifications
-                .FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == userId);
+            var notification = await _context.Notifications.FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == userId);
 
             if (notification == null)
             {
@@ -99,7 +100,6 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            // Tự động đánh dấu đã đọc khi click xem chi tiết
             if (!notification.IsRead)
             {
                 notification.IsRead = true;
@@ -110,13 +110,11 @@ namespace BDSKhanhHoa.Controllers
             return View(notification);
         }
 
-        // ==========================================
-        // 3. XỬ LÝ HÀNH ĐỘNG TỪ THÔNG BÁO (ACTION URL)
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> ProcessAction(int id)
         {
-            if (!TryGetCurrentUserId(out int userId)) return RedirectToAction("Login", "Account");
+            int userId = GetCurrentUserId();
+            if (userId <= 0) return RedirectToAction("Login", "Account");
 
             var noti = await _context.Notifications.FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == userId);
 
@@ -129,67 +127,48 @@ namespace BDSKhanhHoa.Controllers
                     await _context.SaveChangesAsync();
                 }
 
-                // Tránh lỗi Open Redirect bằng cách đảm bảo URL là local
-                if (Url.IsLocalUrl(noti.ActionUrl))
-                {
-                    return Redirect(noti.ActionUrl);
-                }
-                else
-                {
-                    return Redirect($"~{noti.ActionUrl}"); // Ép về thư mục gốc của website
-                }
+                if (Url.IsLocalUrl(noti.ActionUrl)) return Redirect(noti.ActionUrl);
+                else return Redirect($"~{noti.ActionUrl}");
             }
 
-            TempData["Error"] = "Liên kết xử lý không hợp lệ hoặc đã hết hạn.";
+            TempData["Error"] = "Liên kết đã hết hạn hoặc không có sẵn.";
             return RedirectToAction(nameof(Index));
         }
 
-        // ==========================================
-        // 4. API ĐÁNH DẤU TẤT CẢ LÀ ĐÃ ĐỌC
-        // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAllAsRead()
         {
-            if (!TryGetCurrentUserId(out int userId)) return Json(new { success = false, message = "Lỗi xác thực người dùng." });
+            int userId = GetCurrentUserId();
+            if (userId <= 0) return Json(new { success = false, message = "Lỗi xác thực người dùng." });
 
-            var unreadNotifications = await _context.Notifications
-                .Where(n => n.UserID == userId && n.IsRead == false)
-                .ToListAsync();
+            var unreadNotis = await _context.Notifications.Where(n => n.UserID == userId && n.IsRead == false).ToListAsync();
 
-            if (unreadNotifications.Any())
+            if (unreadNotis.Any())
             {
-                foreach (var noti in unreadNotifications)
-                {
-                    noti.IsRead = true;
-                }
-                _context.Notifications.UpdateRange(unreadNotifications);
+                foreach (var noti in unreadNotis) noti.IsRead = true;
+                _context.Notifications.UpdateRange(unreadNotis);
                 await _context.SaveChangesAsync();
             }
-
-            return Json(new { success = true, message = "Đã đánh dấu tất cả là đã đọc." });
+            return Json(new { success = true, message = "Đã dọn dẹp hộp thư." });
         }
 
-        // ==========================================
-        // 5. API XÓA THÔNG BÁO (ĐÃ ĐƯỢC CHUẨN HÓA DATA BINDING)
-        // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            if (!TryGetCurrentUserId(out int userId)) return Json(new { success = false, message = "Lỗi xác thực người dùng." });
+            int userId = GetCurrentUserId();
+            if (userId <= 0) return Json(new { success = false, message = "Lỗi xác thực." });
 
-            var notification = await _context.Notifications
-                .FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == userId);
+            var noti = await _context.Notifications.FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == userId);
 
-            if (notification != null)
+            if (noti != null)
             {
-                _context.Notifications.Remove(notification);
+                _context.Notifications.Remove(noti);
                 await _context.SaveChangesAsync();
                 return Json(new { success = true, message = "Xóa thông báo thành công." });
             }
-
-            return Json(new { success = false, message = "Không tìm thấy thông báo cần xóa hoặc bạn không có quyền." });
+            return Json(new { success = false, message = "Thông báo không tồn tại." });
         }
     }
 }

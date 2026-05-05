@@ -52,6 +52,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             return View("Index", properties);
         }
+
         private async Task CheckDuplicatesAsync()
         {
             var pendingProperties = await _context.Properties
@@ -78,35 +79,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> RunAutoApprove()
-        {
-            var pendingVipProps = await _context.Properties
-                .Include(p => p.PostServicePackage)
-                .Where(p => p.Status == "Pending" && p.IsDeleted == false && !p.IsDuplicate)
-                .ToListAsync();
-
-            int approvedCount = 0;
-            foreach (var prop in pendingVipProps)
-            {
-                if (prop.PostServicePackage != null && prop.PostServicePackage.PriorityLevel >= 3)
-                {
-                    prop.Status = "Approved";
-                    prop.ApprovedAt = DateTime.Now;
-                    prop.UpdatedAt = DateTime.Now;
-                    prop.IsAutoApproved = true;
-                    prop.VipExpiryDate = DateTime.Now.AddDays(prop.PostServicePackage.DurationDays);
-                    prop.RejectionReason = null;
-                    approvedCount++;
-                }
-            }
-
-            if (approvedCount > 0) await _context.SaveChangesAsync();
-
-            TempData["Success"] = $"Đã duyệt tự động {approvedCount} tin VIP.";
-            return RedirectToAction(nameof(Index));
-        }
-
         [HttpGet]
         public async Task<IActionResult> Verify()
         {
@@ -127,6 +99,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             return View("Index", pendingProperties);
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, string newStatus, string? reason)

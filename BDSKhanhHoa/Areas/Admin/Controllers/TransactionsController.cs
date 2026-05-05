@@ -20,15 +20,25 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _context = context;
         }
 
+        // Hàm hỗ trợ cắt bỏ phần đuôi _1, _2 để lấy Mã gốc (Base Code)
+        private string GetBaseCode(string code)
+        {
+            if (string.IsNullOrEmpty(code)) return "";
+            int lastDash = code.LastIndexOf("_");
+            return lastDash > 0 ? code.Substring(0, lastDash) : code;
+        }
+
         // GET: /Admin/Transactions/Index
         public async Task<IActionResult> Index(string searchString, string statusFilter, DateTime? startDate, DateTime? endDate, int page = 1)
         {
             int pageSize = 15;
 
+            // 1. Lấy dữ liệu và LOẠI BỎ TIN 0Đ (System Gift)
             var query = _context.Transactions
                 .Include(t => t.User)
                 .Include(t => t.Package)
                 .Include(t => t.Property)
+                .Where(t => t.PaymentMethod != "System Gift")
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(searchString))
@@ -44,31 +54,61 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 query = query.Where(t => t.Status == statusFilter);
             }
 
-            if (startDate.HasValue)
-            {
-                query = query.Where(t => t.CreatedAt >= startDate.Value.Date);
-            }
-            if (endDate.HasValue)
-            {
-                query = query.Where(t => t.CreatedAt <= endDate.Value.Date.AddDays(1).AddTicks(-1));
-            }
+            if (startDate.HasValue) query = query.Where(t => t.CreatedAt >= startDate.Value.Date);
+            if (endDate.HasValue) query = query.Where(t => t.CreatedAt <= endDate.Value.Date.AddDays(1).AddTicks(-1));
 
+            // 2. Kéo dữ liệu về RAM để thực hiện Gộp nhóm (Group By)
+            var rawList = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+
+            // 3. LOGIC GỘP NHÓM GIAO DỊCH (Gộp Số lượng & Tổng tiền theo Mã gốc)
+            var groupedList = rawList
+                .GroupBy(t => new {
+                    BaseCode = GetBaseCode(t.TransactionCode),
+                    t.UserID,
+                    t.PackageID,
+                    t.Status
+                })
+                .Select(g => new Transaction
+                {
+                    TransactionID = g.First().TransactionID,
+                    TransactionCode = g.Key.BaseCode, // Sử dụng mã gốc
+                    UserID = g.Key.UserID,
+                    User = g.First().User,
+                    PackageID = g.Key.PackageID,
+                    Package = g.First().Package,
+                    Amount = g.Sum(x => x.Amount),     // CỘNG DỒN TỔNG TIỀN
+                    Quantity = g.Sum(x => x.Quantity), // CỘNG DỒN SỐ LƯỢNG
+                    Status = g.Key.Status,
+                    CreatedAt = g.First().CreatedAt,
+                    Description = g.First().Description
+                }).ToList();
+
+            // 4. Phân trang trên dữ liệu đã gộp
+            int totalItems = groupedList.Count;
+            int totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+            page = page < 1 ? 1 : (page > totalPages && totalPages > 0 ? totalPages : page);
+
+            var pagedTransactions = groupedList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            // Tính toán KPI Thống kê
             var today = DateTime.Today;
             var thisMonth = new DateTime(today.Year, today.Month, 1);
             var thisYear = new DateTime(today.Year, 1, 1);
 
-            ViewBag.TotalRevenue = await _context.Transactions.Where(t => t.Status == "Success").SumAsync(t => t.Amount);
-            ViewBag.TodayRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= today).SumAsync(t => t.Amount);
-            ViewBag.ThisMonthRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= thisMonth).SumAsync(t => t.Amount);
-            ViewBag.ThisYearRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= thisYear).SumAsync(t => t.Amount);
+            ViewBag.TotalRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.PaymentMethod != "System Gift").SumAsync(t => t.Amount);
+            ViewBag.TodayRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= today && t.PaymentMethod != "System Gift").SumAsync(t => t.Amount);
+            ViewBag.ThisMonthRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= thisMonth && t.PaymentMethod != "System Gift").SumAsync(t => t.Amount);
+            ViewBag.ThisYearRevenue = await _context.Transactions.Where(t => t.Status == "Success" && t.CreatedAt >= thisYear && t.PaymentMethod != "System Gift").SumAsync(t => t.Amount);
 
-            ViewBag.PendingCount = await _context.Transactions.CountAsync(t => t.Status == "Pending");
-            ViewBag.SuccessCount = await _context.Transactions.CountAsync(t => t.Status == "Success");
-            ViewBag.TotalTransactions = await query.CountAsync();
+            // Đếm số lượng dựa trên BaseCode
+            ViewBag.PendingCount = groupedList.Count(t => t.Status == "Pending");
+            ViewBag.SuccessCount = groupedList.Count(t => t.Status == "Success");
+            ViewBag.TotalTransactions = totalItems;
 
+            // Biểu đồ
             var last30Days = today.AddDays(-30);
             var chartDataQuery = await _context.Transactions
-                .Where(t => t.Status == "Success" && t.CreatedAt >= last30Days)
+                .Where(t => t.Status == "Success" && t.CreatedAt >= last30Days && t.PaymentMethod != "System Gift")
                 .GroupBy(t => t.CreatedAt.Date)
                 .Select(g => new { Date = g.Key, Total = g.Sum(t => t.Amount) })
                 .OrderBy(g => g.Date)
@@ -88,16 +128,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.ChartLabels = JsonSerializer.Serialize(chartLabels);
             ViewBag.ChartValues = JsonSerializer.Serialize(chartValues);
 
-            int totalItems = await query.CountAsync();
-            int totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
-            page = page < 1 ? 1 : (page > totalPages && totalPages > 0 ? totalPages : page);
-
-            var transactions = await query
-                .OrderByDescending(t => t.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
             ViewBag.CurrentSearch = searchString;
             ViewBag.CurrentStatus = statusFilter;
             ViewBag.StartDate = startDate?.ToString("yyyy-MM-dd");
@@ -106,7 +136,83 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.TotalPages = totalPages;
 
             ViewData["Title"] = "Quản lý Tài chính & Đối soát";
-            return View(transactions);
+            return View(pagedTransactions);
+        }
+
+        // POST: /Admin/Transactions/UpdateStatus
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateStatus(string baseCode, string status, string adminNote)
+        {
+            // Lấy TẤT CẢ các giao dịch bắt đầu bằng BaseCode (VD: TXN123_1, TXN123_2)
+            var transactions = await _context.Transactions
+                .Include(t => t.User)
+                .Include(t => t.Property)
+                .Include(t => t.Package)
+                .Where(t => t.TransactionCode.StartsWith(baseCode))
+                .ToListAsync();
+
+            if (!transactions.Any() || transactions.Any(t => t.Status != "Pending"))
+            {
+                TempData["Error"] = "Cụm giao dịch không tồn tại hoặc đã được xử lý trước đó!";
+                return RedirectToAction(nameof(Index));
+            }
+
+            string actionText = status == "Success" ? "Duyệt thành công" : "Từ chối";
+            decimal totalAmount = 0;
+            int totalQty = 0;
+            int userId = transactions.First().UserID;
+
+            // Xử lý cập nhật hàng loạt
+            foreach (var t in transactions)
+            {
+                t.Status = status;
+                totalAmount += t.Amount;
+                totalQty += t.Quantity;
+
+                // Nếu mua kèm cho 1 BĐS cụ thể (Thường ít dùng, chủ yếu mua vào ví)
+                if (status == "Success" && t.PropertyID != null && t.PackageID != null)
+                {
+                    var property = t.Property;
+                    var package = t.Package;
+                    property.PackageID = package.PackageID;
+                    property.Status = "Active";
+
+                    if (property.VipExpiryDate == null || property.VipExpiryDate < DateTime.Now)
+                        property.VipExpiryDate = DateTime.Now.AddDays(package.DurationDays * t.Quantity);
+                    else
+                        property.VipExpiryDate = property.VipExpiryDate.Value.AddDays(package.DurationDays * t.Quantity);
+                }
+            }
+
+            // Gửi duy nhất 1 Thông báo (Notification) tổng hợp cho Khách hàng
+            var notification = new Notification
+            {
+                UserID = userId,
+                Title = status == "Success" ? $"Thanh toán thành công #{baseCode}" : $"Thanh toán thất bại #{baseCode}",
+                Content = status == "Success"
+                    ? $"Hệ thống đã ghi nhận tổng số tiền {totalAmount:N0}đ cho {totalQty} gói dịch vụ. Dịch vụ đã được nạp vào ví!"
+                    : $"Giao dịch của bạn bị từ chối. Lời nhắn từ Admin: {adminNote ?? "Sai cú pháp hoặc chưa nhận được tiền"}.",
+                IsRead = false,
+                CreatedAt = DateTime.Now,
+                ActionUrl = "/Payment/History",
+                ActionText = "Xem lịch sử GD"
+            };
+            _context.Notifications.Add(notification);
+
+            // Ghi AuditLog
+            var currentAdminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserID = int.Parse(currentAdminId),
+                Action = $"{actionText} cụm giao dịch {baseCode} ({totalQty} gói)",
+                Target = $"Transactions (BaseCode: {baseCode})",
+                CreatedAt = DateTime.Now
+            });
+
+            await _context.SaveChangesAsync();
+            TempData["Success"] = $"Đã xử lý cụm giao dịch #{baseCode} thành công!";
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpGet]
@@ -115,6 +221,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             var query = _context.Transactions
                 .Include(t => t.User)
                 .Include(t => t.Package)
+                .Where(t => t.PaymentMethod != "System Gift")
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(searchString))
@@ -125,105 +232,38 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                                          t.User.Username.ToLower().Contains(searchLower));
             }
 
-            if (!string.IsNullOrEmpty(statusFilter) && statusFilter != "All")
-            {
-                query = query.Where(t => t.Status == statusFilter);
-            }
-
+            if (!string.IsNullOrEmpty(statusFilter) && statusFilter != "All") query = query.Where(t => t.Status == statusFilter);
             if (startDate.HasValue) query = query.Where(t => t.CreatedAt >= startDate.Value.Date);
             if (endDate.HasValue) query = query.Where(t => t.CreatedAt <= endDate.Value.Date.AddDays(1).AddTicks(-1));
 
-            var transactions = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+            var rawList = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+
+            var groupedList = rawList
+                .GroupBy(t => new { BaseCode = GetBaseCode(t.TransactionCode), t.UserID, t.PackageID, t.Status })
+                .Select(g => new {
+                    TransactionCode = g.Key.BaseCode,
+                    User = g.First().User,
+                    PackageName = g.First().Package?.PackageName,
+                    Amount = g.Sum(x => x.Amount),
+                    Quantity = g.Sum(x => x.Quantity),
+                    Status = g.Key.Status,
+                    Date = g.First().CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                }).ToList();
 
             var builder = new StringBuilder();
-            builder.AppendLine("Mã GD,Khách hàng,SĐT,Nội dung,Gói dịch vụ,Số lượng,Số tiền (VND),Thời gian tạo,Trạng thái");
+            builder.Append("\uFEFF"); // Hỗ trợ UTF-8 Excel
+            builder.AppendLine("Mã GD,Khách hàng,SĐT,Gói dịch vụ,Số lượng,Tổng tiền (VND),Thời gian tạo,Trạng thái");
 
-            foreach (var t in transactions)
+            foreach (var t in groupedList)
             {
                 string user = $"\"{t.User?.FullName ?? t.User?.Username}\"";
                 string phone = $"\"{t.User?.Phone}\"";
-                string desc = $"\"{t.Description?.Replace("\"", "\"\"")}\"";
-                string package = $"\"{t.Package?.PackageName}\"";
-                string date = t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
+                string package = $"\"{t.PackageName}\"";
 
-                builder.AppendLine($"{t.TransactionCode},{user},{phone},{desc},{package},{t.Quantity},{t.Amount},{date},{t.Status}");
+                builder.AppendLine($"{t.TransactionCode},{user},{phone},{package},{t.Quantity},{t.Amount},{t.Date},{t.Status}");
             }
 
-            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(builder.ToString())).ToArray();
-            return File(bytes, "text/csv", $"BaoCaoTaiChinh_{DateTime.Now:yyyyMMddHHmmss}.csv");
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateStatus(int id, string status, string adminNote)
-        {
-            var transaction = await _context.Transactions
-                .Include(t => t.User)
-                .Include(t => t.Property)
-                .Include(t => t.Package)
-                .FirstOrDefaultAsync(t => t.TransactionID == id);
-
-            if (transaction == null || transaction.Status != "Pending")
-            {
-                TempData["Error"] = "Giao dịch không tồn tại hoặc đã được xử lý trước đó!";
-                return RedirectToAction(nameof(Index));
-            }
-
-            transaction.Status = status;
-            string actionText = "";
-
-            if (status == "Success")
-            {
-                actionText = "Duyệt thành công";
-                if (transaction.PropertyID != null && transaction.PackageID != null)
-                {
-                    var property = transaction.Property;
-                    var package = transaction.Package;
-
-                    property.PackageID = package.PackageID;
-                    property.Status = "Active";
-
-                    if (property.VipExpiryDate == null || property.VipExpiryDate < DateTime.Now)
-                    {
-                        property.VipExpiryDate = DateTime.Now.AddDays(package.DurationDays * transaction.Quantity);
-                    }
-                    else
-                    {
-                        property.VipExpiryDate = property.VipExpiryDate.Value.AddDays(package.DurationDays * transaction.Quantity);
-                    }
-                }
-            }
-            else if (status == "Rejected")
-            {
-                actionText = "Từ chối giao dịch";
-            }
-
-            var notification = new Notification
-            {
-                UserID = transaction.UserID,
-                Title = status == "Success" ? $"Thanh toán thành công #{transaction.TransactionCode}" : $"Thanh toán thất bại #{transaction.TransactionCode}",
-                Content = status == "Success"
-                    ? $"Hệ thống đã ghi nhận số tiền {transaction.Amount:N0}đ. Dịch vụ của bạn đã được kích hoạt thành công!"
-                    : $"Giao dịch của bạn bị từ chối. Lời nhắn từ Admin: {adminNote ?? "Sai cú pháp hoặc chưa nhận được tiền"}.",
-                IsRead = false,
-                CreatedAt = DateTime.Now,
-                ActionUrl = "/Payment/History",
-                ActionText = "Xem lịch sử GD"
-            };
-            _context.Notifications.Add(notification);
-
-            var currentAdminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            _context.AuditLogs.Add(new AuditLog
-            {
-                UserID = int.Parse(currentAdminId),
-                Action = $"{actionText} giao dịch {transaction.TransactionCode}",
-                Target = $"Transactions (ID: {transaction.TransactionID})",
-                CreatedAt = DateTime.Now
-            });
-
-            await _context.SaveChangesAsync();
-            TempData["Success"] = $"Đã xử lý giao dịch #{transaction.TransactionCode} thành công!";
-            return RedirectToAction(nameof(Index));
+            return File(Encoding.UTF8.GetBytes(builder.ToString()), "text/csv", $"BaoCaoTaiChinh_{DateTime.Now:yyyyMMddHHmmss}.csv");
         }
     }
 }

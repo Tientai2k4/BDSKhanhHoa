@@ -3,13 +3,14 @@
 @{
     ViewData["Title"] = "Trang Chủ - Bất Động Sản Khánh Hòa";
     var banners = ViewBag.Banners as List<Banner>;
+    var favoritedIds = ViewBag.FavoritedIds as List<int> ?? new List<int>(); // Nhận danh sách tin đã lưu
 }
 
 <style>
     /* ============================================================
-           BDS KHÁNH HÒA — HOMEPAGE 2026
-           Design: Luxury Real Estate · Coastal Premium · Deep Navy + Gold
-           ============================================================ */
+               BDS KHÁNH HÒA — HOMEPAGE 2026
+               Design: Luxury Real Estate · Coastal Premium · Deep Navy + Gold
+               ============================================================ */
 
     @@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
@@ -720,6 +721,7 @@
         border: 1px solid var(--border);
     }
 
+    /* CSS Nút Lưu Tin Trái Tim */
     .prop-fav {
         position: absolute;
         top: 10px;
@@ -745,9 +747,15 @@
         .prop-fav i {
             font-size: 0.82rem;
             color: var(--text-soft);
+            transition: color 0.2s;
         }
 
         .prop-fav:hover i {
+            color: #e81c2e;
+        }
+
+        /* Khi tim đã được lưu (active) */
+        .prop-fav.active i {
             color: #e81c2e;
         }
 
@@ -882,6 +890,10 @@
         text-transform: uppercase;
         letter-spacing: 0.08em;
         margin-bottom: 6px;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     .project-name {
@@ -1126,61 +1138,6 @@
         font-size: 0.85rem;
         color: rgba(255,255,255,0.55);
         font-weight: 500;
-    }
-
-    /* ─── EMPTY STATE ───────────────────────────────────── */
-    .empty-box {
-        text-align: center;
-        padding: 60px 20px;
-    }
-
-        .empty-box i {
-            font-size: 2.5rem;
-            color: var(--text-ghost);
-            margin-bottom: 14px;
-            display: block;
-        }
-
-        .empty-box h6 {
-            font-family: 'Plus Jakarta Sans',sans-serif;
-            font-weight: 700;
-            color: var(--text-mid);
-            margin-bottom: 6px;
-        }
-
-        .empty-box p {
-            font-size: 0.85rem;
-            color: var(--text-soft);
-            margin: 0;
-        }
-
-    /* ─── RESPONSIVE ──────────────────────────────────── */
-    @@media(max-width:991px) {
-        .search-float {
-            bottom: 0;
-        }
-
-        .search-glass {
-            border-radius: var(--r-xl);
-        }
-    }
-
-    @@media(max-width:767px) {
-        .search-float {
-            position: relative;
-            bottom: auto;
-            left: auto;
-            transform: none;
-            padding: 0;
-        }
-
-        .search-glass {
-            border-radius: 0;
-        }
-
-        .hero-content {
-            transform: translate(-50%, -60%);
-        }
     }
 
     /* ─── MODAL UTILITIES ───────────────────────────────── */
@@ -1467,13 +1424,12 @@
                     string tierLabel = "";
                     string tierIcon = "";
 
-                    // Lấy PackageID gốc để ánh xạ Giao diện, bỏ qua chuỗi PackageType dễ gây lỗi
-                    int priority = item.PackageID;
+                    // Nhận diện mức độ VIP để đổi màu giao diện
+                    int priority = item.PostServicePackage?.PriorityLevel ?? 0;
 
-                    if (priority >= 4) { tierClass = "tier-diamond"; tierLabel = "Kim Cương"; tierIcon = "bi-gem"; }
-                    else if (priority == 3) { tierClass = "tier-gold"; tierLabel = "Vàng"; tierIcon = "bi-star-fill"; }
-                    else if (priority == 2) { tierClass = "tier-silver"; tierLabel = "Bạc"; tierIcon = "bi-shield-fill"; }
-                    else if (priority == 1) { tierClass = "tier-bronze"; tierLabel = "Đồng"; tierIcon = "bi-award-fill"; }
+                    if (priority >= 3) { tierClass = "tier-diamond"; tierLabel = "Kim Cương"; tierIcon = "bi-gem"; }
+                    else if (priority == 2) { tierClass = "tier-gold"; tierLabel = "Vàng"; tierIcon = "bi-star-fill"; }
+                    else if (priority == 1) { tierClass = "tier-silver"; tierLabel = "Bạc"; tierIcon = "bi-shield-fill"; }
                     else { tierClass = "tier-normal"; tierLabel = "Tin Thường"; tierIcon = "bi-tag-fill"; priority = 0; }
 
                     string priceStr = item.Price.HasValue
@@ -1491,6 +1447,11 @@
                     decimal rawPrice = item.Price ?? 0;
                     long ticks = item.CreatedAt.Ticks;
 
+                    // Kiểm tra xem tin này user đang đăng nhập đã lưu chưa
+                    var favIds = ViewBag.FavoritedIds as List<int> ?? new List<int>();
+                    bool isFav = favIds.Contains(item.PropertyID);
+                    string heartIconClass = isFav ? "bi-heart-fill text-danger" : "bi-heart";
+
                     <div class="col-xl-3 col-lg-4 col-md-6 col-12 prop-item"
                          data-mode="@propMode"
                          data-typeid="@item.TypeID"
@@ -1507,8 +1468,8 @@
 
                                     <span class="prop-trans-tag @transTagClass">@transTagText</span>
 
-                                    <button class="prop-fav" type="button" onclick="event.preventDefault();toggleFav(this)" title="Lưu tin">
-                                        <i class="bi bi-heart"></i>
+                                    <button class="prop-fav @(isFav ? "active" : "")" type="button" onclick="event.preventDefault(); toggleFavorite(@item.PropertyID, this)" title="@(isFav ? "Bỏ lưu tin" : "Lưu tin")">
+                                        <i class="bi @heartIconClass"></i>
                                     </button>
                                 </div>
                                 <div class="prop-body">
@@ -1552,32 +1513,30 @@
         </div>
 
         <div class="row g-3 g-md-4">
-            @{
-                var sampleProjects = new[] {
-                        new { Name="The Seahorse Nha Trang", Investor="Vingroup", Status="Đang mở bán", StatusClass="status-opening", Area="Nha Trang", Img="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=600&auto=format&fit=crop" },
-                        new { Name="Cam Ranh Bay Condotel", Investor="Sun Group", Status="Sắp mở bán", StatusClass="status-coming", Area="Cam Ranh", Img="https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=600&auto=format&fit=crop" },
-                        new { Name="KDC Ninh Hòa Central Park", Investor="Hưng Thịnh Corp", Status="Đã bàn giao", StatusClass="status-done", Area="Ninh Hòa", Img="https://images.unsplash.com/photo-1486325212027-8081e485255e?q=80&w=600&auto=format&fit=crop" },
-                        new { Name="Vạn Ninh Coastal Villas", Investor="Nam Long Group", Status="Đang mở bán", StatusClass="status-opening", Area="Vạn Ninh", Img="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?q=80&w=600&auto=format&fit=crop" },
-                        };
-            }
-            @foreach (var p in sampleProjects)
+            @if (ViewBag.LatestProjects != null)
             {
-                <div class="col-lg-3 col-md-6">
-                    <a href="/Project" class="project-card">
-                        <div class="project-img-wrap">
-                            <img src="@p.Img" alt="@p.Name" loading="lazy" onerror="this.src='/images/no-image.jpg'">
-                            <span class="project-status-badge @p.StatusClass">@p.Status</span>
-                        </div>
-                        <div class="project-body">
-                            <div class="project-investor">@p.Investor</div>
-                            <div class="project-name">@p.Name</div>
-                            <div class="project-loc">
-                                <i class="bi bi-geo-alt-fill"></i>
-                                <span>@p.Area, Khánh Hòa</span>
+                var latestProjects = ViewBag.LatestProjects as List<BDSKhanhHoa.Models.Project>;
+                foreach (var p in latestProjects)
+                {
+                    string statusClass = p.ProjectStatus == "Đang mở bán" ? "status-opening" :
+                    (p.ProjectStatus == "Sắp mở bán" ? "status-coming" : "status-done");
+                    <div class="col-lg-3 col-md-6">
+                        <a href="/Project/Details/@p.ProjectID" class="project-card">
+                            <div class="project-img-wrap">
+                                <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)" alt="@p.ProjectName" loading="lazy" onerror="this.src='/images/no-image.jpg'">
+                                <span class="project-status-badge @statusClass">@p.ProjectStatus</span>
                             </div>
-                        </div>
-                    </a>
-                </div>
+                            <div class="project-body">
+                                <div class="project-investor" title="@p.Investor">@p.Investor</div>
+                                <div class="project-name" title="@p.ProjectName">@p.ProjectName</div>
+                                <div class="project-loc">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                    <span>@(p.Area?.AreaName ?? "Khánh Hòa")</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                }
             }
         </div>
     </div>
@@ -1597,22 +1556,22 @@
 
             // Lấy danh sách Khu Vực sắp xếp từ cao tới thấp theo số lượng tin
             var topAreas = areasList
-                .Select(a => new { Area = a, Count = areaCounts.ContainsKey(a.AreaID) ? areaCounts[a.AreaID] : 0 })
-                .OrderByDescending(x => x.Count)
-                .ToList();
+            .Select(a => new { Area = a, Count = areaCounts.ContainsKey(a.AreaID) ? areaCounts[a.AreaID] : 0 })
+            .OrderByDescending(x => x.Count)
+            .ToList();
 
-            // Ảnh mồi Khánh Hòa - Nha Trang (chuẩn đẹp, đúng ngữ cảnh địa phương)
+            // Ảnh mồi Khánh Hòa - Nha Trang
             var defaultImages = new string[] {
-                "https://images.unsplash.com/photo-1573843981267-be1999ff37cd?q=80&w=1200&auto=format&fit=crop", // Biển Nha Trang từ trên cao
-                "https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=1200&auto=format&fit=crop", // Skyline biển Nha Trang
-                "https://images.unsplash.com/photo-1583417319070-4a69db38a482?q=80&w=1200&auto=format&fit=crop", // Đảo + nước xanh
-                "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop", // Biển + sóng đẹp
-                "https://images.unsplash.com/photo-1519046904884-53103b34b206?q=80&w=1200&auto=format&fit=crop"  // Hoàng hôn biển
+                "https://images.unsplash.com/photo-1573843981267-be1999ff37cd?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1583417319070-4a69db38a482?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1519046904884-53103b34b206?q=80&w=1200&auto=format&fit=crop"
                 };
         }
 
         <div class="row g-3">
-            @if(topAreas.Count >= 1)
+            @if (topAreas.Count >= 1)
             {
                 <div class="col-md-6 col-lg-4">
                     <a href="/Property/Search?areaId=@topAreas[0].Area.AreaID" class="loc-card">
@@ -1628,7 +1587,7 @@
 
             <div class="col-md-6 col-lg-4">
                 <div class="d-flex flex-column gap-3 h-100">
-                    @if(topAreas.Count >= 2)
+                    @if (topAreas.Count >= 2)
                     {
                         <a href="/Property/Search?areaId=@topAreas[1].Area.AreaID" class="loc-card">
                             <img class="loc-img short w-100" src="@defaultImages[1]" alt="@topAreas[1].Area.AreaName" loading="lazy">
@@ -1639,7 +1598,7 @@
                             </div>
                         </a>
                     }
-                    @if(topAreas.Count >= 3)
+                    @if (topAreas.Count >= 3)
                     {
                         <a href="/Property/Search?areaId=@topAreas[2].Area.AreaID" class="loc-card">
                             <img class="loc-img short w-100" src="@defaultImages[2]" alt="@topAreas[2].Area.AreaName" loading="lazy">
@@ -1655,7 +1614,7 @@
 
             <div class="col-md-12 col-lg-4">
                 <div class="d-flex flex-column gap-3 h-100">
-                    @if(topAreas.Count >= 4)
+                    @if (topAreas.Count >= 4)
                     {
                         <a href="/Property/Search?areaId=@topAreas[3].Area.AreaID" class="loc-card">
                             <img class="loc-img short w-100" src="@defaultImages[3]" alt="@topAreas[3].Area.AreaName" loading="lazy">
@@ -1666,7 +1625,7 @@
                             </div>
                         </a>
                     }
-                    @if(topAreas.Count >= 5)
+                    @if (topAreas.Count >= 5)
                     {
                         <a href="/Property/Search?areaId=@topAreas[4].Area.AreaID" class="loc-card">
                             <img class="loc-img short w-100" src="@defaultImages[4]" alt="@topAreas[4].Area.AreaName" loading="lazy">
@@ -1768,6 +1727,7 @@
     </div>
 </section>
 
+<!-- Các modal tính toán bên dưới giữ nguyên... -->
 <div class="modal fade modal-util" id="modalTuoiXayNha" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1905,7 +1865,49 @@
 </div>
 
 @section Scripts {
+    <!-- Thư viện SweetAlert2 cho thông báo đẹp mắt -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        // ─── LƯU TIN (YÊU THÍCH) BẰNG AJAX ────────────────────────
+        async function toggleFavorite(propertyId, btnElement) {
+            try {
+                // Gọi API ToggleFavorite trên HomeController
+                const response = await fetch('/Home/ToggleFavorite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `propertyId=${propertyId}`
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const icon = btnElement.querySelector('i');
+                    if (result.isSaved) {
+                        icon.classList.remove('bi-heart');
+                        icon.classList.add('bi-heart-fill', 'text-danger');
+                        btnElement.classList.add('active');
+                        btnElement.title = "Bỏ lưu tin";
+                        Swal.fire({ icon: 'success', title: 'Đã lưu', text: 'Bất động sản đã được lưu vào danh sách yêu thích!', timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
+                    } else {
+                        icon.classList.remove('bi-heart-fill', 'text-danger');
+                        icon.classList.add('bi-heart');
+                        btnElement.classList.remove('active');
+                        btnElement.title = "Lưu tin";
+                        Swal.fire({ icon: 'info', title: 'Đã bỏ lưu', text: 'Đã xóa bất động sản khỏi danh sách yêu thích.', timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
+                    }
+                } else {
+                    // Cảnh báo nếu chưa đăng nhập
+                    Swal.fire({ icon: 'warning', title: 'Chưa đăng nhập', text: result.message, showConfirmButton: true, confirmButtonText: 'Đăng nhập ngay' }).then((res) => {
+                        if(res.isConfirmed) { window.location.href = '/Account/Login'; }
+                    });
+                }
+            } catch (error) {
+                console.error("Lỗi khi lưu tin:", error);
+            }
+        }
+
         // ─── Search Mode ───────────────────────────────────────
         const allTypes = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(ViewBag.Types));
 
@@ -1940,15 +1942,12 @@
             } catch(e) { console.error(e); }
         }
 
-             function filterProps(mode, btn) {
-            // 1. Kích hoạt màu nút
+        function filterProps(mode, btn) {
             document.querySelectorAll('.prop-tab').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // 2. Reset Select loại nhà đất
             document.getElementById('propTypeFilter').value = "";
 
-            // 3. Lọc Ẩn/Hiện dữ liệu theo thuộc tính data-mode
             document.querySelectorAll('.prop-item').forEach(item => {
                 if (mode === 'all') {
                     item.style.display = 'block';
@@ -1957,35 +1956,25 @@
                 }
             });
 
-            // 4. Kích hoạt lại hàm sort để giữ đúng thứ tự VIP sau khi lọc
             const currentSort = document.getElementById('sortSelect').value;
             sortProperties(currentSort);
         }
-                // Bổ sung logic lọc cho dropdown Loại BĐS
+
         function filterByType(typeId) {
-               const activeTabMode = document.querySelector('.prop-tab.active').getAttribute('onclick').match(/'([^']+)'/)[1];
+            const activeTabMode = document.querySelector('.prop-tab.active').getAttribute('onclick').match(/'([^']+)'/)[1];
 
-               document.querySelectorAll('.prop-item').forEach(item => {
-                   const itemMode = item.getAttribute('data-mode');
-                   const itemType = item.getAttribute('data-typeid');
+            document.querySelectorAll('.prop-item').forEach(item => {
+                const itemMode = item.getAttribute('data-mode');
+                const itemType = item.getAttribute('data-typeid');
 
-                   const matchMode = (activeTabMode === 'all') || (itemMode === activeTabMode);
-                   const matchType = (typeId === "") || (itemType === typeId);
+                const matchMode = (activeTabMode === 'all') || (itemMode === activeTabMode);
+                const matchType = (typeId === "") || (itemType === typeId);
 
-                   item.style.display = (matchMode && matchType) ? 'block' : 'none';
-               });
+                item.style.display = (matchMode && matchType) ? 'block' : 'none';
+            });
 
-               // Kích hoạt lại hàm sort để giữ đúng thứ tự VIP sau khi lọc
-               const currentSort = document.getElementById('sortSelect').value;
-               sortProperties(currentSort);
-           }
-
-        function toggleFav(btn) {
-            const i = btn.querySelector('i');
-            i.classList.toggle('bi-heart');
-            i.classList.toggle('bi-heart-fill');
-            if(i.classList.contains('bi-heart-fill')) i.style.color='#e81c2e';
-            else i.style.color='';
+            const currentSort = document.getElementById('sortSelect').value;
+            sortProperties(currentSort);
         }
 
         // ─── Counter animation ───────────────────────────────
@@ -2041,7 +2030,6 @@
             const year = parseInt(document.getElementById('birthYear').value);
             const gender = document.getElementById('gender').value;
             if(!year || year < 1900 || year > 2020) { alert('Năm sinh không hợp lệ'); return; }
-            // Simplified cung số calculation
             let sum = year.toString().split('').reduce((a,b)=>a+parseInt(b),0);
             while(sum > 9) sum = sum.toString().split('').reduce((a,b)=>a+parseInt(b),0);
             const goodYears = [2025, 2026, 2027, 2028].filter((y,i) => (y - year) % 3 !== 0);
@@ -2082,12 +2070,13 @@
              const items = Array.from(grid.querySelectorAll('.prop-item'));
 
              items.sort((a, b) => {
-                 const priorityA = parseInt(a.getAttribute('data-priority')) || 0;
-                 const priorityB = parseInt(b.getAttribute('data-priority')) || 0;
+                 // ĐÃ SỬA: Priority nhỏ hơn thì ưu tiên xếp trước (Kim Cương = 10, Vàng = 40)
+                 const priorityA = parseInt(a.getAttribute('data-priority')) || 9999;
+                 const priorityB = parseInt(b.getAttribute('data-priority')) || 9999;
 
                  // LỚP BẢO VỆ 1: Dù user chọn Giá thấp hay Giá cao, miễn Khác Gói VIP là ép gói VIP cao hơn LÊN ĐẦU
                  if (priorityA !== priorityB) {
-                     return priorityB - priorityA;
+                     return priorityA - priorityB; // Tăng dần theo PriorityLevel (10 trước 40)
                  }
 
                  // LỚP BẢO VỆ 2: Chỉ khi cùng 1 gói VIP (Cùng Kim Cương, hoặc Cùng Thường) thì mới áp dụng tiêu chí của bộ lọc
