@@ -1,0 +1,364 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.AuditLog>
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Nhật ký hệ thống";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    int totalLogs = ViewBag.TotalLogs ?? 0;
+    int todayLogs = ViewBag.TodayLogs ?? 0;
+    int weekLogs = ViewBag.WeekLogs ?? 0;
+    int monthLogs = ViewBag.MonthLogs ?? 0;
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+
+    string keyword = ViewBag.Keyword as string ?? "";
+    string target = ViewBag.Target as string ?? "";
+    string action = ViewBag.Action as string ?? "";
+    string dateRange = ViewBag.DateRange as string ?? "all";
+
+    var targetOptions = ViewBag.TargetOptions as IEnumerable<string> ?? Enumerable.Empty<string>();
+    var actionOptions = ViewBag.ActionOptions as IEnumerable<string> ?? Enumerable.Empty<string>();
+
+    // Helper Functions giữ nguyên sự linh hoạt
+    string ActionClass(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "bg-secondary";
+        var text = value.Trim().ToLowerInvariant();
+
+        if (text.Contains("create") || text.Contains("add") || text.Contains("insert") || text.Contains("thêm") || text.Contains("đăng")) return "bg-success";
+        if (text.Contains("update") || text.Contains("edit") || text.Contains("sửa") || text.Contains("cập nhật")) return "bg-primary";
+        if (text.Contains("delete") || text.Contains("remove") || text.Contains("xóa") || text.Contains("xoá") || text.Contains("ẩn")) return "bg-danger";
+        if (text.Contains("approve") || text.Contains("duyệt") || text.Contains("verify") || text.Contains("xác thực")) return "bg-warning text-dark";
+        if (text.Contains("login") || text.Contains("logout") || text.Contains("đăng nhập") || text.Contains("đăng xuất") || text.Contains("auth")) return "bg-info text-dark";
+
+        return "bg-dark";
+    }
+
+    string ActionIcon(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "bi-dot";
+        var text = value.Trim().ToLowerInvariant();
+
+        if (text.Contains("create") || text.Contains("add") || text.Contains("thêm") || text.Contains("đăng")) return "bi-plus-circle";
+        if (text.Contains("update") || text.Contains("edit") || text.Contains("sửa") || text.Contains("cập nhật")) return "bi-pencil-square";
+        if (text.Contains("delete") || text.Contains("remove") || text.Contains("xóa") || text.Contains("ẩn")) return "bi-trash3";
+        if (text.Contains("approve") || text.Contains("duyệt") || text.Contains("verify")) return "bi-shield-check";
+        if (text.Contains("login") || text.Contains("logout")) return "bi-box-arrow-in-right";
+
+        return "bi-terminal";
+    }
+}
+
+<style>
+    /* Vẫn giữ nguyên khối CSS siêu đẹp của bạn */
+    .audit-hero, .audit-panel {
+        background: #fff;
+        border-radius: 24px;
+        border: 1px solid rgba(148,163,184,.16);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+    }
+
+    .audit-hero {
+        padding: 22px 24px;
+        margin-bottom: 18px;
+    }
+
+    .audit-title {
+        font-size: 1.4rem;
+        font-weight: 900;
+        margin-bottom: 4px;
+        letter-spacing: -0.03em;
+    }
+
+    .audit-subtitle {
+        color: #64748b;
+        margin-bottom: 0;
+    }
+
+    .audit-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        font-weight: 700;
+        color: #334155;
+        white-space: nowrap;
+    }
+
+    .audit-stat {
+        border-radius: 22px;
+        padding: 18px;
+        color: #fff;
+        min-height: 120px;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+    }
+
+        .audit-stat .label {
+            font-size: .75rem;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            opacity: .85;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .audit-stat .value {
+            font-size: 2.35rem;
+            line-height: 1;
+            font-weight: 900;
+        }
+
+    .soft-input {
+        min-height: 48px;
+        border-radius: 14px;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
+        font-weight: 600;
+    }
+
+    .table thead th {
+        background: #f8fafc;
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        color: #475569;
+        white-space: nowrap;
+    }
+
+    .action-pill, .target-pill, .user-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .action-pill {
+        color: #fff;
+    }
+
+    .target-pill {
+        background: #f8fafc;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+    }
+
+    .user-pill {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .log-row:hover {
+        background: #fafcff;
+    }
+
+    .page-link {
+        border-radius: 12px !important;
+        font-weight: 800;
+        margin: 0 4px;
+    }
+
+    .empty-box {
+        padding: 56px 24px;
+        text-align: center;
+        color: #64748b;
+    }
+
+        .empty-box i {
+            font-size: 4rem;
+            opacity: .22;
+            display: block;
+            margin-bottom: 12px;
+        }
+</style>
+
+<div class="audit-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+        <div class="audit-title"><i class="bi bi-shield-lock-fill text-primary me-2"></i>Nhật ký hệ thống</div>
+        <p class="audit-subtitle">
+            Theo dõi truy vết thao tác quản trị, kiểm duyệt tin đăng và các sự kiện bảo mật.
+        </p>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="@Url.Action("ExportCsv", "AuditLogs", new { keyword, target, action, dateRange })" class="btn btn-success rounded-pill fw-bold shadow-sm d-flex align-items-center">
+            <i class="bi bi-file-earmark-excel-fill me-2"></i> Xuất File CSV
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Tổng số Log</div><div class="value">@totalLogs.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Hôm nay</div><div class="value text-info">@todayLogs.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">7 ngày qua</div><div class="value text-warning">@weekLogs.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Tháng này</div><div class="value text-success">@monthLogs.ToString("N0")</div></div></div>
+</div>
+
+<div class="audit-panel p-3 p-md-4 mb-4">
+    <form method="get" asp-action="Index" asp-controller="AuditLogs" asp-area="Admin" class="row g-3 align-items-end">
+        <div class="col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Thời gian</label>
+            <select name="dateRange" class="form-select soft-input">
+                <option value="all" selected="@(dateRange == "all")">Tất cả thời gian</option>
+                <option value="today" selected="@(dateRange == "today")">Chỉ hôm nay</option>
+                <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
+                <option value="month" selected="@(dateRange == "month")">Tháng này</option>
+            </select>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Hành động (Action)</label>
+            <select name="action" class="form-select soft-input">
+                <option value="">-- Tất cả hành động --</option>
+                @foreach (var opt in actionOptions)
+                {
+                    <option value="@opt" selected="@(action == opt)">@opt</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Đối tượng (Target)</label>
+            <select name="target" class="form-select soft-input">
+                <option value="">-- Tất cả đối tượng --</option>
+                @foreach (var opt in targetOptions)
+                {
+                    <option value="@opt" selected="@(target == opt)">@opt</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Từ khóa tìm kiếm</label>
+            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập ID, tên user..." />
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-primary rounded-pill fw-bold px-4 shadow-sm">
+                <i class="bi bi-funnel-fill me-1"></i> Lọc dữ liệu
+            </button>
+            <a asp-action="Index" class="btn btn-light border rounded-pill fw-bold px-4">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> Xóa lọc
+            </a>
+        </div>
+    </form>
+</div>
+
+<div class="audit-panel p-3 p-md-4">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Người thực hiện</th>
+                    <th>Hành động</th>
+                    <th>Đối tượng tác động</th>
+                    <th class="text-end">Chi tiết</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        var icon = ActionIcon(item.Action);
+                        var badgeClass = ActionClass(item.Action);
+
+                        <tr class="log-row">
+                            <td>
+                                <div class="fw-bold text-dark">@item.CreatedAt.ToString("HH:mm:ss", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                                <div class="text-muted small">@item.CreatedAt.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                            </td>
+                            <td>
+                                @if (item.User != null)
+                                {
+                                    <div class="user-pill mb-1">
+                                        <i class="bi bi-person-circle"></i> @item.User.FullName
+                                    </div>
+                                    <div class="text-muted small ms-2">ID: @item.UserID | @item.User.Username</div>
+                                }
+                                else
+                                {
+                                    <div class="user-pill mb-1 bg-light text-muted border">
+                                        <i class="bi bi-robot"></i> Hệ thống tự động
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                <span class="action-pill @badgeClass">
+                                    <i class="bi @icon"></i> @(item.Action ?? "N/A")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="target-pill">
+                                    <i class="bi bi-layers"></i> @(item.Target ?? "N/A")
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@item.LogID" class="btn btn-sm btn-outline-primary rounded-pill fw-bold px-3">
+                                    Xem
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-box">
+                                <i class="bi bi-search"></i>
+                                <h5 class="fw-bold text-dark mb-2">Không tìm thấy dữ liệu</h5>
+                                <div>Không có bản ghi nhật ký nào khớp với bộ lọc của bạn.</div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="pt-4 border-top mt-3">
+            <nav class="d-flex justify-content-center">
+                <ul class="pagination mb-0 flex-wrap">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage - 1, keyword, target, action, dateRange })">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        // Chỉ hiển thị tối đa 5 trang xung quanh trang hiện tại để UI không bị tràn
+                        if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                        {
+                            <li class="page-item @(currentPage == i ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Index", new { page = i, keyword, target, action, dateRange })">@i</a>
+                            </li>
+                        }
+                        else if (i == currentPage - 3 || i == currentPage + 3)
+                        {
+                            <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+                        }
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage + 1, keyword, target, action, dateRange })">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>

@@ -39,9 +39,10 @@ namespace BDSKhanhHoa.Controllers
 
             var projectIds = projects.Select(p => p.ProjectID).ToList();
 
+            // ĐÃ SỬA: Chỉ cần check theo ProjectID là đủ lấy đúng Lead của User đó
             var leads = await _context.ProjectLeads
                 .AsNoTracking()
-                .Where(l => projectIds.Contains(l.ProjectID) || l.HandledByUserID == userId)
+                .Where(l => projectIds.Contains(l.ProjectID))
                 .ToListAsync();
 
             var appointments = await _context.Appointments

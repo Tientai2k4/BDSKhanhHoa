@@ -1,0 +1,201 @@
+﻿@model BDSKhanhHoa.Models.Comment
+@{
+    ViewData["Title"] = "Chi tiết Bình Luận";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0 text-primary">
+            <i class="bi bi-info-circle me-2"></i>Chi tiết Bình Luận #@Model.CommentID
+        </h4>
+        <a href="/Admin/Comments/Index" class="btn btn-outline-secondary rounded-pill">
+            <i class="bi bi-arrow-left me-1"></i> Quay lại
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Thông tin bình luận chính -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom pt-4 pb-3">
+                    <h5 class="fw-bold mb-0">Nội dung bình luận</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="d-flex mb-4">
+                        <img src="@(Model.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-3 border shadow-sm" width="60" height="60" style="object-fit:cover;">
+                        <div>
+                            <h5 class="fw-bold mb-1">@Model.User?.FullName</h5>
+                            <div class="text-muted small mb-2">
+                                <i class="bi bi-clock me-1"></i> Đăng lúc: @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </div>
+                            <span class="badge @(Model.IsHidden ? "bg-danger" : "bg-success")">
+                                @(Model.IsHidden ? "Trạng thái: Bị Ẩn" : "Trạng thái: Hiển thị")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="bg-light p-4 rounded-4 border">
+                        <p class="mb-0 fs-5" style="white-space: pre-line;">@Model.Content</p>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top d-flex gap-2">
+                        <button class="btn btn-warning rounded-pill px-4 btn-toggle-admin" data-id="@Model.CommentID">
+                            <i class="bi @(Model.IsHidden ? "bi-eye" : "bi-eye-slash") me-1"></i>
+                            <span id="toggleText-@Model.CommentID">@(Model.IsHidden ? "Cho phép hiển thị" : "Ẩn bình luận này")</span>
+                        </button>
+                        <button class="btn btn-danger rounded-pill px-4 btn-delete-admin" data-id="@Model.CommentID">
+                            <i class="bi bi-trash me-1"></i> Xóa vĩnh viễn
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danh sách câu trả lời (nếu có) -->
+            @if (Model.Replies != null && Model.Replies.Any())
+            {
+                <div class="card shadow-sm border-0" style="border-radius: 16px;">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h5 class="fw-bold mb-0">Các câu trả lời (@Model.Replies.Count)</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        @foreach (var reply in Model.Replies.OrderBy(r => r.CreatedAt))
+                        {
+                            <!-- SỬA LỖI TẠI ĐÂY: Dùng reply.CommentID -->
+                            <div class="d-flex mb-4 pb-4 border-bottom" id="reply-row-@reply.CommentID">
+                                <img src="@(reply.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-3" width="45" height="45" style="object-fit:cover;">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="fw-bold mb-0">@reply.User?.FullName</h6>
+                                        <small class="text-muted">@reply.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                    </div>
+                                    <p class="mb-2">@reply.Content</p>
+                                    <!-- SỬA LỖI TẠI ĐÂY: Dùng reply.CommentID -->
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill btn-delete-reply" data-id="@reply.CommentID">
+                                        <i class="bi bi-trash me-1"></i> Xóa phản hồi
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Thông tin Bất Động Sản liên quan -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 position-sticky" style="top: 90px; border-radius: 16px;">
+                <div class="card-header bg-white border-bottom pt-4 pb-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-house me-2"></i>Bất Động Sản Liên Quan</h5>
+                </div>
+                <div class="card-body p-0">
+                    @if (Model.Property != null)
+                    {
+                        <img src="@Model.Property.MainImage" class="img-fluid w-100" style="height: 200px; object-fit: cover;" onerror="this.src='/images/no-image.jpg'">
+                        <div class="p-4">
+                            <h6 class="fw-bold line-clamp-2 mb-2">@Model.Property.Title</h6>
+                            <div class="text-primary fw-bold fs-5 mb-2">
+                                @(Model.Property.Price.HasValue? Model.Property.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")
+                            </div>
+                            <p class="text-muted small mb-3">
+                                <i class="bi bi-geo-alt me-1"></i> @Model.Property.AddressDetail
+                            </p>
+                            <a href="/Property/Details/@Model.PropertyID" target="_blank" class="btn btn-outline-primary rounded-pill w-100 fw-bold">
+                                Xem chi tiết BĐS <i class="bi bi-box-arrow-up-right ms-1"></i>
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-exclamation-circle fs-1 mb-2 d-block"></i>
+                            Bất động sản này đã bị xóa khỏi hệ thống.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        $(document).ready(function () {
+            // Xử lý Ẩn/Hiện bình luận chính
+            $('.btn-toggle-admin').click(function () {
+                var id = $(this).data('id');
+                var btn = $(this);
+                var textSpan = $('#toggleText-' + id);
+
+                $.post('/Admin/Comments/ToggleVisibility', { id: id }, function (res) {
+                    if (res.success) {
+                        if(res.isHidden) {
+                            textSpan.text("Cho phép hiển thị");
+                            btn.find('i').removeClass('bi-eye-slash').addClass('bi-eye');
+                            $('.badge').removeClass('bg-success').addClass('bg-danger').text('Trạng thái: Bị Ẩn');
+                        } else {
+                            textSpan.text("Ẩn bình luận này");
+                            btn.find('i').removeClass('bi-eye').addClass('bi-eye-slash');
+                            $('.badge').removeClass('bg-danger').addClass('bg-success').text('Trạng thái: Hiển thị');
+                        }
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cập nhật thành công', showConfirmButton: false, timer: 1500 });
+                    }
+                });
+            });
+
+            // Xử lý Xóa toàn bộ bình luận chính (Gồm cả reply)
+            $('.btn-delete-admin').click(function () {
+                var id = $(this).data('id');
+                Swal.fire({
+                    title: 'Xóa vĩnh viễn?',
+                    text: "Không thể khôi phục dữ liệu này! Toàn bộ câu trả lời cũng sẽ bị xóa.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Đồng ý xóa'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.post('/Admin/Comments/Delete', { id: id }, function (res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Đã xóa!',
+                                    text: 'Bình luận đã bị xóa khỏi hệ thống.',
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    window.location.href = '/Admin/Comments/Index';
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            // Xử lý xóa riêng lẻ từng câu trả lời (phản hồi)
+            $('.btn-delete-reply').click(function(){
+                var replyId = $(this).data('id');
+                Swal.fire({
+                    title: 'Xóa phản hồi này?',
+                    text: "Phản hồi sẽ bị xóa vĩnh viễn!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Đồng ý xóa'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.post('/Admin/Comments/Delete', { id: replyId }, function (res) {
+                            if (res.success) {
+                                $('#reply-row-' + replyId).fadeOut(300, function() { $(this).remove(); });
+                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa phản hồi', showConfirmButton: false, timer: 1500 });
+                            } else {
+                                Swal.fire('Lỗi', res.message, 'error');
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+}

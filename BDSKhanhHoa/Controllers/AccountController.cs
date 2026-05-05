@@ -19,10 +19,9 @@ namespace BDSKhanhHoa.Controllers
         private readonly EmailSender _emailSender;
         private readonly IWebHostEnvironment _hostEnvironment;
 
-        // ĐÃ KHẮC PHỤC LỖI TẠI ĐÂY: Khai báo đầy đủ các hằng số Session
         private const string SESSION_OTP = "RegOTP";
         private const string SESSION_USER = "PendingUser";
-        private const string SESSION_USER_ID = "PendingUserID"; // <-- Bổ sung biến này
+        private const string SESSION_USER_ID = "PendingUserID";
         private const string SESSION_OTP_TIME = "LastOTPTime";
 
         public AccountController(ApplicationDbContext db, EmailSender emailSender, IWebHostEnvironment hostEnvironment)
@@ -130,12 +129,10 @@ namespace BDSKhanhHoa.Controllers
                     ModelState.AddModelError("Email", "Email này đã được đăng ký và xác thực. Vui lòng đăng nhập.");
                     return View(model);
                 }
-                // Nếu tồn tại rác chưa verify -> Xóa để tạo lại phiên mới
                 _db.Users.Remove(existUser);
                 await _db.SaveChangesAsync();
             }
 
-            // Mặc định tài khoản tạo ra bị KHÓA (IsEmailVerified = false)
             var newUser = new User
             {
                 FullName = model.FullName,
@@ -155,9 +152,6 @@ namespace BDSKhanhHoa.Controllers
             string otpCode = new Random().Next(100000, 999999).ToString();
             HttpContext.Session.SetString(SESSION_OTP, otpCode);
             HttpContext.Session.SetInt32(SESSION_USER_ID, newUser.UserID);
-
-            // TODO: Bật _emailSender khi triển khai thực tế
-            // await _emailSender.SendEmailAsync(model.Email, "Xác thực OTP - BDS Khánh Hòa", $"Mã xác thực của bạn là: {otpCode}");
 
             Console.WriteLine($"[HỆ THỐNG DEV] MÃ OTP CHO {model.Email} LÀ: {otpCode}");
 
@@ -188,14 +182,12 @@ namespace BDSKhanhHoa.Controllers
                 var user = await _db.Users.FindAsync(pendingUserId);
                 if (user != null)
                 {
-                    // Cấp phép sử dụng tài khoản
                     user.IsEmailVerified = true;
                     await _db.SaveChangesAsync();
 
                     HttpContext.Session.Remove(SESSION_OTP);
                     HttpContext.Session.Remove(SESSION_USER_ID);
 
-                    // Quà tặng thành viên mới
                     await GrantWelcomeFreeCredits(user.UserID);
 
                     TempData["Success"] = "Xác thực thành công! Bạn được tặng 5 lượt đăng tin miễn phí. Hãy đăng nhập để trải nghiệm.";
@@ -226,7 +218,6 @@ namespace BDSKhanhHoa.Controllers
                     return View(model);
                 }
 
-                // LOGIC CHẶN CỬA BẢO MẬT KÉP: Chưa verify email thì cấm đăng nhập
                 if (user.IsEmailVerified == false || user.IsEmailVerified == null)
                 {
                     string newOtp = new Random().Next(100000, 999999).ToString();
@@ -280,7 +271,7 @@ namespace BDSKhanhHoa.Controllers
                     Username = email,
                     Password = "GOOGLE_AUTH",
                     RoleID = 3,
-                    IsEmailVerified = true, // Đăng nhập Google được tính là đã xác thực email
+                    IsEmailVerified = true,
                     CreatedAt = DateTime.Now,
                     Avatar = "/images/avatars/default-user.png",
                     IsActive = true
@@ -311,30 +302,24 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login");
 
-            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId);
+            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId && !u.IsDeleted);
             if (user == null) return NotFound();
 
-            // 1. Thống kê chỉ số hoạt động cá nhân
             ViewBag.TotalProps = await _db.Properties.CountAsync(p => p.UserID == userId && p.IsDeleted == false);
             ViewBag.TotalProjects = await _db.Projects.CountAsync(p => p.OwnerUserID == userId && p.IsDeleted == false);
-
-            // 2. TRÍCH XUẤT DỮ LIỆU PHÁP NHÂN (BUSINESS PROFILE)
-            // Dữ liệu này sẽ được truyền sang View để render phân hệ "Hồ sơ Doanh nghiệp"
             ViewBag.BusinessProfile = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(b => b.UserID == userId);
 
-            // 3. Phân luồng giao diện cho Quản trị viên
             if (user.RoleID == 1 || user.RoleID == 2)
             {
                 ViewBag.PendingAds = await _db.Properties.CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
                 ViewBag.TotalUsers = await _db.Users.CountAsync(u => !u.IsDeleted);
                 ViewBag.NewReports = await _db.PropertyReports.CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
-
-                // Nếu Admin có giao diện Profile riêng thì dùng "AdminProfile", nếu không cứ return View(user)
                 return View(user);
             }
 
             return View(user);
         }
+
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
@@ -342,6 +327,19 @@ namespace BDSKhanhHoa.Controllers
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (model.UserID.ToString() != userIdStr) return Forbid();
+
+            // MẤU CHỐT SỬA LỖI Ở ĐÂY: Gỡ bỏ việc kiểm tra các trường [Required] không có trong giao diện Profile
+            ModelState.Remove("Username");
+            ModelState.Remove("Password");
+            ModelState.Remove("ConfirmPassword");
+            ModelState.Remove("Email");
+            ModelState.Remove("RoleID");
+
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Vui lòng kiểm tra lại định dạng số điện thoại hoặc các thông tin nhập vào.";
+                return RedirectToAction("Profile");
+            }
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == model.UserID);
             if (user != null)
@@ -352,6 +350,7 @@ namespace BDSKhanhHoa.Controllers
                 user.Zalo = model.Zalo;
                 user.Facebook = model.Facebook;
                 user.Bio = model.Bio;
+
                 await _db.SaveChangesAsync();
                 await UpdateUserClaims(user);
                 TempData["Success"] = "Cập nhật hồ sơ thành công!";

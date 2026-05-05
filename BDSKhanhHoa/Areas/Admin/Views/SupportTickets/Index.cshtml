@@ -1,16 +1,18 @@
 ﻿@using BDSKhanhHoa.Models
 @using System.Globalization
 @{
-    ViewData["Title"] = "Yêu cầu từ CĐT";
+    ViewData["Title"] = "Quản lý Yêu cầu từ CĐT";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
     var consultations = ViewBag.Consultations as IEnumerable<Consultation>;
-    var contactMessages = ViewBag.ContactMessages as IEnumerable<ContactMessage>;
     var projectLeads = ViewBag.ProjectLeads as IEnumerable<ProjectLead>;
-    var propertyReports = ViewBag.PropertyReports as IEnumerable<PropertyReport>;
 
+    // Tách 2 danh sách Pending và History
+    var pendingContacts = ViewBag.PendingContacts as IEnumerable<ContactMessage>;
+    var resolvedContacts = ViewBag.ResolvedContacts as IEnumerable<ContactMessage>;
+
+    var projectEditCounts = ViewBag.ProjectEditCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
     var projectNames = ViewBag.ProjectNames as Dictionary<int, string> ?? new Dictionary<int, string>();
-    var propertyNames = ViewBag.PropertyNames as Dictionary<int, string> ?? new Dictionary<int, string>();
 
     string activeTab = ViewBag.ActiveTab as string ?? "all";
     string status = ViewBag.Status as string ?? "";
@@ -19,7 +21,16 @@
     int consultationCount = ViewBag.ConsultationCount ?? 0;
     int contactMessageCount = ViewBag.ContactMessageCount ?? 0;
     int projectLeadCount = ViewBag.ProjectLeadCount ?? 0;
-    int reportCount = ViewBag.ReportCount ?? 0;
+
+    string TranslateStatus(string? st)
+    {
+        return st switch { "Pending" => "Chờ xử lý", "Processing" => "Đang xử lý", "Done" or "Đã xử lý" => "Đã hoàn tất", "Contacted" => "Đã liên hệ", "Resolved" => "Thành công", _ => st ?? "Chờ xử lý" };
+    }
+
+    string GetStatusBadge(string? st)
+    {
+        return st switch { "Pending" => "bg-danger", "Processing" or "Contacted" => "bg-warning text-dark", "Done" or "Resolved" or "Đã xử lý" => "bg-success", _ => "bg-secondary" };
+    }
 }
 
 <style>
@@ -31,30 +42,46 @@
     }
 
     .stat-box {
-        padding: 18px;
+        padding: 22px;
         border-radius: 22px;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
         color: #fff;
-        min-height: 120px;
+        min-height: 140px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
     }
 
-        .stat-box .label {
-            text-transform: uppercase;
-            font-size: .75rem;
-            letter-spacing: .08em;
-            opacity: .85;
-            font-weight: 800;
-        }
+    .bg-tuvan {
+        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    }
 
-        .stat-box .value {
-            font-size: 2.4rem;
-            font-weight: 900;
-            line-height: 1;
-        }
+    .bg-hotro {
+        background: linear-gradient(135deg, #0f766e, #14b8a6);
+    }
+
+    .bg-lead {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .stat-box .label {
+        text-transform: uppercase;
+        font-size: .8rem;
+        letter-spacing: .08em;
+        opacity: .9;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    .stat-box .value {
+        font-size: 2.8rem;
+        font-weight: 900;
+        line-height: 1;
+    }
 
     .soft-input {
         min-height: 48px;
         border-radius: 14px;
+        font-weight: 600;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
     }
 
     .table thead th {
@@ -65,6 +92,13 @@
         font-weight: 900;
         color: #475569;
         white-space: nowrap;
+        padding: 16px;
+    }
+
+    .table tbody td {
+        padding: 16px;
+        vertical-align: middle;
+        border-top: 1px solid #f1f5f9;
     }
 
     .ticket-chip {
@@ -72,300 +106,435 @@
         align-items: center;
         gap: 8px;
         border-radius: 999px;
-        padding: 6px 12px;
+        padding: 8px 14px;
         background: #eef2ff;
         color: #4338ca;
         font-weight: 800;
-        font-size: .78rem;
+        font-size: .8rem;
+        border: 1px solid #c7d2fe;
     }
+
+    .modal-detail-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    /* Style cho Tab Admin Lịch sử */
+    .nav-pills-custom .nav-link {
+        color: #64748b;
+        font-weight: 700;
+        border-radius: 12px;
+        padding: 12px 24px;
+        transition: all 0.3s;
+        margin-right: 10px;
+        border: 1px solid transparent;
+    }
+
+        .nav-pills-custom .nav-link:hover {
+            background-color: #f1f5f9;
+        }
+
+        .nav-pills-custom .nav-link.active {
+            background-color: #eef2ff;
+            color: #4338ca;
+            border-color: #c7d2fe;
+            box-shadow: 0 4px 10px rgba(67, 56, 202, 0.08);
+        }
 </style>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-4" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
 
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
     <div>
-        <h3 class="fw-black mb-1">Yêu cầu từ CĐT</h3>
-        <div class="text-muted">Tổng hợp yêu cầu tư vấn, liên hệ, lead dự án và báo cáo vi phạm liên quan đến Property / Project.</div>
+        <h3 class="fw-black mb-1">Cổng hỗ trợ Đối tác / CĐT</h3>
+        <div class="text-muted">Quản lý tập trung các yêu cầu hỗ trợ sửa thông tin, khách hàng tiềm năng và tư vấn dự án.</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <span class="ticket-chip"><i class="bi bi-chat-text"></i> Consultations: @consultationCount</span>
-        <span class="ticket-chip"><i class="bi bi-envelope"></i> Contacts: @contactMessageCount</span>
-        <span class="ticket-chip"><i class="bi bi-funnel"></i> Leads: @projectLeadCount</span>
-        <span class="ticket-chip"><i class="bi bi-flag"></i> Reports: @reportCount</span>
+        <span class="ticket-chip"><i class="bi bi-buildings"></i> Tư vấn: @consultationCount</span>
+        <span class="ticket-chip"><i class="bi bi-headset"></i> Chờ hỗ trợ: @contactMessageCount</span>
+        <span class="ticket-chip"><i class="bi bi-people"></i> Leads KH: @projectLeadCount</span>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-4 col-md-4">
+        <div class="stat-box bg-tuvan">
+            <div class="label">Yêu cầu tư vấn Dự án</div>
+            <div class="value">@consultationCount</div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-md-4">
+        <div class="stat-box bg-hotro">
+            <div class="label">Yêu cầu hỗ trợ CĐT</div>
+            <div class="value">@contactMessageCount</div>
+        </div>
+    </div>
+    <div class="col-xl-4 col-md-4">
+        <div class="stat-box bg-lead">
+            <div class="label">Khách hàng Lead</div>
+            <div class="value">@projectLeadCount</div>
+        </div>
     </div>
 </div>
 
 <div class="dash-card p-3 p-md-4 mb-4">
     <form method="get" asp-action="Index" asp-controller="SupportTickets" asp-area="Admin" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label fw-bold small text-muted text-uppercase">Tab</label>
+        <div class="col-xl-2 col-md-4">
+            <label class="form-label fw-bold small text-muted text-uppercase">Danh mục</label>
             <select name="tab" class="form-select soft-input">
-                <option value="all" selected="@(activeTab == "all")">Tất cả</option>
-                <option value="consultations" selected="@(activeTab == "consultations")">Consultations</option>
-                <option value="contacts" selected="@(activeTab == "contacts")">Contact Messages</option>
-                <option value="leads" selected="@(activeTab == "leads")">Project Leads</option>
-                <option value="reports" selected="@(activeTab == "reports")">Property Reports</option>
+                <option value="all" selected="@(activeTab == "all")">Tất cả dữ liệu</option>
+                <option value="tu-van" selected="@(activeTab == "tu-van")">Tư vấn Dự án</option>
+                <option value="ho-tro" selected="@(activeTab == "ho-tro")">Hỗ trợ CĐT</option>
+                <option value="leads" selected="@(activeTab == "leads")">Lead Khách hàng</option>
             </select>
         </div>
-
-        <div class="col-md-3">
+        <div class="col-xl-2 col-md-4">
             <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
-            <input type="text" name="status" value="@status" class="form-control soft-input" placeholder="Pending / Processing / Done / New..." />
+            <select name="status" class="form-select soft-input">
+                <option value="" selected="@(string.IsNullOrEmpty(status))">Tất cả</option>
+                <option value="Pending" selected="@(status == "Pending")">Chờ xử lý</option>
+                <option value="Done" selected="@(status == "Done")">Hoàn tất</option>
+            </select>
         </div>
-
-        <div class="col-md-6">
-            <label class="form-label fw-bold small text-muted text-uppercase">Từ khóa</label>
-            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Tên, điện thoại, tiêu đề, nội dung..." />
+        <div class="col-xl-6 col-md-8">
+            <label class="form-label fw-bold small text-muted text-uppercase">Tìm kiếm từ khóa</label>
+            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập tên khách, SĐT, tiêu đề..." />
         </div>
-
-        <div class="col-12">
-            <button class="btn btn-primary rounded-pill fw-bold px-4">
-                <i class="bi bi-search me-1"></i> Lọc dữ liệu
+        <div class="col-xl-2 col-md-4 d-grid">
+            <button class="btn btn-primary rounded-3 fw-bold shadow-sm" style="min-height: 48px;">
+                <i class="bi bi-funnel-fill me-1"></i> Lọc
             </button>
         </div>
     </form>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="stat-box">
-            <div class="label">Consultations</div>
-            <div class="value">@consultationCount</div>
-            <div class="small opacity-75">Yêu cầu tư vấn dự án / bất động sản</div>
-        </div>
+<!-- ==========================================
+     KHU VỰC 1: YÊU CẦU HỖ TRỢ TỪ CĐT (CÓ TAB LỊCH SỬ)
+     ========================================== -->
+<div class="dash-card p-4 mb-4">
+    <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-3">
+        <i class="bi bi-headset fs-4 text-info"></i>
+        <h5 class="fw-bold mb-0">Quản lý Yêu cầu & Lịch sử chỉnh sửa Dự án</h5>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="stat-box">
-            <div class="label">Contact messages</div>
-            <div class="value">@contactMessageCount</div>
-            <div class="small opacity-75">Tin nhắn form liên hệ</div>
+
+    <!-- Tab Controls -->
+    <ul class="nav nav-pills nav-pills-custom mb-4" id="supportTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active d-flex align-items-center" id="pending-tab" data-bs-toggle="pill" data-bs-target="#pending" type="button" role="tab">
+                <i class="bi bi-exclamation-circle-fill me-2"></i> Cần xử lý
+                @if (contactMessageCount > 0)
+                {
+                    <span class="badge bg-danger ms-2 rounded-pill">@contactMessageCount</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link d-flex align-items-center" id="history-tab" data-bs-toggle="pill" data-bs-target="#history" type="button" role="tab">
+                <i class="bi bi-clock-history me-2"></i> Lịch sử đã xử lý
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="supportTabsContent">
+        <!-- BẢNG ĐANG CHỜ XỬ LÝ -->
+        <div class="tab-pane fade show active" id="pending" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Dự án yêu cầu</th>
+                            <th>Chủ đề (Subject)</th>
+                            <th>Ngày gửi</th>
+                            <th>Trạng thái</th>
+                            <th class="text-end">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (pendingContacts != null && pendingContacts.Any())
+                        {
+                            foreach (var item in pendingContacts)
+                            {
+                                int editCount = item.ProjectID.HasValue && projectEditCounts.ContainsKey(item.ProjectID.Value) ? projectEditCounts[item.ProjectID.Value] : 0;
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-primary fs-6">@(item.Project != null ? item.Project.ProjectName : "Không xác định")</div>
+                                        <div class="text-muted small mt-1"><i class="bi bi-building"></i> @item.FullName</div>
+                                        @if (editCount > 0)
+                                        {
+                                            <div class="badge bg-warning text-dark mt-2 fw-bold"><i class="bi bi-arrow-repeat"></i> Đã sửa @editCount lần trong quá khứ</div>
+                                        }
+                                    </td>
+                                    <td style="max-width: 250px;">
+                                        <div class="fw-bold text-dark text-truncate">@item.Subject</div>
+                                        <div class="text-muted small text-truncate">@item.Message</div>
+                                    </td>
+                                    <td class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</td>
+                                    <td><span class="badge rounded-pill @GetStatusBadge(item.Status) px-3 py-2">@TranslateStatus(item.Status)</span></td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-primary rounded-pill fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modal-request-@item.ContactID">
+                                            <i class="bi bi-eye me-1"></i> Xử lý ngay
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- MODAL CHI TIẾT (Pending) -->
+                                <div class="modal fade" id="modal-request-@item.ContactID" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                        <div class="modal-content border-0 rounded-4 shadow-lg">
+                                            <div class="modal-header bg-primary text-white p-4">
+                                                <h5 class="modal-title fw-bold"><i class="bi bi-journal-text me-2"></i>Yêu cầu #@item.ContactID</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body p-4">
+                                                <div class="row g-3 mb-3">
+                                                    <div class="col-md-6">
+                                                        <div class="modal-detail-box h-100">
+                                                            <h6 class="fw-bold text-primary border-bottom pb-2">Thông tin Đối tác</h6>
+                                                            <div><strong>Tên:</strong> @item.FullName</div>
+                                                            <div><strong>SĐT:</strong> @item.Phone</div>
+                                                            <div><strong>Gửi lúc:</strong> @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="modal-detail-box h-100">
+                                                            <h6 class="fw-bold text-danger border-bottom pb-2">Dự án cần xử lý</h6>
+                                                            <div class="mb-2 fw-bold text-dark">@(item.Project != null ? item.Project.ProjectName : "Chưa xác định")</div>
+                                                            @if (item.ProjectID.HasValue)
+                                                            {
+                                                                <a href="/Admin/AdminProject/Edit/@item.ProjectID" target="_blank" class="btn btn-outline-danger btn-sm rounded-pill w-100 mt-2"><i class="bi bi-box-arrow-up-right me-1"></i> Mở trang Sửa Dự án</a>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-detail-box bg-white">
+                                                    <h6 class="fw-bold text-dark">Chủ đề: @item.Subject</h6>
+                                                    <hr><div style="white-space: pre-wrap;">@item.Message</div>
+                                                </div>
+                                                <div class="modal-detail-box bg-white mb-0">
+                                                    <h6 class="fw-bold mb-2"><i class="bi bi-paperclip text-success me-2"></i>File đính kèm</h6>
+                                                    @if (!string.IsNullOrEmpty(item.AttachmentPath))
+                                                    {
+                                                        <a href="@item.AttachmentPath" target="_blank" class="btn btn-success btn-sm rounded-pill fw-bold px-4"><i class="bi bi-download me-2"></i>Tải xuống</a>
+                                                    }
+                                                    else
+                                                    {
+
+                                                        <span class="text-muted fst-italic">CĐT không đính kèm file.</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer bg-light p-3">
+                                                <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Đóng</button>
+                                                <form asp-action="ProcessSupportRequest" asp-area="Admin" method="post" class="m-0">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.ContactID" />
+                                                    <button type="submit" class="btn btn-success fw-bold rounded-pill shadow-sm" onclick="return confirm('Xác nhận đã xử lý xong và đưa vào Lịch sử?')"><i class="bi bi-check-circle-fill me-2"></i>Đã xử lý xong (Lưu Lịch sử)</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">Tuyệt vời! Không có yêu cầu nào đang chờ xử lý.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="stat-box">
-            <div class="label">Project leads</div>
-            <div class="value">@projectLeadCount</div>
-            <div class="small opacity-75">Lead từ dự án</div>
-        </div>
-    </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="stat-box">
-            <div class="label">Property reports</div>
-            <div class="value">@reportCount</div>
-            <div class="small opacity-75">Báo cáo vi phạm</div>
+
+        <!-- BẢNG LỊCH SỬ ĐÃ XONG -->
+        <div class="tab-pane fade" id="history" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Dự án</th>
+                            <th>Chủ đề / Nội dung sửa</th>
+                            <th>Ngày hoàn tất</th>
+                            <th>Trạng thái</th>
+                            <th class="text-end">Chi tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (resolvedContacts != null && resolvedContacts.Any())
+                        {
+                            foreach (var item in resolvedContacts)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark fs-6">@(item.Project != null ? item.Project.ProjectName : "Không xác định")</div>
+                                        <div class="text-muted small">CĐT: @item.FullName</div>
+                                    </td>
+                                    <td style="max-width: 300px;">
+                                        <div class="fw-bold text-dark text-truncate">@item.Subject</div>
+                                        <div class="text-muted small text-truncate" title="@item.Message">@item.Message</div>
+                                    </td>
+                                    <td class="text-muted small">@(item.UpdatedAt.HasValue? item.UpdatedAt.Value.ToString("HH:mm dd/MM/yyyy") : item.CreatedAt.ToString("HH:mm dd/MM/yyyy"))</td>
+                                    <td><span class="badge rounded-pill bg-success px-3 py-2">Đã hoàn tất</span></td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modal-history-@item.ContactID">
+                                            <i class="bi bi-eye"></i> Xem lại
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- MODAL CHI TIẾT (Lịch sử) -->
+                                <div class="modal fade" id="modal-history-@item.ContactID" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                        <div class="modal-content border-0 rounded-4 shadow-lg">
+                                            <div class="modal-header bg-success text-white p-4">
+                                                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i>Lịch sử Yêu cầu #@item.ContactID</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body p-4">
+                                                <div class="row g-3 mb-3">
+                                                    <div class="col-md-6">
+                                                        <div class="modal-detail-box h-100">
+                                                            <h6 class="fw-bold text-success border-bottom pb-2">Thông tin Đối tác</h6>
+                                                            <div><strong>Tên:</strong> @item.FullName</div>
+                                                            <div><strong>SĐT:</strong> @item.Phone</div>
+                                                            <div><strong>Gửi lúc:</strong> @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</div>
+                                                            <div><strong>Xử lý lúc:</strong> @(item.UpdatedAt.HasValue? item.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy") : "N/A")</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <div class="modal-detail-box h-100">
+                                                            <h6 class="fw-bold text-dark border-bottom pb-2">Dự án đã xử lý</h6>
+                                                            <div class="mb-2 fw-bold text-dark">@(item.Project != null ? item.Project.ProjectName : "Chưa xác định")</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-detail-box bg-white">
+                                                    <h6 class="fw-bold text-dark">Chủ đề: @item.Subject</h6>
+                                                    <hr><div style="white-space: pre-wrap;">@item.Message</div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer bg-light p-3">
+                                                <button type="button" class="btn btn-secondary fw-bold rounded-pill w-100" data-bs-dismiss="modal">Đóng lịch sử</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">Chưa có lịch sử chỉnh sửa nào.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="dash-card p-3 p-md-4 mb-4">
-    <h5 class="fw-bold mb-3">Consultations</h5>
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Khách</th>
-                    <th>Liên hệ</th>
-                    <th>Dự án / BĐS</th>
-                    <th>Loại</th>
-                    <th>Trạng thái</th>
-                    <th class="text-end">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (consultations != null && consultations.Any())
-                {
-                    foreach (var item in consultations)
-                    {
-                        var projectName = (item.ProjectID.HasValue && projectNames.ContainsKey(item.ProjectID.Value)) ? projectNames[item.ProjectID.Value] : "-";
-                        var propertyName = (item.PropertyID.HasValue && propertyNames.ContainsKey(item.PropertyID.Value)) ? propertyNames[item.PropertyID.Value] : "-";
+<!-- ==========================================
+     KHU VỰC 2 & 3: TƯ VẤN DỰ ÁN & LEAD KHÁCH HÀNG
+     ========================================== -->
+<div class="row g-4 mb-4">
+    <!-- CỘT TRÁI: TƯ VẤN DỰ ÁN -->
+    <div class="col-lg-12 col-xl-6">
+        <div class="dash-card p-4 h-100">
+            <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-3">
+                <i class="bi bi-buildings fs-4 text-primary"></i>
+                <h5 class="fw-bold mb-0">Yêu cầu tư vấn Dự án</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td>
-                                <div class="fw-bold">@item.FullName</div>
-                                <div class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
-                            </td>
-                            <td>
-                                <div>@item.Phone</div>
-                                <div class="small text-muted">@item.Email</div>
-                            </td>
-                            <td>
-                                <div class="fw-semibold">Project: @projectName</div>
-                                <div class="small text-muted">Property: @propertyName</div>
-                            </td>
-                            <td><span class="badge bg-info">@item.LeadType</span></td>
-                            <td><span class="badge bg-secondary">@item.Status</span></td>
-                            <td class="text-end">
-                                <form asp-action="UpdateConsultationStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.ConsultID" />
-                                    <input type="hidden" name="status" value="Processing" />
-                                    <button class="btn btn-sm btn-outline-primary rounded-pill">Xử lý</button>
-                                </form>
-                                <form asp-action="UpdateConsultationStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.ConsultID" />
-                                    <input type="hidden" name="status" value="Done" />
-                                    <button class="btn btn-sm btn-outline-success rounded-pill">Hoàn tất</button>
-                                </form>
-                            </td>
+                            <th>Khách hàng</th>
+                            <th>Thông tin liên hệ</th>
+                            <th>Dự án quan tâm</th>
+                            <th class="text-end">Trạng thái</th>
                         </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="6" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                }
-            </tbody>
-        </table>
+                    </thead>
+                    <tbody>
+                        @if (consultations != null && consultations.Any())
+                        {
+                            foreach (var item in consultations)
+                            {
+                                var projectName = (item.ProjectID.HasValue && projectNames.ContainsKey(item.ProjectID.Value)) ? projectNames[item.ProjectID.Value] : "N/A";
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark fs-6">@item.FullName</div>
+                                        <div class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-primary"><i class="bi bi-telephone"></i> @item.Phone</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">@projectName</div>
+                                        <div class="small text-muted mt-1 fst-italic">"@item.Note"</div>
+                                    </td>
+                                    <td class="text-end"><span class="badge rounded-pill @GetStatusBadge(item.Status) px-3 py-2">@TranslateStatus(item.Status)</span></td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="text-center text-muted py-4">Chưa có dữ liệu yêu cầu tư vấn dự án.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="dash-card p-3 p-md-4 mb-4">
-    <h5 class="fw-bold mb-3">ContactMessages</h5>
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Khách</th>
-                    <th>Chủ đề</th>
-                    <th>Nội dung</th>
-                    <th>Trạng thái</th>
-                    <th class="text-end">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (contactMessages != null && contactMessages.Any())
-                {
-                    foreach (var item in contactMessages)
-                    {
+    <!-- CỘT PHẢI: LEAD KHÁCH HÀNG -->
+    <div class="col-lg-12 col-xl-6">
+        <div class="dash-card p-4 h-100">
+            <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-3">
+                <i class="bi bi-people fs-4 text-warning"></i>
+                <h5 class="fw-bold mb-0">Theo dõi Lead Khách hàng</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td>
-                                <div class="fw-bold">@item.FullName</div>
-                                <div class="text-muted small">@item.Phone</div>
-                                <div class="text-muted small">@item.Email</div>
-                            </td>
-                            <td class="fw-semibold">@item.Subject</td>
-                            <td>@item.Message</td>
-                            <td><span class="badge bg-secondary">@item.Status</span></td>
-                            <td class="text-end">
-                                <form asp-action="UpdateContactStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.ContactID" />
-                                    <input type="hidden" name="status" value="Đã xử lý" />
-                                    <button class="btn btn-sm btn-outline-success rounded-pill">Đã xử lý</button>
-                                </form>
-                            </td>
+                            <th>Khách hàng</th>
+                            <th>Dự án thu thập</th>
+                            <th>Nhu cầu</th>
+                            <th class="text-end">Trạng thái</th>
                         </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="dash-card p-3 p-md-4 mb-4">
-    <h5 class="fw-bold mb-3">ProjectLeads</h5>
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Khách</th>
-                    <th>Dự án</th>
-                    <th>Liên hệ</th>
-                    <th>Trạng thái</th>
-                    <th class="text-end">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (projectLeads != null && projectLeads.Any())
-                {
-                    foreach (var item in projectLeads)
-                    {
-                        <tr>
-                            <td>
-                                <div class="fw-bold">@item.Name</div>
-                                <div class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
-                            </td>
-                            <td class="fw-semibold">
-                                @(item.Project != null ? item.Project.ProjectName : "-")
-                            </td>
-                            <td>
-                                <div>@item.Phone</div>
-                                <div class="small text-muted">@item.Email</div>
-                            </td>
-                            <td><span class="badge bg-secondary">@item.LeadStatus</span></td>
-                            <td class="text-end">
-                                <form asp-action="UpdateLeadStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.LeadID" />
-                                    <input type="hidden" name="status" value="Contacted" />
-                                    <button class="btn btn-sm btn-outline-primary rounded-pill">Contacted</button>
-                                </form>
-                                <form asp-action="UpdateLeadStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.LeadID" />
-                                    <input type="hidden" name="status" value="Resolved" />
-                                    <button class="btn btn-sm btn-outline-success rounded-pill">Resolved</button>
-                                </form>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="dash-card p-3 p-md-4">
-    <h5 class="fw-bold mb-3">PropertyReports</h5>
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>PropertyID</th>
-                    <th>Lý do</th>
-                    <th>Chi tiết</th>
-                    <th>Trạng thái</th>
-                    <th class="text-end">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (propertyReports != null && propertyReports.Any())
-                {
-                    foreach (var item in propertyReports)
-                    {
-                        <tr>
-                            <td>@item.PropertyID</td>
-                            <td class="fw-semibold">@item.Reason</td>
-                            <td>@item.Description</td>
-                            <td><span class="badge bg-secondary">@item.Status</span></td>
-                            <td class="text-end">
-                                <form asp-action="UpdateReportStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.ReportID" />
-                                    <input type="hidden" name="status" value="Processed" />
-                                    <button class="btn btn-sm btn-outline-success rounded-pill">Processed</button>
-                                </form>
-                                <form asp-action="UpdateReportStatus" asp-controller="SupportTickets" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.ReportID" />
-                                    <input type="hidden" name="status" value="Rejected" />
-                                    <button class="btn btn-sm btn-outline-danger rounded-pill">Rejected</button>
-                                </form>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr><td colspan="5" class="text-center text-muted py-4">Chưa có dữ liệu</td></tr>
-                }
-            </tbody>
-        </table>
+                    </thead>
+                    <tbody>
+                        @if (projectLeads != null && projectLeads.Any())
+                        {
+                            foreach (var item in projectLeads)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark fs-6">@item.Name</div>
+                                        <div class="text-muted small"><i class="bi bi-telephone"></i> @item.Phone</div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-primary">@(item.Project != null ? item.Project.ProjectName : "N/A")</div>
+                                    </td>
+                                    <td class="small text-muted fst-italic">@(string.IsNullOrWhiteSpace(item.Message) ? "Không có lời nhắn" : item.Message)</td>
+                                    <td class="text-end"><span class="badge rounded-pill @GetStatusBadge(item.LeadStatus) px-3 py-2">@TranslateStatus(item.LeadStatus)</span></td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="text-center text-muted py-4">Chưa có Lead khách hàng nào.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>

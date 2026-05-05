@@ -4,22 +4,29 @@
 @inject ApplicationDbContext _context
 
 @{
+    /* -------------------------------------------------------------------------
+       PHẦN XỬ LÝ LOGIC DỮ LIỆU HỆ THỐNG
+       ------------------------------------------------------------------------- */
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
     var userAvatar = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-business.png";
 
+    // Truy vấn thông tin doanh nghiệp (Sử dụng AsNoTracking để tối ưu hiệu năng)
     var businessProfile = _context.BusinessProfiles.AsNoTracking().FirstOrDefault(b => b.UserID == currentUserId);
     var businessName = businessProfile?.BusinessName ?? "Doanh nghiệp đối tác";
 
+    // Xác định Controller và Action hiện tại để kích hoạt trạng thái "Active" trên Menu
     var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
     var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
 
-    int newLeadsCount = _context.ProjectLeads.Count(l => l.HandledByUserID == currentUserId && l.LeadStatus == "New");
+    // Đếm số lượng thông báo mới (Lead mới đổ về từ dự án)
+    int newLeadsCount = _context.ProjectLeads.Include(l => l.Project)
+                        .Count(l => l.Project != null && l.Project.OwnerUserID == currentUserId && l.LeadStatus == "New");
+
+    // Thống kê nhanh cho Sidebar
     int activeProjects = _context.Projects.Count(p => p.OwnerUserID == currentUserId && !p.IsDeleted);
     int activeAppointments = _context.Appointments.Count(a => a.BuyerID == currentUserId || a.SellerID == currentUserId);
-    int upcomingAppointments = _context.Appointments.Count(a =>
-        (a.BuyerID == currentUserId || a.SellerID == currentUserId) &&
-        (a.Status == "Pending" || a.Status == "Confirmed"));
 
+    /* Hàm kiểm tra trạng thái Menu đang hoạt động */
     bool IsActive(string controller, string? action = null)
     {
         if (!string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)) return false;
@@ -30,333 +37,338 @@
 }
 
 <!DOCTYPE html>
-<html lang="vi" dir="ltr">
+<html lang="vi">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>@ViewData["Title"] - Enterprise Portal | BDS KHÁNH HÒA</title>
+    <meta name="description" content="Hệ thống quản trị dành cho đối tác chiến lược - BDS Khánh Hòa" />
+    <title>@ViewData["Title"] | Cổng Quản Trị Đối Tác - BDS Khánh Hòa</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
     <style>
         :root {
-            --bg: #f4f7fb;
-            --surface: rgba(255, 255, 255, 0.88);
-            --text: #0f172a;
-            --muted: #64748b;
-            --navy: #0b1220;
+            /* Hệ màu SaaS Modern 2026 */
+            --primary: #4361ee;
+            --primary-light: #4895ef;
+            --primary-soft: #f0f4ff;
+            --secondary: #3f37c9;
             --accent: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --bg-body: #f8fafc;
+            --sidebar-bg: #ffffff;
             --sidebar-width: 290px;
-            --header-height: 78px;
-            --transition: 260ms cubic-bezier(.2,.8,.2,1);
+            --header-height: 76px;
+            --radius-xl: 20px;
+            --radius-lg: 14px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --shadow-soft: 0 10px 30px -5px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.02);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            margin: 0;
             font-family: 'Inter', sans-serif;
-            color: var(--text);
-            background: radial-gradient(circle at top left, rgba(245, 158, 11, 0.08), transparent 25%), radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 20%), linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
-            background-attachment: fixed;
+            background-color: var(--bg-body);
+            color: var(--text-main);
             overflow-x: hidden;
+            letter-spacing: -0.01em;
+            font-size: 0.95rem;
         }
 
         h1, h2, h3, h4, h5, h6, .brand-text {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            letter-spacing: -0.02em;
+            font-weight: 700;
+            color: var(--text-main);
         }
 
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(100, 116, 139, 0.4);
-            border-radius: 10px;
-        }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: var(--accent);
-            }
-
-        .mobile-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(4px);
-            z-index: 1035;
-            opacity: 0;
-            visibility: hidden;
-            transition: var(--transition);
-        }
-
-            .mobile-overlay.active {
-                opacity: 1;
-                visibility: visible;
-            }
-
+        /* -------------------------------------------------------------------------
+                   THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR)
+                   ------------------------------------------------------------------------- */
         .sidebar-wrapper {
             position: fixed;
             top: 0;
             left: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: linear-gradient(180deg, var(--navy) 0%, #0f172a 100%);
-            color: #fff;
+            background: var(--sidebar-bg);
+            border-right: 1px solid rgba(15, 23, 42, 0.06);
             z-index: 1040;
+            transition: var(--transition);
             display: flex;
             flex-direction: column;
-            box-shadow: 4px 0 25px rgba(15, 23, 42, 0.15);
-            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
         }
 
         .sidebar-brand {
             height: var(--header-height);
             display: flex;
             align-items: center;
-            justify-content: center;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 0 28px;
+            margin-bottom: 8px;
         }
 
-        .brand-chip {
-            display: inline-flex;
+        .logo-box {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
-            border-radius: 14px;
-            text-decoration: none;
-            color: #fff;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+            box-shadow: 0 6px 16px rgba(67, 97, 238, 0.25);
         }
 
-            .brand-chip i {
-                font-size: 1.4rem;
-                color: var(--accent);
-            }
+        .brand-text {
+            margin-left: 14px;
+            font-size: 1.05rem;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, var(--text-main), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 20px 14px;
+            padding: 12px 18px;
+            scrollbar-width: thin;
         }
 
+        /* Thẻ hồ sơ doanh nghiệp nhanh */
         .biz-profile-card {
-            border-radius: 16px;
+            background: var(--primary-soft);
+            border-radius: var(--radius-lg);
             padding: 16px;
-            margin-bottom: 20px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 24px;
+            border: 1px solid rgba(67, 97, 238, 0.08);
+            transition: var(--transition);
         }
 
-            .biz-profile-card .avatar {
-                width: 50px;
-                height: 50px;
-                border-radius: 12px;
-                object-fit: cover;
-                border: 2px solid var(--accent);
-                box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+            .biz-profile-card:hover {
+                border-color: var(--primary);
+                background: #ffffff;
+                box-shadow: var(--shadow-soft);
             }
 
+            .biz-profile-card img {
+                width: 48px;
+                height: 48px;
+                border-radius: 12px;
+                object-fit: cover;
+                border: 2px solid white;
+                box-shadow: var(--shadow-sm);
+            }
+
+        .profile-info .name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-info .status {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Danh mục Menu */
         .menu-category {
-            display: block;
-            margin: 20px 10px 8px;
-            color: rgba(148, 163, 184, 0.8);
             font-size: 0.7rem;
             font-weight: 800;
             text-transform: uppercase;
+            color: var(--text-muted);
             letter-spacing: 0.1em;
+            margin: 24px 0 12px 12px;
+            opacity: 0.8;
         }
 
         .menu-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 14px;
-            margin-bottom: 4px;
-            color: rgba(226, 232, 240, 0.85);
+            padding: 12px 16px;
+            margin-bottom: 6px;
+            color: var(--text-muted);
             text-decoration: none;
-            border-radius: 14px;
-            font-weight: 600;
-            font-size: 0.92rem;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 0.94rem;
             transition: var(--transition);
             border: 1px solid transparent;
         }
 
-            .menu-item i.menu-icon {
-                font-size: 1.15rem;
-                width: 24px;
-                text-align: center;
+            .menu-item i {
+                font-size: 1.25rem;
+                margin-right: 14px;
+                transition: var(--transition);
             }
 
             .menu-item:hover {
-                background: rgba(255,255,255,0.08);
-                color: #fff;
-                transform: translateX(3px);
+                background: var(--primary-soft);
+                color: var(--primary);
+                transform: translateX(4px);
             }
 
+            /* Trạng thái Active cho Menu */
             .menu-item.active {
-                background: linear-gradient(135deg, rgba(245, 158, 11, 0.9), rgba(251, 191, 36, 0.9));
-                color: #0f172a;
-                box-shadow: 0 8px 20px rgba(245, 158, 11, 0.25);
-                border-color: rgba(255,255,255,0.2);
+                background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+                color: white;
+                box-shadow: 0 8px 20px rgba(67, 97, 238, 0.22);
+                font-weight: 600;
             }
 
+                .menu-item.active i {
+                    color: white;
+                    transform: scale(1.1);
+                }
+
+        /* Badge thông báo trên Menu */
         .menu-badge {
             margin-left: auto;
-            padding: 2px 8px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 800;
-            color: #fff;
-            background: linear-gradient(135deg, #ef4444, #f97316);
+            background: var(--danger);
+            color: white;
+            font-size: 0.72rem;
+            padding: 2px 9px;
+            border-radius: 10px;
+            font-weight: 700;
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
         }
 
             .menu-badge.soft {
-                background: rgba(255,255,255,0.15);
-                color: #fff;
+                background: rgba(67, 97, 238, 0.15);
+                color: var(--primary);
+                box-shadow: none;
             }
 
-        .sidebar-footer {
-            padding: 14px;
-            border-top: 1px solid rgba(255,255,255,0.06);
-        }
-
-            .sidebar-footer .mini-link {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 10px 12px;
-                border-radius: 12px;
-                color: rgba(226, 232, 240, 0.8);
-                text-decoration: none;
-                transition: var(--transition);
-                font-weight: 600;
-                font-size: 0.9rem;
-            }
-
-                .sidebar-footer .mini-link:hover {
-                    background: rgba(255,255,255,0.08);
-                    color: #fff;
-                }
-
-                .sidebar-footer .mini-link.text-danger:hover {
-                    background: rgba(239, 68, 68, 0.15);
-                    color: #fca5a5 !important;
-                }
-
+        /* -------------------------------------------------------------------------
+                   BẢNG ĐIỀU KHIỂN CHÍNH & HEADER
+                   ------------------------------------------------------------------------- */
         .main-panel {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
+            transition: var(--transition);
             display: flex;
             flex-direction: column;
         }
 
         .top-header {
+            height: var(--header-height);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
             position: sticky;
             top: 0;
-            z-index: 1030;
-            height: var(--header-height);
-            padding: 0 28px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(255,255,255,0.85);
-            backdrop-filter: blur(12px);
+            padding: 0 32px;
+            z-index: 1000;
             border-bottom: 1px solid rgba(15, 23, 42, 0.05);
-            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
         }
 
-        .icon-btn {
-            position: relative;
+        .header-action-btn {
             width: 44px;
             height: 44px;
+            border-radius: 12px;
+            border: 1px solid #f1f5f9;
+            background: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 12px;
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            background: #fff;
-            color: var(--text);
-            text-decoration: none;
+            color: var(--text-muted);
+            position: relative;
             transition: var(--transition);
+            cursor: pointer;
         }
 
-            .icon-btn:hover {
-                background: #f8fafc;
-                color: var(--accent);
-                border-color: var(--accent);
+            .header-action-btn:hover {
+                border-color: var(--primary);
+                color: var(--primary);
+                background: var(--primary-soft);
+                transform: translateY(-2px);
             }
 
-            .icon-btn .badge-dot {
+            .header-action-btn .dot {
                 position: absolute;
-                top: -4px;
-                right: -4px;
-                min-width: 18px;
-                height: 18px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                top: 10px;
+                right: 10px;
+                width: 9px;
+                height: 9px;
+                background: var(--danger);
+                border: 2px solid white;
                 border-radius: 50%;
-                font-size: 0.65rem;
-                font-weight: 800;
-                color: #fff;
-                background: #ef4444;
-                border: 2px solid #fff;
+                animation: pulse 2s infinite;
             }
 
-        .user-chip {
+        /* User Profile Chip */
+        .user-nav-profile {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 6px 14px 6px 6px;
-            border-radius: 50px;
-            background: #fff;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            padding: 6px 6px 6px 16px;
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid #f1f5f9;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
         }
 
-            .user-chip img {
+            .user-nav-profile:hover {
+                border-color: var(--primary);
+                box-shadow: var(--shadow-soft);
+            }
+
+            .user-nav-profile img {
                 width: 36px;
                 height: 36px;
-                border-radius: 50%;
+                border-radius: 10px;
                 object-fit: cover;
             }
 
-            .user-chip .name {
-                font-weight: 700;
-                color: var(--text);
-                font-size: 0.9rem;
-            }
-
-            .user-chip .role {
-                color: var(--muted);
-                font-size: 0.7rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-
         .content-body {
-            padding: 28px;
+            padding: 32px;
             flex: 1;
         }
 
-        @@media (max-width: 991.98px) {
+        /* Thông báo tùy chỉnh */
+        .custom-alert {
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.1);
+            background: #ffffff;
+            border-left: 5px solid var(--success);
+        }
+
+        /* -------------------------------------------------------------------------
+                   MEDIA QUERIES (MOBILE)
+                   ------------------------------------------------------------------------- */
+        @@media (max-width: 991px) {
             .sidebar-wrapper {
                 transform: translateX(-100%);
             }
 
                 .sidebar-wrapper.show {
                     transform: translateX(0);
+                    box-shadow: 25px 0 60px rgba(15, 23, 42, 0.15);
                 }
 
             .main-panel {
@@ -368,100 +380,132 @@
             }
 
             .content-body {
-                padding: 16px;
+                padding: 20px;
             }
         }
 
-        @@media (max-width: 575.98px) {
-            .user-chip .role {
-                display: none;
+        @@keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
             }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        /* Footer cho Sidebar */
+        .sidebar-support-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 14px;
+            padding: 15px;
+            margin: 10px 18px 20px;
+            text-align: center;
+            border: 1px dashed var(--crm-slate-200);
         }
     </style>
 </head>
 <body>
-    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <aside class="sidebar-wrapper" id="sidebar">
         <div class="sidebar-brand">
-            <a href="/" class="brand-chip">
+            <div class="logo-box">
                 <i class="bi bi-buildings-fill"></i>
-                <div>
-                    <div class="brand-text fw-black" style="font-size:1rem; line-height:1;">ENTERPRISE</div>
-                    <small style="color: rgba(255,255,255,.6); font-size:.7rem;">BDS Khánh Hòa</small>
-                </div>
-            </a>
+            </div>
+            <div class="brand-text fw-bold">BDS KHÁNH HÒA <br><small class="text-muted fw-normal" style="font-size: 0.65rem; text-transform: uppercase;">Cổng Đối Tác Doanh Nghiệp</small></div>
         </div>
 
         <div class="sidebar-content">
             <div class="biz-profile-card">
                 <div class="d-flex align-items-center gap-3">
-                    <img src="@userAvatar" alt="Avatar" class="avatar" />
-                    <div class="text-start overflow-hidden">
-                        <div class="name text-truncate" title="@businessName">@businessName</div>
-                        <div class="meta mt-1"><i class="bi bi-patch-check-fill text-success"></i> Tài khoản pháp nhân</div>
+                    <img src="@userAvatar" alt="Logo doanh nghiệp" />
+                    <div class="profile-info overflow-hidden">
+                        <div class="name" title="@businessName">@businessName</div>
+                        <div class="status">
+                            <i class="bi bi-patch-check-fill text-success"></i>
+                            <span>Đối tác tin cậy</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <span class="menu-category">CRM & Điều phối</span>
-            <a href="/MemberProject/Index" class="@navClass("MemberProject", "Index")">
-                <i class="bi bi-funnel-fill menu-icon"></i> Phễu khách hàng (CRM)
-                @if (newLeadsCount > 0)
-                {
-                    <span class="menu-badge animate__animated animate__pulse animate__infinite">@newLeadsCount</span>
-                }
-            </a>
+            <nav>
+                <div class="menu-category">Kinh doanh & Khách hàng</div>
 
-            <a href="/Appointments/Index" class="@navClass("Appointments", "Index")">
-                <i class="bi bi-calendar2-week-fill menu-icon"></i> Lịch hẹn điều phối
-                @if (upcomingAppointments > 0)
-                {
-                    <span class="menu-badge soft">@upcomingAppointments</span>
-                }
-            </a>
+                <a href="/MemberProject/Index" class="@navClass("MemberProject", "Index")" title="Quản lý khách hàng tiềm năng">
+                    <i class="bi bi-person-lines-fill"></i>
+                    <span>Hệ thống CRM</span>
+                    @if (newLeadsCount > 0)
+                    {
+                        <span class="menu-badge animate__animated animate__heartBeat animate__infinite">@newLeadsCount</span>
+                    }
+                </a>
 
-            <span class="menu-category">Dự án & Hồ sơ</span>
-            <a href="/MemberProject/MyProjects" class="@navClass("MemberProject", "MyProjects")">
-                <i class="bi bi-folder-check menu-icon"></i> Kho Dự Án Của Tôi
-                @if (activeProjects > 0)
-                {
-                    <span class="menu-badge soft">@activeProjects</span>
-                }
-            </a>
+                <a href="/Appointments/Index" class="@navClass("Appointments", "Index")" title="Quản lý lịch xem dự án">
+                    <i class="bi bi-calendar-check"></i>
+                    <span>Lịch hẹn điều phối</span>
+                    @if (activeAppointments > 0)
+                    {
+                        <span class="menu-badge soft">@activeAppointments</span>
+                    }
+                </a>
 
-            <a href="/ProjectTimeline/Index" class="@navClass("ProjectTimeline", "Index")">
-                <i class="bi bi-clock-history menu-icon"></i> Nhật ký giai đoạn dự án
-            </a>
+                <div class="menu-category">Quản lý tài sản</div>
 
-            <a href="/ProjectVault/Index" class="@navClass("ProjectVault", "Index")">
-                <i class="bi bi-shield-lock-fill menu-icon"></i> Kho tài liệu & pháp lý
-            </a>
+                <a href="/MemberProject/MyProjects" class="@navClass("MemberProject", "MyProjects")" title="Danh sách dự án đang sở hữu">
+                    <i class="bi bi-collection"></i>
+                    <span>Danh mục dự án</span>
+                    @if (activeProjects > 0)
+                    {
+                        <span class="menu-badge soft">@activeProjects</span>
+                    }
+                </a>
 
-            <span class="menu-category">Hỗ trợ & Báo cáo</span>
-            <a href="/SupportTickets/Index" class="@navClass("SupportTickets", "Index")">
-                <i class="bi bi-life-preserver menu-icon"></i> Trung tâm hỗ trợ
-            </a>
+                <a href="/ProjectTimeline/Index" class="@navClass("ProjectTimeline", "Index")" title="Theo dõi tiến độ xây dựng">
+                    <i class="bi bi-kanban"></i>
+                    <span>Tiến độ dự án</span>
+                </a>
 
-            <a href="/Analytics/Index" class="@navClass("Analytics", "Index")">
-                <i class="bi bi-graph-up-arrow menu-icon"></i> Báo cáo hiệu suất
-            </a>
+                <a href="/ProjectVault/Index" class="@navClass("ProjectVault", "Index")" title="Kho hồ sơ pháp lý dự án">
+                    <i class="bi bi-folder-symlink"></i>
+                    <span>Kho tài liệu pháp lý</span>
+                </a>
 
-            <span class="menu-category">Hệ thống & Hồ sơ</span>
-            <a href="/Account/Profile" class="@navClass("Account", "Profile")">
-                <i class="bi bi-person-vcard menu-icon"></i> Hồ sơ doanh nghiệp (KYC)
-            </a>
+                <div class="menu-category">Dữ liệu chiến lược</div>
+
+                <a href="/Analytics/Index" class="@navClass("Analytics", "Index")" title="Báo cáo doanh thu và hiệu suất">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <span>Phân tích dữ liệu</span>
+                </a>
+                <a href="/SupportTickets/Index" class="@navClass("SupportTickets", "Index")" title="Hỗ trợ dự án ">
+                    <i class="bi bi-headset me-2 text-primar"></i>
+                    <span>Hỗ trợ dự án</span>
+                </a>
+
+                <div class="menu-category">Tài khoản & Hệ thống</div>
+
+                <a href="/Account/Profile" class="@navClass("Account", "Profile")" title="Cài đặt thông tin doanh nghiệp">
+                    <i class="bi bi-shield-lock"></i>
+                    <span>Hồ sơ năng lực (KYC)</span>
+                </a>
+            </nav>
+
         </div>
 
-        <div class="sidebar-footer">
-            <a href="/" class="mini-link text-info">
-                <i class="bi bi-box-arrow-up-right"></i> Về Web Public
-            </a>
-            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0 p-0">
+        <div class="sidebar-footer p-3 border-top">
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0">
                 @Html.AntiForgeryToken()
-                <a href="javascript:void(0)" onclick="document.getElementById('logoutForm').submit()" class="mini-link text-danger mt-1">
-                    <i class="bi bi-power"></i> Đăng xuất hệ thống
-                </a>
+                <button type="submit" class="btn btn-light text-danger w-100 rounded-3 text-start px-3 py-2 fw-bold" style="font-size: 0.9rem;">
+                    <i class="bi bi-power me-2"></i> Rời khỏi hệ thống
+                </button>
             </form>
         </div>
     </aside>
@@ -469,38 +513,39 @@
     <div class="main-panel">
         <header class="top-header">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-light border d-lg-none rounded-3" id="btnToggleSidebar" type="button">
-                    <i class="bi bi-list fs-4 text-dark"></i>
+                <button class="header-action-btn d-lg-none" id="btnToggleSidebar">
+                    <i class="bi bi-list fs-4"></i>
                 </button>
-                <div>
-                    <h5 class="mb-0 fw-bolder text-dark d-none d-sm-block">@ViewData["Title"]</h5>
-                    <small class="text-muted d-none d-sm-inline">Cổng Quản trị Chuyên viên Dự án</small>
+                <div class="d-none d-md-block">
+                    <h5 class="mb-0 fw-bold">@ViewData["Title"]</h5>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0" style="font-size: 0.75rem;">
+                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Hệ thống</a></li>
+                            <li class="breadcrumb-item text-primary active fw-bold" aria-current="page">@currentController</li>
+                        </ol>
+                    </nav>
                 </div>
             </div>
 
-            <div class="d-flex align-items-center gap-3">
-                <a href="/MemberProject/Index" class="icon-btn" title="Thông báo khách quan tâm">
-                    <i class="bi bi-bell-fill fs-5 @(newLeadsCount > 0 ? "text-warning animate__animated animate__swing animate__infinite" : "")"></i>
+            <div class="d-flex align-items-center gap-2 gap-md-3">
+                <a href="/" class="header-action-btn d-none d-sm-flex" title="Quay lại trang chủ Web">
+                    <i class="bi bi-globe-central-south-asia"></i>
+                </a>
+
+                <div class="header-action-btn" title="Trung tâm thông báo">
+                    <i class="bi bi-bell-fill"></i>
                     @if (newLeadsCount > 0)
                     {
-                        <span class="badge-dot">@newLeadsCount</span>
+                        <span class="dot"></span>
                     }
-                </a>
+                </div>
 
-                <a href="/Appointments/Index" class="icon-btn" title="Lịch hẹn">
-                    <i class="bi bi-calendar-check-fill fs-5 @(activeAppointments > 0 ? "text-primary" : "")"></i>
-                    @if (activeAppointments > 0)
-                    {
-                        <span class="badge-dot">@activeAppointments</span>
-                    }
-                </a>
-
-                <div class="user-chip">
-                    <img src="@userAvatar" alt="Avatar" />
-                    <div class="d-none d-sm-block text-end pe-2">
-                        <div class="name">@User.Identity?.Name</div>
-                        <div class="role">Quản lý dự án</div>
+                <div class="user-nav-profile">
+                    <div class="text-end me-2 d-none d-lg-block">
+                        <div class="fw-bold text-dark" style="font-size: 0.85rem; line-height: 1.2;">@User.Identity?.Name</div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Quản trị viên dự án</small>
                     </div>
+                    <img src="@userAvatar" alt="Ảnh đại diện" />
                 </div>
             </div>
         </header>
@@ -508,19 +553,21 @@
         <main class="content-body">
             @if (TempData["Success"] != null)
             {
-                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__fadeInDown">
-                    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
-                    <span class="fw-bold">@TempData["Success"]</span>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-success custom-alert mb-4 border-0 shadow-sm animate__animated animate__fadeInDown">
+                    <div class="p-2 bg-success rounded-circle text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                        <i class="bi bi-check-lg"></i>
+                    </div>
+                    <div class="fw-semibold">@TempData["Success"]</div>
+                    <button type="button" class="btn-close ms-auto shadow-none" data-bs-dismiss="alert"></button>
                 </div>
             }
 
             @if (TempData["Error"] != null)
             {
-                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__shakeX">
-                    <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-                    <span class="fw-bold">@TempData["Error"]</span>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-danger custom-alert mb-4 border-0 border-start border-danger border-5 shadow-sm animate__animated animate__shakeX">
+                    <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i>
+                    <div class="fw-semibold">@TempData["Error"]</div>
+                    <button type="button" class="btn-close ms-auto shadow-none" data-bs-dismiss="alert"></button>
                 </div>
             }
 
@@ -528,6 +575,16 @@
                 @RenderBody()
             </div>
         </main>
+
+        <footer class="mt-auto px-4 py-3 bg-white border-top">
+            <div class="d-flex flex-wrap justify-content-between align-items-center small text-muted">
+                <div>&copy; 2026 <strong>BDS Khánh Hòa</strong>. Phiên bản doanh nghiệp v4.0.</div>
+                <div class="d-flex gap-3">
+                    <a href="#" class="text-decoration-none text-muted">Quy định bảo mật</a>
+                    <a href="#" class="text-decoration-none text-muted">Hỗ trợ kỹ thuật</a>
+                </div>
+            </div>
+        </footer>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -535,19 +592,33 @@
 
     <script>
         $(function () {
-            setTimeout(function () { $('.alert-dismissible').fadeOut('slow'); }, 5000);
+            // Tự động ẩn các thông báo sau 6 giây để không làm phiền người dùng
+            setTimeout(function () {
+                $('.custom-alert').addClass('animate__fadeOutUp');
+                setTimeout(function() { $('.custom-alert').remove(); }, 500);
+            }, 6000);
 
+            // Xử lý bật/tắt Sidebar trên thiết bị di động
             const $sidebar = $('#sidebar');
-            const $overlay = $('#mobileOverlay');
+            const $overlay = $('#sidebarOverlay');
 
             $('#btnToggleSidebar').on('click', function () {
                 $sidebar.addClass('show');
-                $overlay.addClass('active');
+                $overlay.addClass('show');
             });
 
             $overlay.on('click', function () {
                 $sidebar.removeClass('show');
-                $(this).removeClass('active');
+                $(this).removeClass('show');
+            });
+
+            // Hiệu ứng Hover mượt mà cho Menu
+            $('.menu-item').on('mouseenter', function() {
+                if(!$(this).hasClass('active')) {
+                    $(this).find('i').addClass('animate__animated animate__headShake');
+                }
+            }).on('mouseleave', function() {
+                $(this).find('i').removeClass('animate__animated animate__headShake');
             });
         });
     </script>

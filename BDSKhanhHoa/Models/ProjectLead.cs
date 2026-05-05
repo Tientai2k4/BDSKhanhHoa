@@ -9,13 +9,14 @@ namespace BDSKhanhHoa.Models
         [Key]
         public int LeadID { get; set; }
 
+        [Required]
         public int ProjectID { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Vui lòng nhập họ tên")]
         [StringLength(100)]
         public string Name { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Vui lòng nhập số điện thoại")]
         [StringLength(20)]
         public string Phone { get; set; }
 
@@ -29,15 +30,9 @@ namespace BDSKhanhHoa.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        // Ai là người xử lý (Chính là OwnerUserID của dự án)
-        public int HandledByUserID { get; set; }
-
-        public string? Note { get; set; } // Ghi chú cá nhân của người xử lý
+        public string? Note { get; set; } // Ghi chú cá nhân của CRM
 
         [ForeignKey("ProjectID")]
         public virtual Project? Project { get; set; }
-
-        [ForeignKey("HandledByUserID")]
-        public virtual User? Handler { get; set; }
     }
 }

@@ -4,11 +4,63 @@
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 }
 
-<div class="card-custom p-4 shadow-sm border-0 rounded-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+<style>
+    /* CSS Tối ưu hiển thị Mobile (Biến Table thành Card trên màn hình nhỏ) */
+    @@media (max-width: 767.98px) {
+        .mobile-card-table thead {
+            display: none;
+        }
+
+        .mobile-card-table tbody tr {
+            display: block;
+            margin-bottom: 1.2rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1rem;
+            background: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        }
+
+        .mobile-card-table tbody td {
+            display: block;
+            border: none;
+            padding: 0.6rem 0;
+            text-align: left !important;
+        }
+
+            .mobile-card-table tbody td:not(:last-child) {
+                border-bottom: 1px dashed #f1f5f9;
+            }
+
+        .mobile-action-bar {
+            margin-top: 0.5rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid #f1f5f9 !important;
+            justify-content: flex-start !important;
+        }
+    }
+
+    /* Hiệu ứng nút bấm */
+    .btn-action-icon {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        transition: all 0.2s ease-in-out;
+    }
+
+        .btn-action-icon:hover {
+            transform: translateY(-2px);
+        }
+</style>
+
+<div class="card-custom p-4 shadow-sm border-0 rounded-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 flex-wrap gap-3">
         <div>
             <h4 class="fw-bold mb-1 text-primary"><i class="bi bi-list-task me-2"></i>TIN ĐĂNG CỦA BẠN</h4>
-            <p class="text-muted small mb-0">Quản lý kho lưu trữ bất động sản bạn đã đăng tải.</p>
+            <p class="text-muted small mb-0">Quản lý kho lưu trữ và trạng thái giao dịch bất động sản.</p>
         </div>
         <a href="/Property/Create" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold">
             <i class="bi bi-plus-lg me-1"></i> Đăng tin mới
@@ -16,13 +68,13 @@
     </div>
 
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle mobile-card-table">
             <thead class="table-light text-secondary">
                 <tr>
-                    <th scope="col" style="width: 45%;">Bất động sản</th>
-                    <th scope="col">Loại hình & Giá</th>
-                    <th scope="col" class="text-center">Trạng thái</th>
-                    <th scope="col" class="text-center">Thao tác</th>
+                    <th scope="col" style="width: 40%;">Bất động sản</th>
+                    <th scope="col" style="width: 20%;">Loại hình & Giá</th>
+                    <th scope="col" class="text-center" style="width: 15%;">Trạng thái</th>
+                    <th scope="col" class="text-center" style="width: 25%;">Thao tác</th>
                 </tr>
             </thead>
             <tbody>
@@ -38,10 +90,14 @@
                 }
                 @foreach (var item in Model)
                 {
+                    // Logic nhận diện Bán hay Cho Thuê dựa theo tên loại BĐS hoặc ParentID
+                    bool isSale = item.PropertyType != null && (item.PropertyType.ParentID == 1 || item.PropertyType.TypeName.Contains("Bán", StringComparison.OrdinalIgnoreCase) || item.PropertyType.TypeName.Contains("bán"));
+                    bool isRent = item.PropertyType != null && (item.PropertyType.ParentID == 2 || item.PropertyType.TypeName.Contains("Thuê", StringComparison.OrdinalIgnoreCase) || item.PropertyType.TypeName.Contains("thuê"));
+
                     <tr>
                         <td>
                             <div class="d-flex align-items-start gap-3">
-                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm" style="width: 100px; height: 75px; object-fit: cover;" onerror="this.src='/images/no-image.jpg'">
+                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm flex-shrink-0" style="width: 100px; height: 75px; object-fit: cover;" onerror="this.src='/images/no-image.jpg'">
                                 <div>
                                     <a href="/Property/Details/@item.PropertyID" target="_blank" class="fw-bold text-dark text-decoration-none d-block text-truncate" style="max-width: 300px; font-size: 1.05rem;" title="@item.Title">@item.Title</a>
                                     <div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i> Đăng lúc: @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
@@ -59,38 +115,77 @@
                             <span class="badge bg-light text-primary border border-primary-subtle mb-1">@(item.PropertyType?.TypeName ?? "Chưa phân loại")</span>
                             <div class="text-danger fw-bold fs-6">@(item.Price.HasValue ? (item.Price.Value >= 1000000000 ? (item.Price.Value / 1000000000).ToString("0.##") + " Tỷ" : (item.Price.Value / 1000000).ToString("0.##") + " Tr") : "Thỏa thuận")</div>
                         </td>
-                        <td class="text-center">
+                        <td class="text-md-center">
                             @if (item.Status == "Approved")
                             {
-                                <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Đang hiển thị</span>
+                                <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold"><i class="bi bi-eye-fill me-1"></i> Đang hiển thị</span>
                             }
                             else if (item.Status == "Pending")
                             {
-
                                 <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill fw-bold"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
                             }
                             else if (item.Status == "Rejected")
                             {
-
                                 <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Bị từ chối</span>
                             }
+                            else if (item.Status == "Sold")
+                            {
+                                <span class="badge bg-primary text-white px-3 py-2 rounded-pill fw-bold"><i class="bi bi-bag-check-fill me-1"></i> Đã bán thành công</span>
+                                <div class="small text-muted mt-1 text-md-center">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
+                            }
+                            else if (item.Status == "Rented")
+                            {
+                                <span class="badge bg-info text-white px-3 py-2 rounded-pill fw-bold"><i class="bi bi-key-fill me-1"></i> Đã cho thuê</span>
+                                <div class="small text-muted mt-1 text-md-center">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
+                            }
                         </td>
-                        <td class="text-center">
-                            <div class="btn-group shadow-sm rounded-3">
-                                <a href="/Property/Details/@item.PropertyID" target="_blank" class="btn btn-sm btn-light border text-info" title="Xem bài">
+                        <td class="text-md-center border-0 mobile-action-bar">
+                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-md-center justify-content-start">
+
+                                <a href="/Property/Details/@item.PropertyID" target="_blank" class="btn btn-outline-info btn-action-icon shadow-sm" title="Xem trang đích">
                                     <i class="bi bi-eye-fill"></i>
                                 </a>
-                                <a href="/Property/Edit/@item.PropertyID" class="btn btn-sm btn-light border text-primary" title="Sửa bài">
+
+                                <a href="/Property/Edit/@item.PropertyID" class="btn btn-outline-primary btn-action-icon shadow-sm" title="Chỉnh sửa tin">
                                     <i class="bi bi-pencil-square"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-light border text-danger" title="Xóa tin" onclick="confirmDelete(@item.PropertyID)">
+
+                                @if (item.Status == "Approved")
+                                {
+                                    @if (isSale || (!isSale && !isRent))
+                                    {
+                                        <form action="/Property/MarkAsTransacted" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.PropertyID" />
+                                            <input type="hidden" name="transactionStatus" value="Sold" />
+                                            <button type="submit" class="btn btn-success fw-bold shadow-sm" style="border-radius: 10px; height: 36px; display: inline-flex; align-items: center;" onclick="return confirm('Xác nhận: Bất động sản này ĐÃ BÁN thành công?');">
+                                                <i class="bi bi-bag-check-fill me-1"></i> Đã bán
+                                            </button>
+                                        </form>
+                                    }
+
+                                    @if (isRent || (!isSale && !isRent))
+                                    {
+                                        <form action="/Property/MarkAsTransacted" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.PropertyID" />
+                                            <input type="hidden" name="transactionStatus" value="Rented" />
+                                            <button type="submit" class="btn btn-info text-white fw-bold shadow-sm" style="border-radius: 10px; height: 36px; display: inline-flex; align-items: center;" onclick="return confirm('Xác nhận: Bất động sản này ĐÃ CHO THUÊ thành công?');">
+                                                <i class="bi bi-key-fill me-1"></i> Đã thuê
+                                            </button>
+                                        </form>
+                                    }
+                                }
+
+                                <button type="button" class="btn btn-outline-danger btn-action-icon shadow-sm" onclick="confirmDelete(@item.PropertyID)" title="Xóa tin đăng">
                                     <i class="bi bi-trash3-fill"></i>
                                 </button>
+                                <form id="deleteForm-@item.PropertyID" action="/Property/DeleteMyAd" method="post" class="d-none">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@item.PropertyID" />
+                                </form>
+
                             </div>
-                            <form id="deleteForm-@item.PropertyID" action="/Property/DeleteMyAd" method="post" style="display:none;">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="id" value="@item.PropertyID" />
-                            </form>
                         </td>
                     </tr>
                 }
@@ -102,6 +197,14 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        // Kích hoạt Bootstrap tooltips cho các icon (Đảm bảo người dùng biết icon đó là gì)
+        document.addEventListener("DOMContentLoaded", function () {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            })
+        });
+
         function confirmDelete(id) {
             Swal.fire({
                 title: 'Xóa tin đăng này?',
@@ -117,6 +220,19 @@
                     document.getElementById('deleteForm-' + id).submit();
                 }
             });
+        }
+
+        @if (TempData["Success"] != null)
+        {
+                <text>
+                Swal.fire({ icon: 'success', title: 'Thành công', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false, toast: true, position: 'top-end' });
+                </text>
+        }
+        @if (TempData["Error"] != null)
+        {
+                <text>
+                Swal.fire({ icon: 'error', title: 'Lỗi', text: '@Html.Raw(TempData["Error"])', timer: 4000, showConfirmButton: false, toast: true, position: 'top-end' });
+                </text>
         }
     </script>
 }

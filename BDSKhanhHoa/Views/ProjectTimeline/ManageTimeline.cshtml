@@ -1,0 +1,211 @@
+﻿@model BDSKhanhHoa.Models.Project
+@{
+    ViewData["Title"] = "Cập nhật Tiến độ Dự án";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+
+    // Ép kiểu dữ liệu lấy từ ViewBag
+    var milestones = ViewBag.Milestones as List<BDSKhanhHoa.Controllers.ProjectTimelineController.MilestoneItem>
+                     ?? new List<BDSKhanhHoa.Controllers.ProjectTimelineController.MilestoneItem>();
+}
+
+<!-- CDN SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+    .timeline-container {
+        position: relative;
+        padding-left: 40px;
+        margin-top: 30px;
+    }
+
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e2e8f0;
+        }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -40px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #4f46e5;
+        border: 4px solid #eef2ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        z-index: 1;
+    }
+
+    .timeline-content {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+        position: relative;
+    }
+
+        .timeline-content:hover {
+            transform: translateX(5px);
+            border-color: #4f46e5;
+        }
+
+    .timeline-date {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #4f46e5;
+        background: #eef2ff;
+        padding: 4px 12px;
+        border-radius: 20px;
+        display: inline-block;
+        margin-bottom: 10px;
+    }
+
+    .timeline-title {
+        font-weight: 800;
+        font-size: 1.1rem;
+        color: #0f172a;
+        margin-bottom: 8px;
+    }
+
+    .form-glass {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 25px -3px rgba(0,0,0,0.05);
+    }
+
+    /* Nút xóa mốc tiến độ */
+    .btn-delete-milestone {
+        position: absolute;
+        right: 15px;
+        top: 15px;
+        background: none;
+        border: none;
+        color: #ef4444;
+        font-size: 1.2rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .timeline-content:hover .btn-delete-milestone {
+        opacity: 1;
+    }
+
+    .btn-delete-milestone:hover {
+        color: #b91c1c;
+        transform: scale(1.1);
+    }
+</style>
+
+<div class="container-fluid pb-5 pt-3 animate__animated animate__fadeIn">
+
+    @if (TempData["Success"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</script>
+    }
+
+    <div class="mb-4">
+        <a href="@Url.Action("MyProjects", "MemberProject")" class="text-decoration-none fw-bold text-muted btn btn-light border rounded-pill px-4 py-2 shadow-sm">
+            <i class="bi bi-arrow-left-circle-fill text-primary me-2"></i> Quay lại danh sách Dự án
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- BÊN TRÁI: CỘT NHẬP LIỆU -->
+        <div class="col-xl-5">
+            <div class="form-glass sticky-top" style="top: 100px;">
+                <div class="d-flex align-items-center gap-3 mb-4 border-bottom pb-3">
+                    <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/default-project.jpg" : Model.MainImage)" class="rounded-3" style="width: 60px; height: 60px; object-fit: cover;" />
+                    <div>
+                        <h5 class="fw-bolder text-dark mb-0">@Model.ProjectName</h5>
+                        <span class="badge bg-primary mt-1">@Model.ProjectStatus</span>
+                    </div>
+                </div>
+
+                <form asp-controller="ProjectTimeline" asp-action="AddMilestone" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="projectId" value="@Model.ProjectID" />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bolder small text-uppercase text-muted">Tiêu đề mốc tiến độ</label>
+                        <input type="text" name="title" class="form-control rounded-3 py-2 border-secondary shadow-sm fw-bold text-dark" placeholder="VD: Cất nóc tòa tháp B" required />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bolder small text-uppercase text-muted">Nội dung cập nhật (Chi tiết)</label>
+                        <textarea name="description" class="form-control rounded-3 border-secondary shadow-sm" rows="5" placeholder="Báo cáo hoàn thành phần thô, đổ mái bê tông... (Khách hàng sẽ nhìn thấy nội dung này)" required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold py-3 shadow">
+                        <i class="bi bi-plus-circle-fill me-2"></i>Đăng lên Nhật ký Công trình
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- BÊN PHẢI: HIỂN THỊ DÒNG THỜI GIAN (DỮ LIỆU THẬT) -->
+        <div class="col-xl-7">
+            <div class="bg-white rounded-4 border p-4 shadow-sm h-100">
+                <h4 class="fw-bolder mb-4 text-dark"><i class="bi bi-clock-history me-2 text-primary"></i>Nhật ký Công trình Thực tế</h4>
+
+                <div class="timeline-container">
+
+                    @if (milestones.Any())
+                    {
+                        foreach (var item in milestones)
+                        {
+                            <div class="timeline-item">
+                                <div class="timeline-marker"><i class="bi bi-check-lg"></i></div>
+                                <div class="timeline-content">
+                                    <!-- Nút Xóa (Dùng thẻ Form để POST lên server an toàn) -->
+                                    <form asp-action="DeleteMilestone" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mốc tiến độ này không? Khách hàng sẽ không thể xem lại.');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="projectId" value="@Model.ProjectID" />
+                                        <input type="hidden" name="milestoneId" value="@item.Id" />
+                                        <button type="submit" class="btn-delete-milestone" title="Xóa bản cập nhật này">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </form>
+
+                                    <div class="timeline-date"><i class="bi bi-calendar-event me-1"></i>@item.Date.ToString("dd/MM/yyyy HH:mm")</div>
+                                    <div class="timeline-title">@item.Title</div>
+                                    <p class="text-muted mb-0 small" style="white-space: pre-wrap;">@item.Description</p>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <!-- Item mặc định lúc nào cũng nằm cuối cùng: Ngày khởi tạo dự án -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success border-success text-white"><i class="bi bi-flag-fill"></i></div>
+                        <div class="timeline-content border-success bg-success bg-opacity-10">
+                            <div class="timeline-date text-success bg-white border border-success-subtle"><i class="bi bi-rocket-takeoff-fill me-1"></i>@Model.CreatedAt.ToString("dd/MM/yyyy")</div>
+                            <div class="timeline-title text-success">Khởi tạo & Công bố Dự án</div>
+                            <p class="text-muted mb-0 small">Dự án chính thức được phê duyệt hiển thị trên Cổng thông tin BĐS Khánh Hòa. Chủ đầu tư: <strong>@Model.Investor</strong>.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

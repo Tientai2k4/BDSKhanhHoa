@@ -8,7 +8,7 @@ using System.Security.Claims;
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Authorize]
+    [Authorize(Roles = "Admin")] // Chỉ Admin mới được quản lý
     [Route("Admin/[controller]/[action]")]
     public class SupportTicketsController : Controller
     {
@@ -29,114 +29,76 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string tab = "all", string? status = null, string? keyword = null)
         {
-            if (!TryGetCurrentUserId(out _))
-                return Challenge();
+            if (!TryGetCurrentUserId(out _)) return Challenge();
 
+            // Lấy danh sách tên dự án để map ID -> Tên (dùng cho bảng tư vấn)
             var projectNames = await _context.Projects
                 .AsNoTracking()
                 .Select(p => new { p.ProjectID, p.ProjectName })
                 .ToDictionaryAsync(x => x.ProjectID, x => x.ProjectName);
 
-            var propertyNames = await _context.Properties
-                .AsNoTracking()
-                .Select(p => new { p.PropertyID, p.Title })
-                .ToDictionaryAsync(x => x.PropertyID, x => x.Title);
-
-            var consultationsQuery = _context.Consultations.AsNoTracking().AsQueryable();
-            var contactMessagesQuery = _context.ContactMessages.AsNoTracking().AsQueryable();
+            var consultationsQuery = _context.Consultations.AsNoTracking().Where(c => c.ProjectID != null).AsQueryable();
+            var contactMessagesQuery = _context.ContactMessages.AsNoTracking().Include(x => x.Project).AsQueryable();
             var leadsQuery = _context.ProjectLeads.AsNoTracking().Include(x => x.Project).AsQueryable();
-            var reportsQuery = _context.PropertyReports.AsNoTracking().AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
                 keyword = keyword.Trim();
-
-                consultationsQuery = consultationsQuery.Where(x =>
-                    (x.FullName != null && EF.Functions.Like(x.FullName, $"%{keyword}%")) ||
-                    (x.Phone != null && EF.Functions.Like(x.Phone, $"%{keyword}%")) ||
-                    (x.Email != null && EF.Functions.Like(x.Email, $"%{keyword}%")) ||
-                    (x.Note != null && EF.Functions.Like(x.Note, $"%{keyword}%")));
-
-                contactMessagesQuery = contactMessagesQuery.Where(x =>
-                    (x.FullName != null && EF.Functions.Like(x.FullName, $"%{keyword}%")) ||
-                    (x.Phone != null && EF.Functions.Like(x.Phone, $"%{keyword}%")) ||
-                    (x.Email != null && EF.Functions.Like(x.Email, $"%{keyword}%")) ||
-                    (x.Subject != null && EF.Functions.Like(x.Subject, $"%{keyword}%")) ||
-                    (x.Message != null && EF.Functions.Like(x.Message, $"%{keyword}%")));
-
-                leadsQuery = leadsQuery.Where(x =>
-                    (x.Name != null && EF.Functions.Like(x.Name, $"%{keyword}%")) ||
-                    (x.Phone != null && EF.Functions.Like(x.Phone, $"%{keyword}%")) ||
-                    (x.Email != null && EF.Functions.Like(x.Email, $"%{keyword}%")) ||
-                    (x.Message != null && EF.Functions.Like(x.Message, $"%{keyword}%")) ||
-                    (x.Note != null && EF.Functions.Like(x.Note, $"%{keyword}%")) ||
-                    (x.Project != null && x.Project.ProjectName != null && EF.Functions.Like(x.Project.ProjectName, $"%{keyword}%")));
-
-                reportsQuery = reportsQuery.Where(x =>
-                    (x.Reason != null && EF.Functions.Like(x.Reason, $"%{keyword}%")) ||
-                    (x.Description != null && EF.Functions.Like(x.Description, $"%{keyword}%")));
+                consultationsQuery = consultationsQuery.Where(x => x.FullName.Contains(keyword) || x.Phone.Contains(keyword) || x.Note.Contains(keyword));
+                contactMessagesQuery = contactMessagesQuery.Where(x => x.FullName.Contains(keyword) || x.Subject.Contains(keyword) || x.Message.Contains(keyword));
+                leadsQuery = leadsQuery.Where(x => x.Name.Contains(keyword) || x.Phone.Contains(keyword) || x.Project.ProjectName.Contains(keyword));
             }
 
             if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
             {
                 consultationsQuery = consultationsQuery.Where(x => x.Status == status);
-                contactMessagesQuery = contactMessagesQuery.Where(x => x.Status == status);
                 leadsQuery = leadsQuery.Where(x => x.LeadStatus == status);
-                reportsQuery = reportsQuery.Where(x => x.Status == status);
             }
 
-            if (tab.Equals("consultations", StringComparison.OrdinalIgnoreCase))
+            if (tab.Equals("tu-van", StringComparison.OrdinalIgnoreCase))
             {
                 contactMessagesQuery = contactMessagesQuery.Where(x => false);
                 leadsQuery = leadsQuery.Where(x => false);
-                reportsQuery = reportsQuery.Where(x => false);
             }
-            else if (tab.Equals("contacts", StringComparison.OrdinalIgnoreCase))
+            else if (tab.Equals("ho-tro", StringComparison.OrdinalIgnoreCase))
             {
                 consultationsQuery = consultationsQuery.Where(x => false);
                 leadsQuery = leadsQuery.Where(x => false);
-                reportsQuery = reportsQuery.Where(x => false);
             }
             else if (tab.Equals("leads", StringComparison.OrdinalIgnoreCase))
             {
                 consultationsQuery = consultationsQuery.Where(x => false);
                 contactMessagesQuery = contactMessagesQuery.Where(x => false);
-                reportsQuery = reportsQuery.Where(x => false);
-            }
-            else if (tab.Equals("reports", StringComparison.OrdinalIgnoreCase))
-            {
-                consultationsQuery = consultationsQuery.Where(x => false);
-                contactMessagesQuery = contactMessagesQuery.Where(x => false);
-                leadsQuery = leadsQuery.Where(x => false);
             }
 
-            ViewBag.Consultations = await consultationsQuery
-                .OrderByDescending(x => x.CreatedAt)
+            ViewBag.Consultations = await consultationsQuery.OrderByDescending(x => x.CreatedAt).Take(50).ToListAsync();
+            ViewBag.ProjectLeads = await leadsQuery.OrderByDescending(x => x.CreatedAt).Take(50).ToListAsync();
+
+            // TÁCH LÀM 2 DANH SÁCH: ĐANG CHỜ VÀ ĐÃ XỬ LÝ LỊCH SỬ
+            ViewBag.PendingContacts = await contactMessagesQuery
+                .Where(x => x.Status != "Done" && x.Status != "Đã xử lý")
+                .OrderByDescending(x => x.CreatedAt).ToListAsync();
+
+            ViewBag.ResolvedContacts = await contactMessagesQuery
+                .Where(x => x.Status == "Done" || x.Status == "Đã xử lý")
+                .OrderByDescending(x => x.UpdatedAt) // Sắp xếp theo ngày Update mới nhất
                 .Take(100)
                 .ToListAsync();
 
-            ViewBag.ContactMessages = await contactMessagesQuery
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(100)
-                .ToListAsync();
+            // THỐNG KÊ SỐ LẦN CHỈNH SỬA CỦA TỪNG DỰ ÁN DỰA TRÊN LỊCH SỬ ĐÃ XONG
+            var projectEditCounts = await _context.ContactMessages
+                .Where(x => x.ProjectID != null && (x.Status == "Done" || x.Status == "Đã xử lý"))
+                .GroupBy(x => x.ProjectID.Value)
+                .Select(g => new { ProjectID = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ProjectID, x => x.Count);
 
-            ViewBag.ProjectLeads = await leadsQuery
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(100)
-                .ToListAsync();
-
-            ViewBag.PropertyReports = await reportsQuery
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(100)
-                .ToListAsync();
-
+            ViewBag.ProjectEditCounts = projectEditCounts;
             ViewBag.ProjectNames = projectNames;
-            ViewBag.PropertyNames = propertyNames;
 
-            ViewBag.ConsultationCount = await _context.Consultations.CountAsync();
-            ViewBag.ContactMessageCount = await _context.ContactMessages.CountAsync();
+            // Đếm số lượng hiển thị trên Badge
+            ViewBag.ConsultationCount = await _context.Consultations.CountAsync(c => c.ProjectID != null);
+            ViewBag.ContactMessageCount = await _context.ContactMessages.CountAsync(x => x.Status != "Done" && x.Status != "Đã xử lý");
             ViewBag.ProjectLeadCount = await _context.ProjectLeads.CountAsync();
-            ViewBag.ReportCount = await _context.PropertyReports.CountAsync();
 
             ViewBag.ActiveTab = tab;
             ViewBag.Status = status;
@@ -150,36 +112,13 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         public async Task<IActionResult> UpdateConsultationStatus(int id, string status, string? returnUrl = null)
         {
             var item = await _context.Consultations.FirstOrDefaultAsync(x => x.ConsultID == id);
-            if (item == null)
+            if (item != null)
             {
-                TempData["Error"] = "Không tìm thấy yêu cầu tư vấn.";
-                return SafeRedirect(returnUrl);
+                item.Status = status?.Trim();
+                _context.Consultations.Update(item);
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Cập nhật yêu cầu tư vấn thành công.";
             }
-
-            item.Status = status?.Trim();
-            _context.Consultations.Update(item);
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã cập nhật trạng thái yêu cầu tư vấn.";
-            return SafeRedirect(returnUrl);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateContactStatus(int id, string status, string? returnUrl = null)
-        {
-            var item = await _context.ContactMessages.FirstOrDefaultAsync(x => x.ContactID == id);
-            if (item == null)
-            {
-                TempData["Error"] = "Không tìm thấy tin liên hệ.";
-                return SafeRedirect(returnUrl);
-            }
-
-            item.Status = status?.Trim();
-            _context.ContactMessages.Update(item);
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã cập nhật trạng thái tin liên hệ.";
             return SafeRedirect(returnUrl);
         }
 
@@ -188,45 +127,50 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         public async Task<IActionResult> UpdateLeadStatus(int id, string status, string? returnUrl = null)
         {
             var item = await _context.ProjectLeads.FirstOrDefaultAsync(x => x.LeadID == id);
-            if (item == null)
+            if (item != null)
             {
-                TempData["Error"] = "Không tìm thấy lead dự án.";
-                return SafeRedirect(returnUrl);
+                item.LeadStatus = status?.Trim();
+                _context.ProjectLeads.Update(item);
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Cập nhật tiến độ Lead thành công.";
             }
-
-            item.LeadStatus = status?.Trim();
-            _context.ProjectLeads.Update(item);
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã cập nhật trạng thái lead.";
-            return SafeRedirect(returnUrl);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateReportStatus(int id, string status, string? returnUrl = null)
-        {
-            var item = await _context.PropertyReports.FirstOrDefaultAsync(x => x.ReportID == id);
-            if (item == null)
-            {
-                TempData["Error"] = "Không tìm thấy báo cáo vi phạm.";
-                return SafeRedirect(returnUrl);
-            }
-
-            item.Status = status?.Trim();
-            _context.PropertyReports.Update(item);
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã cập nhật trạng thái báo cáo.";
             return SafeRedirect(returnUrl);
         }
 
         private IActionResult SafeRedirect(string? returnUrl)
         {
-            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
-                return Redirect(returnUrl);
-
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
             return RedirectToAction(nameof(Index));
+        }
+
+        // HÀM XỬ LÝ KHÉP KÍN: ADMIN ĐÁNH DẤU HOÀN TẤT VÀ BÁO VỀ CHO CĐT
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ProcessSupportRequest(int id)
+        {
+            var ticket = await _context.ContactMessages.FindAsync(id);
+            if (ticket == null) return NotFound();
+
+            ticket.Status = "Done";
+            ticket.UpdatedAt = DateTime.Now; // Cập nhật thời gian hoàn tất
+            _context.Update(ticket);
+
+            // Gửi thông báo lại cho CDT
+            if (ticket.UserID.HasValue)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserID = ticket.UserID.Value,
+                    Title = "Yêu cầu cập nhật hồ sơ thành công",
+                    Content = $"Yêu cầu '{ticket.Subject}' của bạn đã được Admin phê duyệt và cập nhật lên hệ thống thành công.",
+                    CreatedAt = DateTime.Now,
+                    IsRead = false
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            TempData["Success"] = "Đã xác nhận xử lý xong. Dữ liệu đã được lưu vào Lịch sử và thông báo đã được gửi đến Chủ đầu tư.";
+            return RedirectToAction(nameof(Index), new { tab = "ho-tro" });
         }
     }
 }

@@ -2,372 +2,163 @@
 @using System.Globalization
 
 @{
-    ViewData["Title"] = "CRM Quản lý Phễu Khách Hàng";
+    ViewData["Title"] = "Phễu Khách Hàng (CRM)";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
     int currentPage = ViewBag.CurrentPage ?? 1;
     int totalPages = ViewBag.TotalPages ?? 1;
-
-    int totalLeads = ViewBag.TotalLeads ?? 0;
-    int newLeads = ViewBag.NewLeads ?? 0;
-    int contactedLeads = ViewBag.ContactedLeads ?? 0;
-    int resolvedLeads = ViewBag.ResolvedLeads ?? 0;
-    int totalProjects = ViewBag.TotalProjects ?? 0;
-
-    int totalAppointments = ViewBag.TotalAppointments ?? 0;
-    int todayAppointments = ViewBag.TodayAppointments ?? 0;
-    int pendingAppointments = ViewBag.PendingAppointments ?? 0;
-
     string currentStatus = ViewBag.CurrentStatus as string;
-    string currentDateRange = ViewBag.CurrentDateRange as string;
     int? currentProjectId = ViewBag.CurrentProjectId as int?;
     string keyword = ViewBag.CurrentKeyword as string ?? string.Empty;
 }
 
+<!-- CDN SweetAlert2 để hiển thị thông báo -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
-    body {
-        background: #f4f7fb;
+    :root {
+        --crm-primary: #4f46e5;
+        --crm-slate-50: #f8fafc;
+        --crm-slate-200: #e2e8f0;
+        --radius-xl: 16px;
     }
 
-    .crm-topbar, .crm-panel, .filter-panel {
-        background: #fff;
-        border-radius: 24px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-        border: 1px solid rgba(148,163,184,.15);
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--crm-slate-200);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
 
-    .crm-topbar {
-        padding: 22px 24px;
-        margin-bottom: 18px;
-    }
-
-    .crm-title {
-        font-size: 1.45rem;
-        font-weight: 800;
-        margin-bottom: 4px;
-    }
-
-    .crm-subtitle {
+    .table-crm thead th {
+        background: var(--crm-slate-50);
         color: #64748b;
-        margin-bottom: 0;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 800;
+        padding: 16px 20px;
+        border-bottom: 2px solid var(--crm-slate-200);
     }
 
-    .crm-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 14px;
-        border-radius: 999px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
+    .table-crm tbody td {
+        padding: 16px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--crm-slate-50);
+    }
+
+    .badge-crm {
+        padding: 8px 16px;
+        border-radius: 50px;
         font-weight: 700;
-        color: #334155;
+        font-size: 0.75rem;
     }
 
-    .crm-stat-card {
-        border-radius: 24px;
-        padding: 22px;
-        color: #fff;
-        min-height: 140px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .bg-total {
-        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-    }
-
-    .bg-new {
-        background: linear-gradient(135deg, #b91c1c, #ef4444);
-    }
-
-    .bg-process {
-        background: linear-gradient(135deg, #b45309, #f59e0b);
-    }
-
-    .bg-success {
-        background: linear-gradient(135deg, #047857, #10b981);
-    }
-
-    .bg-appointment {
-        background: linear-gradient(135deg, #6d28d9, #8b5cf6);
-    }
-
-    .crm-stat-card .stat-label {
-        font-size: .8rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        opacity: .9;
-        margin-bottom: 10px;
-    }
-
-    .crm-stat-card .stat-value {
-        font-size: 3rem;
-        line-height: 1;
-        font-weight: 900;
-    }
-
-    .filter-panel {
-        padding: 22px;
-        margin-bottom: 18px;
-    }
-
-    .crm-label {
-        font-size: .78rem;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 800;
-        color: #475569;
-        margin-bottom: 8px;
-    }
-
-    .crm-input {
-        border-radius: 16px;
-        min-height: 52px;
-        border: 1px solid #dbe3ef;
-        box-shadow: none !important;
-        font-weight: 600;
-    }
-
-    .btn-crm-primary {
-        min-height: 52px;
-        border-radius: 16px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        border: none;
-    }
-
-    .table-modern thead th {
-        background: #f8fafc;
-        color: #475569;
-        font-size: .76rem;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 900;
-        padding: 18px;
-        white-space: nowrap;
-    }
-
-    .table-modern tbody td {
-        padding: 18px;
-        vertical-align: top;
-        border-top: 1px solid #f1f5f9;
-    }
-
-    .lead-letter {
-        width: 48px;
-        height: 48px;
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 900;
-        color: #1d4ed8;
-        background: #dbeafe;
-        flex: 0 0 auto;
-    }
-
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 14px;
-        border-radius: 999px;
-        font-size: .76rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-    }
-
-    .st-new {
+    .status-new {
         background: #fee2e2;
         color: #b91c1c;
+        border: 1px solid #fca5a5;
     }
 
-    .st-contact {
+    .status-contact {
         background: #fef3c7;
         color: #b45309;
+        border: 1px solid #fcd34d;
     }
 
-    .st-resolved {
+    .status-resolved {
         background: #dcfce7;
         color: #047857;
+        border: 1px solid #86efac;
     }
 
-    .action-btn {
-        border-radius: 999px;
-        padding: 10px 16px;
-        font-weight: 800;
-        background: #0f172a;
-        color: #fff;
-        border: none;
+    .status-invalid {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
     }
 
-        .action-btn:hover {
-            color: #fff;
-            opacity: .95;
-        }
-
-    .pagination .page-link {
-        border: 1px solid #dbe3ef;
-        color: #334155;
-        font-weight: 800;
-        border-radius: 14px;
-        width: 42px;
-        height: 42px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 4px;
-    }
-
-    .pagination .page-item.active .page-link {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #fff;
-        border-color: transparent;
+    .note-box {
+        background: #fffbeb;
+        border-left: 3px solid #f59e0b;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        color: #92400e;
+        margin-top: 8px;
     }
 </style>
 
-<div class="container-fluid px-0">
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
 
     @if (TempData["Success"] != null)
     {
-        <script>
-            document.addEventListener("DOMContentLoaded", function () {
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Success"]?.ToString() ?? "")),
-                    showConfirmButton: false,
-                    timer: 3000
-                });
-            });
-        </script>
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
     }
-
     @if (TempData["Error"] != null)
     {
-        <script>
-            document.addEventListener("DOMContentLoaded", function () {
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'error',
-                    title: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Error"]?.ToString() ?? "")),
-                    showConfirmButton: false,
-                    timer: 3800
-                });
-            });
-        </script>
+        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</script>
     }
 
-    <div class="crm-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <!-- Header & Thống kê -->
+    <div class="glass-panel p-4 mb-4 d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
         <div>
-            <div class="crm-title">CRM Quản lý Phễu Khách Hàng</div>
-            <p class="crm-subtitle">Theo dõi khách hàng quan tâm, lọc theo dự án và chuyển sang trang thao tác riêng.</p>
+            <h4 class="fw-bolder text-dark mb-1"><i class="bi bi-funnel-fill text-primary me-2"></i>QUẢN TRỊ KHÁCH HÀNG TIỀM NĂNG</h4>
+            <p class="text-muted mb-0 small">Phân hệ CRM dành riêng cho Chủ đầu tư và Quản lý dự án.</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-            <span class="crm-chip"><i class="bi bi-building"></i> @totalProjects dự án</span>
-            <span class="crm-chip"><i class="bi bi-calendar2-week"></i> @totalAppointments lịch hẹn</span>
-            <span class="crm-chip"><i class="bi bi-clock-history"></i> @todayAppointments hôm nay</span>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <span class="badge bg-light text-dark border fs-6 px-3 py-2 rounded-pill shadow-sm">Tổng: @ViewBag.TotalLeads Lead</span>
+            <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm animate__animated animate__pulse animate__infinite">Mới: @ViewBag.NewLeads chờ gọi</span>
+            <span class="badge bg-secondary fs-6 px-3 py-2 rounded-pill shadow-sm">Hủy/Rác: @(ViewBag.InvalidLeads ?? 0)</span>
+
+            <a href="@Url.Action("ExportLeadsToCsv", new { projectId = ViewBag.CurrentProjectId })" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm ms-2">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Xuất File
+            </a>
         </div>
     </div>
 
-    <div class="row g-4 mb-4">
-        <div class="col-xl-3 col-md-6">
-            <div class="crm-stat-card bg-total">
-                <div class="stat-label">Tổng leads</div>
-                <div class="stat-value">@totalLeads</div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="crm-stat-card bg-new">
-                <div class="stat-label">Khách mới</div>
-                <div class="stat-value">@newLeads</div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="crm-stat-card bg-process">
-                <div class="stat-label">Đang chăm sóc</div>
-                <div class="stat-value">@contactedLeads</div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-md-6">
-            <div class="crm-stat-card bg-success">
-                <div class="stat-label">Đã chốt</div>
-                <div class="stat-value">@resolvedLeads</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-xl-4 col-md-6">
-            <div class="crm-stat-card bg-appointment">
-                <div class="stat-label">Lịch hẹn đang mở</div>
-                <div class="stat-value">@pendingAppointments</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="filter-panel">
-        <form method="get" asp-action="Index" asp-controller="MemberProject" class="row g-3 align-items-end">
-            <div class="col-xl-4 col-lg-6">
-                <label class="form-label crm-label">Lọc theo dự án</label>
-                <select name="projectId" class="form-select crm-input" asp-items="ViewBag.ProjectList">
-                    <option value="">-- Tất cả dự án --</option>
+    <!-- Bộ lọc tìm kiếm -->
+    <div class="glass-panel p-4 mb-4">
+        <form method="get" asp-action="Index" class="row g-3 align-items-end">
+            <div class="col-xl-4 col-md-6">
+                <label class="form-label small fw-bold text-muted text-uppercase">Dự án quản lý</label>
+                <select name="projectId" class="form-select border-secondary shadow-sm fw-bold" asp-items="ViewBag.ProjectList">
+                    <option value="">-- Toàn bộ dự án --</option>
                 </select>
             </div>
-            <div class="col-xl-2 col-lg-6">
-                <label class="form-label crm-label">Trạng thái</label>
-                <select name="status" class="form-select crm-input">
-                    <option value="">Tất cả</option>
-                    <option value="New" selected="@(currentStatus == "New")">Khách mới</option>
-                    <option value="Contacted" selected="@(currentStatus == "Contacted")">Đang chăm sóc</option>
-                    <option value="Resolved" selected="@(currentStatus == "Resolved")">Đã chốt</option>
+            <div class="col-xl-3 col-md-6">
+                <label class="form-label small fw-bold text-muted text-uppercase">Giai đoạn Sale</label>
+                <select name="status" class="form-select border-secondary shadow-sm fw-bold">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="New" selected="@(currentStatus == "New")">🆕 Khách mới</option>
+                    <option value="Contacted" selected="@(currentStatus == "Contacted")">⏳ Đang chăm sóc</option>
+                    <option value="Resolved" selected="@(currentStatus == "Resolved")">✅ Chốt thành công</option>
+                    <option value="Invalid" selected="@(currentStatus == "Invalid")">❌ Hủy / Sai số (Lead Rác)</option>
                 </select>
             </div>
-            <div class="col-xl-2 col-lg-6">
-                <label class="form-label crm-label">Thời gian</label>
-                <select name="daterange" class="form-select crm-input">
-                    <option value="">Toàn thời gian</option>
-                    <option value="today" selected="@(currentDateRange == "today")">Hôm nay</option>
-                    <option value="week" selected="@(currentDateRange == "week")">7 ngày qua</option>
-                    <option value="month" selected="@(currentDateRange == "month")">Tháng này</option>
-                </select>
+            <div class="col-xl-3 col-md-8">
+                <label class="form-label small fw-bold text-muted text-uppercase">Từ khóa</label>
+                <input type="text" name="keyword" value="@keyword" class="form-control border-secondary shadow-sm" placeholder="Tên, SĐT, Email khách hàng..." />
             </div>
-            <div class="col-xl-3 col-lg-6">
-                <label class="form-label crm-label">Từ khóa</label>
-                <input type="text" name="keyword" value="@keyword" class="form-control crm-input" placeholder="Tên, SĐT, nội dung..." />
-            </div>
-            <div class="col-xl-1 col-lg-6 d-grid">
-                <button type="submit" class="btn btn-crm-primary text-white">Lọc</button>
+            <div class="col-xl-2 col-md-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm"><i class="bi bi-search"></i> Lọc</button>
             </div>
         </form>
     </div>
 
-    <div class="crm-panel">
-        <div class="p-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-                <h5 class="mb-1 fw-bold">Danh sách khách hàng quan tâm</h5>
-                <div class="text-muted small">Chọn “Xử lý” để sang trang thao tác riêng.</div>
-            </div>
-            <div class="crm-chip">Đang xem @Model?.Count() lead</div>
-        </div>
-
+    <!-- Bảng dữ liệu -->
+    <div class="glass-panel overflow-hidden">
         <div class="table-responsive">
-            <table class="table table-modern align-middle mb-0">
+            <table class="table table-hover table-crm mb-0">
                 <thead>
                     <tr>
-                        <th>Thông tin liên hệ</th>
-                        <th>Dự án</th>
-                        <th>Ghi chú</th>
-                        <th>Trạng thái</th>
-                        <th class="text-center">Thao tác</th>
+                        <th>Khách hàng / Liên hệ</th>
+                        <th>Dự án quan tâm</th>
+                        <th width="30%">Nhu cầu & Ghi chú (Note)</th>
+                        <th>Thời gian</th>
+                        <th>Pipeline Trạng thái</th>
+                        <th class="text-center">Hành động</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -375,66 +166,66 @@
                     {
                         foreach (var lead in Model)
                         {
-                            var leadName = !string.IsNullOrWhiteSpace(lead.Name) ? lead.Name.Trim() : "Khách";
-                            var firstLetter = leadName.Substring(0, 1).ToUpper();
-                            var projectName = lead.Project?.ProjectName ?? "(Chưa gắn dự án)";
-                            var noteValue = lead.Note ?? "";
-                            var messageValue = lead.Message ?? "";
-                            var leadStatus = lead.LeadStatus ?? "New";
-
                             <tr>
                                 <td>
-                                    <div class="d-flex gap-3 align-items-start">
-                                        <div class="lead-letter">@firstLetter</div>
-                                        <div>
-                                            <div class="fw-bold">@leadName</div>
-                                            <div class="text-primary fw-bold">
-                                                <a href="tel:@lead.Phone" class="text-decoration-none">@lead.Phone</a>
-                                            </div>
-                                            <div class="text-muted small">@lead.CreatedAt.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
-                                        </div>
+                                    <div class="fw-bold text-dark fs-6 mb-1">@lead.Name</div>
+                                    <div class="d-flex gap-2 mt-2">
+                                        <a href="tel:@lead.Phone" class="badge bg-success-subtle text-success text-decoration-none border border-success-subtle py-2"><i class="bi bi-telephone-fill me-1"></i>@lead.Phone</a>
+                                        @if (!string.IsNullOrEmpty(lead.Email))
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-2"><i class="bi bi-envelope-fill"></i> Email</span>
+                                        }
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="p-3 rounded-4 border bg-light fw-semibold">
-                                        @projectName
-                                    </div>
+                                    <span class="fw-bold text-primary">@lead.Project?.ProjectName</span>
+                                    <div class="small text-muted mt-1"><i class="bi bi-geo-alt-fill me-1"></i>@(lead.Project?.Ward?.WardName ?? "Đang cập nhật")</div>
                                 </td>
                                 <td>
-                                    <div class="p-3 rounded-4 border bg-light mb-2">
-                                        <div class="fw-bold mb-1">Khách nhắn:</div>
-                                        @(string.IsNullOrWhiteSpace(messageValue) ? "Không có lời nhắn." : messageValue)
+                                    <div class="small bg-light p-2 rounded-3 border mb-1 text-dark">
+                                        <strong>Khách nhắn:</strong> @(string.IsNullOrEmpty(lead.Message) ? "Chỉ để lại SĐT yêu cầu gọi lại" : lead.Message)
                                     </div>
-                                    @if (!string.IsNullOrWhiteSpace(noteValue))
+                                    @if (!string.IsNullOrEmpty(lead.Note))
                                     {
-                                        <div class="p-3 rounded-4 border" style="background:#fff7ed;border-color:#fed7aa;">
-                                            <div class="fw-bold mb-1">Note CRM:</div>
-                                            @noteValue
+                                        <div class="note-box" title="@lead.Note">
+                                            <i class="bi bi-journal-text me-1"></i>
+                                            @(lead.Note.Length > 60 ? lead.Note.Substring(0, 60) + "..." : lead.Note)
                                         </div>
                                     }
                                 </td>
                                 <td>
-                                    @if (leadStatus == "New")
+                                    <span class="d-block fw-bold text-dark">@lead.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                    <small class="text-muted">@lead.CreatedAt.ToString("HH:mm")</small>
+                                </td>
+                                <td>
+                                    @switch (lead.LeadStatus)
                                     {
-                                        <span class="status-pill st-new">Khách mới</span>
-                                    }
-                                    else if (leadStatus == "Contacted")
-                                    {
-                                        <span class="status-pill st-contact">Đang tư vấn</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="status-pill st-resolved">Thành công</span>
+                                        case "New":
+                                            <span class="badge-crm status-new"><i class="bi bi-exclamation-circle-fill me-1"></i>Khách Mới</span>
+                                            break;
+                                        case "Contacted":
+                                            <span class="badge-crm status-contact"><i class="bi bi-headset me-1"></i>Đang chăm sóc</span>
+                                            break;
+                                        case "Resolved":
+                                            <span class="badge-crm status-resolved"><i class="bi bi-star-fill me-1"></i>Đã chốt HĐ</span>
+                                            break;
+                                        case "Invalid":
+                                            <span class="badge-crm status-invalid"><i class="bi bi-x-circle-fill me-1"></i>Hủy/Sai Số</span>
+                                            break;
+                                        default:
+                                            <span class="badge-crm bg-secondary text-white">Chưa rõ</span>
+                                            break;
                                     }
                                 </td>
                                 <td class="text-center">
-                                    <a class="btn action-btn w-100"
-                                       asp-action="EditLead"
-                                       asp-controller="MemberProject"
-                                       asp-route-id="@lead.LeadID"
-                                       asp-route-returnUrl="@($"{Context.Request.Path}{Context.Request.QueryString}")">
-                                        <i class="bi bi-pencil-square me-1"></i> Xử lý
-                                    </a>
+                                    <div class="btn-group shadow-sm rounded-pill bg-white border">
+                                        <a asp-action="EditLead" asp-route-id="@lead.LeadID" class="btn btn-sm btn-light fw-bold px-3 border-end" title="Chi tiết & Đặt lịch hẹn">
+                                            <i class="bi bi-calendar-plus-fill text-primary"></i>
+                                        </a>
+                                        <a asp-action="LeadHistory" asp-route-id="@lead.LeadID" class="btn btn-sm btn-light fw-bold px-3" title="Hồ sơ & Lịch sử 360">
+                                            <i class="bi bi-person-vcard-fill text-success"></i>
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -442,12 +233,10 @@
                     else
                     {
                         <tr>
-                            <td colspan="5" class="text-center py-5">
-                                <div class="py-5 text-muted">
-                                    <i class="bi bi-inbox-fill display-1 opacity-25 d-block mb-3"></i>
-                                    <h5 class="fw-bold">Chưa có khách hàng nào</h5>
-                                    <div>Thử đổi bộ lọc hoặc kiểm tra dữ liệu lead.</div>
-                                </div>
+                            <td colspan="6" class="text-center py-5">
+                                <img src="~/images/empty-state.svg" alt="No data" style="width: 150px; opacity: 0.4;" class="mb-3" />
+                                <h5 class="fw-bold text-muted">Không tìm thấy dữ liệu khách hàng.</h5>
+                                <p class="text-muted small">Hãy thử nới lỏng bộ lọc hoặc chọn một dự án khác.</p>
                             </td>
                         </tr>
                     }
@@ -455,31 +244,25 @@
             </table>
         </div>
 
+        <!-- Phân trang -->
         @if (totalPages > 1)
         {
-            <div class="p-4 border-top">
-                <nav class="d-flex justify-content-center">
-                    <ul class="pagination mb-0 flex-wrap">
+            <div class="p-4 border-top bg-light">
+                <nav>
+                    <ul class="pagination pagination-rounded justify-content-center mb-0 gap-2">
                         <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                            <a class="page-link"
-                               href="@Url.Action("Index", "MemberProject", new { page = currentPage - 1, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
+                            <a class="page-link border-0 shadow-sm rounded-circle" href="@Url.Action("Index", new { page = currentPage - 1, projectId = currentProjectId, status = currentStatus, keyword = keyword })">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
-
                         @for (int i = 1; i <= totalPages; i++)
                         {
                             <li class="page-item @(currentPage == i ? "active" : "")">
-                                <a class="page-link"
-                                   href="@Url.Action("Index", "MemberProject", new { page = i, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
-                                    @i
-                                </a>
+                                <a class="page-link border-0 shadow-sm rounded-circle @(currentPage == i ? "bg-primary text-white" : "text-dark")" href="@Url.Action("Index", new { page = i, projectId = currentProjectId, status = currentStatus, keyword = keyword })">@i</a>
                             </li>
                         }
-
                         <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                            <a class="page-link"
-                               href="@Url.Action("Index", "MemberProject", new { page = currentPage + 1, projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = keyword })">
+                            <a class="page-link border-0 shadow-sm rounded-circle" href="@Url.Action("Index", new { page = currentPage + 1, projectId = currentProjectId, status = currentStatus, keyword = keyword })">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </li>

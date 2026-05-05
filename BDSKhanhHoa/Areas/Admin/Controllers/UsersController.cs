@@ -13,7 +13,7 @@ using System.Text;
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Authorize(Roles = "Admin")] // Chỉ Admin tối cao mới được vào đây
+    [Authorize(Roles = "Admin")]
     public class UsersController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -23,7 +23,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _context = context;
         }
 
-        // HÀM QUAN TRỌNG: Cập nhật lại Cookie để Header Admin thay đổi ngay lập tức
         private async Task UpdateAdminClaims(User user)
         {
             var role = await _context.Roles.FindAsync(user.RoleID);
@@ -43,15 +42,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
         }
 
-        // 1. DANH SÁCH NGƯỜI DÙNG (Tích hợp Phân trang & Join Bảng Roles)
         [HttpGet]
         public async Task<IActionResult> Index(string searchString, int? roleId, int page = 1)
         {
-            int pageSize = 15; // Phân trang: 15 user / trang
-
+            int pageSize = 15;
             var query = _context.Users.Where(u => !u.IsDeleted);
 
-            // Tìm kiếm
             if (!string.IsNullOrEmpty(searchString))
             {
                 string searchLower = searchString.ToLower();
@@ -62,24 +58,20 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     (u.Phone != null && u.Phone.Contains(searchLower)));
             }
 
-            // Lọc theo phân quyền
             if (roleId.HasValue && roleId.Value > 0)
             {
                 query = query.Where(u => u.RoleID == roleId.Value);
             }
 
-            // Thống kê KPI
             ViewBag.TotalUsers = await _context.Users.CountAsync(u => !u.IsDeleted);
             ViewBag.ActiveUsers = await _context.Users.CountAsync(u => !u.IsDeleted && u.IsActive);
             ViewBag.LockedUsers = await _context.Users.CountAsync(u => !u.IsDeleted && !u.IsActive);
             ViewBag.TrashCount = await _context.Users.CountAsync(u => u.IsDeleted);
 
-            // Truyền danh sách Roles ra View để làm Dropdown lọc và hiển thị tên Role
             var roles = await _context.Roles.ToListAsync();
             ViewBag.Roles = roles;
             ViewBag.RoleDictionary = roles.ToDictionary(r => r.RoleID, r => r.RoleName);
 
-            // Xử lý phân trang
             int totalItems = await query.CountAsync();
             int totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
             page = page < 1 ? 1 : (page > totalPages && totalPages > 0 ? totalPages : page);
@@ -99,7 +91,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(users);
         }
 
-        // 2. XUẤT DỮ LIỆU NGƯỜI DÙNG RA FILE CSV/EXCEL
         [HttpGet]
         public async Task<IActionResult> ExportCsv(string searchString, int? roleId)
         {
@@ -131,7 +122,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return File(bytes, "text/csv", $"DanhSachNguoiDung_{DateTime.Now:yyyyMMddHHmmss}.csv");
         }
 
-        // 3. THÊM MỚI NGƯỜI DÙNG TỪ ADMIN
         [HttpGet]
         public async Task<IActionResult> Create()
         {
@@ -141,11 +131,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(User user, IFormFile AvatarFile) // Thêm IFormFile
+        public async Task<IActionResult> Create(User user, IFormFile AvatarFile)
         {
             if (ModelState.IsValid)
             {
-                // 1. Kiểm tra trùng lặp
                 if (await _context.Users.AnyAsync(u => u.Username == user.Username))
                 {
                     ModelState.AddModelError("Username", "Tên đăng nhập đã tồn tại.");
@@ -153,7 +142,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     return View(user);
                 }
 
-                // 2. Xử lý Upload Ảnh đại diện (Nếu Admin chọn ảnh)
                 if (AvatarFile != null && AvatarFile.Length > 0)
                 {
                     string uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/uploads/avatars");
@@ -170,10 +158,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 }
                 else
                 {
-                    user.Avatar = "/images/avatars/default-user.png"; // Ảnh mặc định nếu không chọn
+                    user.Avatar = "/images/avatars/default-user.png";
                 }
 
-                // 3. Khởi tạo các giá trị khác
                 user.Password = PasswordHasher.HashPassword(user.Password);
                 user.CreatedAt = DateTime.Now;
                 user.IsDeleted = false;
@@ -182,7 +169,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 _context.Add(user);
                 await _context.SaveChangesAsync();
 
-                // 4. Logic tạo BusinessProfile nếu là Chủ đầu tư (Giữ nguyên phần cũ của bạn)
                 bool isBusiness = Request.Form["IsBusiness"] == "on";
                 if (isBusiness)
                 {
@@ -191,6 +177,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                         UserID = user.UserID,
                         BusinessName = Request.Form["BusinessName"],
                         TaxCode = Request.Form["TaxCode"],
+                        BusinessEmail = Request.Form["BusinessEmail"],
                         VerificationStatus = "Approved",
                         CreatedAt = DateTime.Now,
                         RepresentativeName = user.FullName ?? user.Username,
@@ -208,7 +195,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(user);
         }
 
-
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -217,6 +203,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (user == null) return NotFound();
 
             ViewBag.RolesList = new SelectList(await _context.Roles.ToListAsync(), "RoleID", "RoleName", user.RoleID);
+            ViewBag.BusinessProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
+
             return View(user);
         }
 
@@ -226,50 +214,84 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             if (id != user.UserID) return NotFound();
 
-            var existingUser = await _context.Users.FindAsync(id);
+            // 1. Lấy dữ liệu gốc từ DB để cập nhật trực tiếp
+            var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.UserID == id);
             if (existingUser == null) return NotFound();
 
+            // 2. LOẠI BỎ CÁC TRƯỜNG KHÔNG SỬA KHỎI VALIDATION
+            // Nếu không có dòng này, ModelState.IsValid sẽ luôn False vì thiếu Password/Email
             ModelState.Remove("Password");
-            ModelState.Remove("Username"); // Username không được đổi
+            ModelState.Remove("ConfirmPassword");
+            ModelState.Remove("Username");
+            ModelState.Remove("Email");
 
             if (ModelState.IsValid)
             {
-                existingUser.FullName = user.FullName;
-                existingUser.Phone = user.Phone;
-                existingUser.Address = user.Address;
-                existingUser.RoleID = user.RoleID; // Cập nhật Role động
-                existingUser.IsActive = user.IsActive;
-                existingUser.Bio = user.Bio;
-                existingUser.Zalo = user.Zalo;
-                existingUser.Facebook = user.Facebook;
-
-                _context.Update(existingUser);
-
-                // Ghi Log sửa đổi
-                var currentAdminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                _context.AuditLogs.Add(new AuditLog
+                try
                 {
-                    UserID = int.Parse(currentAdminId),
-                    Action = $"Cập nhật thông tin tài khoản: {existingUser.Username}",
-                    Target = $"Users (ID: {existingUser.UserID})",
-                    CreatedAt = DateTime.Now
-                });
+                    // 3. Cập nhật thông tin cá nhân
+                    existingUser.FullName = user.FullName;
+                    existingUser.Phone = user.Phone;
+                    existingUser.Address = user.Address;
+                    existingUser.Zalo = user.Zalo;
+                    existingUser.Position = user.Position;
+                    existingUser.AdminNote = user.AdminNote;
+                    existingUser.RoleID = user.RoleID;
+                    existingUser.IsActive = user.IsActive;
 
-                await _context.SaveChangesAsync();
+                    // 4. Xử lý logic Doanh nghiệp (KYC)
+                    bool isBusinessChecked = Request.Form["IsBusiness"] == "on";
+                    var bizProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
 
-                if (id.ToString() == currentAdminId)
-                {
-                    await UpdateAdminClaims(existingUser);
+                    if (isBusinessChecked)
+                    {
+                        if (bizProfile == null)
+                        {
+                            bizProfile = new BusinessProfile
+                            {
+                                UserID = existingUser.UserID,
+                                BusinessName = Request.Form["BusinessName"],
+                                TaxCode = Request.Form["TaxCode"],
+                                BusinessEmail = Request.Form["BusinessEmail"],
+                                VerificationStatus = "Approved",
+                                CreatedAt = DateTime.Now,
+                                RepresentativeName = existingUser.FullName ?? existingUser.Username,
+                                RepresentativePhone = existingUser.Phone ?? "N/A",
+                                BusinessAddress = existingUser.Address ?? "N/A"
+                            };
+                            _context.BusinessProfiles.Add(bizProfile);
+                        }
+                        else
+                        {
+                            bizProfile.BusinessName = Request.Form["BusinessName"];
+                            bizProfile.TaxCode = Request.Form["TaxCode"];
+                            bizProfile.BusinessEmail = Request.Form["BusinessEmail"];
+                            _context.BusinessProfiles.Update(bizProfile);
+                        }
+                    }
+
+                    // 5. Lưu xuống DB
+                    await _context.SaveChangesAsync();
+
+                    TempData["Success"] = "Cập nhật hồ sơ " + existingUser.Username + " thành công!";
+                    return RedirectToAction(nameof(Index));
                 }
-
-                TempData["Success"] = "Cập nhật thông tin người dùng thành công!";
-                return RedirectToAction(nameof(Index));
+                catch (Exception ex)
+                {
+                    TempData["Error"] = "Lỗi Database: " + ex.Message;
+                }
             }
+            else
+            {
+                // Debug lỗi nếu vẫn không lưu được
+                var errors = string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+                TempData["Error"] = "Dữ liệu chưa chuẩn: " + errors;
+            }
+
             ViewBag.RolesList = new SelectList(await _context.Roles.ToListAsync(), "RoleID", "RoleName", user.RoleID);
+            ViewBag.BusinessProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
             return View(user);
         }
-
-        // 5. ĐẶT LẠI MẬT KHẨU (TỪ ADMIN)
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetPassword(int id, string newPassword)
@@ -302,7 +324,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Edit), new { id = user.UserID });
         }
 
-        // 6. KHÓA / MỞ KHÓA TÀI KHOẢN (AJAX)
         [HttpPost]
         public async Task<IActionResult> ToggleStatus(int id)
         {
@@ -317,7 +338,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return Json(new { success = true, isActive = user.IsActive });
         }
 
-        // 7. XÓA TẠM THỜI (VÀO THÙNG RÁC)
         [HttpPost]
         public async Task<IActionResult> SoftDelete(int id)
         {
@@ -327,7 +347,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             var currentAdminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (id.ToString() == currentAdminId) return Json(new { success = false, message = "Không thể tự xóa chính mình!" });
 
-            // Kiểm tra: Không cho xóa User đang có RoleID là Admin nếu đó là Admin duy nhất
             if (user.RoleID == 1)
             {
                 int adminCount = await _context.Users.CountAsync(u => u.RoleID == 1 && !u.IsDeleted);
@@ -349,7 +368,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return Json(new { success = true });
         }
 
-        // 8. CÁC HÀM THÙNG RÁC (TRASH, RESTORE, DELETE FOREVER) - Tương tự code của bạn đã có
         [HttpGet]
         public async Task<IActionResult> Trash()
         {
@@ -370,7 +388,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
             return Json(new { success = true });
         }
-        // 9. XEM CHI TIẾT NGƯỜI DÙNG (Fix lỗi 404)
+
         [HttpGet]
         public async Task<IActionResult> Details(int? id)
         {
@@ -379,7 +397,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             var user = await _context.Users.FindAsync(id);
             if (user == null) return NotFound();
 
-            // Lấy dữ liệu bổ trợ cho các Tab trong View Details
             ViewBag.Transactions = await _context.Transactions
                 .Where(t => t.UserID == id)
                 .OrderByDescending(t => t.CreatedAt)
@@ -388,7 +405,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.Logs = await _context.AuditLogs
                 .Where(l => l.UserID == id)
                 .OrderByDescending(l => l.CreatedAt)
-                .Take(20) // Lấy 20 hoạt động gần nhất
+                .Take(20)
                 .ToListAsync();
 
             ViewBag.Violations = await _context.UserViolations
@@ -398,6 +415,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             return View(user);
         }
+
         [HttpPost]
         public async Task<IActionResult> DeleteForever(int id)
         {

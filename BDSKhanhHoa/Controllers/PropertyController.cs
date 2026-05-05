@@ -33,28 +33,38 @@ namespace BDSKhanhHoa.Controllers
         [AllowAnonymous]
         [Route("Property/Search")]
         public async Task<IActionResult> Search(
-                    string? transactionType = null, string? keyword = null, int? typeId = null,
-                    int? areaId = null, int? wardId = null, decimal? minPrice = null,
-                    decimal? maxPrice = null, decimal? minSize = null, decimal? maxSize = null,
-                    string? bedrooms = null, string? bathrooms = null, string? direction = null,
-                    string? legalStatus = null, string[]? amenities = null, int? packageId = null,
-                    string? sortOrder = null, int page = 1)
+       string? transactionType = null, string? keyword = null, int? typeId = null,
+       int? areaId = null, int? wardId = null, decimal? minPrice = null,
+       decimal? maxPrice = null, string? priceRange = null, decimal? minSize = null, decimal? maxSize = null,
+       string? bedrooms = null, string? bathrooms = null, string? direction = null,
+       string? legalStatus = null, string[]? amenities = null, int? packageId = null,
+       string? sortOrder = null, int page = 1)
         {
             int pageSize = 12;
-            page = Math.Max(1, page); // Bảo vệ phân trang không bị âm
+            page = Math.Max(1, page);
 
             if (string.IsNullOrEmpty(transactionType)) transactionType = "buy";
-            keyword = keyword?.Trim().ToLower(); // Chuẩn hóa từ khóa
+            keyword = keyword?.Trim().ToLower();
 
-            // 1. Dùng AsNoTracking() tăng 40% tốc độ truy xuất do đây là thao tác Read-Only
+            // 1. ĐỒNG BỘ MỨC GIÁ TỪ TRANG CHỦ
+            if (!string.IsNullOrEmpty(priceRange) && !minPrice.HasValue && !maxPrice.HasValue)
+            {
+                var parts = priceRange.Split('-');
+                if (parts.Length == 2)
+                {
+                    if (decimal.TryParse(parts[0], out decimal pMin)) minPrice = pMin;
+                    if (decimal.TryParse(parts[1], out decimal pMax)) maxPrice = pMax;
+                }
+            }
+
             var query = _context.Properties
                 .AsNoTracking()
                 .Include(p => p.PropertyType)
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
+                .Include(p => p.PostServicePackage) // QUAN TRỌNG: Phải Include để lấy được PriorityLevel
                 .Where(p => p.Status == "Approved" && p.IsDeleted == false)
                 .AsQueryable();
 
-            // 2. Lọc cơ bản
             if (transactionType == "buy")
                 query = query.Where(p => p.PropertyType.ParentID == 1 || p.TypeID == 1);
             else if (transactionType == "rent")
@@ -65,45 +75,51 @@ namespace BDSKhanhHoa.Controllers
             if (wardId.HasValue) query = query.Where(p => p.WardID == wardId);
             if (packageId.HasValue) query = query.Where(p => p.PackageID == packageId);
 
+            // Tính theo đơn vị Triệu VNĐ
             if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value * 1000000);
             if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value * 1000000);
+
             if (minSize.HasValue) query = query.Where(p => p.AreaSize >= minSize.Value);
             if (maxSize.HasValue) query = query.Where(p => p.AreaSize <= maxSize.Value);
 
-            // Tìm kiếm Text tương đối
             if (!string.IsNullOrEmpty(keyword))
             {
                 query = query.Where(p => p.Title.ToLower().Contains(keyword) || p.AddressDetail.ToLower().Contains(keyword));
             }
 
-            // 3. TỐI ƯU HÓA: Lọc Feature bằng Subquery (EXISTS) thay vì nạp ID vào RAM
             if (!string.IsNullOrEmpty(direction))
-            {
                 query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Hướng nhà" && f.FeatureValue == direction));
-            }
 
             if (!string.IsNullOrEmpty(legalStatus))
-            {
                 query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Pháp lý" && f.FeatureValue == legalStatus));
-            }
 
+            // Dùng mảng string thay vì Convert.ToInt32 để tránh lỗi Exception SQL
             if (!string.IsNullOrEmpty(bedrooms))
             {
-                if (bedrooms == "5") // Xử lý logic 5+
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng ngủ" && Convert.ToInt32(f.FeatureValue) >= 5));
+                if (bedrooms == "5")
+                {
+                    var highBeds = new[] { "5", "6", "7", "8", "9", "10", "10+", "5+" };
+                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng ngủ" && highBeds.Contains(f.FeatureValue)));
+                }
                 else
+                {
                     query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng ngủ" && f.FeatureValue == bedrooms));
+                }
             }
 
             if (!string.IsNullOrEmpty(bathrooms))
             {
-                if (bathrooms == "4") // Xử lý logic 4+
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng vệ sinh" && Convert.ToInt32(f.FeatureValue) >= 4));
+                if (bathrooms == "4")
+                {
+                    var highBaths = new[] { "4", "5", "6", "7", "8", "9", "10+", "4+" };
+                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng vệ sinh" && highBaths.Contains(f.FeatureValue)));
+                }
                 else
+                {
                     query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng vệ sinh" && f.FeatureValue == bathrooms));
+                }
             }
 
-            // 4. Lọc Tiện ích (Logic chuẩn: Tìm kiếm AND - Phải thỏa mãn toàn bộ tiện ích người dùng chọn)
             if (amenities != null && amenities.Any())
             {
                 foreach (var am in amenities)
@@ -112,23 +128,21 @@ namespace BDSKhanhHoa.Controllers
                 }
             }
 
-            // 5. Thuật toán sắp xếp (Ưu tiên VIP trước, sau đó mới đến các tiêu chí khác)
+            // 3. SẮP XẾP CHUẨN MỰC: Điểm ưu tiên (PriorityLevel) luôn lên đầu tuyệt đối
             query = sortOrder switch
             {
-                "price_asc" => query.OrderByDescending(p => p.PackageID).ThenBy(p => p.Price),
-                "price_desc" => query.OrderByDescending(p => p.PackageID).ThenByDescending(p => p.Price),
-                "area_desc" => query.OrderByDescending(p => p.PackageID).ThenByDescending(p => p.AreaSize),
-                _ => query.OrderByDescending(p => p.PackageID).ThenByDescending(p => p.CreatedAt)
+                "price_asc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenBy(p => p.Price),
+                "price_desc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.Price),
+                "area_desc" => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.AreaSize),
+                _ => query.OrderByDescending(p => p.PostServicePackage != null ? p.PostServicePackage.PriorityLevel : 0).ThenByDescending(p => p.CreatedAt)
             };
 
-            // 6. Tính toán phân trang an toàn
             int totalItems = await query.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
-            if (page > totalPages) page = totalPages; // Sửa lỗi vượt quá số trang
+            if (page > totalPages) page = totalPages;
 
             var results = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-            // 7. Load dữ liệu phụ cho View
             var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
             ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
             ViewBag.Areas = await _context.Areas.OrderBy(a => a.AreaName).ToListAsync();
@@ -155,9 +169,6 @@ namespace BDSKhanhHoa.Controllers
             return await Search(transactionType: "rent", page: 1);
         }
 
-        // ==========================================
-        // 1. DANH SÁCH TIN CỦA TÔI
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> MyAds()
         {
@@ -175,6 +186,43 @@ namespace BDSKhanhHoa.Controllers
                 .ToListAsync();
 
             return View(myProperties);
+        }
+
+        // =========================================================
+        // TÍNH NĂNG MỚI: ĐÁNH DẤU TIN ĐÃ GIAO DỊCH THÀNH CÔNG
+        // =========================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkAsTransacted(int id, string transactionStatus)
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            if (transactionStatus != "Sold" && transactionStatus != "Rented")
+            {
+                TempData["Error"] = "Trạng thái giao dịch không hợp lệ.";
+                return RedirectToAction("MyAds");
+            }
+
+            var property = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId);
+
+            if (property != null)
+            {
+                property.Status = transactionStatus;
+                property.SoldAt = DateTime.Now;
+                property.UpdatedAt = DateTime.Now;
+
+                await _context.SaveChangesAsync();
+
+                string msg = transactionStatus == "Sold" ? "đã bán" : "đã cho thuê";
+                TempData["Success"] = $"Chúc mừng! Đã ghi nhận bất động sản {msg} thành công.";
+            }
+            else
+            {
+                TempData["Error"] = "Không tìm thấy thông tin bất động sản.";
+            }
+
+            return RedirectToAction("MyAds");
         }
 
         // =========================================================
@@ -272,6 +320,7 @@ namespace BDSKhanhHoa.Controllers
 
             return View(new Property());
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Property prop, IFormFile MainImageFile, List<IFormFile> AdditionalImages)
@@ -606,9 +655,7 @@ namespace BDSKhanhHoa.Controllers
             {
                 property.IsDeleted = true;
                 property.Status = "Deleted";
-
-                // Giải phóng gói tin để rác không tồn đọng (Giao dịch vẫn giữ lại lịch sử)
-                // Hoặc có thể không cần thiết lập gì thêm tùy logic kế toán.
+                property.UpdatedAt = DateTime.Now;
 
                 await _context.SaveChangesAsync();
                 TempData["Success"] = "Đã xóa tin đăng thành công!";
@@ -670,11 +717,15 @@ namespace BDSKhanhHoa.Controllers
                 .OrderByDescending(c => c.CreatedAt).ToListAsync();
 
             bool isFavorited = false;
+            User currentUserInfo = null; // Thêm biến lưu thông tin User đăng nhập
             if (currentUserId > 0)
             {
                 isFavorited = await _context.Favorites.AnyAsync(f => f.PropertyID == id && f.UserID == currentUserId);
+                currentUserInfo = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == currentUserId);
             }
+
             ViewBag.IsFavorited = isFavorited;
+            ViewBag.CurrentUserInfo = currentUserInfo; // Gửi dữ liệu User ra View
 
             return View(property);
         }
@@ -701,18 +752,32 @@ namespace BDSKhanhHoa.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] DateTime appointmentDate, [FromForm] string note)
+        public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] string customerName, [FromForm] string customerPhone, [FromForm] DateTime appointmentDate, [FromForm] string note)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
 
             // CHỐT CHẶN BẢO MẬT
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
+            if (property == null || property.Status != "Approved")
+                return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
 
-            _context.Appointments.Add(new Appointment { PropertyID = propertyId, BuyerID = userId, SellerID = property.UserID, AppointmentDate = appointmentDate, Note = note ?? "", Status = "Pending", CreatedAt = DateTime.Now });
+            // Lưu lịch hẹn cùng Tên và Số điện thoại người đi xem
+            _context.Appointments.Add(new Appointment
+            {
+                PropertyID = propertyId,
+                BuyerID = userId,
+                SellerID = property.UserID,
+                CustomerName = customerName.Trim(),
+                CustomerPhone = customerPhone.Trim(),
+                AppointmentDate = appointmentDate,
+                Note = note ?? "",
+                Status = "Pending",
+                CreatedAt = DateTime.Now
+            });
+
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp!" });
+            return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp thành công!" });
         }
 
         [HttpPost]
@@ -721,13 +786,33 @@ namespace BDSKhanhHoa.Controllers
         {
             // CHỐT CHẶN BẢO MẬT
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Bất động sản này không khả dụng." });
+            if (property == null || property.Status != "Approved")
+                return Json(new { success = false, message = "Bất động sản này không khả dụng." });
 
-            _context.Consultations.Add(new Consultation { PropertyID = propertyId, FullName = fullName, Phone = phone, Email = email ?? "", Note = note ?? "", Status = "New", CreatedAt = DateTime.Now });
+            // MẤU CHỐT SỬA LỖI Ở ĐÂY: Lấy ID người dùng đang đăng nhập (Nếu có)
+            int? senderId = null;
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int parsedId))
+            {
+                senderId = parsedId;
+            }
+
+            // Lưu yêu cầu tư vấn kèm theo SenderID
+            _context.Consultations.Add(new Consultation
+            {
+                PropertyID = propertyId,
+                FullName = fullName,
+                Phone = phone,
+                Email = email ?? "",
+                Note = note ?? "",
+                SenderID = senderId, // <-- Đã gán ID người mua vào đây
+                Status = "New",
+                CreatedAt = DateTime.Now
+            });
+
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Đã gửi thông tin tư vấn!" });
         }
-
         [HttpPost]
         public async Task<IActionResult> SubmitComment([FromForm] int propertyId, [FromForm] string content)
         {

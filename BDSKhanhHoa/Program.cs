@@ -21,7 +21,8 @@ builder.Services.AddSession(options => {
     options.Cookie.IsEssential = true;
     options.Cookie.Name = ".BDSKhanhHoa.Session";
 });
-
+// Đăng ký dịch vụ gửi email
+builder.Services.AddTransient<IEmailService, SendGridEmailService>();
 // --- 2. ĐĂNG KÝ DI ---
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<ChatbotService>();     // ← Chỉ giữ dòng này

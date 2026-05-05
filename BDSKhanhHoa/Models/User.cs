@@ -18,7 +18,6 @@ namespace BDSKhanhHoa.Models
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
 
-        // Trường xác nhận mật khẩu (Không lưu vào DB)
         [NotMapped]
         [DataType(DataType.Password)]
         [Compare("Password", ErrorMessage = "Mật khẩu xác nhận không khớp.")]
@@ -31,11 +30,13 @@ namespace BDSKhanhHoa.Models
         [StringLength(100, ErrorMessage = "Họ tên không được vượt quá 100 ký tự")]
         public string? FullName { get; set; }
 
-        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số điện thoại không hợp lệ")]
+        [StringLength(10, ErrorMessage = "Số điện thoại tối đa 10 số")]
+        [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số điện thoại không hợp lệ (Phải bắt đầu bằng 03, 05, 07, 08, 09 và đủ 10 số)")]
         public string? Phone { get; set; }
 
         public string? Address { get; set; }
 
+        [StringLength(10, ErrorMessage = "Số Zalo tối đa 10 số")]
         [RegularExpression(@"^0[35789][0-9]{8}$", ErrorMessage = "Số Zalo không hợp lệ")]
         public string? Zalo { get; set; }
 
@@ -44,6 +45,12 @@ namespace BDSKhanhHoa.Models
 
         [StringLength(500, ErrorMessage = "Giới thiệu không được vượt quá 500 ký tự")]
         public string? Bio { get; set; }
+
+        [StringLength(100, ErrorMessage = "Chức danh không vượt quá 100 ký tự")]
+        public string? Position { get; set; }
+
+        [StringLength(500)]
+        public string? AdminNote { get; set; }
 
         [Required]
         public int RoleID { get; set; }

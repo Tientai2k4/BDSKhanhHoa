@@ -1,8 +1,20 @@
 ﻿@model BDSKhanhHoa.Models.Project
 @using System.Globalization
+@using System.Text.Json
+
+@functions {
+    // Khai báo Class nội bộ ngay trong View để hứng dữ liệu JSON từ Database mà không cần tạo Model mới
+    public class MilestoneDto
+    {
+        public string Id { get; set; }
+        public DateTime Date { get; set; }
+        public string Title { get; set; }
+        public string Description { get; set; }
+    }
+}
 
 @{
-    ViewData["Title"] = Model.ProjectName + " - Tổng quan & Bảng giá";
+    ViewData["Title"] = Model.ProjectName + " - Tổng quan & Tiến độ";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
     var relatedProjects = ViewBag.RelatedProjects as IEnumerable<BDSKhanhHoa.Models.Project>;
@@ -11,14 +23,39 @@
     int totalProperties = ViewBag.TotalProperties ?? 0;
     bool isAuthenticated = User.Identity?.IsAuthenticated ?? false;
 
-    string image = string.IsNullOrWhiteSpace(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage;
+    string image = !string.IsNullOrWhiteSpace(Model.MainImage)
+        ? Model.MainImage
+        : (!string.IsNullOrWhiteSpace(Model.Thumbnail) ? Model.Thumbnail : "/images/no-image.jpg");
+
     string detailAddress = $"{Model.AddressDetail}, {Model.Ward?.WardName}, {Model.Area?.AreaName}, Tỉnh Khánh Hòa";
+
     string priceText = Model.PriceMin.HasValue && Model.PriceMax.HasValue
         ? $"{Model.PriceMin:0.##} - {Model.PriceMax:0.##} {Model.PriceUnit}"
-        : $"{Model.PriceMin:0.##} {Model.PriceUnit}";
+        : Model.PriceMin.HasValue
+            ? $"{Model.PriceMin:0.##} {Model.PriceUnit}"
+            : "Đang cập nhật";
+
+    string mapQuery = Uri.EscapeDataString($"{Model.AddressDetail} {Model.Ward?.WardName} {Model.Area?.AreaName} Khánh Hòa");
+    string googleMapUrl = $"https://www.google.com/maps/search/?api=1&query={mapQuery}";
+
+    // XỬ LÝ DỮ LIỆU TIMELINE JSON TỪ DATABASE
+    var milestones = new List<MilestoneDto>();
+    if (!string.IsNullOrWhiteSpace(Model.TimelineJson))
+    {
+        try
+        {
+            milestones = JsonSerializer.Deserialize<List<MilestoneDto>>(Model.TimelineJson) ?? new List<MilestoneDto>();
+            milestones = milestones.OrderByDescending(m => m.Date).ToList(); // Sắp xếp mới nhất lên đầu
+        }
+        catch
+        {
+            // Bỏ qua nếu lỗi parse JSON để không crash giao diện public
+        }
+    }
 }
 
 <style>
+    /* ---------------- CÁC STYLE HIỆN TẠI (GIỮ NGUYÊN) ---------------- */
     .ck-content-reader {
         font-family: 'Inter', sans-serif;
         font-size: 1.05rem;
@@ -26,9 +63,7 @@
         color: #334155;
     }
 
-        .ck-content-reader h2,
-        .ck-content-reader h3,
-        .ck-content-reader h4 {
+        .ck-content-reader h2, .ck-content-reader h3, .ck-content-reader h4 {
             font-weight: 800;
             color: #0f172a;
             margin-top: 1.8em;
@@ -56,7 +91,7 @@
         margin-top: 24px;
         margin-bottom: 26px;
         box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
-        min-height: 560px;
+        min-height: 620px;
         background: #0f172a;
     }
 
@@ -64,22 +99,42 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        min-height: 560px;
+        min-height: 620px;
     }
 
     .project-hero-overlay {
         position: absolute;
         inset: auto 0 0 0;
         background: linear-gradient(to top, rgba(15,23,42,0.98) 0%, rgba(15,23,42,0.72) 55%, transparent 100%);
-        padding: 80px 50px 50px;
+        padding: 86px 54px 54px;
         color: white;
+    }
+
+    .hero-topline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .hero-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.16);
+        backdrop-filter: blur(8px);
+        font-weight: 800;
+        font-size: .86rem;
     }
 
     .hero-actions {
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
-        margin-top: 18px;
+        margin-top: 22px;
     }
 
     .btn-hero {
@@ -105,7 +160,7 @@
         background: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 20px;
-        padding: 24px;
+        padding: 22px;
         text-align: left;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         height: 100%;
@@ -138,7 +193,7 @@
     }
 
     .spec-value {
-        font-size: 1.15rem;
+        font-size: 1.1rem;
         font-weight: 800;
         color: #0f172a;
         line-height: 1.35;
@@ -147,7 +202,7 @@
     .sticky-lead-form {
         position: sticky;
         top: 100px;
-        z-index: 100;
+        z-index: 10;
     }
 
     .lead-form-card {
@@ -211,18 +266,168 @@
             color: #0f172a;
         }
 
+    /* ---------------- STYLE MỚI CHO TIMELINE CÔNG KHAI ---------------- */
+    .public-timeline-wrapper {
+        position: relative;
+        padding: 20px 0;
+    }
+
+    .public-timeline-line {
+        position: absolute;
+        left: 24px;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: #e2e8f0;
+        border-radius: 3px;
+    }
+
+    .timeline-node {
+        position: relative;
+        padding-left: 65px;
+        margin-bottom: 35px;
+    }
+
+        .timeline-node:last-child {
+            margin-bottom: 0;
+        }
+
+    .node-indicator {
+        position: absolute;
+        left: 10px;
+        top: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #3b82f6;
+        border: 6px solid #eff6ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.85rem;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+        z-index: 2;
+        transition: transform 0.3s;
+    }
+
+    .timeline-node:hover .node-indicator {
+        transform: scale(1.2);
+    }
+
+    .node-indicator.start-node {
+        background: #10b981;
+        border-color: #ecfdf5;
+        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+    }
+
+    .node-content {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        padding: 22px;
+        border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        transition: all 0.3s;
+    }
+
+        .node-content:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.1);
+        }
+
+    .node-date {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 0.8rem;
+        font-weight: 800;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+
+    .node-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 8px;
+    }
+
+    .node-desc {
+        color: #475569;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin-bottom: 0;
+        white-space: pre-wrap;
+    }
+
     .related-card {
         border-radius: 22px;
         overflow: hidden;
         border: 1px solid #e2e8f0;
         background: #fff;
         height: 100%;
+        transition: .25s ease;
     }
+
+        .related-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 18px 35px rgba(15,23,42,.10);
+        }
 
     .related-img {
         height: 180px;
         object-fit: cover;
         width: 100%;
+    }
+
+    .info-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+    }
+
+        .info-row .key {
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .info-row .value {
+            color: #0f172a;
+            font-weight: 800;
+            text-align: right;
+        }
+
+    .modal-content {
+        border: none;
+        border-radius: 28px;
+        overflow: hidden;
+    }
+
+    .nav-pills .nav-link {
+        border-radius: 999px;
+        font-weight: 800;
+    }
+
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+
+    .soft-input {
+        min-height: 50px;
+        border-radius: 14px;
+        border: 1px solid #dbe3ef;
+        box-shadow: none !important;
+        font-weight: 600;
     }
 </style>
 
@@ -244,13 +449,15 @@
         </div>
     }
 
+    <!-- BANNER DỰ ÁN -->
     <div class="project-hero-banner">
         <img src="@image" class="project-hero-img" alt="@Model.ProjectName">
         <div class="project-hero-overlay">
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                <span class="badge bg-warning text-dark fw-bold px-4 py-2 rounded-pill fs-6 shadow-sm">@Model.ProjectStatus</span>
-                <span class="badge bg-primary fw-bold px-4 py-2 rounded-pill fs-6 shadow-sm">@Model.ProjectType</span>
-                <span class="badge bg-success fw-bold px-4 py-2 rounded-pill fs-6 shadow-sm">Đã duyệt</span>
+            <div class="hero-topline">
+                <span class="hero-pill"><i class="bi bi-check-circle-fill text-success"></i> @Model.ProjectStatus</span>
+                <span class="hero-pill"><i class="bi bi-building-fill"></i> @(string.IsNullOrWhiteSpace(Model.ProjectType) ? "Dự án" : Model.ProjectType)</span>
+                <span class="hero-pill"><i class="bi bi-shield-check"></i> Đã phê duyệt</span>
+                <span class="hero-pill"><i class="bi bi-geo-alt-fill text-danger"></i> @Model.Ward?.WardName</span>
             </div>
 
             <h1 class="display-4 fw-black mb-3 text-white" style="text-shadow: 0 4px 10px rgba(0,0,0,0.3);">
@@ -262,13 +469,28 @@
             </p>
 
             <div class="hero-actions">
-                <a href="#booking-form" class="btn btn-hero btn-hero-primary">
-                    <i class="bi bi-calendar2-week me-1"></i> Đặt lịch xem dự án
-                </a>
-                <a href="#lead-form" class="btn btn-hero btn-hero-outline">
+                @if (isAuthenticated)
+                {
+                    <button class="btn btn-hero btn-hero-primary" data-bs-toggle="modal" data-bs-target="#contactModal" data-tab="booking">
+                        <i class="bi bi-calendar2-week me-1"></i> Đặt lịch xem dự án
+                    </button>
+                }
+                else
+                {
+                    <a href="/Account/Login" class="btn btn-hero btn-hero-primary">
+                        <i class="bi bi-calendar2-week me-1"></i> Đăng nhập để đặt lịch
+                    </a>
+                }
+
+                <button class="btn btn-hero btn-hero-outline" data-bs-toggle="modal" data-bs-target="#contactModal" data-tab="lead">
                     <i class="bi bi-headset me-1"></i> Gửi yêu cầu tư vấn
+                </button>
+
+                <a href="@googleMapUrl" target="_blank" class="btn btn-hero btn-hero-outline">
+                    <i class="bi bi-map me-1"></i> Xem bản đồ
                 </a>
-                @if (Model.Owner?.Phone != null)
+
+                @if (!string.IsNullOrWhiteSpace(Model.Owner?.Phone))
                 {
                     <a href="tel:@Model.Owner.Phone" class="btn btn-hero btn-hero-outline">
                         <i class="bi bi-telephone-fill me-1"></i> Gọi ngay
@@ -278,9 +500,13 @@
         </div>
     </div>
 
+    <!-- BỐ CỤC CHÍNH -->
     <div class="row g-5">
+
+        <!-- CỘT TRÁI (NỘI DUNG) -->
         <div class="col-lg-8">
 
+            <!-- THỐNG KÊ NHANH -->
             <div class="row g-3 mb-4">
                 <div class="col-md-4 col-6">
                     <div class="mini-stat">
@@ -295,7 +521,7 @@
                     <div class="mini-stat">
                         <i class="bi bi-chat-dots-fill"></i>
                         <div>
-                            <div class="label">Tư vấn</div>
+                            <div class="label">Khách quan tâm</div>
                             <div class="value">@leadCount</div>
                         </div>
                     </div>
@@ -304,13 +530,14 @@
                     <div class="mini-stat">
                         <i class="bi bi-house-door-fill"></i>
                         <div>
-                            <div class="label">Tin đăng</div>
+                            <div class="label">Tin trong dự án</div>
                             <div class="value">@totalProperties</div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- TỔNG QUAN -->
             <div class="row g-3 mb-5">
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
@@ -319,6 +546,7 @@
                         <div class="spec-value text-primary text-truncate" title="@Model.Investor">@Model.Investor</div>
                     </div>
                 </div>
+
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
                         <div class="spec-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-tag-fill"></i></div>
@@ -326,6 +554,7 @@
                         <div class="spec-value text-danger">@priceText</div>
                     </div>
                 </div>
+
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
                         <div class="spec-icon bg-success bg-opacity-10 text-success"><i class="bi bi-aspect-ratio-fill"></i></div>
@@ -333,6 +562,7 @@
                         <div class="spec-value">@(!string.IsNullOrWhiteSpace(Model.Scale) ? Model.Scale : "Đang cập nhật")</div>
                     </div>
                 </div>
+
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
                         <div class="spec-icon bg-info bg-opacity-10 text-info"><i class="bi bi-rulers"></i></div>
@@ -342,6 +572,7 @@
                         </div>
                     </div>
                 </div>
+
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
                         <div class="spec-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-pie-chart-fill"></i></div>
@@ -349,6 +580,7 @@
                         <div class="spec-value">@(!string.IsNullOrWhiteSpace(Model.ConstructionDensity) ? Model.ConstructionDensity : "Đang cập nhật")</div>
                     </div>
                 </div>
+
                 <div class="col-md-4 col-6">
                     <div class="spec-card-modern">
                         <div class="spec-icon bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-shield-check"></i></div>
@@ -358,6 +590,7 @@
                 </div>
             </div>
 
+            <!-- BÀI VIẾT GIỚI THIỆU -->
             <div class="section-box p-4 p-md-5 mb-5">
                 <h3 class="fw-black mb-4 border-bottom pb-4">
                     <i class="bi bi-journal-text text-primary me-2"></i>Giới thiệu chi tiết dự án
@@ -376,7 +609,7 @@
 
                 <div class="mt-5 p-4 p-md-5 bg-warning bg-opacity-10 rounded-4 border-start border-5 border-warning shadow-sm">
                     <h4 class="fw-black mb-3 text-dark">
-                        <i class="bi bi-stars text-warning me-2"></i>Tiện ích nổi bật
+                        <i class="bi bi-stars text-warning me-2"></i>Hệ thống tiện ích
                     </h4>
                     <p class="mb-0 text-dark fs-6" style="white-space: pre-wrap; line-height: 2;">
                         @(!string.IsNullOrWhiteSpace(Model.Utilities) ? Model.Utilities : "Đang cập nhật tiện ích dự án.")
@@ -384,66 +617,95 @@
                 </div>
             </div>
 
+            <!-- NHẬT KÝ THI CÔNG (MỚI BỔ SUNG) -->
             <div class="section-box p-4 p-md-5 mb-5">
                 <h3 class="fw-black mb-4 border-bottom pb-4">
-                    <i class="bi bi-calendar2-week text-primary me-2"></i>Đặt lịch xem dự án
+                    <i class="bi bi-clock-history text-primary me-2"></i>Nhật ký & Tiến độ thi công
                 </h3>
 
-                @if (isAuthenticated)
-                {
-                    <form asp-controller="Appointments" asp-action="Create" method="post" id="booking-form" class="row g-3">
-                        @Html.AntiForgeryToken()
+                <div class="public-timeline-wrapper">
+                    <div class="public-timeline-line"></div>
 
-                        <input type="hidden" name="projectId" value="@Model.ProjectID" />
-                        <input type="hidden" name="propertyId" value="" />
-                        <input type="hidden" name="leadId" value="" />
-                        <input type="hidden" name="customerName" value="@User.Identity?.Name" />
-                        <input type="hidden" name="customerPhone" value="" />
-                        <input type="hidden" name="customerEmail" value="" />
-                        <input type="hidden" name="meetingLocation" value="@Model.ProjectName" />
+                    @if (milestones.Any())
+                    {
+                        foreach (var m in milestones)
+                        {
+                            <div class="timeline-node">
+                                <div class="node-indicator"><i class="bi bi-wrench-adjustable"></i></div>
+                                <div class="node-content">
+                                    <span class="node-date"><i class="bi bi-calendar-event me-1"></i> @m.Date.ToString("dd/MM/yyyy HH:mm")</span>
+                                    <h4 class="node-title">@m.Title</h4>
+                                    <p class="node-desc">@m.Description</p>
+                                </div>
+                            </div>
+                        }
+                    }
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Ngày hẹn</label>
-                            <input type="date" name="appointmentDate" class="form-control form-control-lg rounded-4" required />
+                    <!-- Mốc Khởi tạo mặc định lúc nào cũng có -->
+                    <div class="timeline-node">
+                        <div class="node-indicator start-node"><i class="bi bi-flag-fill"></i></div>
+                        <div class="node-content border-success-subtle">
+                            <span class="node-date bg-success bg-opacity-10 text-success"><i class="bi bi-rocket-takeoff-fill me-1"></i> @Model.CreatedAt.ToString("dd/MM/yyyy")</span>
+                            <h4 class="node-title text-success">Khởi tạo & Công bố Dự án</h4>
+                            <p class="node-desc">Dự án chính thức được phê duyệt và hiển thị công khai trên Cổng thông tin BĐS Khánh Hòa.</p>
                         </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Giờ hẹn</label>
-                            <input type="time" name="appointmentTime" class="form-control form-control-lg rounded-4" required />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Nhân sự phụ trách</label>
-                            <input type="text" name="staffName" class="form-control form-control-lg rounded-4" placeholder="Ví dụ: Nguyễn Văn A" required />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Số điện thoại nhân sự</label>
-                            <input type="text" name="staffPhone" class="form-control form-control-lg rounded-4" placeholder="Ví dụ: 0901..." required />
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label fw-bold">Ghi chú</label>
-                            <textarea name="note" class="form-control rounded-4" rows="4" placeholder="Khách muốn xem căn hộ, cần đón tại nhà mẫu..."></textarea>
-                        </div>
-
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-gradient-gold w-100 fs-5">
-                                <i class="bi bi-calendar-check me-1"></i> Xác nhận đặt lịch
-                            </button>
-                        </div>
-                    </form>
-                }
-                else
-                {
-                    <div class="alert alert-warning border-0 rounded-4 mb-0">
-                        <i class="bi bi-lock-fill me-2"></i>Bạn cần đăng nhập để đặt lịch hẹn.
-                        <a href="/Account/Login" class="fw-bold text-decoration-none ms-1">Đăng nhập ngay</a>
                     </div>
-                }
+                </div>
+            </div>
+
+            <!-- PHÁP LÝ -->
+            <div class="section-box p-4 p-md-5 mb-5">
+                <h3 class="fw-black mb-4 border-bottom pb-4">
+                    <i class="bi bi-shield-check text-primary me-2"></i>Thông tin pháp lý & hồ sơ
+                </h3>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="key">Trạng thái</div>
+                            <div class="value">@Model.ProjectStatus</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="key">Khu vực</div>
+                            <div class="value">@Model.Area?.AreaName</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="key">Phường/Xã</div>
+                            <div class="value">@Model.Ward?.WardName</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="key">Bản đồ</div>
+                            <div class="value"><a href="@googleMapUrl" target="_blank" class="text-decoration-none">Mở Google Maps</a></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="info-row">
+                            <div class="key">Hồ sơ pháp lý</div>
+                            <div class="value">
+                                @if (!string.IsNullOrWhiteSpace(Model.LegalDocs))
+                                {
+                                    <a href="@Model.LegalDocs" target="_blank" class="text-decoration-none text-success fw-bolder">
+                                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Tải / Xem file đính kèm
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span>Chưa cập nhật tài liệu công khai</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
+        <!-- CỘT PHẢI (STICKY FORM TƯ VẤN) -->
         <div class="col-lg-4">
             <div class="sticky-lead-form">
                 <div class="card lead-form-card" id="lead-form">
@@ -456,33 +718,13 @@
                             Để lại thông tin để nhận bảng giá, mặt bằng, chính sách ưu đãi và lịch xem dự án.
                         </p>
                     </div>
+
                     <div class="card-body p-4 p-xl-5 bg-white">
-                        <form asp-controller="Project" asp-action="SubmitLead" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ProjectID" value="@Model.ProjectID" />
-                            <input type="hidden" name="HandledByUserID" value="@Model.OwnerUserID" />
+                        <button class="btn btn-outline-primary rounded-pill fw-bold w-100 mb-3" data-bs-toggle="modal" data-bs-target="#contactModal" data-tab="lead">
+                            Mở form tư vấn
+                        </button>
 
-                            <div class="mb-4">
-                                <label class="form-label small fw-bold text-muted text-uppercase">Họ và tên <span class="text-danger">*</span></label>
-                                <input type="text" name="Name" class="form-control form-control-lg bg-light border-0 rounded-4" required placeholder="VD: Nguyễn Văn A">
-                            </div>
-
-                            <div class="mb-4">
-                                <label class="form-label small fw-bold text-muted text-uppercase">Số điện thoại <span class="text-danger">*</span></label>
-                                <input type="tel" name="Phone" class="form-control form-control-lg bg-light border-0 rounded-4" required placeholder="09xx xxx xxx">
-                            </div>
-
-                            <div class="mb-5">
-                                <label class="form-label small fw-bold text-muted text-uppercase">Nhu cầu</label>
-                                <textarea name="Message" class="form-control bg-light border-0 rounded-4" rows="4" placeholder="Quan tâm căn hộ 2 phòng ngủ, cần báo giá..."></textarea>
-                            </div>
-
-                            <button type="submit" class="btn btn-gradient-gold w-100 fs-5">
-                                <i class="bi bi-send me-1"></i> Gửi yêu cầu ngay
-                            </button>
-                        </form>
-
-                        <div class="text-center mt-5 pt-4 border-top">
+                        <div class="text-center mt-4 pt-4 border-top">
                             <p class="text-muted small fw-bold mb-2 text-uppercase">Hoặc gọi trực tiếp hotline</p>
                             <a href="tel:@(Model.Owner?.Phone ?? "19008899")" class="text-decoration-none">
                                 <h2 class="fw-black text-primary mb-0">
@@ -509,34 +751,11 @@
                         }
                     </div>
                 </div>
-
-                <div class="card border-0 shadow-sm rounded-4 mt-4">
-                    <div class="card-body p-4">
-                        <h6 class="fw-bold mb-3">Thông tin nhanh</h6>
-                        <div class="d-grid gap-2">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Trạng thái</span>
-                                <strong>@Model.ProjectStatus</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Loại hình</span>
-                                <strong>@Model.ProjectType</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Khu vực</span>
-                                <strong>@Model.Area?.AreaName</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Phường/Xã</span>
-                                <strong>@Model.Ward?.WardName</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 
+    <!-- DỰ ÁN LIÊN QUAN -->
     @if (relatedProjects != null && relatedProjects.Any())
     {
         <div class="section-box p-4 p-md-5 mt-5">
@@ -553,7 +772,9 @@
             <div class="row g-4">
                 @foreach (var item in relatedProjects)
                 {
-                    var relatedImage = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+                    var relatedImage = !string.IsNullOrWhiteSpace(item.MainImage)
+                    ? item.MainImage
+                    : (!string.IsNullOrWhiteSpace(item.Thumbnail) ? item.Thumbnail : "/images/no-image.jpg");
 
                     <div class="col-lg-4">
                         <a href="/Project/Details/@item.ProjectID" class="text-decoration-none">
@@ -571,3 +792,210 @@
         </div>
     }
 </div>
+
+<!-- MODAL FORM ĐẶT LỊCH / TƯ VẤN (Giữ Nguyên Logic Gửi Ajax Cũ) -->
+<div class="modal fade" id="contactModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0 p-4 p-md-5 pb-3">
+                <div>
+                    <h4 class="modal-title fw-black mb-1">@Model.ProjectName</h4>
+                    <div class="text-muted">Chọn tab phù hợp để gửi yêu cầu hoặc đặt lịch.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body px-4 px-md-5 pb-5">
+                <ul class="nav nav-pills gap-2 mb-4" id="contactTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="lead-tab" data-bs-toggle="pill" data-bs-target="#lead-pane" type="button" role="tab">Tư vấn nhanh</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(isAuthenticated ? "" : "disabled")" id="booking-tab" data-bs-toggle="pill" data-bs-target="#booking-pane" type="button" role="tab">Đặt lịch xem</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="lead-pane" role="tabpanel">
+                        <div class="row g-4">
+                            <div class="col-lg-5">
+                                <div class="p-4 rounded-4 bg-light border">
+                                    <h5 class="fw-bold mb-3">Tóm tắt dự án</h5>
+                                    <div class="info-list">
+                                        <div class="info-row">
+                                            <div class="key">Chủ đầu tư</div>
+                                            <div class="value">@Model.Investor</div>
+                                        </div>
+                                        <div class="info-row">
+                                            <div class="key">Giá</div>
+                                            <div class="value">@priceText</div>
+                                        </div>
+                                        <div class="info-row">
+                                            <div class="key">Diện tích</div>
+                                            <div class="value">@(Model.AreaMin?.ToString("0.##") ?? "--") - @(Model.AreaMax?.ToString("0.##") ?? "--") m²</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-7">
+                                <form id="frmLead" asp-controller="Project" asp-action="SubmitLead" method="post" class="row g-3">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="ProjectID" value="@Model.ProjectID" />
+
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Họ và tên</label>
+                                        <input type="text" name="Name" class="form-control soft-input" required placeholder="VD: Nguyễn Văn A">
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Số điện thoại</label>
+                                        <input type="tel" name="Phone" class="form-control soft-input" required placeholder="09xx xxx xxx">
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold">Email</label>
+                                        <input type="email" name="Email" class="form-control soft-input" placeholder="name@example.com">
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold">Nhu cầu</label>
+                                        <textarea name="Message" class="form-control soft-input" rows="5" placeholder="Quan tâm căn hộ 2 phòng ngủ, cần báo giá..."></textarea>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-gradient-gold w-100 fs-5">
+                                            <i class="bi bi-send me-1"></i> Gửi yêu cầu ngay
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="booking-pane" role="tabpanel">
+                        @if (isAuthenticated)
+                        {
+                            <form id="frmBooking" asp-controller="Appointments" asp-action="Create" method="post" class="row g-3">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="projectId" value="@Model.ProjectID" />
+                                <input type="hidden" name="meetingLocation" value="@Model.ProjectName" />
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Họ và tên</label>
+                                    <input type="text" name="customerName" class="form-control soft-input" placeholder="Họ tên người đi xem">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Số điện thoại</label>
+                                    <input type="text" name="customerPhone" class="form-control soft-input" placeholder="09xx xxx xxx">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Email</label>
+                                    <input type="email" name="customerEmail" class="form-control soft-input" placeholder="name@example.com">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Ngày hẹn</label>
+                                    <input type="date" name="appointmentDate" class="form-control soft-input" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Giờ hẹn</label>
+                                    <input type="time" name="appointmentTime" class="form-control soft-input" required />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Điểm gặp</label>
+                                    <input type="text" name="meetingLocation" class="form-control soft-input" value="@Model.ProjectName" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Ghi chú</label>
+                                    <textarea name="note" class="form-control soft-input" rows="4" placeholder="Khách muốn xem căn hộ mẫu, cần đón tại sảnh..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-gradient-gold w-100 fs-5">
+                                        <i class="bi bi-calendar-check me-1"></i> Xác nhận đặt lịch
+                                    </button>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning border-0 rounded-4 mb-0">
+                                <i class="bi bi-lock-fill me-2"></i>Bạn cần đăng nhập để đặt lịch hẹn.
+                                <a href="/Account/Login" class="fw-bold text-decoration-none ms-1">Đăng nhập ngay</a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const contactModal = document.getElementById('contactModal');
+
+        contactModal?.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const tab = button?.getAttribute('data-tab') || 'lead';
+
+            const leadTab = document.getElementById('lead-tab');
+            const bookingTab = document.getElementById('booking-tab');
+            const leadPane = document.getElementById('lead-pane');
+            const bookingPane = document.getElementById('booking-pane');
+
+            if (tab === 'booking' && bookingTab && !bookingTab.classList.contains('disabled')) {
+                leadTab?.classList.remove('active');
+                leadPane?.classList.remove('show', 'active');
+                bookingTab.classList.add('active');
+                bookingPane?.classList.add('show', 'active');
+            } else {
+                bookingTab?.classList.remove('active');
+                bookingPane?.classList.remove('show', 'active');
+                leadTab?.classList.add('active');
+                leadPane?.classList.add('show', 'active');
+            }
+        });
+
+        async function postAjaxForm(form, onSuccess) {
+            const formData = new FormData(form);
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    if (typeof onSuccess === 'function') onSuccess(data);
+                } else {
+                    alert(data.message || 'Có lỗi xảy ra.');
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Hệ thống đang bận, vui lòng thử lại sau.');
+            }
+        }
+
+        const frmLead = document.getElementById('frmLead');
+        frmLead?.addEventListener('submit', function (e) {
+            e.preventDefault();
+            postAjaxForm(frmLead, (data) => {
+                alert(data.message || 'Đã gửi yêu cầu thành công.');
+                frmLead.reset();
+                const modal = bootstrap.Modal.getInstance(contactModal);
+                modal?.hide();
+            });
+        });
+
+        const frmBooking = document.getElementById('frmBooking');
+        frmBooking?.addEventListener('submit', function (e) {
+            e.preventDefault();
+            postAjaxForm(frmBooking, (data) => {
+                alert(data.message || 'Đã tạo lịch hẹn thành công.');
+                frmBooking.reset();
+                const modal = bootstrap.Modal.getInstance(contactModal);
+                modal?.hide();
+            });
+        });
+    </script>
+}

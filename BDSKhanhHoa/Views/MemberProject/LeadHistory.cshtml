@@ -1,0 +1,274 @@
+﻿@model BDSKhanhHoa.Models.ProjectLead
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Hồ sơ Khách hàng 360";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+    var historyAppointments = ViewBag.HistoryAppointments as List<BDSKhanhHoa.Models.Appointment> ?? new List<BDSKhanhHoa.Models.Appointment>();
+
+    var noteLines = new List<string>();
+    if (!string.IsNullOrWhiteSpace(Model.Note))
+    {
+        noteLines = Model.Note.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+}
+
+<style>
+    .glass-card {
+        background: white;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        padding: 30px;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+    }
+
+    .profile-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 16px;
+        padding: 30px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+    }
+
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+        color: white;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        font-weight: 900;
+        margin: 0 auto 15px auto;
+        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+    }
+
+    .info-label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    .info-value {
+        font-weight: 600;
+        color: #0f172a;
+        font-size: 0.95rem;
+        background: #f8fafc;
+        padding: 10px 15px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .timeline-container {
+        position: relative;
+        padding-left: 30px;
+    }
+
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e2e8f0;
+        }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+
+    .timeline-icon {
+        position: absolute;
+        left: -30px;
+        top: 0;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: white;
+        border: 3px solid #4f46e5;
+        box-shadow: 0 0 0 4px white;
+    }
+
+        .timeline-icon.start {
+            border-color: #10b981;
+        }
+
+        .timeline-icon.note {
+            border-color: #f59e0b;
+        }
+
+        .timeline-icon.appt {
+            border-color: #8b5cf6;
+        }
+
+    .timeline-content {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 20px;
+        position: relative;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+        .timeline-content::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 15px;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+            transform: rotate(45deg);
+        }
+
+    .timeline-date {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 8px;
+    }
+</style>
+
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
+    <div class="mb-4">
+        <a href="@Url.Action("Index")" class="text-decoration-none fw-bold text-muted btn btn-light border rounded-pill px-4 py-2 shadow-sm">
+            <i class="bi bi-arrow-left-circle-fill text-primary me-2"></i> Quay lại Phễu khách hàng
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Cột Trái -->
+        <div class="col-xl-4">
+            <div class="glass-card position-sticky" style="top: 100px;">
+                <div class="profile-header">
+                    <div class="profile-avatar">@Model.Name.Substring(0, 1).ToUpper()</div>
+                    <h4 class="fw-bolder text-dark mb-2">@Model.Name</h4>
+                    @if (Model.LeadStatus == "Invalid")
+                    {
+                        <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Hủy / Rác</span>
+                    }
+                    else if (Model.LeadStatus == "Resolved")
+                    {
+
+                        <span class="badge bg-success px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Đã chốt</span>
+                    }
+                    else if (Model.LeadStatus == "Contacted")
+                    {
+
+                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-headset me-1"></i>Đang chăm sóc</span>
+                    }
+                    else
+                    {
+
+                        <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="bi bi-exclamation-circle-fill me-1"></i>Khách Mới</span>
+                    }
+                </div>
+
+                <div class="mb-4">
+                    <span class="info-label">Số điện thoại</span>
+                    <div class="info-value d-flex justify-content-between align-items-center">
+                        @Model.Phone
+                        <a href="tel:@Model.Phone" class="btn btn-sm btn-success rounded-circle"><i class="bi bi-telephone-fill"></i></a>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <span class="info-label">Email liên hệ</span>
+                    <div class="info-value">@(!string.IsNullOrEmpty(Model.Email) ? Model.Email : "Chưa cung cấp")</div>
+                </div>
+                <div class="mb-4">
+                    <span class="info-label">Dự án quan tâm</span>
+                    <div class="info-value text-primary"><i class="bi bi-building-fill me-2"></i>@Model.Project?.ProjectName</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cột Phải: Timeline -->
+        <div class="col-xl-8">
+            <div class="glass-card">
+                <h4 class="fw-bolder text-dark mb-4 border-bottom pb-3"><i class="bi bi-clock-history text-primary me-2"></i>Lịch sử Tương tác (Audit Trail)</h4>
+
+                <div class="timeline-container mt-4">
+
+                    <!-- GHI CHÚ CRM -->
+                    @foreach (var line in noteLines)
+                    {
+                        <div class="timeline-item">
+                            <div class="timeline-icon note"></div>
+                            <div class="timeline-content border-warning-subtle">
+                                <div class="timeline-date text-warning fw-bolder"><i class="bi bi-journal-check me-1"></i> Nhật ký CRM</div>
+                                <p class="mb-0 text-dark fw-medium">@line</p>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- LỊCH SỬ ĐI XEM -->
+                    @foreach (var appt in historyAppointments)
+                    {
+                        <div class="timeline-item">
+                            <div class="timeline-icon appt"></div>
+                            <div class="timeline-content border-primary-subtle bg-primary bg-opacity-10">
+                                <div class="timeline-date text-primary fw-bolder"><i class="bi bi-calendar-event-fill me-1"></i> Điều phối thực địa (Ngày tạo: @appt.CreatedAt.ToString("dd/MM/yyyy"))</div>
+                                <h6 class="fw-bold text-dark">Lịch xem: @appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</h6>
+                                <p class="mb-1 text-secondary small"><i class="bi bi-person-badge-fill me-1"></i> Nhân viên: <strong>@appt.AssignedStaffName</strong></p>
+                                @if (!string.IsNullOrEmpty(appt.Note))
+                                {
+                                    <p class="mb-1 text-secondary small"><i class="bi bi-info-circle-fill me-1"></i> Chuẩn bị: @appt.Note</p>
+                                }
+                                <div class="mt-2">
+                                    Trạng thái hẹn:
+                                    @if (appt.Status == "Pending")
+                                    {
+                                        <span class="badge bg-warning text-dark">Đang chờ</span>
+                                    }
+                                    else if (appt.Status == "Completed")
+                                    {
+
+                                        <span class="badge bg-success">Đã hoàn thành</span>
+                                    }
+                                    else if (appt.Status == "Cancelled")
+                                    {
+
+                                        <span class="badge bg-danger">Khách hủy</span>
+                                    }
+                                    else
+                                    {
+
+                                        <span class="badge bg-secondary">@appt.Status</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- MỐC BẮT ĐẦU -->
+                    <div class="timeline-item">
+                        <div class="timeline-icon start"></div>
+                        <div class="timeline-content border-success-subtle bg-success bg-opacity-10">
+                            <div class="timeline-date text-success fw-bolder"><i class="bi bi-globe me-1"></i> Web Form (Tiếp nhận hệ thống)</div>
+                            <h6 class="fw-bold text-dark mb-2">Lúc: @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</h6>
+                            <div class="p-3 bg-white rounded-3 border border-success-subtle font-italic text-secondary shadow-sm">
+                                " @(string.IsNullOrEmpty(Model.Message) ? "Khách hàng gửi yêu cầu tư vấn nhưng không để lại lời nhắn." : Model.Message) "
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-icon bg-light border-secondary"></div>
+                        <div class="text-muted small fw-bold ms-2 pt-1">Hệ thống tạo Lead</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

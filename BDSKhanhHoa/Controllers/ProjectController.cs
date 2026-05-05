@@ -35,9 +35,6 @@ namespace BDSKhanhHoa.Controllers
                 .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false);
         }
 
-        // =================================================================================
-        // 1. TRANG CHỦ DỰ ÁN
-        // =================================================================================
         [HttpGet]
         [Route("Project")]
         public async Task<IActionResult> Index()
@@ -59,9 +56,6 @@ namespace BDSKhanhHoa.Controllers
             return View("Search", projects);
         }
 
-        // =================================================================================
-        // 2. TÌM KIẾM NÂNG CAO
-        // =================================================================================
         [HttpGet]
         [Route("Project/Search")]
         public async Task<IActionResult> Search(
@@ -74,7 +68,6 @@ namespace BDSKhanhHoa.Controllers
             await LoadProjectFiltersAsync();
 
             const int pageSize = 12;
-
             var query = BuildBaseQuery();
 
             if (!string.IsNullOrWhiteSpace(keyword))
@@ -131,16 +124,14 @@ namespace BDSKhanhHoa.Controllers
             return View(results);
         }
 
-        // =================================================================================
-        // 3. CHI TIẾT DỰ ÁN
-        // =================================================================================
         [HttpGet]
-        [Route("Project/Details/{id}")]
+        [Route("Project/Details/{id:int}")]
         public async Task<IActionResult> Details(int id)
         {
             var project = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
+                .Include(p => p.Area)
                 .Include(p => p.Owner)
                 .FirstOrDefaultAsync(p => p.ProjectID == id && p.IsDeleted == false);
 
@@ -174,35 +165,60 @@ namespace BDSKhanhHoa.Controllers
             return View(project);
         }
 
-        // =================================================================================
-        // 4. TIẾP NHẬN YÊU CẦU TƯ VẤN
-        // =================================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Route("Project/SubmitLead")]
         public async Task<IActionResult> SubmitLead(ProjectLead model)
         {
-            if (!ModelState.IsValid)
+            if (model == null || model.ProjectID <= 0)
             {
-                TempData["Error"] = "Vui lòng nhập đầy đủ thông tin liên hệ hợp lệ.";
-                return RedirectToAction("Details", new { id = model.ProjectID });
+                return Json(new { success = false, message = "Thiếu thông tin dự án." });
             }
 
-            try
+            if (string.IsNullOrWhiteSpace(model.Name) || string.IsNullOrWhiteSpace(model.Phone))
             {
-                model.CreatedAt = DateTime.Now;
-                model.LeadStatus = "New";
-
-                _context.ProjectLeads.Add(model);
-                await _context.SaveChangesAsync();
-
-                TempData["Success"] = "Gửi yêu cầu tư vấn thành công! Chuyên viên dự án sẽ liên hệ với bạn sớm nhất.";
-            }
-            catch
-            {
-                TempData["Error"] = "Hệ thống bận, vui lòng thử lại sau.";
+                return Json(new { success = false, message = "Vui lòng nhập họ tên và số điện thoại hợp lệ." });
             }
 
-            return RedirectToAction("Details", new { id = model.ProjectID });
+            var project = await _context.Projects
+                .FirstOrDefaultAsync(p => p.ProjectID == model.ProjectID && p.IsDeleted == false && p.ApprovalStatus == "Approved");
+
+            if (project == null)
+            {
+                return Json(new { success = false, message = "Dự án không tồn tại hoặc chưa được công khai." });
+            }
+
+            model.Name = model.Name.Trim();
+            model.Phone = model.Phone.Trim();
+            model.Email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
+            model.Message = string.IsNullOrWhiteSpace(model.Message) ? null : model.Message.Trim();
+            model.CreatedAt = DateTime.Now;
+            model.LeadStatus = "New";
+            model.Note = null;
+
+            _context.ProjectLeads.Add(model);
+
+            if (project.OwnerUserID > 0)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserID = project.OwnerUserID,
+                    Title = "Có khách hàng quan tâm dự án",
+                    Content = $"Có khách hàng vừa gửi yêu cầu tư vấn cho dự án \"{project.ProjectName}\".",
+                    ActionUrl = $"/Project/Details/{project.ProjectID}",
+                    ActionText = "Xem dự án",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "Gửi yêu cầu tư vấn thành công! Chuyên viên dự án sẽ liên hệ với bạn sớm nhất."
+            });
         }
     }
 }

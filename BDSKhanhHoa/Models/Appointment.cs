@@ -10,21 +10,15 @@ namespace BDSKhanhHoa.Models
         [Key]
         public int AppointmentID { get; set; }
 
-        // Có thể gắn theo Property hoặc theo Project, tùy ngữ cảnh tạo lịch hẹn
         public int? PropertyID { get; set; }
-
         public int? ProjectID { get; set; }
+        public int? LeadID { get; set; }
 
-        // Người đang thao tác trong hệ thống
         [Required]
         public int BuyerID { get; set; }
 
-        // Chủ dự án / người phụ trách lịch
         [Required]
         public int SellerID { get; set; }
-
-        // Nếu lịch hẹn được tạo từ lead CRM
-        public int? LeadID { get; set; }
 
         [StringLength(255)]
         public string? CustomerName { get; set; }
@@ -38,6 +32,9 @@ namespace BDSKhanhHoa.Models
         [Required]
         public DateTime AppointmentDate { get; set; }
 
+        // Ngày giờ đề xuất dời lịch (Nếu Seller dời lịch)
+        public DateTime? ProposedAppointmentDate { get; set; }
+
         [StringLength(255)]
         public string? MeetingLocation { get; set; }
 
@@ -49,11 +46,15 @@ namespace BDSKhanhHoa.Models
 
         public string? Note { get; set; }
 
+        // Ghi chú khi thương lượng (Ví dụ: Lý do dời lịch, lý do hủy)
+        public string? NegotiationNote { get; set; }
+
+        // Các trạng thái: Pending, Confirmed, Rescheduled, Cancelled, Completed, NoShow
         [StringLength(50)]
-        public string Status { get; set; } = "Pending"; // Pending, Confirmed, Cancelled, Completed, Rescheduled, NoShow
+        public string Status { get; set; } = "Pending";
 
         [StringLength(50)]
-        public string? ResultStatus { get; set; } // Interested, NotInterested, DepositPending, FollowUp
+        public string? ResultStatus { get; set; }
 
         public string? ResultNote { get; set; }
 

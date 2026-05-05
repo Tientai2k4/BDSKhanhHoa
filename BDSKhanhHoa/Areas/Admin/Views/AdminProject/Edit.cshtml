@@ -7,7 +7,13 @@
 <div class="container-fluid px-4 mt-4 pb-5 animate__animated animate__fadeIn">
     <form asp-action="Edit" method="post" enctype="multipart/form-data">
         <input type="hidden" asp-for="ProjectID" />
+        <!-- Bổ sung 3 dòng này để giữ lại dữ liệu khi form bị lỗi xác thực -->
+        <input type="hidden" asp-for="MainImage" />
+        <input type="hidden" asp-for="LegalDocs" />
+        <input type="hidden" asp-for="CreatedAt" />
 
+        <!-- Hiển thị lỗi Validation của ASP.NET Core (nếu có) -->
+        <div asp-validation-summary="ModelOnly" class="text-danger fw-bold mb-3"></div>
         <div class="row g-4">
             <div class="col-lg-8">
                 <div class="card shadow-sm rounded-4 border-0 mb-4">
@@ -96,39 +102,46 @@
                 <div class="card shadow-sm rounded-4 border-0 mb-4 sticky-top" style="top: 90px; z-index: 100;">
                     <div class="card-body p-4">
                         <label class="form-label fw-bold text-primary mb-3"><i class="bi bi-person-check me-2"></i>Gán quyền Quản lý (CRM Leads)</label>
-                        <select asp-for="OwnerUserID" class="form-select mb-4 shadow-sm border-2" asp-items="ViewBag.Owners"></select>
+                        <select asp-for="OwnerUserID" class="form-select mb-4 shadow-sm border-2" asp-items="ViewBag.Owners" required>
+                            <option value="">-- Chọn Doanh nghiệp đối tác --</option>
+                        </select>
 
-                        <div class="mb-4 bg-light p-3 rounded-4 border">
+                        <div class="mb-4 bg-white p-3 rounded-4 border">
                             <label class="form-label fw-bold small text-muted">VỊ TRÍ DỰ ÁN</label>
-                            <select asp-for="AreaID" class="form-select mb-2 shadow-sm" asp-items="ViewBag.Areas" id="areaDDL"></select>
-                            <select asp-for="WardID" class="form-select mb-2 shadow-sm" asp-items="ViewBag.Wards" id="wardDDL"></select>
-                            <input asp-for="AddressDetail" class="form-control shadow-sm" placeholder="Số nhà, đường..." />
+                            <select asp-for="AreaID" class="form-select mb-2 shadow-sm" asp-items="ViewBag.Areas" id="areaDDL" required><option value="">-- Chọn Khu vực --</option></select>
+                            <select asp-for="WardID" class="form-select mb-2 shadow-sm" asp-items="ViewBag.Wards" id="wardDDL" required><option value="">-- Chọn Phường/Xã --</option></select>
+                            <input asp-for="AddressDetail" class="form-control shadow-sm" placeholder="Số nhà, đường..." required />
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold small text-muted">HÌNH ẢNH HIỆN TẠI</label>
-                            <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" class="img-thumbnail w-100 mb-2 shadow-sm rounded-4" style="height: 180px; object-fit: cover;">
-                            <input type="file" name="MainImageFile" class="form-control" accept="image/*" />
-                            <small class="text-muted fst-italic">Chỉ upload nếu muốn đổi ảnh bìa mới.</small>
-                        </div>
+                        <!-- KHU VỰC HÌNH ẢNH & PHÁP LÝ ĐƯỢC LÀM LẠI RÕ RÀNG -->
+                        <div class="mb-4 bg-light p-3 rounded-4 border">
+                            <label class="form-label fw-bold small text-muted d-block mb-3 border-bottom pb-2">HÌNH ẢNH & PHÁP LÝ</label>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold small text-danger">HỒ SƠ PHÁP LÝ (BẢO MẬT)</label>
-                            @if (!string.IsNullOrEmpty(Model.LegalDocs))
-                            {
-                                <a href="@Model.LegalDocs" target="_blank" class="d-block mb-2 text-danger fw-bold"><i class="bi bi-file-earmark-pdf-fill me-1"></i> Xem file hiện tại</a>
-                            }
-                            <input type="file" name="LegalDocsFile" class="form-control border-danger" accept=".pdf,.zip,.rar" />
-                        </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-dark"><i class="bi bi-image me-1 text-primary"></i>Ảnh bìa dự án</label>
+                                <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)" class="img-thumbnail w-100 mb-2 shadow-sm rounded-4" style="height: 180px; object-fit: cover;">
+                                <input type="file" name="MainImageFile" class="form-control shadow-sm" accept="image/*" />
+                                <small class="text-muted fst-italic">Chỉ upload nếu muốn đổi ảnh bìa mới.</small>
+                            </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold small text-muted">TRẠNG THÁI DỰ ÁN</label>
-                            <select asp-for="ProjectStatus" class="form-select form-select-lg fw-bold text-success border-2 border-success shadow-sm">
-                                <option value="Sắp mở bán">Sắp mở bán (Booking)</option>
-                                <option value="Đang mở bán">Đang mở bán</option>
-                                <option value="Đang bàn giao">Đang bàn giao</option>
-                                <option value="Đã bàn giao">Đã bàn giao hoàn thiện</option>
-                            </select>
+                            <div class="mb-4">
+                                @if (!string.IsNullOrEmpty(Model.LegalDocs))
+                                {
+                                    <a href="@Model.LegalDocs" target="_blank" class="d-block mb-2 text-danger fw-bold"><i class="bi bi-file-earmark-pdf-fill me-1"></i> Xem file pháp lý hiện tại</a>
+                                }
+                                <input type="file" name="LegalDocsFile" class="form-control border-danger shadow-sm" accept=".pdf,.zip,.rar" />
+                                <small class="text-muted fst-italic">Chỉ upload nếu muốn thay thế file hiện tại.</small>
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label fw-bold text-dark">Trạng thái dự án</label>
+                                <select asp-for="ProjectStatus" class="form-select form-select-lg fw-bold text-success border-2 border-success shadow-sm">
+                                    <option value="Sắp mở bán">Sắp mở bán (Booking)</option>
+                                    <option value="Đang mở bán">Đang mở bán</option>
+                                    <option value="Đang bàn giao">Đang bàn giao</option>
+                                    <option value="Đã bàn giao">Đã bàn giao hoàn thiện</option>
+                                </select>
+                            </div>
                         </div>
 
                         <button type="submit" class="btn btn-warning btn-lg w-100 fw-black py-3 shadow text-dark">
@@ -144,7 +157,17 @@
 @section Scripts {
     <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
     <script>
-        ClassicEditor.create(document.querySelector('#editor'));
+        // Khởi tạo CKEditor và Cấu hình Upload Ảnh
+        ClassicEditor
+            .create(document.querySelector('#editor'), {
+                ckfinder: {
+                    // Trỏ đường dẫn về đúng Hàm (Action) vừa tạo trong Controller
+                    uploadUrl: '/Admin/AdminProject/UploadImageCKEditor'
+                }
+            })
+            .catch(error => {
+                console.error(error);
+            });
 
         // AJAX Load Xã Phường
         $('#areaDDL').change(function() {
@@ -155,6 +178,8 @@
                     $.each(data, function(i, ward) { items += "<option value='" + ward.id + "'>" + ward.name + "</option>"; });
                     $('#wardDDL').html(items);
                 });
+            } else {
+                $('#wardDDL').html('<option value="">-- Chọn Phường/Xã --</option>');
             }
         });
     </script>

@@ -1,0 +1,137 @@
+﻿@model BDSKhanhHoa.Models.StaticPage
+
+@{
+    ViewData["Title"] = "Cập nhật: " + Model.Title;
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+
+<style>
+    .ql-toolbar.ql-snow {
+        border-radius: 12px 12px 0 0;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+        padding: 10px;
+    }
+
+    .ql-container.ql-snow {
+        border-radius: 0 0 12px 12px;
+        border-color: #e2e8f0;
+        font-family: 'Inter', sans-serif;
+        font-size: 1.05rem;
+        background: #fff;
+    }
+
+    .ql-editor {
+        min-height: 450px;
+    }
+</style>
+
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex align-items-center mb-4">
+            <a asp-action="Index" class="btn btn-light rounded-circle me-3"><i class="bi bi-arrow-left"></i></a>
+            <h4 class="fw-bold mb-0 text-dark">Chỉnh sửa trang: <span class="text-primary">@Model.Title</span></h4>
+        </div>
+
+        <form asp-action="Edit" method="post" id="pageForm">
+            <input type="hidden" asp-for="PageID" />
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-dark">Mã định danh (URL)</label>
+                    <input asp-for="PageKey" class="form-control text-muted" readonly style="background-color:#e9ecef;" title="Không được phép đổi Mã định danh để tránh lỗi mất link." />
+                    <small class="text-danger mt-1 d-block"><i class="bi bi-lock-fill"></i> Link cố định không thể sửa</small>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-bold text-dark">Tiêu đề trang <span class="text-danger">*</span></label>
+                    <input asp-for="Title" class="form-control bg-light" required />
+                    <span asp-validation-for="Title" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold text-dark">Mô tả (SEO / Sapo)</label>
+                <input asp-for="Description" class="form-control bg-light" />
+                <span asp-validation-for="Description" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold text-dark">Nội dung chi tiết <span class="text-danger">*</span></label>
+                <input type="hidden" asp-for="Content" id="hiddenContent" />
+                <div id="editor-container">
+                    @if (!string.IsNullOrEmpty(Model.Content))
+                    {
+                        @Html.Raw(Model.Content)
+                    }
+                </div>
+                <span asp-validation-for="Content" class="text-danger small"></span>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a asp-action="Index" class="btn btn-secondary rounded-pill px-4 fw-bold">Hủy bỏ</a>
+                <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                    <i class="bi bi-floppy-fill me-2"></i> Lưu thay đổi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        function imageHandler() {
+            var input = document.createElement('input');
+            input.setAttribute('type', 'file');
+            input.setAttribute('accept', 'image/*');
+            input.click();
+
+            input.onchange = function() {
+                var file = input.files[0];
+                var formData = new FormData();
+                formData.append('upload', file);
+
+                $.ajax({
+                    url: '/Admin/Pages/UploadImage',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(res) {
+                        if (res.uploaded) {
+                            var range = quill.getSelection();
+                            quill.insertEmbed(range.index, 'image', res.url);
+                        } else {
+                            alert("Lỗi tải ảnh!");
+                        }
+                    }
+                });
+            };
+        }
+
+        var quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: {
+                    container: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'color': [] }, { 'background': [] }],
+                        ['link', 'image', 'video'],
+                        ['clean']
+                    ],
+                    handlers: { image: imageHandler }
+                }
+            },
+            placeholder: 'Bắt đầu viết nội dung trang tại đây...'
+        });
+
+        document.getElementById('pageForm').onsubmit = function() {
+            var contentHtml = quill.root.innerHTML;
+            document.getElementById('hiddenContent').value = (contentHtml === '<p><br></p>') ? '' : contentHtml;
+        };
+    </script>
+}

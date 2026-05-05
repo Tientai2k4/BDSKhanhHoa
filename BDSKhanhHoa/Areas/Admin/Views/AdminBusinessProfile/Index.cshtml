@@ -1,59 +1,180 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.BusinessProfile>
 @{
-    ViewData["Title"] = "Quản lý Đối tác Chủ đầu tư";
+    ViewData["Title"] = "Quản lý Đối tác Doanh nghiệp";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container-fluid px-4 mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold text-dark"><i class="bi bi-briefcase me-2"></i>DANH SÁCH PHÁP NHÂN DOANH NGHIỆP</h4>
+<style>
+    .avatar-biz {
+        width: 45px;
+        height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+    }
+
+    .card-stat {
+        border: none;
+        border-radius: 1rem;
+        transition: transform 0.2s;
+    }
+
+        .card-stat:hover {
+            transform: translateY(-5px);
+        }
+</style>
+
+<div class="container-fluid px-4 py-4 animate__animated animate__fadeIn">
+    <div class="row align-items-end mb-4 gap-3 gap-md-0">
+        <div class="col-md-7">
+            <h4 class="fw-bold text-dark mb-1">
+                <i class="bi bi-buildings-fill text-primary me-2"></i>MẠNG LƯỚI ĐỐI TÁC CĐT
+            </h4>
+            <p class="text-muted small mb-0">Quản lý các tài khoản pháp nhân, chủ đầu tư, sàn giao dịch do Admin cấp phát.</p>
+        </div>
+        <div class="col-md-5">
+            <form asp-action="Index" method="get" class="d-flex justify-content-md-end gap-2">
+                <div class="input-group shadow-sm rounded-pill overflow-hidden bg-white border">
+                    <span class="input-group-text bg-transparent border-0 pe-1"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="searchString" value="@ViewData["CurrentFilter"]"
+                           class="form-control border-0 shadow-none ps-2" placeholder="Tìm tên DN, MST, Tài khoản...">
+                </div>
+                <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold">Tìm</button>
+            </form>
+        </div>
     </div>
 
-    <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th class="ps-4 py-3">Doanh nghiệp / MST</th>
-                            <th>Đại diện pháp luật</th>
-                            <th>Tài khoản hệ thống</th>
-                            <th>Trạng thái</th>
-                            <th class="text-end pe-4">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in Model)
-                        {
-                            <tr>
-                                <td class="ps-4">
-                                    <div class="fw-bold text-dark">@item.BusinessName</div>
-                                    <div class="small text-muted">MST: @item.TaxCode</div>
-                                </td>
-                                <td>
-                                    <div class="fw-medium">@item.RepresentativeName</div>
-                                    <div class="small text-muted">@item.RepresentativePhone</div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle px-2">
-                                        @@@item.User?.Username
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge @(item.VerificationStatus == "Approved" ? "bg-success" : "bg-danger") rounded-pill">
-                                        @item.VerificationStatus
-                                    </span>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <a asp-action="Details" asp-route-id="@item.BusinessProfileID" class="btn btn-sm btn-light border shadow-sm">
-                                        <i class="bi bi-eye-fill"></i> Xem hồ sơ
-                                    </a>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <!-- Tóm tắt thống kê -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm border-bottom border-primary border-4 bg-white p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small fw-bold mb-1">TỔNG SỐ ĐỐI TÁC</p>
+                        <h3 class="fw-bold mb-0 text-dark">@Model.Count()</h3>
+                    </div>
+                    <div class="avatar-biz bg-primary-subtle text-primary"><i class="bi bi-briefcase fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm border-bottom border-success border-4 bg-white p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small fw-bold mb-1">ĐANG HOẠT ĐỘNG</p>
+                        <h3 class="fw-bold mb-0 text-success">@Model.Count(x => x.VerificationStatus == "Approved")</h3>
+                    </div>
+                    <div class="avatar-biz bg-success-subtle text-success"><i class="bi bi-check-circle fs-4"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat shadow-sm border-bottom border-danger border-4 bg-white p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small fw-bold mb-1">ĐANG ĐÌNH CHỈ</p>
+                        <h3 class="fw-bold mb-0 text-danger">@Model.Count(x => x.VerificationStatus == "Suspended")</h3>
+                    </div>
+                    <div class="avatar-biz bg-danger-subtle text-danger"><i class="bi bi-lock fs-4"></i></div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Bảng dữ liệu -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light text-uppercase small text-muted">
+                    <tr>
+                        <th class="ps-4 py-3 fw-bold" style="width: 35%">Pháp nhân / Doanh nghiệp</th>
+                        <th class="fw-bold" style="width: 25%">Người phụ trách</th>
+                        <th class="fw-bold" style="width: 20%">Trạng thái</th>
+                        <th class="text-end pe-4 fw-bold" style="width: 20%">Quản trị</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-buildings opacity-25 display-4 d-block mb-3"></i>
+                                Không tìm thấy đối tác doanh nghiệp nào.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="ps-4 py-3">
+                                <div class="fw-bold text-dark fs-6 mb-1">@item.BusinessName</div>
+                                <div class="small text-muted d-flex gap-3">
+                                    <span><i class="bi bi-upc-scan"></i> MST: @item.TaxCode</span>
+                                    <span class="text-primary"><i class="bi bi-person-circle"></i> @item.User?.Username</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-medium text-dark">@item.RepresentativeName</div>
+                                <div class="small text-muted"><i class="bi bi-telephone"></i> @item.RepresentativePhone</div>
+                            </td>
+                            <td>
+                                @if (item.VerificationStatus == "Approved")
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Hoạt động
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2">
+                                        <i class="bi bi-lock-fill me-1"></i> Bị đình chỉ
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group border shadow-sm rounded-3 bg-white">
+                                    <a asp-action="Details" asp-route-id="@item.BusinessProfileID" class="btn btn-sm btn-light text-primary border-end" title="Xem hồ sơ">
+                                        <i class="bi bi-file-earmark-person"></i>
+                                    </a>
+                                    <button onclick="toggleStatus(@item.BusinessProfileID, '@item.BusinessName')" class="btn btn-sm btn-light @(item.VerificationStatus == "Approved" ? "text-danger" : "text-success")" title="Khóa/Mở khóa">
+                                        <i class="bi @(item.VerificationStatus == "Approved" ? "bi-lock" : "bi-unlock")"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function toggleStatus(id, name) {
+            Swal.fire({
+                title: 'Thay đổi trạng thái?',
+                text: `Xác nhận khóa/mở khóa hoạt động của CĐT: ${name}?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Đồng ý',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post('@Url.Action("ToggleStatus")', { id: id }, function(res) {
+                        if(res.success) {
+                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cập nhật thành công', showConfirmButton: false, timer: 1500 })
+                            .then(() => location.reload());
+                        } else {
+                            Swal.fire('Lỗi', res.message, 'error');
+                        }
+                    });
+                }
+            })
+        }
+    </script>
+}

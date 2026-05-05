@@ -60,8 +60,8 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
-            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Hệ thống Kiểm duyệt 2026</h3>
-            <p class="text-muted small mb-0">Quản lý tin đăng, duyệt tự động VIP và phát hiện trùng lặp.</p>
+            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Quản lý Tin Đăng & Giao Dịch</h3>
+            <p class="text-muted small mb-0">Quản lý duyệt tin, cảnh báo trùng lặp và theo dõi số lượng tài sản giao dịch thành công.</p>
         </div>
         <div class="d-flex gap-2">
             <form action="/Admin/Properties/RunAutoApprove" method="post" class="d-inline">
@@ -70,7 +70,7 @@
                 </button>
             </form>
             <a href="/Admin/Properties/ExportReport" class="btn btn-success fw-bold rounded-pill shadow-sm">
-                <i class="bi bi-file-earmark-excel me-1"></i> Xuất Báo cáo
+                <i class="bi bi-file-earmark-excel me-1"></i> Xuất Báo cáo CSV
             </a>
         </div>
     </div>
@@ -87,7 +87,21 @@
             }
         </a>
         <a href="/Admin/Properties/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "active shadow-sm" : "")">
-            <i class="bi bi-check-circle-fill text-success me-1"></i> Đã duyệt
+            <i class="bi bi-check-circle-fill text-success me-1"></i> Đang hiển thị
+        </a>
+        <a href="/Admin/Properties/Index?status=Sold" class="btn @(ViewBag.CurrentStatus == "Sold" ? "active shadow-sm" : "")">
+            <i class="bi bi-bag-check-fill text-primary me-1"></i> Đã Bán
+            @if (ViewBag.SoldCount > 0)
+            {
+                <span class="badge bg-primary text-white ms-1 rounded-pill">@ViewBag.SoldCount</span>
+            }
+        </a>
+        <a href="/Admin/Properties/Index?status=Rented" class="btn @(ViewBag.CurrentStatus == "Rented" ? "active shadow-sm" : "")">
+            <i class="bi bi-key-fill text-info me-1"></i> Đã Cho Thuê
+            @if (ViewBag.RentedCount > 0)
+            {
+                <span class="badge bg-info text-white ms-1 rounded-pill">@ViewBag.RentedCount</span>
+            }
         </a>
         <a href="/Admin/Properties/Index?status=Rejected" class="btn @(ViewBag.CurrentStatus == "Rejected" ? "active shadow-sm" : "")">
             <i class="bi bi-x-circle-fill text-danger me-1"></i> Bị từ chối
@@ -118,7 +132,6 @@
                     }
                     @foreach (var item in Model)
                     {
-                        // Tô sáng dòng nếu là tin trùng lặp đang chờ duyệt
                         string rowClass = (item.Status == "Pending" && item.IsDuplicate) ? "row-highlight-dup" : "";
 
                         <tr class="@rowClass">
@@ -148,7 +161,7 @@
                             <td class="py-3">
                                 <div class="fw-bold text-dark mb-1">@item.User?.FullName</div>
                                 <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@item.User?.Phone</div>
-                                <div class="small text-muted mt-1"><i class="bi bi-calendar-plus me-1"></i>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                                <div class="small text-muted mt-1"><i class="bi bi-calendar-plus me-1"></i>@item.CreatedAt.ToString("dd/MM/yyyy")</div>
                             </td>
                             <td class="py-3 text-center">
                                 <div class="mb-2">
@@ -164,7 +177,7 @@
 
                                 @if (item.Status == "Approved")
                                 {
-                                    <span class="status-badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-check2-all me-1"></i> Đã duyệt</span>
+                                    <span class="status-badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-eye-fill me-1"></i> Đang hiển thị</span>
                                 }
                                 else if (item.Status == "Pending")
                                 {
@@ -177,16 +190,25 @@
                                         <span class="status-badge bg-warning bg-opacity-10 text-warning border border-warning"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
                                     }
                                 }
+                                else if (item.Status == "Sold")
+                                {
+                                    <span class="status-badge bg-primary bg-opacity-10 text-primary border border-primary"><i class="bi bi-bag-check-fill me-1"></i> Đã Bán</span>
+                                    <div class="small text-muted mt-1">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
+                                }
+                                else if (item.Status == "Rented")
+                                {
+                                    <span class="status-badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-key-fill me-1"></i> Đã Cho Thuê</span>
+                                    <div class="small text-muted mt-1">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
+                                }
                                 else if (item.Status == "Rejected")
                                 {
                                     <span class="status-badge bg-secondary bg-opacity-10 text-secondary border border-secondary mb-1 d-inline-block"><i class="bi bi-slash-circle me-1"></i> Bị từ chối</span>
-                                    <div class="small text-danger text-truncate mx-auto" style="max-width: 150px;" title="@item.RejectionReason">@item.RejectionReason</div>
                                 }
                             </td>
                             <td class="text-end pe-4 py-3">
                                 <div class="d-flex justify-content-end gap-2">
 
-                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="action-btn bg-info bg-opacity-10 text-info border border-info" title="Xem chi tiết (Tab mới)">
+                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="action-btn bg-info bg-opacity-10 text-info border border-info" title="Xem chi tiết">
                                         <i class="bi bi-eye"></i>
                                     </a>
 
@@ -203,7 +225,7 @@
 
                                     @if (item.Status == "Pending" || item.Status == "Approved")
                                     {
-                                        <button type="button" class="action-btn bg-danger bg-opacity-10 text-danger border border-danger" onclick="openRejectModal(@item.PropertyID, '@Html.Raw(item.Title.Replace("'", "\\'"))')" title="Từ chối / Cấm">
+                                        <button type="button" class="action-btn bg-danger bg-opacity-10 text-danger border border-danger" onclick="openRejectModal(@item.PropertyID, '@Html.Raw(item.Title.Replace("'", "\\'"))')" title="Từ chối">
                                             <i class="bi bi-x-lg"></i>
                                         </button>
                                     }
@@ -243,15 +265,15 @@
 
                     <div class="alert alert-warning bg-opacity-10 border-warning border-opacity-25 small mb-3">
                         <i class="bi bi-info-circle-fill me-1 text-warning"></i>
-                        Hệ thống sẽ <strong>tự động hoàn trả lượt đăng</strong> nếu đây là lần đầu tin bị từ chối. Nếu người dùng sửa lại tin đã bị từ chối trước đó, lượt đăng sẽ không được hoàn lại lần 2.
+                        Hệ thống sẽ <strong>tự động hoàn trả lượt đăng</strong> nếu đây là lần đầu tin bị từ chối.
                     </div>
 
                     <p class="text-dark mb-2">Tin cần xử lý:</p>
                     <p id="rejectPropertyTitle" class="fw-bold text-primary px-3 py-2 bg-light rounded-3 border"></p>
 
                     <div class="mb-3 mt-4">
-                        <label class="form-label fw-bold text-secondary">Lý do từ chối (Gửi cho người đăng) <span class="text-danger">*</span></label>
-                        <textarea class="form-control" name="reason" rows="3" placeholder="Ví dụ: Hình ảnh không hợp lệ, thông tin liên hệ trong mô tả, sai chuyên mục..." required></textarea>
+                        <label class="form-label fw-bold text-secondary">Lý do từ chối <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="reason" rows="3" placeholder="Nhập nguyên nhân vi phạm..." required></textarea>
                     </div>
                 </div>
                 <div class="modal-footer border-top-0 bg-light">
@@ -282,36 +304,19 @@
                 cancelButtonColor: '#94a3b8',
                 confirmButtonText: 'Xóa ngay',
                 cancelButtonText: 'Hủy bỏ',
-                customClass: {
-                    confirmButton: 'rounded-pill px-4',
-                    cancelButton: 'rounded-pill px-4'
-                }
+                customClass: { confirmButton: 'rounded-pill px-4', cancelButton: 'rounded-pill px-4' }
             }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('deleteForm-' + id).submit();
-                }
+                if (result.isConfirmed) { document.getElementById('deleteForm-' + id).submit(); }
             })
         }
 
         @if (TempData["Success"] != null)
         {
-                <text>
-                Swal.fire({
-                    icon: 'success', title: 'Thành công',
-                    text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false,
-                    toast: true, position: 'top-end'
-                });
-                </text>
+                <text>Swal.fire({ icon: 'success', title: 'Thành công', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false, toast: true, position: 'top-end' });</text>
         }
         @if (TempData["Error"] != null)
         {
-                <text>
-                Swal.fire({
-                    icon: 'error', title: 'Thất bại',
-                    text: '@Html.Raw(TempData["Error"])', timer: 4000, showConfirmButton: false,
-                    toast: true, position: 'top-end'
-                });
-                </text>
+                <text>Swal.fire({ icon: 'error', title: 'Thất bại', text: '@Html.Raw(TempData["Error"])', timer: 4000, showConfirmButton: false, toast: true, position: 'top-end' });</text>
         }
     </script>
 }

@@ -17,9 +17,12 @@ namespace BDSKhanhHoa.Models
 
         [StringLength(255)]
         public string? AddressDetail { get; set; }
+
         public int? ProjectID { get; set; }
+
         [ForeignKey("ProjectID")]
         public virtual Project? Project { get; set; }
+
         public int WardID { get; set; }
         public int TypeID { get; set; }
         public int UserID { get; set; }
@@ -30,6 +33,7 @@ namespace BDSKhanhHoa.Models
 
         [Column(TypeName = "decimal(10,2)")]
         public decimal? AreaSize { get; set; }
+
         [Column(TypeName = "decimal(10,2)")]
         public decimal? Width { get; set; }
 
@@ -37,27 +41,26 @@ namespace BDSKhanhHoa.Models
         public decimal? Length { get; set; }
 
         [StringLength(20)]
-        public string? Status { get; set; } = "Pending";
+        public string? Status { get; set; } = "Pending"; // Pending, Approved, Rejected, Deleted, Sold, Rented
+
         public DateTime? ApprovedAt { get; set; }
         public string? MainImage { get; set; }
 
-        // --- CÁC TRƯỜNG ĐƯỢC BỔ SUNG ĐỂ SỬA LỖI BIÊN DỊCH ---
         public DateTime? VipExpiryDate { get; set; }
-
         public int? Views { get; set; } = 0;
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
-
         public DateTime? UpdatedAt { get; set; } = DateTime.Now;
+
+        // Trường lưu vết thời gian giao dịch hoàn tất
+        public DateTime? SoldAt { get; set; }
 
         public bool IsAutoApproved { get; set; } = false;
         public bool IsDuplicate { get; set; } = false;
         public string? DuplicateReason { get; set; }
 
-
         public bool? IsDeleted { get; set; } = false;
         public string? RejectionReason { get; set; }
-        // --- NAVIGATION PROPERTIES (Liên kết các bảng) ---
 
         [ForeignKey("TypeID")]
         public virtual PropertyType? PropertyType { get; set; }

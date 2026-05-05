@@ -24,6 +24,12 @@
     bool isOwner = (currentUserId > 0 && currentUserId == Model.UserID);
     bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
 
+    // LẤY THÔNG TIN USER TỪ VIEWBAG ĐỂ ĐIỀN TỰ ĐỘNG VÀO FORM
+    var currentUserInfo = ViewBag.CurrentUserInfo as BDSKhanhHoa.Models.User;
+    string autoName = currentUserInfo?.FullName ?? (isAuthenticated ? User.Identity.Name : "");
+    string autoPhone = currentUserInfo?.Phone ?? "";
+    string autoEmail = currentUserInfo?.Email ?? "";
+
     var totalImages = propertyImages.Count() + (string.IsNullOrEmpty(Model.MainImage) ? 0 : 1);
 
     string zaloLink = !string.IsNullOrEmpty(Model.User?.Zalo)
@@ -47,7 +53,7 @@
 }
 
 @* ─────────────────────────────────────────────────────────── *@
-@* CSS                                                          *@
+@* CSS                                                         *@
 @* ─────────────────────────────────────────────────────────── *@
 <style>
     /* ── Variables ───────────────────────────────────────────────── */
@@ -1133,52 +1139,46 @@
 
     /* ── Responsive tweaks ───────────────────────────────────────── */
     @@media (max-width: 768px) {
-        .hero-img
+        .hero-img {
+            height: 280px;
+        }
 
-    {
-        height: 280px;
-    }
+        .prop-title {
+            font-size: 1.25rem;
+        }
 
-    .prop-title {
-        font-size: 1.25rem;
-    }
+        .price-area-row {
+            grid-template-columns: 1fr 1fr;
+        }
 
-    .price-area-row {
-        grid-template-columns: 1fr 1fr;
-    }
+        .pa-cell:last-child {
+            grid-column: 1/-1;
+        }
 
-    .pa-cell:last-child {
-        grid-column: 1/-1;
-    }
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
 
-    .detail-grid {
-        grid-template-columns: 1fr;
-    }
+        .dg-row:nth-child(odd) {
+            border-right: none;
+        }
 
-    .dg-row:nth-child(odd) {
-        border-right: none;
-    }
-
-    .sec-card, .info-card {
-        padding: 20px 16px;
-    }
-
+        .sec-card, .info-card {
+            padding: 20px 16px;
+        }
     }
 
     /* ── Smooth fade-in animation for page elements ──────────────── */
     @@keyframes fadeUp {
-        from
+        from {
+            opacity: 0;
+            transform: translateY(18px);
+        }
 
-    {
-        opacity: 0;
-        transform: translateY(18px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .fade-up {
@@ -1207,7 +1207,7 @@
 </style>
 
 @* ─────────────────────────────────────────────────────────── *@
-@* BREADCRUMB                                                    *@
+@* BREADCRUMB                                                  *@
 @* ─────────────────────────────────────────────────────────── *@
 <div class="bc-wrap">
     <div class="container">
@@ -1762,9 +1762,7 @@
                 <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill me-2"></i>Nhắn tin trực tiếp</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            @* ── Tìm đến đoạn Internal Chat Modal và thay bằng đoạn này ── *@
             <div class="modal-body pt-4">
-                @* Chỉ cần 1 thẻ <a> duy nhất bọc toàn bộ thông tin người đăng *@
                 <a href="/Nguoi-Dang-Tin/@Model.UserID" class="text-decoration-none d-flex align-items-center gap-3 p-3 mb-4 rounded-3"
                    style="background:var(--bg); border:1px solid var(--bor); transition: var(--tr);"
                    onmouseover="this.style.borderColor='var(--p1)'" onmouseout="this.style.borderColor='var(--bor)'">
@@ -1832,7 +1830,7 @@
     </div>
 </div>
 
-@* ── Appointment Modal ── *@
+@* ── Appointment Modal CÓ SỬA LẠI VALUE TỰ ĐIỀN THÔNG TIN ── *@
 <div class="modal fade" id="appointmentModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1842,17 +1840,27 @@
             </div>
             <div class="modal-body pt-4">
                 <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp trực tiếp để tham quan bất động sản này.</p>
-                <div class="mb-3">
-                    <label class="form-label">Thời gian hẹn <span class="text-danger">*</span></label>
-                    <input type="datetime-local" id="apptDate" class="form-control" required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Ghi chú thêm</label>
-                    <textarea class="form-control" id="apptNote" rows="3"
-                              placeholder="Ví dụ: Tôi rảnh chiều các ngày trong tuần, gọi trước 30 phút..."></textarea>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Họ và tên người đi xem <span class="text-danger">*</span></label>
+                        <input type="text" id="apptName" class="form-control" placeholder="Nhập họ tên..." value="@autoName" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                        <input type="tel" id="apptPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" value="@autoPhone" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Thời gian hẹn <span class="text-danger">*</span></label>
+                        <input type="datetime-local" id="apptDate" class="form-control" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Ghi chú thêm</label>
+                        <textarea class="form-control" id="apptNote" rows="3"
+                                  placeholder="Ví dụ: Tôi rảnh chiều các ngày trong tuần, gọi trước 30 phút..."></textarea>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer border-top-0 pt-0">
                 <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
                 <button type="button" id="btnAppt" class="btn fw-bold rounded-pill px-4 shadow-sm"
                         style="background:var(--grn);color:#fff;">
@@ -1863,7 +1871,7 @@
     </div>
 </div>
 
-@* ── Consultation Modal ── *@
+@* ── Consultation Modal CÓ SỬA LẠI VALUE TỰ ĐIỀN THÔNG TIN ── *@
 <div class="modal fade" id="consultationModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1876,15 +1884,15 @@
                 <div class="row g-3">
                     <div class="col-12">
                         <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                        <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" required />
+                        <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" value="@autoName" required />
                     </div>
                     <div class="col-12">
                         <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" required />
+                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987 654 321" value="@autoPhone" required />
                     </div>
                     <div class="col-12">
                         <label class="form-label">Email (tùy chọn)</label>
-                        <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" />
+                        <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" value="@autoEmail" />
                     </div>
                     <div class="col-12">
                         <label class="form-label">Lời nhắn</label>
@@ -2029,13 +2037,22 @@
 
         // ── Appointment ─────────────────────────────────────────────────
         document.getElementById('btnAppt')?.addEventListener('click', async function() {
+            const name = document.getElementById('apptName').value.trim();
+            const phone = document.getElementById('apptPhone').value.trim();
             const d = document.getElementById('apptDate').value;
+
+            if (!name || !phone) { Swal.fire('Lỗi', 'Vui lòng nhập Họ tên và Số điện thoại!', 'warning'); return; }
             if (!d) { Swal.fire('Lỗi', 'Vui lòng chọn ngày & giờ hẹn!', 'warning'); return; }
+
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
+            fd.append('customerName', name);
+            fd.append('customerPhone', phone);
             fd.append('appointmentDate', d);
             fd.append('note', document.getElementById('apptNote').value);
+
             if (await ajaxPost('/Property/BookAppointment', fd, this, 'Đang đặt lịch...', '<i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch', 'appointmentModal')) {
+                // Chúng ta không xóa giá trị phone/name nếu muốn giữ auto-fill, chỉ xóa note và date
                 document.getElementById('apptDate').value = '';
                 document.getElementById('apptNote').value = '';
             }
@@ -2053,7 +2070,7 @@
             fd.append('email', document.getElementById('csEmail').value);
             fd.append('note',  document.getElementById('csNote').value);
             if (await ajaxPost('/Property/SubmitConsultation', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi yêu cầu', 'consultationModal')) {
-                ['csName','csPhone','csEmail','csNote'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('csNote').value = '';
             }
         });
 

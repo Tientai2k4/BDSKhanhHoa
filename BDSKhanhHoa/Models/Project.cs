@@ -61,10 +61,13 @@ namespace BDSKhanhHoa.Models
 
         [StringLength(50)]
         public string ProjectStatus { get; set; } = "Đang mở bán";
+        // Lưu trữ mảng thông tin tài liệu dạng JSON
+        public string? LegalDocsJson { get; set; }
+
 
         [StringLength(50)]
         public string ApprovalStatus { get; set; } = "Approved";
-
+        public string? TimelineJson { get; set; }
         [Required]
         public int OwnerUserID { get; set; }
 

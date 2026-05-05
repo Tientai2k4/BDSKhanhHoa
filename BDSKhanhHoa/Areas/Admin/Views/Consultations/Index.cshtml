@@ -1,102 +1,514 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Consultation>
 @{
+    ViewData["Title"] = "Giám sát Yêu cầu Tư vấn (Leads)";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string status = ViewBag.Status as string ?? "All";
+    string keyword = ViewBag.Keyword as string ?? "";
+    string source = ViewBag.Source as string ?? "All";
+    string dateRange = ViewBag.DateRange as string ?? "all";
+
+    int total = ViewBag.TotalLeads ?? 0;
     int newLeads = ViewBag.NewLeads ?? 0;
+    int processing = ViewBag.ProcessingLeads ?? 0;
+    int closed = ViewBag.ClosedLeads ?? 0;
+    int junk = ViewBag.JunkLeads ?? 0;
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
 }
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<div class="animate__animated animate__fadeIn">
-    @if (TempData["Success"] != null)
-    {
-        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+<style>
+    /* CSS giữ nguyên như gốc... */
+    .admin-box {
+        background: #fff;
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,.16);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
+        margin-bottom: 24px;
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="fw-bolder text-dark m-0"><i class="bi bi-headset text-warning me-2"></i>Yêu Cầu Tư Vấn BĐS</h4>
-            <p class="text-muted m-0">Khu vực chăm sóc và điều phối khách hàng tiềm năng</p>
-        </div>
-        @if (newLeads > 0)
-        {
-            <div class="badge bg-danger fs-5 px-4 py-2 rounded-pill animate__animated animate__pulse animate__infinite shadow-sm">
-                Có @newLeads khách chờ liên hệ!
-            </div>
-        }
-    </div>
+    .stat {
+        padding: 24px;
+        border-radius: 20px;
+        color: #fff;
+        min-height: 135px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 25px rgba(15, 23, 42, .06);
+        transition: transform 0.3s ease;
+    }
 
-    <div class="bg-white rounded-4 shadow-sm border p-4">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="bg-light">
-                    <tr>
-                        <th width="20%">Khách hàng</th>
-                        <th width="15%">Liên hệ</th>
-                        <th width="30%">Nội dung / Bất động sản quan tâm</th>
-                        <th width="15%">Thời gian</th>
-                        <th width="10%">Trạng thái</th>
-                        <th width="10%" class="text-end">Xử lý</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model)
+        .stat:hover {
+            transform: translateY(-5px);
+        }
+
+    .bg-total {
+        background: linear-gradient(135deg, #1e293b, #334155);
+    }
+
+    .bg-new {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .bg-processing {
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+    }
+
+    .bg-closed {
+        background: linear-gradient(135deg, #047857, #10b981);
+    }
+
+    .bg-junk {
+        background: linear-gradient(135deg, #475569, #94a3b8);
+    }
+
+    .stat .label {
+        text-transform: uppercase;
+        font-size: .8rem;
+        letter-spacing: .08em;
+        opacity: .9;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    .stat .value {
+        font-size: 2.8rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .soft-input {
+        min-height: 48px;
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #cbd5e1;
+        box-shadow: none !important;
+        font-size: 0.95rem;
+    }
+
+        .soft-input:focus {
+            border-color: #3b82f6;
+        }
+
+    .table thead th {
+        background: #f8fafc;
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        color: #475569;
+        white-space: nowrap;
+        padding: 18px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .table tbody td {
+        padding: 18px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+
+    .st-new {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .st-contacted {
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+    }
+
+    .st-closed {
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #bbf7d0;
+    }
+
+    .st-spam {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+
+    .detail-row {
+        display: flex;
+        padding: 12px 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+    .detail-label {
+        width: 35%;
+        font-weight: 800;
+        color: #64748b;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .detail-value {
+        width: 65%;
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.95rem;
+        white-space: pre-wrap;
+    }
+
+    .section-title {
+        font-size: 1rem;
+        font-weight: 900;
+        color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: #f1f5f9;
+        padding: 10px 16px;
+        border-radius: 8px;
+        margin: 20px 0 10px;
+    }
+
+    .btn-admin-tool {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
+    <div>
+        <h2 class="fw-black mb-1 text-dark"><i class="bi bi-headset text-primary me-2"></i>Giám sát Yêu cầu Tư vấn</h2>
+        <div class="text-muted">Trung tâm kiểm soát luồng dữ liệu Leads, theo dõi tiến độ chăm sóc của Môi giới/Chủ nhà.</div>
+    </div>
+</div>
+
+<!-- THỐNG KÊ -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-2 col-lg-4 col-sm-6"><div class="stat bg-total"><div class="label">Tổng Leads</div><div class="value">@total.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-lg-4 col-sm-6"><div class="stat bg-new"><div class="label">Mới (Chưa CS)</div><div class="value">@newLeads.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-lg-4 col-sm-6"><div class="stat bg-processing"><div class="label">Đang chăm sóc</div><div class="value">@processing.ToString("N0")</div></div></div>
+    <div class="col-xl-2 col-lg-6 col-sm-6"><div class="stat bg-closed"><div class="label">Chốt thành công</div><div class="value">@closed.ToString("N0")</div></div></div>
+    <div class="col-xl-2 col-lg-6 col-sm-6"><div class="stat bg-junk"><div class="label">Hủy / Spam</div><div class="value">@junk.ToString("N0")</div></div></div>
+</div>
+
+<!-- BỘ LỌC -->
+<div class="admin-box p-4">
+    <form method="get" asp-action="Index" asp-controller="Consultations" asp-area="Admin" class="row g-3 align-items-end">
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Tình trạng CS</label>
+            <select name="status" class="form-select soft-input">
+                <option value="All" selected="@(status == "All")">Tất cả trạng thái</option>
+                <option value="New" selected="@(status == "New")">🚩 Mới gửi</option>
+                <option value="Contacted" selected="@(status == "Contacted")">📞 Đã liên hệ</option>
+                <option value="Closed" selected="@(status == "Closed")">✅ Đã chốt xong</option>
+                <option value="Spam" selected="@(status == "Spam")">✖️ Spam/Khách ảo</option>
+                <option value="Cancelled" selected="@(status == "Cancelled")">Khách tự hủy</option>
+            </select>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Nguồn phát sinh</label>
+            <select name="source" class="form-select soft-input">
+                <option value="All" selected="@(source == "All")">Mọi nguồn BĐS</option>
+                <option value="Property" selected="@(source == "Property")">Tin lẻ BĐS</option>
+                <option value="Project" selected="@(source == "Project")">Tin Dự án</option>
+            </select>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Khoảng thời gian</label>
+            <select name="dateRange" class="form-select soft-input">
+                <option value="all" selected="@(dateRange == "all")">Toàn thời gian</option>
+                <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
+                <option value="week" selected="@(dateRange == "week")">Trong 7 ngày qua</option>
+                <option value="month" selected="@(dateRange == "month")">Trong tháng này</option>
+            </select>
+        </div>
+        <div class="col-xl-4 col-lg-9 col-md-8">
+            <label class="form-label fw-bold small text-muted text-uppercase">Tìm kiếm (Tên, SĐT, Nguồn...)</label>
+            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập từ khóa cần tìm..." />
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-4 d-grid">
+            <button class="btn btn-dark rounded-3 fw-bold shadow-sm" style="min-height: 48px;">
+                <i class="bi bi-search me-1"></i> Tra cứu
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- DANH SÁCH -->
+<div class="admin-box">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 25%">Khách hàng & Liên hệ</th>
+                    <th style="width: 25%">Nguồn (BĐS/Dự án)</th>
+                    <th style="width: 20%">Phụ trách xử lý</th>
+                    <th style="width: 15%">Tình trạng</th>
+                    <th style="width: 15%" class="text-center">Công cụ Admin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var c in Model)
                     {
+                        var sourceName = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định";
+                        var handlerName = c.AssignedUser?.FullName ?? c.Property?.User?.FullName ?? c.Project?.Owner?.FullName ?? "Chưa phân công";
+
+                        string stClass = "st-new", stText = "Mới";
+                        switch (c.Status)
+                        {
+                            case "New": stClass = "st-new"; stText = "Mới gửi"; break;
+                            case "Contacted": stClass = "st-contacted"; stText = "Đang CS"; break;
+                            case "Closed": stClass = "st-closed"; stText = "Đã chốt"; break;
+                            case "Cancelled": stClass = "st-spam"; stText = "Khách Hủy"; break;
+                            case "Spam": stClass = "st-spam"; stText = "Spam"; break;
+                        }
+
                         <tr>
                             <td>
-                                <span class="fw-bold text-dark fs-6 d-block">@item.FullName</span>
+                                <div class="fw-bold text-dark fs-6">@(c.FullName ?? "Khách vãng lai")</div>
+                                <div class="text-success small mt-1 fw-bold"><i class="bi bi-telephone-fill"></i> @(c.Phone ?? "N/A")</div>
+                                <div class="text-muted small mt-1"><i class="bi bi-clock"></i> @c.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</div>
                             </td>
                             <td>
-                                <a href="tel:@item.Phone" class="btn btn-sm btn-light border text-primary fw-bold mb-1 w-100 text-start"><i class="bi bi-telephone-fill me-1"></i>@item.Phone</a>
-                                @if (!string.IsNullOrEmpty(item.Email))
+                                <div class="fw-semibold text-primary text-truncate" style="max-width: 250px;" title="@sourceName">@sourceName</div>
+                                @if (c.PropertyID != null)
                                 {
-                                    <span class="d-block small text-muted text-truncate"><i class="bi bi-envelope"></i> @item.Email</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary mt-2">Tin rao vặt</span>
+                                }
+                                else if (c.ProjectID != null)
+                                {
+                                    <span class="badge bg-info bg-opacity-10 text-info text-dark mt-2">Dự án</span>
                                 }
                             </td>
                             <td>
-                                <p class="mb-1 text-dark small fw-medium" style="max-width:300px; white-space:pre-wrap;">@item.Note</p>
-                                @if (item.Property != null)
-                                {
-                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="badge bg-info-subtle text-info-emphasis text-decoration-none">
-                                        <i class="bi bi-link-45deg"></i> Mã BĐS: #@item.PropertyID - Xem BĐS
-                                    </a>
-                                }
+                                <div class="fw-bold text-dark">@handlerName</div>
+                                <div class="text-muted small mt-1">Sale / CĐT</div>
                             </td>
                             <td>
-                                <span class="d-block fw-bold text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
-                                <small class="text-muted">@item.CreatedAt.ToString("HH:mm")</small>
+                                <span class="status-pill @stClass">@stText</span>
                             </td>
-                            <td>
-                                @if (item.Status == "New")
-                                {
-                                    <span class="badge bg-danger-subtle text-danger px-2 py-1">Khách Mới</span>
-                                }
-                                else if (item.Status == "Contacted")
-                                {
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <!-- Nút 1: Xem chi tiết -->
+                                    <button type="button" class="btn btn-outline-info btn-admin-tool" onclick="openAdminDetailModal(@c.ConsultID)" title="Xem chi tiết gốc">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </button>
 
-                                    <span class="badge bg-warning-subtle text-warning-emphasis px-2 py-1">Đang chăm sóc</span>
-                                }
-                                else
-                                {
+                                    <!-- Nút 2: Nhắc nhở người bán -->
+                                    <form class="m-0" id="frmRemind-@c.ConsultID">
+                                        @Html.AntiForgeryToken()
+                                        <button type="button" class="btn btn-outline-warning btn-admin-tool" onclick="postAdminRemind('@Url.Action("RemindSeller", "Consultations", new { area = "Admin" })', @c.ConsultID)" title="Nhắc người bán xử lý">
+                                            <i class="bi bi-bell-fill"></i>
+                                        </button>
+                                    </form>
 
-                                    <span class="badge bg-success-subtle text-success px-2 py-1">Đã chốt xong</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <form asp-action="UpdateStatus" method="post" class="d-flex flex-column gap-1">
-                                    <input type="hidden" name="id" value="@item.ConsultID" />
-                                    @if (item.Status == "New")
-                                    {
-                                        <button type="submit" name="status" value="Contacted" class="btn btn-sm btn-warning fw-bold text-dark">Đã gọi KH</button>
-                                    }
-                                    @if (item.Status != "Resolved")
-                                    {
-                                        <button type="submit" name="status" value="Resolved" class="btn btn-sm btn-success fw-bold text-white">Hoàn tất</button>
-                                    }
-                                </form>
+                                    <!-- Nút 3: Xóa / Chặn Spam -->
+                                    <form class="m-0" id="frmDel-@c.ConsultID">
+                                        @Html.AntiForgeryToken()
+                                        <button type="button" class="btn btn-outline-danger btn-admin-tool" onclick="postAdminDelete('@Url.Action("Delete", "Consultations", new { area = "Admin" })', @c.ConsultID)" title="Xóa rác / Spam">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     }
-                </tbody>
-            </table>
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-5">
+                            <i class="bi bi-headset display-1 opacity-25 d-block mb-3"></i>
+                            <h4 class="fw-bold">Không tìm thấy yêu cầu tư vấn nào</h4>
+                            <p>Thử điều chỉnh lại bộ lọc tìm kiếm.</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Phân trang (Giữ nguyên của bạn) -->
+    <!-- ... -->
+</div>
+
+<!-- ================= MODAL XEM CHI TIẾT (READ ONLY) (Giữ nguyên của bạn) ================= -->
+<div class="modal fade" id="adminDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white border-0 p-4">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-vcard me-2"></i>Hồ sơ Tư vấn (Lead)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
+                            <div class="section-title mt-0"><i class="bi bi-person-bounding-box text-primary me-2"></i>Thông tin Khách hàng</div>
+                            <div class="detail-row"><div class="detail-label">Họ tên</div><div class="detail-value text-primary" id="md-cusName"></div></div>
+                            <div class="detail-row"><div class="detail-label">Điện thoại</div><div class="detail-value text-success" id="md-cusPhone"></div></div>
+                            <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="md-cusEmail"></div></div>
+                            <div class="detail-row"><div class="detail-label">Thời gian gửi</div><div class="detail-value" id="md-createdAt"></div></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
+                            <div class="section-title mt-0"><i class="bi bi-buildings text-info me-2"></i>Bất động sản & Sales</div>
+                            <div class="detail-row"><div class="detail-label">Nguồn BĐS</div><div class="detail-value text-dark fw-bold" id="md-sourceName"></div></div>
+                            <div class="detail-row"><div class="detail-label">Phân loại</div><div class="detail-value text-muted" id="md-sourceType"></div></div>
+                            <div class="detail-row"><div class="detail-label">Phụ trách CS</div><div class="detail-value text-success" id="md-handlerName"></div></div>
+                            <div class="detail-row"><div class="detail-label">SĐT Sales</div><div class="detail-value" id="md-handlerPhone"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-4 border shadow-sm">
+                    <div class="section-title mt-0 bg-warning bg-opacity-10 text-dark"><i class="bi bi-chat-dots-fill me-2 text-warning"></i>Nội dung & Lịch sử CSKH</div>
+
+                    <h6 class="fw-bold text-dark mb-2 mt-3 text-uppercase" style="font-size:0.8rem;">Lời nhắn từ khách:</h6>
+                    <div class="p-3 bg-light border rounded-3 text-dark fw-medium mb-4 fst-italic" id="md-note"></div>
+
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="fw-bold text-dark mb-0 text-uppercase" style="font-size:0.8rem;">Ghi chú của Sales / Admin:</h6>
+                        <span class="badge bg-dark" id="md-status"></span>
+                    </div>
+                    <div class="p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 text-dark font-monospace small" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;" id="md-sellerNote"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0 bg-light">
+                <button type="button" class="btn btn-dark rounded-pill px-5 fw-bold shadow-sm" data-bs-dismiss="modal">Đóng cửa sổ</button>
+            </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // HÀM 1: Bắn thông báo nhắc nhở người bán
+        function postAdminRemind(url, id) {
+            Swal.fire({
+                title: 'Gửi Nhắc nhở?',
+                text: "Hệ thống sẽ gửi một thông báo (Notification) đôn đốc người bán xử lý yêu cầu tư vấn này.",
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Gửi Nhắc Nhở',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('__RequestVerificationToken', document.querySelector(`#frmRemind-${id} input[name="__RequestVerificationToken"]`).value);
+
+                    fetch(url, { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.success) {
+                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: data.message, showConfirmButton: false, timer: 2000 });
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        // HÀM 2: Xóa & Chặn Spam
+        function postAdminDelete(url, id) {
+            Swal.fire({
+                title: 'Xóa VĨNH VIỄN?',
+                text: "Hành động này sẽ XÓA SẠCH dữ liệu yêu cầu tư vấn này.",
+                icon: 'error',
+                input: 'checkbox',
+                inputValue: 0,
+                inputPlaceholder: ' Đồng thời đánh dấu IP/Khách này là SPAM?',
+                showCancelButton: true,
+                confirmButtonColor: '#000',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Xóa ngay',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const isSpam = result.value ? true : false;
+                    const token = document.querySelector(`#frmDel-${id} input[name="__RequestVerificationToken"]`).value;
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('blockSpam', isSpam);
+                    formData.append('__RequestVerificationToken', token);
+
+                    fetch(url, { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.success) {
+                            Swal.fire('Đã xóa', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        // HÀM 3: Lấy chi tiết (Đã sửa lỗi URL)
+        function openAdminDetailModal(id) {
+            Swal.fire({ title: 'Đang tải...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            // SỬA URL Ở ĐÂY: Dùng ?id= thay vì /id
+            fetch(`/Admin/Consultations/GetDetails?id=${id}`)
+                .then(response => response.json())
+                .then(res => {
+                    Swal.close();
+                    if (res.success) {
+                        const d = res.data;
+                        document.getElementById('md-cusName').innerText = d.customerName;
+                        document.getElementById('md-cusPhone').innerText = d.customerPhone;
+                        document.getElementById('md-cusEmail').innerText = d.customerEmail;
+                        document.getElementById('md-sourceName').innerText = d.sourceName;
+                        document.getElementById('md-sourceType').innerText = d.sourceType;
+                        document.getElementById('md-handlerName').innerText = d.handlerName;
+                        document.getElementById('md-handlerPhone').innerText = d.handlerPhone;
+                        document.getElementById('md-note').innerText = d.note;
+                        document.getElementById('md-sellerNote').innerText = d.sellerNote;
+                        document.getElementById('md-status').innerText = d.status;
+                        document.getElementById('md-createdAt').innerText = d.createdAt;
+
+                        new bootstrap.Modal(document.getElementById('adminDetailModal')).show();
+                    } else {
+                        Swal.fire('Lỗi', res.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.close();
+                    Swal.fire('Lỗi', 'Không thể kết nối đến máy chủ.', 'error');
+                });
+        }
+    </script>
+}

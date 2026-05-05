@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using BDSKhanhHoa.Data;
 using System.Threading.Tasks;
 using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
+    [Authorize(Roles = "Admin, Staff")] // Phân quyền quản trị
+    [Route("Admin/[controller]/[action]")]
     public class ContactController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -16,46 +19,94 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _context = context;
         }
 
-        // Lấy tất cả (Thay cho GetAllContactsAsync)
-        public async Task<IActionResult> Index()
+        // ==========================================
+        // 1. DANH SÁCH & TÌM KIẾM LIÊN HỆ (CHỈ KHÁCH VÃNG LAI)
+        // ==========================================
+        [HttpGet]
+        public async Task<IActionResult> Index(string? keyword, string? status)
         {
-            var contacts = await _context.ContactMessages
-                .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
+            // BỘ LỌC THÉP: Chỉ lấy liên hệ công khai (Không có UserID và Không có ProjectID)
+            var query = _context.ContactMessages
+                .AsNoTracking()
+                .Where(c => c.UserID == null && c.ProjectID == null)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim().ToLower();
+                query = query.Where(c => c.FullName.ToLower().Contains(keyword) ||
+                                         (c.Phone != null && c.Phone.Contains(keyword)) ||
+                                         (c.Email != null && c.Email.ToLower().Contains(keyword)) ||
+                                         (c.Subject != null && c.Subject.ToLower().Contains(keyword)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(c => c.Status == status);
+            }
+
+            var contacts = await query.OrderByDescending(c => c.CreatedAt).ToListAsync();
+
+            ViewBag.Keyword = keyword;
+            ViewBag.Status = status;
+
             return View(contacts);
         }
 
-        // Lấy chi tiết (Thay cho GetContactByIdAsync)
+        // ==========================================
+        // 2. XEM CHI TIẾT (Kèm bảo mật id)
+        // ==========================================
+        [HttpGet]
         public async Task<IActionResult> Details(int id)
         {
-            var contact = await _context.ContactMessages.FindAsync(id);
+            // Chỉ tìm đúng trong nhóm khách vãng lai
+            var contact = await _context.ContactMessages
+                .FirstOrDefaultAsync(c => c.ContactID == id && c.UserID == null && c.ProjectID == null);
+
             if (contact == null) return NotFound();
+
             return View(contact);
         }
 
-        // Cập nhật trạng thái (Thay cho UpdateContactStatusAsync)
+        // ==========================================
+        // 3. CẬP NHẬT TRẠNG THÁI
+        // ==========================================
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, string status)
         {
-            var contact = await _context.ContactMessages.FindAsync(id);
+            var contact = await _context.ContactMessages
+                .FirstOrDefaultAsync(c => c.ContactID == id && c.UserID == null && c.ProjectID == null);
+
             if (contact != null)
             {
                 contact.Status = status;
-                await _context.SaveChangesAsync(); // Tự động tạo mã UPDATE SQL
+                contact.UpdatedAt = System.DateTime.Now;
+                await _context.SaveChangesAsync();
+                TempData["SuccessMsg"] = "Cập nhật trạng thái xử lý thành công!";
             }
-            TempData["SuccessMsg"] = "Đã cập nhật!";
+            else
+            {
+                TempData["ErrorMsg"] = "Không tìm thấy thư liên hệ hợp lệ.";
+            }
             return RedirectToAction(nameof(Details), new { id = id });
         }
 
-        // Xóa (Thay cho DeleteContactAsync)
+        // ==========================================
+        // 4. XÓA TIN NHẮN
+        // ==========================================
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var contact = await _context.ContactMessages.FindAsync(id);
+            var contact = await _context.ContactMessages
+                .FirstOrDefaultAsync(c => c.ContactID == id && c.UserID == null && c.ProjectID == null);
+
             if (contact != null)
             {
                 _context.ContactMessages.Remove(contact);
-                await _context.SaveChangesAsync(); // Tự động tạo mã DELETE SQL
+                await _context.SaveChangesAsync();
+                TempData["SuccessMsg"] = "Đã xóa tin nhắn liên hệ khỏi hệ thống.";
             }
             return RedirectToAction(nameof(Index));
         }

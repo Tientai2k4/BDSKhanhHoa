@@ -67,6 +67,10 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
+                                <label class="form-label fw-bold">Quy mô khu đất</label>
+                                <input asp-for="Scale" class="form-control border-2 shadow-sm" placeholder="VD: 5ha, 3 tòa tháp, 1500 căn" />
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label fw-bold">Mật độ xây dựng (%)</label>
                                 <input asp-for="ConstructionDensity" class="form-control" placeholder="VD: 35%" />
                             </div>
@@ -82,25 +86,42 @@
             <div class="col-lg-4">
                 <div class="card shadow-sm rounded-4 border-0 mb-4 sticky-top" style="top: 90px; z-index: 100;">
                     <div class="card-body p-4">
-                        <label class="form-label fw-bold text-primary mb-3"><i class="bi bi-person-check me-2"></i>Gán Quản Lý Dự Án</label>
-                        <select asp-for="OwnerUserID" class="form-select mb-4 shadow-sm border-2" asp-items="ViewBag.Owners"></select>
+                        <label class="form-label fw-bold text-primary mb-3"><i class="bi bi-person-check me-2"></i>Gán CĐT / Quản Lý Dự Án</label>
+                        <select asp-for="OwnerUserID" class="form-select mb-4 shadow-sm border-2" asp-items="ViewBag.Owners" required>
+                            <option value="">-- Chọn Doanh nghiệp đối tác --</option>
+                        </select>
 
                         <div class="mb-4">
                             <label class="form-label fw-bold small text-muted">VỊ TRÍ DỰ ÁN</label>
-                            <select asp-for="AreaID" class="form-select mb-2" asp-items="ViewBag.Areas" id="areaDDL"><option value="">-- Chọn Khu vực --</option></select>
-                            <select asp-for="WardID" class="form-select mb-2" id="wardDDL"><option value="">-- Chọn Phường/Xã --</option></select>
-                            <input asp-for="AddressDetail" class="form-control" placeholder="Địa chỉ chính xác..." />
+                            <select asp-for="AreaID" class="form-select mb-2" asp-items="ViewBag.Areas" id="areaDDL" required><option value="">-- Chọn Khu vực --</option></select>
+                            <select asp-for="WardID" class="form-select mb-2" id="wardDDL" required><option value="">-- Chọn Phường/Xã --</option></select>
+                            <input asp-for="AddressDetail" class="form-control" placeholder="Địa chỉ chính xác..." required />
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold small text-muted">HÌNH ẢNH & PHÁP LÝ</label>
-                            <input type="file" name="MainImageFile" class="form-control mb-2" accept="image/*" required />
-                            <input type="file" name="LegalDocsFile" class="form-control border-danger mb-2" required />
-                            <select asp-for="ProjectStatus" class="form-select fw-bold text-success border-success">
-                                <option value="Sắp mở bán">Sắp mở bán (Booking)</option>
-                                <option value="Đang mở bán">Đang mở bán</option>
-                                <option value="Đã bàn giao">Đã bàn giao hoàn thiện</option>
-                            </select>
+                        <!-- KHU VỰC HÌNH ẢNH & PHÁP LÝ ĐƯỢC LÀM LẠI RÕ RÀNG -->
+                        <div class="mb-4 bg-light p-3 rounded-4 border">
+                            <label class="form-label fw-bold small text-muted d-block mb-3 border-bottom pb-2">HÌNH ẢNH & PHÁP LÝ</label>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-dark"><i class="bi bi-image me-1 text-primary"></i>Ảnh bìa dự án <span class="text-danger">*</span></label>
+                                <input type="file" name="MainImageFile" class="form-control shadow-sm" accept="image/*" required />
+                                <small class="text-muted fst-italic">Định dạng: JPG, PNG, WEBP.</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-danger"><i class="bi bi-file-earmark-lock me-1"></i>Hồ sơ pháp lý <span class="text-danger">*</span></label>
+                                <input type="file" name="LegalDocsFile" class="form-control border-danger shadow-sm" accept=".pdf,.zip,.rar" required />
+                                <small class="text-muted fst-italic">Định dạng: PDF, ZIP, RAR. Tài liệu bảo mật.</small>
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label fw-bold text-dark">Trạng thái dự án</label>
+                                <select asp-for="ProjectStatus" class="form-select fw-bold text-success border-success shadow-sm">
+                                    <option value="Sắp mở bán">Sắp mở bán (Booking)</option>
+                                    <option value="Đang mở bán">Đang mở bán</option>
+                                    <option value="Đã bàn giao">Đã bàn giao hoàn thiện</option>
+                                </select>
+                            </div>
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-lg w-100 fw-black py-3 shadow">
@@ -116,7 +137,19 @@
 @section Scripts {
     <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
     <script>
-        ClassicEditor.create(document.querySelector('#editor'));
+        // Khởi tạo CKEditor và Cấu hình Upload Ảnh
+        ClassicEditor
+            .create(document.querySelector('#editor'), {
+                ckfinder: {
+                    // Trỏ đường dẫn về đúng Hàm (Action) vừa tạo trong Controller
+                    uploadUrl: '/Admin/AdminProject/UploadImageCKEditor'
+                }
+            })
+            .catch(error => {
+                console.error(error);
+            });
+
+        // AJAX Load Xã Phường
         $('#areaDDL').change(function() {
             var areaId = $(this).val();
             if(areaId) {
@@ -125,6 +158,8 @@
                     $.each(data, function(i, ward) { items += "<option value='" + ward.id + "'>" + ward.name + "</option>"; });
                     $('#wardDDL').html(items);
                 });
+            } else {
+                $('#wardDDL').html('<option value="">-- Chọn Phường/Xã --</option>');
             }
         });
     </script>

@@ -2,6 +2,13 @@
 @{
     ViewData["Title"] = "Trung tâm Thông báo";
     Layout = "~/Views/Shared/_Layout.cshtml";
+
+    string currentFilter = ViewBag.CurrentFilter as string ?? "all";
+    int unreadCount = ViewBag.UnreadCount ?? 0;
+    int appointmentCount = ViewBag.AppointmentCount ?? 0;
+    int actionCount = ViewBag.ActionCount ?? 0;
+    int consultationCount = ViewBag.ConsultationCount ?? 0;
+    int totalCount = ViewBag.TotalCount ?? 0;
 }
 
 <style>
@@ -12,31 +19,31 @@
         --primary-soft: #eff6ff;
         --danger-soft: #fef2f2;
         --warning-soft: #fffbeb;
+        --success-soft: #f0fdf4;
+        --info-soft: #ecfeff;
         --transition-std: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    body {
-        background-color: var(--bg-color);
     }
 
     .noti-shell {
         padding: 40px 0 80px;
+        background-color: var(--bg-color);
+        min-height: 85vh;
     }
 
     .noti-filter-bar {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(12px);
+        background: var(--surface-color);
         border: 1px solid var(--border-color);
         border-radius: 20px;
-        padding: 8px;
+        padding: 12px;
         display: flex;
         gap: 8px;
         margin-bottom: 24px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        box-shadow: 0 4px 20px rgba(15,23,42,0.04);
+        flex-wrap: wrap;
     }
 
     .filter-btn {
-        padding: 10px 24px;
+        padding: 12px 20px;
         border-radius: 14px;
         font-weight: 700;
         font-size: 0.95rem;
@@ -55,17 +62,22 @@
         }
 
         .filter-btn.active {
-            background: #fff;
-            color: #0f172a;
-            border-color: var(--border-color);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            background: #0f172a;
+            color: #ffffff;
+            border-color: #0f172a;
+            box-shadow: 0 4px 15px rgba(15,23,42,0.2);
         }
+
+            .filter-btn.active .badge {
+                background: #ffffff !important;
+                color: #0f172a !important;
+            }
 
     .noti-card {
         background: var(--surface-color);
         border: 1px solid var(--border-color);
         border-radius: 20px;
-        padding: 20px;
+        padding: 24px;
         margin-bottom: 16px;
         display: flex;
         gap: 20px;
@@ -77,44 +89,31 @@
     }
 
         .noti-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+            transform: translateY(-4px);
+            box-shadow: 0 15px 35px rgba(15,23,42,0.08);
             border-color: #cbd5e1;
         }
 
-        .noti-card.unread {
-            background: var(--primary-soft);
-            border-color: #bfdbfe;
+        /* Indicator lines for unread */
+        .noti-card.unread::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            background: #3b82f6;
+            border-radius: 6px 0 0 6px;
         }
-
-            .noti-card.unread::before {
-                content: '';
-                position: absolute;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                width: 4px;
-                background: #3b82f6;
-            }
-
-        /* Đánh dấu các thông báo có nút Action (Admin yêu cầu sửa lỗi) */
-        .noti-card.requires-action {
-            background: var(--warning-soft);
-            border-color: #fde68a;
-        }
-
-            .noti-card.requires-action::before {
-                background: #f59e0b;
-            }
 
     .noti-icon-wrap {
-        width: 56px;
-        height: 56px;
-        border-radius: 16px;
+        width: 60px;
+        height: 60px;
+        border-radius: 18px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.5rem;
+        font-size: 1.6rem;
         flex-shrink: 0;
     }
 
@@ -133,16 +132,26 @@
         color: #dc2626;
     }
 
+    .icon-success {
+        background: #d1fae5;
+        color: #059669;
+    }
+
+    .icon-consult {
+        background: #e0e7ff;
+        color: #0891b2;
+    }
+
     .noti-content {
         flex-grow: 1;
         min-width: 0;
     }
 
     .noti-title {
-        font-size: 1.1rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #0f172a;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
@@ -152,7 +161,7 @@
         font-size: 0.95rem;
         color: #475569;
         line-height: 1.6;
-        margin-bottom: 12px;
+        margin-bottom: 14px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -172,21 +181,29 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 14px;
+        padding: 8px 16px;
+        background: #f1f5f9;
+        color: #334155;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 800;
+        border: 1px solid #e2e8f0;
+        transition: 0.2s;
+    }
+
+    .noti-card:hover .action-badge {
         background: #0f172a;
         color: #fff;
-        border-radius: 10px;
-        font-size: 0.85rem;
-        font-weight: 700;
+        border-color: #0f172a;
     }
 
     .btn-delete-noti {
         position: absolute;
-        right: 20px;
-        top: 20px;
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
+        right: 24px;
+        top: 24px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
         background: #f1f5f9;
         color: #94a3b8;
         border: none;
@@ -196,6 +213,7 @@
         transition: var(--transition-std);
         opacity: 0;
         z-index: 2;
+        font-size: 1.1rem;
     }
 
     .noti-card:hover .btn-delete-noti {
@@ -205,111 +223,216 @@
     .btn-delete-noti:hover {
         background: #fee2e2;
         color: #dc2626;
+        transform: scale(1.1);
     }
 
     .empty-state {
         text-align: center;
-        padding: 60px 20px;
+        padding: 80px 20px;
+        background: #fff;
+        border-radius: 24px;
+        border: 1px dashed #cbd5e1;
     }
 
         .empty-state i {
-            font-size: 4rem;
-            color: #cbd5e1;
-            margin-bottom: 16px;
+            font-size: 5rem;
+            color: #e2e8f0;
+            margin-bottom: 20px;
             display: block;
         }
+
+    .pagination .page-link {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        font-weight: 800;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        margin: 0 4px;
+    }
+
+    .pagination .page-item.active .page-link {
+        background: #0f172a;
+        border-color: #0f172a;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(15,23,42,0.2);
+    }
 </style>
 
-<div class="container noti-shell">
-    <div class="row justify-content-center">
-        <div class="col-lg-9 col-xl-8">
+<div class="noti-shell animate__animated animate__fadeIn">
+    <div class="container">
 
-            <div class="d-flex justify-content-between align-items-end mb-4">
-                <div>
-                    <h2 class="fw-bold text-dark mb-1">Thông báo của bạn</h2>
-                    <p class="text-muted mb-0">Cập nhật trạng thái kiểm duyệt và tin nhắn hệ thống.</p>
-                </div>
-                @if (ViewBag.UnreadCount > 0)
-                {
-                    <button class="btn btn-dark rounded-pill fw-bold px-4 py-2 shadow-sm" id="btnMarkAllRead">
-                        <i class="bi bi-check2-all me-1"></i> Đánh dấu đã đọc
-                    </button>
-                }
-            </div>
-
-            <div class="noti-filter-bar">
-                <a href="/Notification/Index?filter=all" class="filter-btn @(ViewBag.CurrentFilter == "all" ? "active" : "")">
-                    Tất cả
-                </a>
-                <a href="/Notification/Index?filter=unread" class="filter-btn @(ViewBag.CurrentFilter == "unread" ? "active" : "")">
-                    Chưa đọc
-                    @if (ViewBag.UnreadCount > 0)
+        <!-- HEADER THÔNG BÁO -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-lg-10">
+                <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+                    <div>
+                        <h2 class="fw-black text-dark mb-2"><i class="bi bi-bell-fill text-primary me-2"></i>Trung tâm Thông báo</h2>
+                        <p class="text-muted mb-0 fs-6">Nhận thông tin Lịch hẹn, Yêu cầu tư vấn và Cảnh báo hệ thống thời gian thực.</p>
+                    </div>
+                    @if (unreadCount > 0)
                     {
-                        <span class="badge bg-danger rounded-pill">@ViewBag.UnreadCount</span>
-                    }
-                </a>
-                <a href="/Notification/Index?filter=action" class="filter-btn @(ViewBag.CurrentFilter == "action" ? "active" : "")">
-                    Cần xử lý
-                    @if (ViewBag.ActionCount > 0)
-                    {
-                        <span class="badge bg-warning text-dark rounded-pill">@ViewBag.ActionCount</span>
-                    }
-                </a>
-            </div>
-
-            <div class="noti-list">
-                @if (Model.Any())
-                {
-                    foreach (var item in Model)
-                    {
-                        bool hasAction = !string.IsNullOrEmpty(item.ActionUrl);
-                        bool isDanger = item.Title.Contains("gỡ bỏ") || item.Title.Contains("khóa");
-
-                        string cardClass = item.IsRead ? "" : "unread";
-                        if (hasAction) cardClass += " requires-action";
-
-                        string iconClass = isDanger ? "icon-danger bi-shield-x-fill" : (hasAction ? "icon-action bi-exclamation-triangle-fill" : "icon-info bi-info-circle-fill");
-
-                        <div class="position-relative" id="noti-row-@item.NotificationID">
-                            <a href="/Notification/Details/@item.NotificationID" class="noti-card @cardClass">
-                                <div class="noti-icon-wrap @iconClass.Split(' ')[0]">
-                                    <i class="bi @iconClass.Split(' ')[1]"></i>
-                                </div>
-                                <div class="noti-content">
-                                    <div class="noti-title">
-                                        <span>@item.Title</span>
-                                        <span class="noti-meta">
-                                            <i class="bi bi-clock"></i> @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")
-                                        </span>
-                                    </div>
-                                    <div class="noti-text">
-                                        @Html.Raw(System.Text.RegularExpressions.Regex.Replace(item.Content, "<.*?>", String.Empty))
-                                    </div>
-
-                                    @if (hasAction)
-                                    {
-                                        <div class="action-badge mt-2">
-                                            <i class="bi bi-cursor-fill text-warning"></i> @item.ActionText
-                                        </div>
-                                    }
-                                </div>
-                            </a>
-                            <button class="btn-delete-noti" onclick="deleteNoti(@item.NotificationID)" title="Xóa thông báo">
-                                <i class="bi bi-trash3-fill"></i>
+                        <form id="markAllForm" class="m-0">
+                            @Html.AntiForgeryToken()
+                            <button type="button" class="btn btn-primary rounded-pill fw-bold px-4 py-2 shadow-sm" id="btnMarkAllRead">
+                                <i class="bi bi-check2-all me-1"></i> Đánh dấu tất cả đã đọc
                             </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- BỘ LỌC CHI TIẾT -->
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="noti-filter-bar">
+                    <a href="/Notification/Index?filter=all" class="filter-btn @(currentFilter == "all" ? "active" : "")">
+                        <i class="bi bi-collection"></i> Tất cả
+                    </a>
+
+                    <a href="/Notification/Index?filter=unread" class="filter-btn @(currentFilter == "unread" ? "active" : "")">
+                        <i class="bi bi-envelope-exclamation"></i> Chưa đọc
+                        @if (unreadCount > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill">@unreadCount</span>
+                        }
+                    </a>
+
+                    <a href="/Notification/Index?filter=appointment" class="filter-btn @(currentFilter == "appointment" ? "active" : "")">
+                        <i class="bi bi-calendar-check text-success"></i> Lịch hẹn
+                        @if (appointmentCount > 0)
+                        {
+                            <span class="badge bg-success rounded-pill">@appointmentCount</span>
+                        }
+                    </a>
+
+                    <a href="/Notification/Index?filter=consultation" class="filter-btn @(currentFilter == "consultation" ? "active" : "")">
+                        <i class="bi bi-headset text-info"></i> Yêu cầu tư vấn
+                        @if (consultationCount > 0)
+                        {
+                            <span class="badge bg-info text-dark rounded-pill">@consultationCount</span>
+                        }
+                    </a>
+
+                    <a href="/Notification/Index?filter=action" class="filter-btn @(currentFilter == "action" ? "active" : "")">
+                        <i class="bi bi-cursor-fill text-warning"></i> Cần xử lý
+                        @if (actionCount > 0)
+                        {
+                            <span class="badge bg-warning text-dark rounded-pill">@actionCount</span>
+                        }
+                    </a>
+
+                    <a href="/Notification/Index?filter=system" class="filter-btn @(currentFilter == "system" ? "active" : "")">
+                        <i class="bi bi-shield-exclamation text-danger"></i> Hệ thống
+                    </a>
+                </div>
+
+                <!-- DANH SÁCH THÔNG BÁO -->
+                <div class="noti-list">
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            var titleLower = (item.Title ?? "").ToLower();
+                            bool hasAction = !string.IsNullOrWhiteSpace(item.ActionUrl);
+                            bool isDanger = titleLower.Contains("gỡ bỏ") || titleLower.Contains("khóa") || titleLower.Contains("cảnh cáo") || titleLower.Contains("từ chối") || titleLower.Contains("vi phạm");
+                            bool isAppointment = titleLower.Contains("lịch hẹn");
+                            bool isConsultation = titleLower.Contains("tư vấn") || titleLower.Contains("liên hệ");
+
+                            string cardClass = item.IsRead ? "" : "unread";
+
+                            // Phân định Icon
+                            string iconClass = "icon-info bi-info-circle-fill"; // Mặc định
+                            if (isDanger) iconClass = "icon-danger bi-shield-fill-x";
+                            else if (isAppointment) iconClass = "icon-success bi-calendar2-check-fill";
+                            else if (isConsultation) iconClass = "icon-consult bi-headset";
+                            else if (hasAction) iconClass = "icon-action bi-exclamation-triangle-fill";
+
+                            // Bẫy lỗi hiển thị Content
+                            string safeContent = "Không có nội dung cụ thể.";
+                            if (!string.IsNullOrWhiteSpace(item.Content))
+                            {
+                                // Xóa HTML tag an toàn, thay vì dùng Regex trực tiếp ở View có thể gây lỗi
+                                safeContent = System.Text.RegularExpressions.Regex.Replace(item.Content, "<.*?>", string.Empty);
+                            }
+
+                            <div class="position-relative" id="noti-row-@item.NotificationID">
+                                <a href="/Notification/Details/@item.NotificationID" class="noti-card @cardClass">
+                                    <div class="noti-icon-wrap @iconClass.Split(' ')[0]">
+                                        <i class="bi @iconClass.Split(' ')[1]"></i>
+                                    </div>
+                                    <div class="noti-content">
+                                        <div class="noti-title">
+                                            <span>@(item.Title ?? "Thông báo mới")</span>
+                                            <span class="noti-meta"><i class="bi bi-clock-history"></i> @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
+                                        </div>
+                                        <div class="noti-text">
+                                            @safeContent
+                                        </div>
+
+                                        @if (hasAction)
+                                        {
+                                            <div class="action-badge">
+                                                @if (isAppointment)
+                                                {
+                                                    <i class="bi bi-calendar-event text-success"></i>
+                                                }
+                                                else if (isDanger)
+                                                {
+
+                                                    <i class="bi bi-exclamation-octagon text-danger"></i>
+                                                }
+                                                else
+                                                {
+
+                                                    <i class="bi bi-box-arrow-up-right text-primary"></i>
+                                                }
+                                                @(string.IsNullOrWhiteSpace(item.ActionText) ? "Nhấn vào để xử lý" : item.ActionText)
+                                            </div>
+                                        }
+                                    </div>
+                                </a>
+
+                                <!-- Nút Xóa đè lên trên thẻ a -->
+                                <form class="d-inline" id="form-del-@item.NotificationID">
+                                    @Html.AntiForgeryToken()
+                                    <button type="button" class="btn-delete-noti shadow-sm" onclick="deleteNoti(event, @item.NotificationID)" title="Xóa thông báo này">
+                                        <i class="bi bi-trash3-fill"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <i class="bi bi-inbox-fill"></i>
+                            <h3 class="fw-black text-dark mb-2">Hộp thư trống</h3>
+                            <p class="text-muted fs-5">Bạn không có thông báo nào trong danh mục <strong>"@currentFilter"</strong>.</p>
                         </div>
                     }
-                }
-                else
-                {
-                    <div class="empty-state">
-                        <i class="bi bi-inbox-fill"></i>
-                        <h4 class="fw-bold text-dark">Hộp thư trống</h4>
-                        <p class="text-muted">Bạn không có thông báo nào trong danh mục này.</p>
-                    </div>
-                }
-            </div>
+                </div>
 
+                <!-- PHÂN TRANG -->
+                @if (ViewBag.TotalPages > 1)
+                {
+                    <nav class="mt-5">
+                        <ul class="pagination justify-content-center">
+                            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                            {
+                                <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
+                                    <a class="page-link shadow-sm" href="/Notification/Index?filter=@currentFilter&page=@i">@i</a>
+                                </li>
+                            }
+                        </ul>
+                    </nav>
+                }
+
+            </div>
         </div>
     </div>
 </div>
@@ -317,25 +440,77 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        // Xử lý đánh dấu tất cả là đã đọc
         $('#btnMarkAllRead').click(function () {
-            $.post('/Notification/MarkAllAsRead', function (res) { if (res.success) location.reload(); });
+            var token = $('input[name="__RequestVerificationToken"]', '#markAllForm').val();
+
+            // Đổi text button để tránh click nhiều lần
+            const btn = $(this);
+            const originalText = btn.html();
+            btn.html('<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...');
+            btn.prop('disabled', true);
+
+            $.ajax({
+                url: '/Notification/MarkAllAsRead',
+                type: 'POST',
+                data: { __RequestVerificationToken: token },
+                success: function (res) {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        Swal.fire('Lỗi', res.message, 'error');
+                        btn.html(originalText);
+                        btn.prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    Swal.fire('Lỗi', 'Không thể kết nối máy chủ', 'error');
+                    btn.html(originalText);
+                    btn.prop('disabled', false);
+                }
+            });
         });
 
-        function deleteNoti(id) {
+        // Xử lý Xóa thông báo với hiệu ứng vuốt
+        function deleteNoti(e, id) {
+            e.preventDefault(); // Ngăn chặn sự kiện click lan truyền vào thẻ <a> bọc ngoài
+            e.stopPropagation();
+
             Swal.fire({
                 title: 'Xóa thông báo này?',
-                text: "Bạn không thể hoàn tác hành động này.",
+                text: "Thông báo sau khi xóa sẽ không thể khôi phục.",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#94a3b8',
-                confirmButtonText: 'Xóa ngay',
+                confirmButtonText: '<i class="bi bi-trash"></i> Xóa ngay',
                 cancelButtonText: 'Hủy'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    $.post('/Notification/Delete/' + id, function (res) {
-                        if (res.success) {
-                            $('#noti-row-' + id).css('transform', 'translateX(100%)').fadeOut(300, function() { $(this).remove(); });
+                    var token = $('input[name="__RequestVerificationToken"]', '#form-del-' + id).val();
+                    $.ajax({
+                        url: '/Notification/Delete', // Đã sửa đường dẫn
+                        type: 'POST',
+                        data: {
+                            id: id, // ĐÃ SỬA: Truyền ID thông qua Data Body thay vì URL
+                            __RequestVerificationToken: token
+                        },
+                        success: function (res) {
+                            if (res.success) {
+                                // Hiệu ứng vuốt sang phải và biến mất
+                                $('#noti-row-' + id).css({
+                                    'transform': 'translateX(100%)',
+                                    'opacity': '0',
+                                    'transition': 'all 0.4s ease'
+                                });
+                                setTimeout(function() {
+                                    $('#noti-row-' + id).slideUp(300, function() { $(this).remove(); });
+                                }, 400);
+
+                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa thông báo', showConfirmButton: false, timer: 2000 });
+                            } else {
+                                Swal.fire('Lỗi', res.message, 'error');
+                            }
                         }
                     });
                 }

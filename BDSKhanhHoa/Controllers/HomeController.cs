@@ -17,46 +17,69 @@ namespace BDSKhanhHoa.Controllers
             _context = context;
         }
 
+        // =====================================================
         // Action hiển thị trang chủ
+        // =====================================================
         public async Task<IActionResult> Index()
         {
-            // TỐI ƯU HÓA: Ưu tiên gói tin VIP (PackageID cao) xếp trước, sau đó mới tới thời gian tạo
-            // Nạp thêm PostServicePackage để lấy tên gói
-            var vips = await _context.Properties
-                .AsNoTracking() // Tối ưu hiệu năng trang chủ (chỉ đọc)
+            // 1. TỐI ƯU HÓA: Ưu tiên VIP tuyệt đối bằng PackageID gốc (4: Kim Cương > 3: Vàng > 2: Bạc > 1: Thường)
+            var properties = await _context.Properties
+                .AsNoTracking()
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Include(p => p.PropertyType)
                 .Include(p => p.PostServicePackage)
                 .Where(p => p.Status == "Approved" && p.IsDeleted == false)
-                .OrderByDescending(p => p.PackageID) // Ưu tiên Kim Cương -> Vàng -> Bạc -> Thường
-                .ThenByDescending(p => p.CreatedAt)  // Cùng gói thì tin nào mới xếp trước
-                .Take(12) // Lấy 12 tin để giao diện đẹp hơn (3 hàng x 4 cột)
+                .OrderByDescending(p => p.PackageID) // Trả lại chuẩn PackageID thay vì PriorityLevel
+                .ThenByDescending(p => p.CreatedAt)  // Cùng VIP thì tin mới xếp trước
+                .Take(24) // Lấy ra 24 tin để Bộ lọc JS có đủ dữ liệu thao tác
                 .ToListAsync();
 
-            // Lấy danh sách banner đang hoạt động
+            // ── Banners
             ViewBag.Banners = await _context.Banners
                 .AsNoTracking()
                 .Where(b => b.IsActive)
                 .OrderBy(b => b.DisplayOrder)
                 .ToListAsync();
 
-            // Gửi dữ liệu Khu vực qua ViewBag
-            ViewBag.Areas = await _context.Areas
+            // ── Khu vực (kèm số lượng tin để lọc Địa Điểm)
+            var areas = await _context.Areas
                 .AsNoTracking()
                 .OrderBy(a => a.AreaName)
                 .ToListAsync();
 
-            // Chỉ lấy đúng những thuộc tính JS cần thiết, giúp web chạy nhanh và không bị crash
-            ViewBag.Types = await _context.PropertyTypes
+            var areaPropertyCounts = await _context.Properties
                 .AsNoTracking()
-                .Select(t => new {
-                    t.TypeID,
-                    t.TypeName,
-                    t.ParentID
-                })
+                .Where(p => p.Status == "Approved" && p.IsDeleted == false)
+                .GroupBy(p => p.Ward.AreaID)
+                .Select(g => new { AreaID = g.Key, Count = g.Count() })
                 .ToListAsync();
 
-            return View(vips);
+            ViewBag.Areas = areas;
+            ViewBag.AreaPropertyCounts = areaPropertyCounts.ToDictionary(x => x.AreaID, x => x.Count);
+
+            // ── PropertyTypes 
+            ViewBag.Types = await _context.PropertyTypes
+                .AsNoTracking()
+                .Select(t => new { t.TypeID, t.TypeName, t.ParentID })
+                .ToListAsync();
+
+            // ── Tin nóng (HotNews)
+            ViewBag.HotNews = await _context.Blogs
+                .AsNoTracking()
+                .Where(b => b.IsDeleted == false)
+                .OrderByDescending(b => b.Views)
+                .Take(8)
+                .ToListAsync();
+
+            // ── Tin tức thị trường (LatestNews)
+            ViewBag.LatestNews = await _context.Blogs
+                .AsNoTracking()
+                .Where(b => b.IsDeleted == false)
+                .OrderByDescending(b => b.CreatedAt)
+                .Take(5)
+                .ToListAsync();
+
+            return View(properties);
         }
 
         // API trả về danh sách Phường/Xã theo AreaID (Gọi từ AJAX)

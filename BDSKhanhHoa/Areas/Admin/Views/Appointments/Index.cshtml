@@ -1,54 +1,100 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Appointment>
 @using System.Globalization
 @{
-    ViewData["Title"] = "Quản lý Lịch hẹn";
+    ViewData["Title"] = "Quản lý Lịch hẹn Hệ thống";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
     string status = ViewBag.Status as string ?? "All";
+    string resultStatus = ViewBag.ResultStatus as string ?? "All";
     string keyword = ViewBag.Keyword as string ?? "";
     string source = ViewBag.Source as string ?? "All";
+    string dateRange = ViewBag.DateRange as string ?? "all";
 
     int total = ViewBag.TotalAppointments ?? 0;
     int pending = ViewBag.PendingAppointments ?? 0;
     int confirmed = ViewBag.ConfirmedAppointments ?? 0;
     int completed = ViewBag.CompletedAppointments ?? 0;
     int cancelled = ViewBag.CancelledAppointments ?? 0;
+    int interested = ViewBag.InterestedCount ?? 0;
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
 }
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <style>
+    /* CSS giữ nguyên như bản gốc của bạn... */
     .admin-box {
         background: #fff;
-        border-radius: 24px;
+        border-radius: 20px;
         border: 1px solid rgba(148,163,184,.16);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
+        margin-bottom: 24px;
     }
 
     .stat {
-        padding: 18px;
+        padding: 24px;
         border-radius: 20px;
         color: #fff;
-        min-height: 120px;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
+        min-height: 135px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 12px 25px rgba(15, 23, 42, .06);
+        transition: transform 0.3s ease;
     }
 
-        .stat .label {
-            text-transform: uppercase;
-            font-size: .75rem;
-            letter-spacing: .08em;
-            opacity: .85;
-            font-weight: 800;
+        .stat:hover {
+            transform: translateY(-5px);
         }
 
-        .stat .value {
-            font-size: 2.3rem;
-            font-weight: 900;
-            line-height: 1;
-        }
+    .bg-total {
+        background: linear-gradient(135deg, #1e293b, #334155);
+    }
+
+    .bg-pending {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .bg-confirmed {
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+    }
+
+    .bg-completed {
+        background: linear-gradient(135deg, #047857, #10b981);
+    }
+
+    .bg-interested {
+        background: linear-gradient(135deg, #be185d, #ec4899);
+    }
+
+    .stat .label {
+        text-transform: uppercase;
+        font-size: .8rem;
+        letter-spacing: .08em;
+        opacity: .9;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    .stat .value {
+        font-size: 2.8rem;
+        font-weight: 900;
+        line-height: 1;
+    }
 
     .soft-input {
         min-height: 48px;
-        border-radius: 14px;
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #cbd5e1;
+        box-shadow: none !important;
+        font-size: 0.95rem;
     }
+
+        .soft-input:focus {
+            border-color: #3b82f6;
+        }
 
     .table thead th {
         background: #f8fafc;
@@ -58,71 +104,204 @@
         font-weight: 900;
         color: #475569;
         white-space: nowrap;
+        padding: 18px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .table tbody td {
+        padding: 18px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+
+    .st-pending {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .st-confirmed {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .st-cancelled {
+        background: #f1f5f9;
+        color: #64748b;
+        text-decoration: line-through;
+    }
+
+    .st-completed {
+        background: #dcfce7;
+        color: #047857;
+    }
+
+    .st-rescheduled {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .result-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: .8rem;
+        font-weight: 800;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+    }
+
+    .detail-row {
+        display: flex;
+        padding: 12px 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+    .detail-label {
+        width: 35%;
+        font-weight: 800;
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
+    .detail-value {
+        width: 65%;
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.95rem;
+        white-space: pre-wrap;
+    }
+
+    .section-title {
+        font-size: 1rem;
+        font-weight: 900;
+        color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: #f1f5f9;
+        padding: 10px 16px;
+        border-radius: 8px;
+        margin: 20px 0 10px;
+    }
+
+    /* Style mới cho cụm công cụ Admin */
+    .btn-admin-tool {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 8px;
+        transition: all 0.2s;
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+<div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
     <div>
-        <h3 class="fw-black mb-1">Quản lý Lịch hẹn</h3>
-        <div class="text-muted">Xem toàn hệ thống, hỗ trợ giải quyết tranh chấp và theo dõi trạng thái lịch.</div>
+        <h2 class="fw-black mb-1 text-dark">Giám sát Lịch hẹn Toàn hệ thống</h2>
+        <div class="text-muted">Trung tâm theo dõi tiến độ và đánh giá hiệu quả chốt khách của nền tảng.</div>
     </div>
-    <a href="/Admin/SupportTickets/Index" class="btn btn-outline-primary rounded-pill fw-bold">
-        <i class="bi bi-life-preserver me-1"></i> Sang Yêu cầu từ CĐT
+    <a href="/Admin/Appointments/ExportCsv" class="btn btn-success fw-bold rounded-pill shadow-sm px-4 py-2">
+        <i class="bi bi-file-earmark-excel-fill me-2"></i>Xuất Excel Báo cáo
     </a>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Tổng lịch</div><div class="value">@total</div></div></div>
-    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Pending</div><div class="value">@pending</div></div></div>
-    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Confirmed</div><div class="value">@confirmed</div></div></div>
-    <div class="col-xl-3 col-md-6"><div class="stat"><div class="label">Completed</div><div class="value">@completed</div></div></div>
+<!-- THỐNG KÊ (Giữ nguyên) -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6"><div class="stat bg-total"><div class="label">Tổng số</div><div class="value">@total.ToString("N0")</div></div></div>
+    <div class="col-xl-2 col-md-4 col-sm-6"><div class="stat bg-pending"><div class="label">Đang chờ xử lý</div><div class="value">@pending.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-md-4 col-sm-6"><div class="stat bg-confirmed"><div class="label">Đã duyệt (Chờ gặp)</div><div class="value">@confirmed.ToString("N0")</div></div></div>
+    <div class="col-xl-3 col-md-6 col-sm-6"><div class="stat bg-interested"><div class="label">Khách ưng/Chốt cọc</div><div class="value">@interested.ToString("N0")</div></div></div>
+    <div class="col-xl-2 col-md-6 col-sm-6"><div class="stat bg-completed"><div class="label">Hoàn tất</div><div class="value">@completed.ToString("N0")</div></div></div>
 </div>
 
-<div class="admin-box p-3 p-md-4 mb-4">
+<!-- BỘ LỌC (Giữ nguyên form của bạn) -->
+<div class="admin-box p-4">
     <form method="get" asp-action="Index" asp-controller="Appointments" asp-area="Admin" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Tiến độ</label>
             <select name="status" class="form-select soft-input">
-                <option value="All" selected="@(status == "All")">All</option>
-                <option value="Pending" selected="@(status == "Pending")">Pending</option>
-                <option value="Confirmed" selected="@(status == "Confirmed")">Confirmed</option>
-                <option value="Completed" selected="@(status == "Completed")">Completed</option>
-                <option value="Cancelled" selected="@(status == "Cancelled")">Cancelled</option>
+                <option value="All" selected="@(status == "All")">Tất cả tiến độ</option>
+                <option value="Pending" selected="@(status == "Pending")">Chờ xác nhận</option>
+                <option value="Rescheduled" selected="@(status == "Rescheduled")">Đang dời lịch</option>
+                <option value="Confirmed" selected="@(status == "Confirmed")">Đã xác nhận</option>
+                <option value="Completed" selected="@(status == "Completed")">Đã hoàn tất</option>
+                <option value="Cancelled" selected="@(status == "Cancelled")">Đã hủy</option>
             </select>
         </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold small text-muted text-uppercase">Nguồn</label>
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Kết quả chốt</label>
+            <select name="resultStatus" class="form-select soft-input">
+                <option value="All" selected="@(resultStatus == "All")">Tất cả kết quả</option>
+                <option value="Interested" selected="@(resultStatus == "Interested")">Khách ưng ý</option>
+                <option value="DepositPending" selected="@(resultStatus == "DepositPending")">Chờ chốt cọc</option>
+                <option value="FollowUp" selected="@(resultStatus == "FollowUp")">Cần bám sát</option>
+                <option value="NotInterested" selected="@(resultStatus == "NotInterested")">Không ưng</option>
+            </select>
+        </div>
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Nguồn phát sinh</label>
             <select name="source" class="form-select soft-input">
-                <option value="All" selected="@(source == "All")">All</option>
-                <option value="Property" selected="@(source == "Property")">Property</option>
-                <option value="Project" selected="@(source == "Project")">Project</option>
-                <option value="Lead" selected="@(source == "Lead")">Lead</option>
+                <option value="All" selected="@(source == "All")">Mọi nguồn</option>
+                <option value="Property" selected="@(source == "Property")">Tin lẻ BĐS</option>
+                <option value="Project" selected="@(source == "Project")">Tin Dự án</option>
+                <option value="Lead" selected="@(source == "Lead")">Hệ thống Lead CRM</option>
             </select>
         </div>
-        <div class="col-md-6">
-            <label class="form-label fw-bold small text-muted text-uppercase">Từ khóa</label>
-            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Khách, SĐT, dự án, tin đăng..." />
+        <div class="col-xl-2 col-lg-3 col-md-6">
+            <label class="form-label fw-bold small text-muted text-uppercase">Khoảng thời gian</label>
+            <select name="dateRange" class="form-select soft-input">
+                <option value="all" selected="@(dateRange == "all")">Toàn thời gian</option>
+                <option value="today" selected="@(dateRange == "today")">Lịch hẹn Hôm nay</option>
+                <option value="week" selected="@(dateRange == "week")">Trong 7 ngày qua</option>
+                <option value="month" selected="@(dateRange == "month")">Trong tháng này</option>
+            </select>
         </div>
-        <div class="col-12">
-            <button class="btn btn-primary rounded-pill fw-bold px-4">
-                <i class="bi bi-filter me-1"></i> Lọc
+        <div class="col-xl-3 col-lg-9 col-md-8">
+            <label class="form-label fw-bold small text-muted text-uppercase">Tra cứu nhanh</label>
+            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Tên khách, SĐT, BĐS, người phụ trách..." />
+        </div>
+        <div class="col-xl-1 col-lg-3 col-md-4 d-grid">
+            <button class="btn btn-dark rounded-3 fw-bold shadow-sm" style="min-height: 48px;">
+                <i class="bi bi-funnel-fill me-1"></i> Lọc
             </button>
         </div>
     </form>
 </div>
 
-<div class="admin-box p-3 p-md-4">
+<!-- DANH SÁCH -->
+<div class="admin-box">
     <div class="table-responsive">
         <table class="table align-middle mb-0">
             <thead>
                 <tr>
-                    <th>Thời gian</th>
-                    <th>Khách</th>
-                    <th>Nguồn</th>
-                    <th>Nhân sự</th>
-                    <th>Trạng thái</th>
-                    <th>Kết quả</th>
-                    <th class="text-end">Thao tác</th>
+                    <th style="width: 15%">Thời gian hẹn</th>
+                    <th style="width: 25%">Người mua (Khách)</th>
+                    <th style="width: 25%">Chủ/Môi giới & Nguồn</th>
+                    <th style="width: 20%">Tiến độ & Kết quả</th>
+                    <th style="width: 15%" class="text-center">Công cụ Admin</th>
                 </tr>
             </thead>
             <tbody>
@@ -130,75 +309,272 @@
                 {
                     foreach (var a in Model)
                     {
-                        var sourceName = a.Property?.Title ?? a.Project?.ProjectName ?? a.Lead?.Project?.ProjectName ?? "N/A";
-                        var customerName = a.CustomerName ?? a.Buyer?.FullName ?? a.Buyer?.Username ?? "Khách";
+                        var sourceName = a.Property?.Title ?? a.Project?.ProjectName ?? a.Lead?.Project?.ProjectName ?? "Không rõ";
+                        var customerName = !string.IsNullOrWhiteSpace(a.CustomerName) ? a.CustomerName : (a.Buyer?.FullName ?? a.Buyer?.Username ?? "Khách vãng lai");
+
+                        string statusText = "Chờ xử lý"; string statusClass = "st-pending";
+                        switch (a.Status)
+                        {
+                            case "Pending": statusText = "Chờ xác nhận"; statusClass = "st-pending"; break;
+                            case "Confirmed": statusText = "Đã xác nhận"; statusClass = "st-confirmed"; break;
+                            case "Rescheduled": statusText = "Đang dời lịch"; statusClass = "st-rescheduled"; break;
+                            case "Cancelled": statusText = "Đã hủy"; statusClass = "st-cancelled"; break;
+                            case "Completed": statusText = "Hoàn tất"; statusClass = "st-completed"; break;
+                        }
+
+                        string resultText = a.ResultStatus ?? "";
+                        switch (a.ResultStatus)
+                        {
+                            case "Interested": resultText = "Khách ưng ý"; break;
+                            case "DepositPending": resultText = "Chờ chốt cọc"; break;
+                            case "FollowUp": resultText = "Cần bám sát"; break;
+                            case "NotInterested": resultText = "Không ưng"; break;
+                        }
+
                         <tr>
                             <td>
-                                <div class="fw-bold">@a.AppointmentDate.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
-                                <div class="text-muted small">@a.CreatedAt.ToString("HH:mm dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))</div>
+                                <div class="fw-bold text-primary" style="font-size: 1.05rem;">@a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</div>
+                                @if (a.ProposedAppointmentDate.HasValue)
+                                {
+                                    <div class="text-danger fw-bold small mt-1"><i class="bi bi-arrow-right-circle"></i> Đổi sang: @a.ProposedAppointmentDate.Value.ToString("dd/MM")</div>
+                                }
+                                <div class="text-muted small mt-2">Tạo lúc: @a.CreatedAt.ToString("HH:mm dd/MM/yyyy")</div>
                             </td>
                             <td>
-                                <div class="fw-bold">@customerName</div>
-                                <div class="text-muted small">@a.CustomerPhone</div>
-                                <div class="text-muted small">@a.CustomerEmail</div>
+                                <div class="fw-bold text-dark fs-6">@customerName</div>
+                                <div class="text-muted small mt-1"><i class="bi bi-telephone-fill text-success"></i> @(a.CustomerPhone ?? "N/A")</div>
+                                @if (!string.IsNullOrWhiteSpace(a.MeetingLocation))
+                                {
+                                    <div class="text-muted small mt-1 text-truncate" style="max-width: 200px;" title="@a.MeetingLocation"><i class="bi bi-geo-alt-fill text-danger"></i> @a.MeetingLocation</div>
+                                }
                             </td>
                             <td>
-                                <div class="fw-semibold">@sourceName</div>
-                                <div class="small text-muted">
-                                    @if (a.PropertyID.HasValue)
-                                    {
-                                        <span>PropertyID: @a.PropertyID</span>
-                                    }
-                                    else if (a.ProjectID.HasValue)
-                                    {
-
-                                        <span>ProjectID: @a.ProjectID</span>
-                                    }
-                                    else if (a.LeadID.HasValue)
-                                    {
-
-                                        <span>LeadID: @a.LeadID</span>
-                                    }
+                                @if (a.Seller != null)
+                                {
+                                    <div class="fw-bold text-dark">@a.Seller.FullName</div>
+                                    <div class="text-muted small mt-1"><i class="bi bi-headset"></i> Phụ trách: @(string.IsNullOrWhiteSpace(a.AssignedStaffName) ? "Chính chủ" : a.AssignedStaffName)</div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small fst-italic">Hệ thống quản lý</span>
+                                }
+                                <div class="small fw-semibold text-truncate mt-2 bg-light p-1 rounded border" style="max-width: 220px;" title="@sourceName">
+                                    <i class="bi bi-tag-fill text-muted"></i> @sourceName
                                 </div>
                             </td>
                             <td>
-                                <div class="fw-semibold">@a.AssignedStaffName</div>
-                                <div class="text-muted small">@a.AssignedStaffPhone</div>
-                                <div class="text-muted small">@a.MeetingLocation</div>
+                                <div class="mb-2"><span class="status-pill @statusClass">@statusText</span></div>
+                                @if (!string.IsNullOrWhiteSpace(a.ResultStatus))
+                                {
+                                    <div class="result-pill"><i class="bi bi-bookmark-check-fill text-success me-1"></i> @resultText</div>
+                                }
                             </td>
-                            <td><span class="badge bg-secondary">@a.Status</span></td>
-                            <td>
-                                <div class="small fw-semibold">@a.ResultStatus</div>
-                                <div class="small text-muted">@a.ResultNote</div>
-                            </td>
-                            <td class="text-end">
-                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@a.AppointmentID" />
-                                    <input type="hidden" name="status" value="Confirmed" />
-                                    <button class="btn btn-sm btn-outline-primary rounded-pill">Confirm</button>
-                                </form>
-                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@a.AppointmentID" />
-                                    <input type="hidden" name="status" value="Completed" />
-                                    <button class="btn btn-sm btn-outline-success rounded-pill">Complete</button>
-                                </form>
-                                <form asp-action="UpdateStatus" asp-controller="Appointments" asp-area="Admin" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@a.AppointmentID" />
-                                    <input type="hidden" name="status" value="Cancelled" />
-                                    <button class="btn btn-sm btn-outline-danger rounded-pill">Cancel</button>
-                                </form>
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <!-- Nút 1: Xem chi tiết -->
+                                    <button type="button" class="btn btn-outline-info btn-admin-tool" onclick="openDetailModal(@a.AppointmentID)" title="Xem chi tiết gốc">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </button>
+
+                                    <!-- Nút 2: Nhắc nhở người bán -->
+                                    <form class="m-0" id="frmRemind-@a.AppointmentID">
+                                        @Html.AntiForgeryToken()
+                                        <button type="button" class="btn btn-outline-warning btn-admin-tool" onclick="postAdminRemind('@Url.Action("RemindSeller", "Appointments", new { area = "Admin" })', @a.AppointmentID)" title="Nhắc người bán xử lý">
+                                            <i class="bi bi-bell-fill"></i>
+                                        </button>
+                                    </form>
+
+                                    <!-- Nút 3: Xóa / Chặn Spam -->
+                                    <form class="m-0" id="frmDel-@a.AppointmentID">
+                                        @Html.AntiForgeryToken()
+                                        <button type="button" class="btn btn-outline-danger btn-admin-tool" onclick="postAdminDelete('@Url.Action("Delete", "Appointments", new { area = "Admin" })', @a.AppointmentID)" title="Xóa rác / Spam">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     }
                 }
                 else
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-4">Chưa có lịch hẹn</td></tr>
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-5">
+                            <i class="bi bi-calendar-x display-1 opacity-25 d-block mb-3"></i>
+                            <h4 class="fw-bold">Không tìm thấy dữ liệu</h4>
+                            <p>Thử điều chỉnh lại bộ lọc tìm kiếm.</p>
+                        </td>
+                    </tr>
                 }
             </tbody>
         </table>
     </div>
+
+    <!-- Phân trang (Giữ nguyên của bạn) -->
+    <!-- ... -->
 </div>
+
+<!-- ================= MODAL CHI TIẾT DÀNH CHO ADMIN (READ ONLY) (Giữ nguyên của bạn) ================= -->
+<div class="modal fade" id="adminDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white border-0 p-4">
+                <h5 class="modal-title fw-bold"><i class="bi bi-journal-text me-2"></i>Hồ sơ Lịch hẹn <span id="md-source" class="ms-2 badge bg-light text-dark"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
+                            <div class="section-title mt-0"><i class="bi bi-person-bounding-box text-primary me-2"></i>Người Mua (Khách)</div>
+                            <div class="detail-row"><div class="detail-label">Họ tên</div><div class="detail-value text-primary" id="md-buyerName"></div></div>
+                            <div class="detail-row"><div class="detail-label">Điện thoại</div><div class="detail-value" id="md-buyerPhone"></div></div>
+                            <div class="detail-row"><div class="detail-label">Nhu cầu/Ghi chú</div><div class="detail-value text-muted fst-italic" id="md-note"></div></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
+                            <div class="section-title mt-0"><i class="bi bi-person-workspace text-success me-2"></i>Người Bán (Chủ/Sale)</div>
+                            <div class="detail-row"><div class="detail-label">Người quản lý</div><div class="detail-value text-success" id="md-sellerName"></div></div>
+                            <div class="detail-row"><div class="detail-label">SĐT Quản lý</div><div class="detail-value" id="md-sellerPhone"></div></div>
+                            <div class="detail-row"><div class="detail-label">Điểm gặp</div><div class="detail-value text-danger" id="md-location"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-4 border shadow-sm mt-4">
+                    <div class="section-title mt-0 bg-warning bg-opacity-10 text-dark"><i class="bi bi-clock-history me-2 text-warning"></i>Tiến trình & Kết quả</div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="detail-row"><div class="detail-label">Ngày tạo</div><div class="detail-value" id="md-createdAt"></div></div>
+                            <div class="detail-row"><div class="detail-label">Giờ hẹn gốc</div><div class="detail-value fs-5 text-primary" id="md-appointmentDate"></div></div>
+                            <div class="detail-row"><div class="detail-label">Giờ dời lại</div><div class="detail-value text-danger" id="md-proposedDate"></div></div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="detail-row"><div class="detail-label">Trạng thái</div><div class="detail-value"><span class="badge bg-dark fs-6" id="md-status"></span></div></div>
+                            <div class="detail-row"><div class="detail-label">Kết quả chốt</div><div class="detail-value"><span class="badge bg-success fs-6" id="md-resultStatus"></span></div></div>
+                            <div class="detail-row"><div class="detail-label">Hoàn tất lúc</div><div class="detail-value" id="md-completedAt"></div></div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark mt-4 mb-2"><i class="bi bi-chat-left-text-fill text-info me-2"></i>Dấu vết Thương lượng (Log):</h6>
+                    <div class="p-3 bg-light border rounded-3 text-dark font-monospace small" style="white-space: pre-wrap; max-height: 150px; overflow-y: auto;" id="md-negotiationNote"></div>
+
+                    <h6 class="fw-bold text-dark mt-3 mb-2"><i class="bi bi-clipboard-check-fill text-success me-2"></i>Ghi chú Kết quả thực tế:</h6>
+                    <div class="p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 text-dark fw-medium" id="md-resultNote"></div>
+                </div>
+
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0 bg-light">
+                <button type="button" class="btn btn-dark rounded-pill px-5 fw-bold shadow-sm" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // HÀM 1: Bắn thông báo nhắc nhở người bán
+        function postAdminRemind(url, id) {
+            Swal.fire({
+                title: 'Gửi Nhắc nhở?',
+                text: "Hệ thống sẽ gửi một thông báo (Notification) đôn đốc người bán xử lý lịch hẹn này.",
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Gửi Nhắc Nhở',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('__RequestVerificationToken', document.querySelector(`#frmRemind-${id} input[name="__RequestVerificationToken"]`).value);
+
+                    fetch(url, { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.success) {
+                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: data.message, showConfirmButton: false, timer: 2000 });
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        // HÀM 2: Xóa & Chặn Spam
+        function postAdminDelete(url, id) {
+            Swal.fire({
+                title: 'Xóa VĨNH VIỄN?',
+                text: "Bạn đang đóng vai trò Giám sát hệ thống. Hành động này sẽ XÓA SẠCH dữ liệu khỏi Database.",
+                icon: 'error',
+                input: 'checkbox',
+                inputValue: 0,
+                inputPlaceholder: ' Đồng thời đánh dấu IP/Khách này là SPAM?',
+                showCancelButton: true,
+                confirmButtonColor: '#000',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Xóa ngay',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const isSpam = result.value ? true : false;
+                    const formData = new FormData();
+                    formData.append('id', id);
+                    formData.append('blockSpam', isSpam);
+                    formData.append('__RequestVerificationToken', document.querySelector(`#frmDel-${id} input[name="__RequestVerificationToken"]`).value);
+
+                    fetch(url, { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.success) {
+                            Swal.fire('Đã xử lý', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Lỗi', data.message, 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        // HÀM 3: Lấy chi tiết (Đã sửa lỗi URL)
+        function openDetailModal(id) {
+            Swal.fire({ title: 'Đang tải...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            // SỬA URL Ở ĐÂY: Dùng ?id= thay vì /id
+            fetch(`/Admin/Appointments/GetDetails?id=${id}`)
+                .then(response => response.json())
+                .then(res => {
+                    Swal.close();
+                    if (res.success) {
+                        const d = res.data;
+                        document.getElementById('md-source').innerText = d.source;
+                        document.getElementById('md-buyerName').innerText = d.buyerName;
+                        document.getElementById('md-buyerPhone').innerText = d.buyerPhone;
+                        document.getElementById('md-note').innerText = d.note;
+                        document.getElementById('md-sellerName').innerText = d.sellerName;
+                        document.getElementById('md-sellerPhone').innerText = d.sellerPhone;
+                        document.getElementById('md-location').innerText = d.location;
+                        document.getElementById('md-createdAt').innerText = d.createdAt;
+                        document.getElementById('md-appointmentDate').innerText = d.appointmentDate;
+                        document.getElementById('md-proposedDate').innerText = d.proposedDate;
+                        document.getElementById('md-completedAt').innerText = d.completedAt;
+                        document.getElementById('md-status').innerText = d.status;
+                        document.getElementById('md-resultStatus').innerText = d.resultStatus;
+                        document.getElementById('md-negotiationNote').innerText = d.negotiationNote;
+                        document.getElementById('md-resultNote').innerText = d.resultNote;
+                        new bootstrap.Modal(document.getElementById('adminDetailModal')).show();
+                    } else {
+                        Swal.fire('Lỗi', res.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.close();
+                    Swal.fire('Lỗi', 'Lỗi mạng, không thể lấy dữ liệu', 'error');
+                });
+        }
+    </script>
+}

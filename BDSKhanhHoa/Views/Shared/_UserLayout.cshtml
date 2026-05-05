@@ -5,36 +5,56 @@
 @inject ApplicationDbContext _context
 
 @{
-    /* =========================================================================================
-       PHẦN 1: TRÍCH XUẤT DỮ LIỆU CỐT LÕI (CORE DATA & AUTHENTICATION)
-       ========================================================================================= */
+    // --- XỬ LÝ LOGIC BACKEND DỮ LIỆU ---
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
-    var userName = User.Identity.Name ?? "Thành viên hệ thống";
+
+    var userName = User.Identity?.Name ?? "Thành viên hệ thống";
     var userAvatar = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png";
     var userRole = User.FindFirstValue(ClaimTypes.Role);
 
-    /* =========================================================================================
-       PHẦN 2: BUSINESS LOGIC - THÀNH VIÊN CÁ NHÂN
-       ========================================================================================= */
-    bool isSeller = _context.Properties.Any(p => p.UserID == currentUserId && p.IsDeleted == false);
+    bool isAuthenticated = User.Identity?.IsAuthenticated == true;
+    bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff") || User.IsInRole("SuperAdmin");
+
+    bool hasListings = false;
     bool isOwner = ViewData["IsOwner"] as bool? ?? false;
 
-    /* =========================================================================================
-       PHẦN 3: BỘ ĐẾM THỜI GIAN THỰC (GIAO DỊCH CÁ NHÂN)
-       ========================================================================================= */
-    int unreadMessages = _context.UserMessages.Count(m => m.ReceiverID == currentUserId && m.IsRead == false);
-    int pendingAppointments = _context.Appointments.Count(a => (a.BuyerID == currentUserId || a.SellerID == currentUserId) && a.Status == "Pending");
-
+    int unreadMessages = 0;
+    int pendingAppointments = 0;
     int newLeadsCount = 0;
     int unreadComments = 0;
+    int totalSystemAlerts = 0;
 
-    if (isSeller)
+    if (isAuthenticated && currentUserId > 0)
     {
-        newLeadsCount = _context.Consultations.Count(c => c.Property != null && c.Property.UserID == currentUserId && c.Status == "New");
-        unreadComments = _context.Comments.Count(c => c.Property != null && c.Property.UserID == currentUserId && c.IsHidden == false);
+        // Kiểm tra xem user có tin đăng nào không
+        hasListings = _context.Properties.Any(p => p.UserID == currentUserId && p.IsDeleted == false);
+
+        // Đếm số lượng thông báo
+        unreadMessages = _context.UserMessages.Count(m => m.ReceiverID == currentUserId && m.IsRead == false);
+
+        // Đếm lịch hẹn chờ xác nhận (Dành cho Người Bán)
+        pendingAppointments = _context.Appointments.Count(a => a.SellerID == currentUserId && a.Status == "Pending");
+
+        if (hasListings)
+        {
+            newLeadsCount = _context.Consultations.Count(c =>
+                c.Property != null &&
+                c.Property.UserID == currentUserId &&
+                c.Status == "New");
+
+            unreadComments = _context.Comments.Count(c =>
+                c.Property != null &&
+                c.Property.UserID == currentUserId &&
+                c.IsHidden == false);
+        }
+
+        totalSystemAlerts = unreadMessages + pendingAppointments + newLeadsCount + unreadComments;
     }
 
-    int totalSystemAlerts = unreadMessages + pendingAppointments + newLeadsCount + unreadComments;
+    // Biến hỗ trợ nhận diện menu đang active
+    string currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
+    string currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+    string currentTab = ViewContext.HttpContext.Request.Query["tab"].ToString() ?? "";
 }
 
 <!DOCTYPE html>
@@ -45,50 +65,68 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>@ViewData["Title"] - Cổng Thành Viên | BDS KHÁNH HÒA</title>
 
+    <!-- Google Fonts Hiện Đại -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+
+    <!-- Bootstrap & Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
     <style>
-        /* --- 1. BIẾN TOÀN CỤC (CSS VARIABLES) --- */
         :root {
+            /* Bảng màu hiện đại không dùng trắng tinh làm nền */
             --primary-color: #2563eb;
-            --primary-hover: #1e40af;
+            --primary-hover: #1d4ed8;
             --primary-soft: #eff6ff;
-            --secondary-bg: #f4f7fb;
-            --sidebar-bg: #ffffff;
-            --text-main: #0f172a;
+            --bg-body-color: #f4f7fb;
+            --bg-sidebar: #ffffff;
+            --text-main: #1e293b;
             --text-muted: #64748b;
             --success: #059669;
             --danger: #dc2626;
             --warning: #d97706;
             --info: #0284c7;
-            --sidebar-width: 300px;
-            --header-height: 85px;
+            /* Kích thước */
+            --sidebar-width: 295px;
+            --sidebar-collapsed-width: 85px;
+            --header-height: 76px;
+            /* Hiệu ứng & Đổ bóng */
             --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --transition-fast: 0.15s ease-in-out;
-            --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.03);
-            --shadow-float: 0 20px 40px rgba(0,0,0,0.12);
-            --radius-md: 14px;
-            --radius-lg: 20px;
+            --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.04);
+            --shadow-card: 0 10px 25px rgba(37, 99, 235, 0.05);
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
         }
 
-        /* --- 2. THIẾT LẬP CƠ BẢN (RESET & BASE) --- */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--secondary-bg);
-            color: var(--text-main);
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
             overflow-x: hidden;
+            background-color: var(--bg-body-color);
+            color: var(--text-main);
             -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            font-family: 'Inter', sans-serif;
         }
 
-        h1, h2, h3, h4, h5, h6, .brand-text {
+        h1, h2, h3, h4, h5, h6, .brand-text, .menu-section-header {
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
+        a {
+            text-decoration: none;
+        }
+
+        /* Tùy chỉnh thanh cuộn */
         ::-webkit-scrollbar {
             width: 5px;
             height: 5px;
@@ -107,64 +145,201 @@
                 background: #94a3b8;
             }
 
-        /* --- 3. KHU VỰC SIDEBAR (THANH ĐIỀU HƯỚNG TRÁI) --- */
+        /* =========================
+                           SIDEBAR HIỆN ĐẠI
+                        ========================= */
         .sidebar-wrapper {
             position: fixed;
             top: 0;
             left: 0;
             width: var(--sidebar-width);
             height: 100vh;
-            background: var(--sidebar-bg);
+            background: var(--bg-sidebar);
             border-right: 1px solid #e2e8f0;
-            box-shadow: var(--shadow-sm);
+            box-shadow: 2px 0 24px rgba(0,0,0,0.04);
             z-index: 1040;
             display: flex;
             flex-direction: column;
             transition: var(--transition-smooth);
+            overflow: hidden;
         }
 
         .sidebar-brand {
             height: var(--header-height);
             display: flex;
             align-items: center;
-            justify-content: center;
-            border-bottom: 1px solid #f8fafc;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid #f1f5f9;
             flex-shrink: 0;
-            background: #fff;
+        }
+
+            .sidebar-brand a {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                color: var(--text-main);
+            }
+
+        .brand-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-color), #3b82f6);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+        }
+
+        .brand-title {
+            margin: 0;
+            font-weight: 800;
+            font-size: 1.1rem;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+
+        .brand-subtitle {
+            margin: 0;
+            font-size: 0.75rem;
+            color: var(--primary-color);
+            font-weight: 600;
         }
 
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 24px 18px 40px 18px;
+            padding: 20px 16px 30px;
         }
 
-        .menu-category {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.7rem;
+        /* Khối hiển thị Role Đẹp mắt */
+        .menu-top-card {
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border: 1px solid #e2e8f0;
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .role-admin {
+            background: rgba(220, 38, 38, 0.08);
+            color: #b91c1c;
+            border: 1px solid rgba(220, 38, 38, 0.15);
+        }
+
+        .role-member {
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--primary-color);
+            border: 1px solid rgba(37, 99, 235, 0.15);
+        }
+
+        .menu-top-card .small-note {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Style cho từng nhóm Menu */
+        .menu-section {
+            margin-bottom: 12px;
+            background: #fff;
+            border-radius: var(--radius-md);
+            transition: var(--transition-fast);
+        }
+
+        .menu-section-header {
+            width: 100%;
+            border: 1px solid transparent;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            color: #475569;
+            font-size: 0.8rem;
             text-transform: uppercase;
             font-weight: 800;
-            color: #94a3b8;
-            letter-spacing: 1.5px;
-            margin: 30px 0 12px 15px;
-            display: block;
+            letter-spacing: 1px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+            .menu-section-header:hover {
+                background: #f1f5f9;
+                color: var(--primary-color);
+            }
+
+            .menu-section-header[aria-expanded="true"] {
+                background: #fff;
+                border-color: #e2e8f0;
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+                color: var(--primary-color);
+            }
+
+            .menu-section-header .section-left {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .menu-section-header i {
+                font-size: 1.1rem;
+            }
+
+        .section-toggle-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .menu-section-header[aria-expanded="true"] .section-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .menu-list {
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-bottom-left-radius: var(--radius-md);
+            border-bottom-right-radius: var(--radius-md);
+            background: #ffffff;
         }
 
         .menu-item {
             display: flex;
             align-items: center;
-            padding: 14px 18px;
-            color: #475569;
-            text-decoration: none;
-            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            color: #334155;
+            border-radius: 8px;
             font-weight: 600;
-            font-size: 0.95rem;
-            margin-bottom: 6px;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
             transition: var(--transition-fast);
         }
 
+            .menu-item:last-child {
+                margin-bottom: 0;
+            }
+
             .menu-item:hover {
-                background-color: #f1f5f9;
+                background-color: #f8fafc;
                 color: var(--primary-color);
                 transform: translateX(4px);
             }
@@ -176,9 +351,9 @@
             }
 
             .menu-item i.menu-icon {
-                font-size: 1.3rem;
-                margin-right: 16px;
-                width: 26px;
+                font-size: 1.2rem;
+                margin-right: 12px;
+                width: 24px;
                 text-align: center;
                 transition: var(--transition-fast);
             }
@@ -189,13 +364,21 @@
 
         .menu-badge {
             margin-left: auto;
-            font-size: 0.72rem;
-            padding: 4px 10px;
-            border-radius: 8px;
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 6px;
             font-weight: 800;
         }
 
-        /* --- 4. MAIN PANEL (KHU VỰC NỘI DUNG CHÍNH) --- */
+        .menu-divider {
+            margin: 16px 8px;
+            border-color: #e2e8f0;
+            opacity: 1;
+        }
+
+        /* =========================
+                           MAIN PANEL & HEADER
+                        ========================= */
         .main-panel {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -204,32 +387,113 @@
             transition: var(--transition-smooth);
         }
 
+        body.sidebar-collapsed .sidebar-wrapper {
+            width: var(--sidebar-collapsed-width);
+        }
+
+        body.sidebar-collapsed .main-panel {
+            margin-left: var(--sidebar-collapsed-width);
+        }
+
+        body.sidebar-collapsed .brand-title,
+        body.sidebar-collapsed .brand-subtitle,
+        body.sidebar-collapsed .menu-section-header .section-title,
+        body.sidebar-collapsed .menu-section-header .section-toggle-icon,
+        body.sidebar-collapsed .menu-text,
+        body.sidebar-collapsed .menu-badge,
+        body.sidebar-collapsed .menu-top-card .small-note,
+        body.sidebar-collapsed .menu-top-card .role-badge {
+            display: none !important;
+        }
+
+        body.sidebar-collapsed .menu-top-card {
+            padding: 10px;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        body.sidebar-collapsed .menu-section-header {
+            padding: 15px 0;
+            justify-content: center;
+        }
+
+            body.sidebar-collapsed .menu-section-header .section-left {
+                justify-content: center;
+                margin: 0;
+            }
+
+        body.sidebar-collapsed .menu-item {
+            justify-content: center;
+            padding: 12px 0;
+        }
+
+            body.sidebar-collapsed .menu-item i.menu-icon {
+                margin-right: 0;
+                font-size: 1.4rem;
+            }
+
         .top-header {
             height: var(--header-height);
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(226, 232, 240, 0.8);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0 35px;
+            padding: 0 30px;
             position: sticky;
             top: 0;
             z-index: 1030;
         }
 
+        .header-title h4 {
+            margin-bottom: 2px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-main);
+        }
+
+        .header-title small {
+            color: var(--text-muted);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+
+        .btn-toggle-sidebar {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+
+            .btn-toggle-sidebar:hover {
+                background: var(--primary-soft);
+                color: var(--primary-color);
+                border-color: #bfdbfe;
+            }
+
         .content-body {
-            padding: 35px;
+            padding: 30px;
             flex: 1;
         }
 
-        /* User Dropdown Pill */
         .user-profile-pill {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 6px 6px 6px 20px;
+            padding: 5px 6px 5px 16px;
             background: #fff;
             border: 1px solid #e2e8f0;
             border-radius: 50px;
@@ -240,13 +504,26 @@
 
             .user-profile-pill:hover {
                 border-color: var(--primary-color);
+                background: #f8fafc;
             }
 
-        /* Action Buttons */
+            .user-profile-pill .user-meta h6 {
+                margin: 0;
+                font-weight: 800;
+                font-size: 0.95rem;
+                line-height: 1.2;
+                color: var(--text-main);
+            }
+
+            .user-profile-pill .user-meta small {
+                font-size: 0.75rem;
+                font-weight: 500;
+            }
+
         .quick-actions {
             display: flex;
-            gap: 14px;
-            margin-bottom: 30px;
+            gap: 16px;
+            margin-bottom: 25px;
             flex-wrap: wrap;
         }
 
@@ -256,34 +533,34 @@
             border: none;
             font-weight: 700;
             color: #fff;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 10px;
-            transition: var(--transition-fast);
+            transition: var(--transition-smooth);
             font-size: 0.95rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
             .btn-quick:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+                transform: translateY(-3px);
                 color: #fff;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.15);
             }
 
         .btn-q-consult {
-            background: linear-gradient(135deg, #f59e0b, #b45309);
+            background: linear-gradient(135deg, #f59e0b, #d97706);
         }
 
         .btn-q-chat {
-            background: linear-gradient(135deg, #2563eb, #1e3a8a);
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
         }
 
         .btn-q-appt {
             background: linear-gradient(135deg, #10b981, #047857);
         }
 
-        /* Animations */
         .bell-shake {
-            animation: bellShake 2.5s infinite;
+            animation: bellShake 2s infinite;
             transform-origin: top center;
             display: inline-block;
         }
@@ -293,27 +570,24 @@
                 transform: rotate(0);
             }
 
-            5%, 15%, 25%, 35%, 45% {
-                transform: rotate(10deg);
+            10%, 30%, 50% {
+                transform: rotate(12deg);
             }
 
-            10%, 20%, 30%, 40% {
-                transform: rotate(-10deg);
+            20%, 40% {
+                transform: rotate(-12deg);
             }
 
-            50% {
+            60% {
                 transform: rotate(0);
             }
         }
 
-        /* --- 6. RESPONSIVE ĐA MÀN HÌNH --- */
         .mobile-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(15, 23, 42, 0.6);
+            inset: 0;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(3px);
             z-index: 1035;
             opacity: 0;
             visibility: hidden;
@@ -325,9 +599,13 @@
                 visibility: visible;
             }
 
-        @@media (max-width: 991.98px) {
+        /* =========================
+                           RESPONSIVE TỐI ƯU
+                        ========================= */
+        @@media (max-width: 1199.98px) {
             .sidebar-wrapper {
                 transform: translateX(-100%);
+                width: min(85vw, 320px);
             }
 
                 .sidebar-wrapper.show {
@@ -338,163 +616,380 @@
                 margin-left: 0;
             }
 
+            body.sidebar-collapsed .sidebar-wrapper {
+                width: min(85vw, 320px);
+                transform: translateX(-100%);
+            }
+
+                body.sidebar-collapsed .sidebar-wrapper.show {
+                    transform: translateX(0);
+                }
+
+            body.sidebar-collapsed .main-panel {
+                margin-left: 0;
+            }
+
+            body.sidebar-collapsed .brand-title,
+            body.sidebar-collapsed .brand-subtitle,
+            body.sidebar-collapsed .menu-section-header .section-title,
+            body.sidebar-collapsed .menu-section-header .section-toggle-icon,
+            body.sidebar-collapsed .menu-text,
+            body.sidebar-collapsed .menu-badge,
+            body.sidebar-collapsed .menu-top-card .small-note,
+            body.sidebar-collapsed .menu-top-card .role-badge {
+                display: block !important;
+            }
+
+            body.sidebar-collapsed .menu-item {
+                justify-content: flex-start;
+                padding: 12px 14px;
+            }
+
+                body.sidebar-collapsed .menu-item i.menu-icon {
+                    margin-right: 12px;
+                }
+        }
+
+        @@media (max-width: 767.98px) {
             .top-header {
-                padding: 0 20px;
+                padding: 0 16px;
+                height: 70px;
             }
 
             .content-body {
                 padding: 20px 16px;
+            }
+
+            .user-profile-pill {
+                padding: 5px;
+            }
+
+                .user-profile-pill .user-meta {
+                    display: none;
+                }
+
+            .quick-actions {
+                gap: 12px;
+            }
+
+            .btn-quick {
+                width: 100%;
+                justify-content: center;
+                padding: 14px;
             }
         }
     </style>
 </head>
 <body>
 
+    <!-- Lớp phủ cho Mobile -->
     <div class="mobile-overlay" id="mobileOverlay"></div>
 
+    <!-- ================== SIDEBAR ================== -->
     <aside class="sidebar-wrapper" id="sidebar">
         <div class="sidebar-brand">
-            <a href="/" class="text-decoration-none d-flex align-items-center gap-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
-                    <i class="bi bi-buildings-fill fs-4"></i>
+            <a href="/">
+                <div class="brand-avatar">
+                    <i class="bi bi-buildings-fill fs-5"></i>
                 </div>
-                <h4 class="brand-text fw-bolder text-dark mb-0" style="letter-spacing: -0.5px;">BDS KHÁNH HÒA</h4>
+                <div class="brand-text-wrap">
+                    <p class="brand-title">BĐS Khánh Hòa</p>
+                    <p class="brand-subtitle">Smart Operation</p>
+                </div>
             </a>
+            <button type="button" class="btn-close d-xl-none bg-light p-2 rounded-circle border" id="btnCloseSidebar"></button>
         </div>
 
         <div class="sidebar-content">
-            <div class="text-center mb-4 pb-2 border-bottom border-dashed">
-                @if (User.IsInRole("Admin") || User.IsInRole("Staff"))
+            <!-- Thẻ User Info -->
+            <div class="menu-top-card">
+                @if (isAdminOrStaff)
                 {
-                    <span class="badge bg-danger-soft text-danger border border-danger fw-bold rounded-pill px-4 py-2 shadow-sm"><i class="bi bi-shield-lock-fill me-1"></i> HỆ THỐNG QUẢN TRỊ</span>
+                    <span class="role-badge role-admin"><i class="bi bi-shield-check"></i> Quản Trị Hệ Thống</span>
+                    <div class="small-note">Chào sếp, trung tâm điều hành đã sẵn sàng. Hãy kiểm duyệt các dự án mới.</div>
                 }
                 else
                 {
-                    <span class="badge bg-primary-soft text-primary border border-primary fw-bold rounded-pill px-4 py-2 shadow-sm"><i class="bi bi-person-circle me-1"></i> THÀNH VIÊN CÁ NHÂN</span>
+                    <span class="role-badge role-member"><i class="bi bi-person-vcard"></i> Tài khoản cá nhân</span>
+                    <div class="small-note">Trung tâm điều khiển dành cho Mua bán, Trao đổi và Quản lý tin đăng Bất động sản.</div>
                 }
             </div>
 
-            @if (User.IsInRole("Admin") || User.IsInRole("Staff"))
-            {
-                <span class="menu-category text-danger fw-bolder"><i class="bi bi-gear-fill me-1"></i> Khu Vực Điều Hành</span>
-                <a href="/Admin/Dashboard" class="menu-item"><i class="bi bi-speedometer2 menu-icon"></i> Dashboard Hệ Thống</a>
-                <a href="/Admin/Projects/Verify" class="menu-item"><i class="bi bi-building-check menu-icon text-warning"></i> Thẩm định Dự án</a>
-                <a href="/Admin/Properties/Verify" class="menu-item"><i class="bi bi-house-check menu-icon text-info"></i> Duyệt Tin rao vặt</a>
-                <hr class="mx-3 my-4 opacity-25">
-            }
-
-            <span class="menu-category mt-2">Theo dõi chung</span>
-            <a href="/Dashboard/Index" class="menu-item @(ViewContext.RouteData.Values["Action"]?.ToString() == "Index" && ViewContext.RouteData.Values["Controller"]?.ToString() == "Dashboard" ? "active" : "")">
-                <i class="bi bi-grid-1x2-fill menu-icon text-primary"></i> Bảng điều khiển
-            </a>
-
-            <span class="menu-category mt-4">Giao dịch cá nhân</span>
-            <a href="/Property/Create" class="menu-item"><i class="bi bi-plus-circle-fill menu-icon text-success"></i> Đăng tin Mua/Bán lẻ</a>
-            <a href="/Property/MyAds" class="menu-item"><i class="bi bi-card-list menu-icon text-primary"></i> Quản lý tin đã đăng</a>
-            <a href="/Favorite/Index" class="menu-item"><i class="bi bi-heart-fill menu-icon text-danger"></i> BĐS đã lưu</a>
-
-            @if (isSeller)
-            {
-                <span class="menu-category mt-4 text-success">Khu vực Người Bán</span>
-                <a href="/Consultations/Index" class="menu-item">
-                    <i class="bi bi-people-fill menu-icon text-success"></i> Khách hỏi mua lẻ
-                    @if (newLeadsCount > 0)
-                    {
-                        <span class="badge bg-danger menu-badge shadow-sm">@newLeadsCount</span>
-                    }
+            <!-- CHUNG: Bảng điều khiển -->
+            <div class="menu-section">
+                <a href="/Dashboard/Index" class="menu-item @(currentController == "Dashboard" && currentAction == "Index" ? "active" : "")" title="Bảng điều khiển">
+                    <i class="bi bi-grid-1x2-fill menu-icon text-primary"></i>
+                    <span class="menu-text">Bảng điều khiển chung</span>
                 </a>
-                <a href="/Comments/MyPropertyComments" class="menu-item">
-                    <i class="bi bi-chat-left-quote-fill menu-icon text-info"></i> Quản lý Bình luận
-                    @if (unreadComments > 0)
-                    {
-                        <span class="badge bg-danger menu-badge shadow-sm">@unreadComments</span>
-                    }
-                </a>
-            }
+            </div>
 
-            <span class="menu-category mt-4">Kênh tương tác liên lạc</span>
-            <a href="/UserMessage/Index" class="menu-item">
-                <i class="bi bi-envelope-paper-fill menu-icon text-primary"></i> Hộp thư nội bộ
-                @if (unreadMessages > 0)
-                {
-                    <span class="badge bg-danger menu-badge shadow-sm">@unreadMessages</span>
-                }
-            </a>
-            <a href="/Appointments/Index" class="menu-item">
-                <i class="bi bi-calendar-check-fill menu-icon text-success"></i> Lịch hẹn xem BĐS
-                @if (pendingAppointments > 0)
-                {
-                    <span class="badge bg-warning text-dark menu-badge shadow-sm">@pendingAppointments</span>
-                }
-            </a>
-            <a href="/Chat/History" class="menu-item"><i class="bi bi-robot menu-icon text-info"></i> Trợ lý ảo AI Support</a>
-
-            <span class="menu-category mt-4">Dịch vụ & Tài chính</span>
-            <a href="/Package/Buy" class="menu-item"><i class="bi bi-gem menu-icon text-warning"></i> Nạp gói Tin VIP Hệ thống</a>
-            <a href="/Voucher/MyVouchers" class="menu-item"><i class="bi bi-ticket-detailed-fill menu-icon text-danger"></i> Kho Voucher của tôi</a>
-            <a href="/Payment/History" class="menu-item"><i class="bi bi-receipt menu-icon text-secondary"></i> Đối soát giao dịch</a>
-
-            <span class="menu-category mt-4">Bảo mật tài khoản</span>
-            <a href="/Notification/Index" class="menu-item"><i class="bi bi-bell-fill menu-icon text-warning"></i> Thông báo hệ thống</a>
-            <a href="/Account/Profile" class="menu-item"><i class="bi bi-person-bounding-box menu-icon text-primary"></i> Cập nhật Hồ sơ cá nhân</a>
-            <a href="/Account/ChangePassword" class="menu-item"><i class="bi bi-shield-lock-fill menu-icon text-success"></i> Đổi Mật khẩu an toàn</a>
-
-            <hr class="opacity-10 my-4 mx-3 border-secondary">
-
-            <a href="/" class="menu-item text-secondary"><i class="bi bi-box-arrow-up-right menu-icon"></i> Trở về Trang chủ Public</a>
-
-            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0 p-0">
-                @Html.AntiForgeryToken()
-                <a href="javascript:void(0)" onclick="document.getElementById('logoutForm').submit()" class="menu-item text-danger fw-bold">
-                    <i class="bi bi-power menu-icon"></i> Đăng xuất phiên làm việc
-                </a>
-            </form>
-        </div>
-    </aside>
-
-    <div class="main-panel">
-        <header class="top-header">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-light border-0 shadow-sm d-lg-none me-3 rounded-circle" style="width: 45px; height: 45px;" id="btnToggleSidebar">
-                    <i class="bi bi-list fs-4"></i>
+            <!-- KHỐI 1: NGƯỜI MUA -->
+            <div class="menu-section">
+                <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuBuyer" aria-expanded="true" aria-controls="menuBuyer">
+                    <span class="section-left">
+                        <i class="bi bi-bag-heart-fill text-success"></i>
+                        <span class="section-title">Khu Vực Người Mua</span>
+                    </span>
+                    <i class="bi bi-chevron-down section-toggle-icon"></i>
                 </button>
-                <div>
-                    <h4 class="mb-0 fw-bolder text-dark d-none d-sm-block letter-spacing-1">@ViewData["Title"]</h4>
-                    <small class="text-muted fw-medium d-none d-md-block text-uppercase" style="letter-spacing: 1px;">Control Center</small>
+
+                <div class="collapse show menu-list" id="menuBuyer">
+                    <a href="/Property/Search" class="menu-item">
+                        <i class="bi bi-search menu-icon text-success"></i>
+                        <span class="menu-text">Tìm kiếm BĐS</span>
+                    </a>
+                    <!-- THÊM MỚI CHỖ NÀY: MỤC LỊCH HẸN CHO NGƯỜI MUA -->
+                    <a href="/Appointments/Index?tab=outgoing" class="menu-item @(currentController == "Appointments" && currentTab == "outgoing" ? "active" : "")">
+                        <i class="bi bi-calendar2-check-fill menu-icon text-success"></i>
+                        <span class="menu-text">Lịch hẹn đi xem</span>
+                    </a>
+                    <a href="/Favorite/Index" class="menu-item">
+                        <i class="bi bi-heart-fill menu-icon text-danger"></i>
+                        <span class="menu-text">BĐS đã lưu</span>
+                    </a>
+                    <a href="/Consultations/MyRequests" class="menu-item @(currentAction == "MyRequests" ? "active" : "")">
+                        <i class="bi bi-clock-history menu-icon text-warning"></i>
+                        <span class="menu-text">Lịch sử xin tư vấn</span>
+                    </a>
+                  
+               
                 </div>
             </div>
 
-            <div class="d-flex align-items-center gap-3 gap-md-4">
-                <a href="/Notification/Index" class="position-relative text-secondary text-decoration-none">
-                    <i class="bi bi-bell-fill fs-4 @(totalSystemAlerts > 0 ? "bell-shake text-warning" : "")"></i>
+            <!-- KHỐI 2: NGƯỜI BÁN -->
+            <div class="menu-section">
+                <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuSeller" aria-expanded="true" aria-controls="menuSeller">
+                    <span class="section-left">
+                        <i class="bi bi-shop text-primary"></i>
+                        <span class="section-title">Khu Vực Người Bán</span>
+                    </span>
+                    <i class="bi bi-chevron-down section-toggle-icon"></i>
+                </button>
+
+                <div class="collapse show menu-list" id="menuSeller">
+                    <a href="/Property/Create" class="menu-item">
+                        <i class="bi bi-plus-square-fill menu-icon text-success"></i>
+                        <span class="menu-text">Đăng tin rao bán mới</span>
+                    </a>
+                    <a href="/Property/MyAds" class="menu-item">
+                        <i class="bi bi-card-list menu-icon text-primary"></i>
+                        <span class="menu-text">Quản lý tin đang bán</span>
+                    </a>
+                    <!-- THÊM MỚI CHỖ NÀY: MỤC LỊCH HẸN CHO NGƯỜI BÁN -->
+                    <a href="/Appointments/Index?tab=incoming" class="menu-item @(currentController == "Appointments" && currentTab == "incoming" ? "active" : "")">
+                        <i class="bi bi-calendar-range-fill menu-icon text-warning"></i>
+                        <span class="menu-text">Lịch khách hẹn đến</span>
+                        @if (pendingAppointments > 0)
+                        {
+                            <span class="badge bg-danger menu-badge">@pendingAppointments</span>
+                        }
+                    </a>
+                    <a href="/Consultations/Index" class="menu-item @(currentAction == "Index" && currentController == "Consultations" ? "active" : "")">
+                        <i class="bi bi-people-fill menu-icon text-success"></i>
+                        <span class="menu-text">Khách yêu cầu tư vấn</span>
+                        @if (newLeadsCount > 0)
+                        {
+                            <span class="badge bg-danger menu-badge">@newLeadsCount</span>
+                        }
+                    </a>
+                    <a href="/Comments/MyPropertyComments" class="menu-item">
+                        <i class="bi bi-chat-left-quote-fill menu-icon text-info"></i>
+                        <span class="menu-text">Quản lý bình luận</span>
+                        @if (unreadComments > 0)
+                        {
+                            <span class="badge bg-danger menu-badge">@unreadComments</span>
+                        }
+                    </a>
+                </div>
+            </div>
+
+            <!-- KHỐI TƯƠNG TÁC (Tích hợp thông báo, chat nội bộ) -->
+            <div class="menu-section">
+                <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuInteraction" aria-expanded="true" aria-controls="menuInteraction">
+                    <span class="section-left">
+                        <i class="bi bi-chat-dots-fill text-info"></i>
+                        <span class="section-title">Kênh Tương Tác</span>
+                    </span>
+                    <i class="bi bi-chevron-down section-toggle-icon"></i>
+                </button>
+
+                <div class="collapse show menu-list" id="menuInteraction">
+                    <a href="/UserMessage/Index" class="menu-item">
+                        <i class="bi bi-envelope-paper-fill menu-icon text-primary"></i>
+                        <span class="menu-text">Hộp thư nội bộ</span>
+                        @if (unreadMessages > 0)
+                        {
+                            <span class="badge bg-danger menu-badge">@unreadMessages</span>
+                        }
+                    </a>
+                    <!-- Chỉ giữ Lịch hẹn chung nếu thật sự cần, nhưng đã phân rã vào 2 khu vực mua/bán ở trên để UX tốt hơn -->
+                    <a href="/Notification/Index" class="menu-item">
+                        <i class="bi bi-bell-fill menu-icon text-warning"></i>
+                        <span class="menu-text">Thông báo của tôi</span>
+                        @if (totalSystemAlerts > 0)
+                        {
+                            <span class="badge bg-danger menu-badge">@totalSystemAlerts</span>
+                        }
+                    </a>
+                </div>
+            </div>
+
+            <!-- KHỐI DỊCH VỤ & VIP -->
+            @if (hasListings || isAdminOrStaff)
+            {
+                <div class="menu-section">
+                    <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuVip" aria-expanded="true" aria-controls="menuVip">
+                        <span class="section-left">
+                            <i class="bi bi-gem text-warning"></i>
+                            <span class="section-title">Dịch Vụ & VIP</span>
+                        </span>
+                        <i class="bi bi-chevron-down section-toggle-icon"></i>
+                    </button>
+
+                    <div class="collapse show menu-list" id="menuVip">
+                        <a href="/Package/Buy" class="menu-item">
+                            <i class="bi bi-gem menu-icon text-warning"></i>
+                            <span class="menu-text">Nạp gói Đẩy Tin VIP</span>
+                        </a>
+                        <a href="/Voucher/MyVouchers" class="menu-item">
+                            <i class="bi bi-ticket-detailed-fill menu-icon text-danger"></i>
+                            <span class="menu-text">Kho Voucher của tôi</span>
+                        </a>
+                        <a href="/Payment/History" class="menu-item">
+                            <i class="bi bi-receipt menu-icon text-secondary"></i>
+                            <span class="menu-text">Đối soát giao dịch</span>
+                        </a>
+                    </div>
+                </div>
+            }
+
+            <!-- KHỐI ADMIN (NẾU CÓ QUYỀN) -->
+            @if (isAdminOrStaff)
+            {
+                <div class="menu-section">
+                    <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuAdmin" aria-expanded="true" aria-controls="menuAdmin">
+                        <span class="section-left">
+                            <i class="bi bi-shield-lock-fill text-danger"></i>
+                            <span class="section-title">Hệ Thống Quản Trị</span>
+                        </span>
+                        <i class="bi bi-chevron-down section-toggle-icon"></i>
+                    </button>
+
+                    <div class="collapse show menu-list" id="menuAdmin">
+                        <a href="/Admin/Dashboard" class="menu-item">
+                            <i class="bi bi-speedometer2 menu-icon text-danger"></i><span class="menu-text">Dashboard Admin</span>
+                        </a>
+                        <a href="/Admin/Projects/Verify" class="menu-item">
+                            <i class="bi bi-building-check menu-icon text-warning"></i><span class="menu-text">Thẩm định Dự án</span>
+                        </a>
+                        <a href="/Admin/Properties/Verify" class="menu-item">
+                            <i class="bi bi-house-check menu-icon text-info"></i><span class="menu-text">Duyệt tin rao vặt</span>
+                        </a>
+                    </div>
+                </div>
+            }
+
+            <hr class="menu-divider">
+
+            <!-- KHỐI TÀI KHOẢN -->
+            <div class="menu-section">
+                <button class="menu-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#menuAccount" aria-expanded="true" aria-controls="menuAccount">
+                    <span class="section-left">
+                        <i class="bi bi-person-gear text-secondary"></i>
+                        <span class="section-title">Thiết lập tài khoản</span>
+                    </span>
+                    <i class="bi bi-chevron-down section-toggle-icon"></i>
+                </button>
+
+                <div class="collapse show menu-list" id="menuAccount">
+                    <a href="/Account/Profile" class="menu-item">
+                        <i class="bi bi-person-bounding-box menu-icon text-primary"></i>
+                        <span class="menu-text">Cập nhật hồ sơ</span>
+                    </a>
+                    <a href="/Account/ChangePassword" class="menu-item">
+                        <i class="bi bi-shield-lock-fill menu-icon text-success"></i>
+                        <span class="menu-text">Đổi mật khẩu an toàn</span>
+                    </a>
+                    <a href="/" class="menu-item" title="Trở về trang chủ">
+                        <i class="bi bi-box-arrow-up-right menu-icon text-secondary"></i>
+                        <span class="menu-text">Về trang chủ public</span>
+                    </a>
+                    <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0 p-0">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="menu-item w-100 border-0 bg-transparent text-danger fw-bold" style="text-align:left;">
+                            <i class="bi bi-power menu-icon text-danger"></i>
+                            <span class="menu-text">Đăng xuất hệ thống</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="text-center mt-4 mb-2">
+                <small class="text-muted" style="font-size: 0.7rem;">&copy; 2026 BDS KhanhHoa Admin</small>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ================== MAIN CONTENT ================== -->
+    <div class="main-panel">
+        <header class="top-header">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn-toggle-sidebar" id="btnToggleSidebar">
+                    <i class="bi bi-list fs-4"></i>
+                </button>
+
+                <div class="header-title d-none d-sm-block">
+                    <h4>@ViewData["Title"]</h4>
+                    <small>Hệ thống Điều hành</small>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-3">
+                <a href="/" target="_blank" class="btn btn-light border rounded-circle d-none d-md-flex align-items-center justify-content-center" style="width: 42px; height:42px;" title="Xem Website công khai">
+                    <i class="bi bi-globe text-secondary fs-5"></i>
+                </a>
+
+                <a href="/Notification/Index" class="btn btn-light border position-relative rounded-circle d-flex align-items-center justify-content-center" style="width: 42px; height:42px;">
+                    <i class="bi bi-bell-fill fs-5 @(totalSystemAlerts > 0 ? "bell-shake text-warning" : "text-secondary")"></i>
                     @if (totalSystemAlerts > 0)
                     {
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white shadow-sm" style="font-size: 0.65rem;">
-                            @(totalSystemAlerts > 9 ? "9+" : totalSystemAlerts)
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white">
+                            @(totalSystemAlerts > 99 ? "99+" : totalSystemAlerts)
                         </span>
                     }
                 </a>
 
-                <div class="vr bg-secondary opacity-25 d-none d-sm-block" style="height: 32px; width: 2px;"></div>
+                <div class="vr bg-secondary opacity-25 d-none d-sm-block" style="height: 30px;"></div>
 
                 <div class="dropdown">
-                    <div class="user-profile-pill" data-bs-toggle="dropdown">
-                        <div class="text-end d-none d-sm-block">
-                            <h6 class="mb-0 fw-bold text-dark lh-1">@userName</h6>
-                            <small class="text-muted fw-medium" style="font-size: 0.72rem;">@userRole</small>
+                    <div class="user-profile-pill" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="@userAvatar" class="rounded-circle border border-2 border-white shadow-sm" width="36" height="36" style="object-fit:cover;" alt="Avatar">
+                        <div class="text-end user-meta">
+                            <h6>@userName</h6>
+                            <small class="text-primary">@userRole</small>
                         </div>
-                        <img src="@userAvatar" class="rounded-circle border border-3 border-primary-soft shadow-sm" width="45" height="45" style="object-fit:cover;">
+                        <i class="bi bi-chevron-down ms-1 text-muted d-none d-sm-block" style="font-size:0.8rem;"></i>
                     </div>
 
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-3 p-2 rounded-4 animate__animated animate__fadeIn" style="min-width: 250px;">
-                        <li><div class="dropdown-header text-dark fw-bold pb-2 text-uppercase small">Tài khoản của tôi</div></li>
-                        <li><a class="dropdown-item rounded-3 py-2 fw-medium" href="/Account/Profile"><i class="bi bi-person-badge me-2 text-primary"></i> Quản lý hồ sơ</a></li>
-                        <li><a class="dropdown-item rounded-3 py-2 fw-medium" href="/Property/MyAds"><i class="bi bi-card-list me-2 text-success"></i> Kho tin BĐS cá nhân</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 p-2 rounded-4 animate__animated animate__fadeIn" style="min-width: 240px;">
+                        <li><div class="dropdown-header text-dark fw-bold pb-2">TÀI KHOẢN CỦA TÔI</div></li>
+                        <li>
+                            <a class="dropdown-item rounded-3 py-2 fw-medium" href="/Account/Profile">
+                                <i class="bi bi-person-circle me-2 text-primary"></i> Quản lý hồ sơ
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item rounded-3 py-2 fw-medium" href="/Property/MyAds">
+                                <i class="bi bi-card-list me-2 text-success"></i> Kho tin BĐS cá nhân
+                            </a>
+                        </li>
                         <li><hr class="dropdown-divider my-2"></li>
                         <li>
                             <form asp-controller="Account" asp-action="Logout" method="post">
                                 @Html.AntiForgeryToken()
-                                <button type="submit" class="dropdown-item text-danger rounded-3 py-2 fw-bold"><i class="bi bi-box-arrow-right me-2"></i> Đăng xuất an toàn</button>
+                                <button type="submit" class="dropdown-item text-danger rounded-3 py-2 fw-bold">
+                                    <i class="bi bi-box-arrow-right me-2"></i> Đăng xuất an toàn
+                                </button>
                             </form>
                         </li>
                     </ul>
@@ -503,28 +998,31 @@
         </header>
 
         <main class="content-body">
+            <!-- Xử lý Alert thông báo -->
             @if (TempData["Success"] != null)
             {
-                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__fadeInDown" role="alert">
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3 animate__animated animate__fadeInDown" role="alert">
                     <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
                     <span class="fw-bold">@TempData["Success"]</span>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             }
+
             @if (TempData["Error"] != null)
             {
-                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 animate__animated animate__shakeX" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 animate__animated animate__shakeX" role="alert">
                     <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
                     <span class="fw-bold">@TempData["Error"]</span>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             }
 
+            <!-- Nút chức năng nhanh (Nếu View con yêu cầu hiển thị) -->
             @if (ViewData["ShowActionButtons"] as bool? == true)
             {
-                <div class="quick-actions">
+                <div class="quick-actions animate__animated animate__fadeInUp">
                     <button type="button" class="btn-quick btn-q-consult" data-bs-toggle="modal" data-bs-target="#consultationModal">
-                        <i class="bi bi-headset fs-5"></i> Đăng ký nhận tư vấn
+                        <i class="bi bi-headset fs-5"></i> Cần tư vấn ngay
                     </button>
 
                     @if (!isOwner)
@@ -539,67 +1037,71 @@
                 </div>
             }
 
-            <div class="animate__animated animate__fadeIn">
+            <div class="animate__animated animate__fadeIn" style="animation-delay: 0.1s;">
                 @RenderBody()
             </div>
         </main>
     </div>
 
+    <!-- ================== MODALS ================== -->
+    <!-- Modal Yêu cầu Tư vấn -->
     <div class="modal fade" id="consultationModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header bg-warning border-0">
-                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-headset"></i> Đăng ký nhận tư vấn chuyên sâu</h5>
+                <div class="modal-header bg-warning border-0 text-dark">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-headset"></i> Đăng ký nhận tư vấn</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmConsultation">
                     <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-muted small text-uppercase">Số điện thoại của bạn <span class="text-danger">*</span></label>
-                            <input type="tel" name="phoneNumber" class="form-control form-control-lg bg-light border-0 shadow-sm" required placeholder="Nhập SĐT để chuyên viên gọi lại...">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Số điện thoại <span class="text-danger">*</span></label>
+                            <input type="tel" name="phoneNumber" class="form-control form-control-lg bg-light border-0 shadow-sm" required placeholder="Nhập SĐT để gọi lại...">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-muted small text-uppercase">Lời nhắn / Yêu cầu riêng</label>
-                            <textarea name="message" class="form-control bg-light border-0 shadow-sm" rows="3" placeholder="Ví dụ: Tôi muốn hỏi về tính pháp lý, giá thương lượng..."></textarea>
+                            <label class="form-label fw-bold text-muted small text-uppercase">Yêu cầu riêng</label>
+                            <textarea name="message" class="form-control bg-light border-0 shadow-sm" rows="3" placeholder="Ví dụ: Tôi muốn hỏi về tính pháp lý..."></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer border-0 bg-white p-3">
-                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
-                        <button type="submit" class="btn btn-warning text-dark fw-bold rounded-pill px-5 shadow-sm">Gửi Yêu Cầu Tư Vấn</button>
+                    <div class="modal-footer border-0 p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-warning text-dark fw-bold rounded-pill px-5 shadow-sm">Gửi Yêu Cầu</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
+    <!-- Modal Chat Nội Bộ -->
     <div class="modal fade" id="internalChatModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header bg-primary text-white border-0">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill"></i> Nhắn tin bảo mật 2 chiều</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill"></i> Nhắn tin bảo mật</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmInternalChat">
                     <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-muted small text-uppercase">Nội dung trao đổi <span class="text-danger">*</span></label>
-                            <textarea name="chatMessage" class="form-control bg-light border-0 shadow-sm" rows="4" required placeholder="Nhập câu hỏi để thương lượng trực tiếp với người bán..."></textarea>
+                            <label class="form-label fw-bold text-muted small text-uppercase">Nội dung <span class="text-danger">*</span></label>
+                            <textarea name="chatMessage" class="form-control bg-light border-0 shadow-sm" rows="4" required placeholder="Thương lượng giá, hỏi thông tin..."></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer border-0 bg-white p-3">
-                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Đóng cửa sổ</button>
-                        <button type="submit" class="btn btn-primary fw-bold rounded-pill px-5 shadow-sm"><i class="bi bi-send-fill me-1"></i> Bắt đầu Trò chuyện</button>
+                    <div class="modal-footer border-0 p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary fw-bold rounded-pill px-5 shadow-sm"><i class="bi bi-send-fill"></i> Gửi Tin</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
+    <!-- Modal Đặt lịch hẹn -->
     <div class="modal fade" id="appointmentModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header bg-success text-white border-0">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill"></i> Đặt lịch hẹn xem Bất động sản</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill"></i> Đặt lịch hẹn xem BĐS</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="frmAppointment">
@@ -614,13 +1116,13 @@
                                 <input type="time" name="appointmentTime" class="form-control form-control-lg bg-light border-0 shadow-sm" required>
                             </div>
                             <div class="col-12 mt-3">
-                                <label class="form-label fw-bold text-muted small text-uppercase">Ghi chú cho người bán</label>
-                                <textarea name="notes" class="form-control bg-light border-0 shadow-sm" rows="2" placeholder="Ví dụ: Vui lòng gọi trước 30 phút khi tôi đến..."></textarea>
+                                <label class="form-label fw-bold text-muted small text-uppercase">Ghi chú</label>
+                                <textarea name="notes" class="form-control bg-light border-0 shadow-sm" rows="2" placeholder="Ví dụ: Tới nơi xin hãy gọi..."></textarea>
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer border-0 bg-white p-3">
-                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy lịch</button>
+                    <div class="modal-footer border-0 p-3">
+                        <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy</button>
                         <button type="submit" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm">Xác Nhận Đặt Lịch</button>
                     </div>
                 </form>
@@ -628,45 +1130,114 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- ================== SCRIPTS ================== -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         $(document).ready(function () {
+            // Tự động tắt alert sau 5s
             setTimeout(function () { $('.alert-dismissible').fadeOut('slow'); }, 5000);
 
             const $sidebar = $('#sidebar');
             const $overlay = $('#mobileOverlay');
+            const $body = $('body');
 
-            $('#btnToggleSidebar').click(function() {
-                $sidebar.addClass('show');
-                $overlay.addClass('active');
+            // --- LOGIC ĐÓNG MỞ TOÀN BỘ SIDEBAR ---
+            const sidebarStateKey = 'BDS_SidebarState_2026';
+
+            if (window.innerWidth >= 1200 && localStorage.getItem(sidebarStateKey) === 'collapsed') {
+                $body.addClass('sidebar-collapsed');
+            }
+
+            $('#btnToggleSidebar').on('click', function () {
+                if (window.innerWidth >= 1200) {
+                    $body.toggleClass('sidebar-collapsed');
+                    if ($body.hasClass('sidebar-collapsed')) {
+                        localStorage.setItem(sidebarStateKey, 'collapsed');
+                        $('.collapse.show').collapse('hide');
+                    } else {
+                        localStorage.setItem(sidebarStateKey, 'expanded');
+                    }
+                } else {
+                    $sidebar.addClass('show');
+                    $overlay.addClass('active');
+                    $body.addClass('sidebar-open');
+                }
             });
 
-            $overlay.click(function() {
+            $('#btnCloseSidebar, #mobileOverlay').on('click', function () {
                 $sidebar.removeClass('show');
-                $(this).removeClass('active');
+                $overlay.removeClass('active');
+                $body.removeClass('sidebar-open');
             });
 
-            $('#frmConsultation').on('submit', function(e) {
+            // --- LOGIC ĐÓNG/MỞ MENU TỪNG NHÓM (Dùng localStorage để ghi nhớ) ---
+            const collapseMenus = ['menuBuyer', 'menuSeller', 'menuInteraction', 'menuVip', 'menuAdmin', 'menuAccount'];
+
+            // 1. Khôi phục trạng thái từ Local Storage khi tải lại trang
+            collapseMenus.forEach(function(menuId) {
+                const state = localStorage.getItem('BDS_' + menuId);
+                const $menuEl = $('#' + menuId);
+                const $headerBtn = $('button[data-bs-target="#' + menuId + '"]');
+
+                if (state === 'closed') {
+                    $menuEl.removeClass('show');
+                    $headerBtn.attr('aria-expanded', 'false');
+                } else if (state === 'open') {
+                    $menuEl.addClass('show');
+                    $headerBtn.attr('aria-expanded', 'true');
+                }
+            });
+
+            // 2. Lưu trạng thái khi người dùng click
+            collapseMenus.forEach(function(menuId) {
+                const $menuEl = $('#' + menuId);
+
+                $menuEl.on('shown.bs.collapse', function () {
+                    if ($body.hasClass('sidebar-collapsed')) {
+                        $(this).collapse('hide');
+                        return;
+                    }
+                    localStorage.setItem('BDS_' + menuId, 'open');
+                    $('button[data-bs-target="#' + menuId + '"]').attr('aria-expanded', 'true');
+                });
+
+                $menuEl.on('hidden.bs.collapse', function () {
+                    localStorage.setItem('BDS_' + menuId, 'closed');
+                    $('button[data-bs-target="#' + menuId + '"]').attr('aria-expanded', 'false');
+                });
+            });
+
+            // --- LOGIC FORM MODALS DEMO ---
+            $('#frmConsultation').on('submit', function (e) {
                 e.preventDefault();
-                alert("Hệ thống: Đã ghi nhận yêu cầu tư vấn! (Chờ đấu nối API Backend)");
+                alert("Hệ thống: Đã ghi nhận yêu cầu tư vấn! (Chờ xử lý từ Backend)");
                 $('#consultationModal').modal('hide');
                 this.reset();
             });
 
-            $('#frmInternalChat').on('submit', function(e) {
+            $('#frmInternalChat').on('submit', function (e) {
                 e.preventDefault();
-                alert("Hệ thống: Tin nhắn đã được gửi an toàn! (Chờ đấu nối API Backend)");
+                alert("Hệ thống: Tin nhắn đã được gửi an toàn! (Chờ xử lý từ Backend)");
                 $('#internalChatModal').modal('hide');
                 this.reset();
             });
 
-            $('#frmAppointment').on('submit', function(e) {
+            $('#frmAppointment').on('submit', function (e) {
                 e.preventDefault();
-                alert("Hệ thống: Đã gửi yêu cầu đặt lịch hẹn thành công! (Chờ đấu nối API Backend)");
+                alert("Hệ thống: Đã gửi yêu cầu đặt lịch hẹn thành công! (Chờ xử lý từ Backend)");
                 $('#appointmentModal').modal('hide');
                 this.reset();
+            });
+
+            // Responsive Handle
+            $(window).on('resize', function () {
+                if (window.innerWidth >= 1200) {
+                    $sidebar.removeClass('show');
+                    $overlay.removeClass('active');
+                    $body.removeClass('sidebar-open');
+                }
             });
         });
     </script>

@@ -37,6 +37,11 @@ namespace BDSKhanhHoa.Controllers
             int totalProperties = myProperties.Count;
             int activeProperties = myProperties.Count(p => p.Status == "Approved" || p.Status == "Active");
             int pendingProperties = myProperties.Count(p => p.Status == "Pending");
+
+            // --- BỔ SUNG: ĐẾM SỐ LƯỢNG ĐÃ BÁN / ĐÃ CHO THUÊ ---
+            int soldProperties = myProperties.Count(p => p.Status == "Sold");
+            int rentedProperties = myProperties.Count(p => p.Status == "Rented");
+
             int totalViews = myProperties.Sum(p => p.Views ?? 0);
 
             // 3. Thống kê Tương tác (Lịch hẹn & Yêu cầu tư vấn)
@@ -81,7 +86,6 @@ namespace BDSKhanhHoa.Controllers
                 .ToListAsync();
 
             // 8. GIẢ LẬP DỮ LIỆU BIỂU ĐỒ 7 NGÀY QUA (Dựa trên tổng Views)
-            // Trong thực tế, bạn cần một bảng TrackingViews, nhưng để Demo đồ án trơn tru, ta sẽ phân bổ totalViews ra 7 ngày.
             var chartLabels = new List<string>();
             var chartData = new List<int>();
             int remainingViews = totalViews;
@@ -108,6 +112,11 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.TotalProperties = totalProperties;
             ViewBag.ActiveProperties = activeProperties;
             ViewBag.PendingProperties = pendingProperties;
+
+            // --- BỔ SUNG: TRUYỀN DỮ LIỆU BÁN/THUÊ RA VIEW ---
+            ViewBag.SoldProperties = soldProperties;
+            ViewBag.RentedProperties = rentedProperties;
+
             ViewBag.TotalViews = totalViews;
             ViewBag.PendingAppointmentsCount = pendingAppointmentsCount;
             ViewBag.NewConsultations = newConsultations;

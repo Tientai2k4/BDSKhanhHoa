@@ -1,78 +1,175 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
 @{
-    ViewData["Title"] = "Quản lý Dự án";
+    ViewData["Title"] = "Quản Lý & Kiểm Duyệt Dự Án BĐS";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container-fluid px-4 mt-4">
+<style>
+    .doc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 15px;
+        background-color: #fef2f2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: 0.3s;
+    }
+
+        .doc-link:hover {
+            background-color: #fee2e2;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+            transform: translateY(-2px);
+        }
+
+    .table-hover tbody tr:hover {
+        background-color: #f8fafc;
+        transition: 0.2s;
+    }
+</style>
+
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
+    <!-- Header và Bộ lọc trạng thái -->
+    <div class="row align-items-center mb-4 g-3">
+        <div class="col-md-5">
+            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-building-fill-check text-primary me-2"></i>Thẩm định & Quản trị Dự án</h3>
+            <p class="text-muted small mb-0">Hệ thống quản lý, xét duyệt hồ sơ dự án Bất Động Sản.</p>
+        </div>
+        <div class="col-md-7 d-flex justify-content-md-end gap-2 align-items-center">
+            <div class="btn-group shadow-sm bg-white rounded-3 p-1">
+                <a href="/Admin/AdminProject/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "btn-primary rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">Tất cả</a>
+                <a href="/Admin/AdminProject/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "btn-warning text-dark rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">
+                    Chờ duyệt <span class="badge bg-danger ms-1 rounded-pill">@ViewBag.PendingCount</span>
+                </a>
+                <a href="/Admin/AdminProject/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "btn-success rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">
+                    Đã duyệt <span class="badge bg-light text-success ms-1 border rounded-pill">@ViewBag.ApprovedCount</span>
+                </a>
+            </div>
+            <a asp-action="Create" class="btn btn-dark fw-bold rounded-3 px-3 shadow-sm text-nowrap">
+                <i class="bi bi-plus-lg"></i> Thêm Mới
+            </a>
+        </div>
+    </div>
+
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4 animate__animated animate__fadeInDown" role="alert">
-            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
-            <span class="fw-bold">@TempData["Success"]</span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4 animate__animated animate__shakeX" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
-            <span class="fw-bold">@TempData["Error"]</span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold text-dark mb-0"><i class="bi bi-buildings me-2 text-primary"></i>HỆ THỐNG QUẢN TRỊ DỰ ÁN</h4>
-        <a asp-action="Create" class="btn btn-primary fw-bold rounded-pill px-4 shadow-sm">
-            <i class="bi bi-plus-lg me-1"></i>ĐĂNG DỰ ÁN MỚI
-        </a>
-    </div>
-
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light text-uppercase small fw-bold">
+                <thead class="table-light">
                     <tr>
-                        <th class="ps-4">Dự án</th>
-                        <th>Chủ đầu tư / Vị trí</th>
-                        <th>Thông số kỹ thuật</th>
-                        <th>Trạng thái</th>
-                        <th class="text-center">Thao tác</th>
+                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Thông tin dự án</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold">Đơn vị yêu cầu</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hồ sơ pháp lý</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Trạng thái</th>
+                        <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Hành động</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <i class="bi bi-folder-x display-1 text-muted opacity-25 d-block mb-3"></i>
+                                <h6 class="text-muted fw-bold">Chưa có hồ sơ dự án nào trong mục này.</h6>
+                            </td>
+                        </tr>
+                    }
                     @foreach (var item in Model)
                     {
                         <tr>
-                            <td class="ps-4">
+                            <td class="ps-4 py-3">
                                 <div class="d-flex align-items-center gap-3">
-                                    <img src="@(item.MainImage ?? "/images/no-image.jpg")" class="rounded-3 border shadow-sm" width="65" height="48" style="object-fit:cover;">
+                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm object-fit-cover" width="80" height="80" onerror="this.src='/images/no-image.jpg'" />
                                     <div>
-                                        <div class="fw-bold text-dark">@item.ProjectName</div>
-                                        <div class="small text-muted">Loại: @item.ProjectType</div>
+                                        <div class="fw-bold text-dark text-truncate" style="max-width: 250px; font-size: 1.05rem;" title="@item.ProjectName">@item.ProjectName</div>
+                                        <div class="small text-muted mt-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@item.Ward?.Area?.AreaName</div>
+                                        <div class="badge bg-light text-dark border mt-2 fw-medium px-2 py-1"><i class="bi bi-clock-history me-1"></i> @item.ProjectStatus</div>
                                     </div>
                                 </div>
                             </td>
-                            <td>
-                                <div class="fw-medium text-primary">@item.Investor</div>
-                                <div class="small text-muted"><i class="bi bi-geo-alt me-1"></i>@item.Area?.AreaName</div>
+                            <td class="py-3">
+                                <span class="d-block fw-bold text-primary mb-1">@item.Investor</span>
+                                <div class="d-flex align-items-center gap-2 mt-2">
+                                    <img src="@(item.Owner?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border shadow-sm" width="28" height="28" style="object-fit:cover;">
+                                    <span class="small text-muted fw-bold">@item.Owner?.FullName</span>
+                                </div>
                             </td>
-                            <td>
-                                <div class="fw-bold text-danger">~@item.PriceMin @item.PriceUnit</div>
-                                <div class="small text-muted">DT: @item.AreaMin - @item.AreaMax m²</div>
+                            <td class="py-3 text-center">
+                                <a href="@item.LegalDocs" target="_blank" class="doc-link">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i> Xem bản Scan
+                                </a>
                             </td>
-                            <td>
-                                <span class="badge @(item.ProjectStatus == "Đang mở bán" ? "bg-success" : "bg-warning text-dark") px-3 py-2 rounded-pill">
-                                    @item.ProjectStatus
-                                </span>
+                            <td class="py-3 text-center">
+                                @if (item.ApprovalStatus == "Approved")
+                                {
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Đã duyệt</span>
+                                }
+                                else if (item.ApprovalStatus == "Pending")
+                                {
+                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill px-3 py-2 fw-bold"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
+                                }
+                                else if (item.ApprovalStatus == "Rejected")
+                                {
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill px-3 py-2 fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Từ chối</span>
+                                }
                             </td>
-                            <td class="text-center">
-                                <div class="btn-group shadow-sm rounded-3 overflow-hidden bg-white">
-                                    <a asp-action="Details" asp-route-id="@item.ProjectID" class="btn btn-sm btn-light text-primary" title="Xem bài viết"><i class="bi bi-eye"></i></a>
-                                    <a asp-action="Edit" asp-route-id="@item.ProjectID" class="btn btn-sm btn-light text-warning border-start border-end" title="Sửa thông số"><i class="bi bi-pencil-square"></i></a>
-                                    <form asp-action="Delete" asp-route-id="@item.ProjectID" method="post" onsubmit="return confirm('⚠️ Chú ý: Dự án sẽ được chuyển vào thùng rác. Tiếp tục?')">
-                                        <button type="submit" class="btn btn-sm btn-light text-danger" title="Xóa"><i class="bi bi-trash3"></i></button>
+                            <td class="text-end pe-4 py-3">
+                                <div class="d-flex justify-content-end gap-2">
+                                    @if (item.ApprovalStatus == "Approved")
+                                    {
+                                        <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-light border text-primary rounded-3 fw-bold shadow-sm" title="Xem trên Web">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    }
+
+                                    <!-- Nút Sửa Dự Án -->
+                                    <a asp-action="Edit" asp-controller="AdminProject" asp-route-id="@item.ProjectID" class="btn btn-sm btn-warning rounded-3 fw-bold shadow-sm" title="Sửa Dự Án">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+
+                                    <!-- Form Duyệt / Từ chối -->
+                                    <form asp-action="UpdateStatus" asp-controller="AdminProject" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.ProjectID" />
+                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Rejected")
+                                        {
+                                            <button type="submit" name="newStatus" value="Approved" class="btn btn-sm btn-success rounded-3 fw-bold shadow-sm" title="Duyệt Hồ Sơ">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        }
+                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Approved")
+                                        {
+                                            <button type="submit" name="newStatus" value="Rejected" class="btn btn-sm btn-danger rounded-3 fw-bold shadow-sm" title="Từ chối Hồ Sơ" onclick="return confirm('Bạn có chắc chắn muốn từ chối hồ sơ này?');">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        }
+                                    </form>
+
+                                    <!-- Nút Xóa Dự Án -->
+                                    <form asp-action="Delete" asp-controller="AdminProject" method="post" class="d-inline" onsubmit="return confirm('CẢNH BÁO: Xóa dự án này sẽ gỡ bỏ liên kết của tất cả BĐS đang thuộc dự án. Bạn chắc chắn chứ?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.ProjectID" />
+                                        <button type="submit" class="btn btn-sm btn-light border text-secondary rounded-3 shadow-sm" title="Đưa vào thùng rác">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
                                     </form>
                                 </div>
                             </td>

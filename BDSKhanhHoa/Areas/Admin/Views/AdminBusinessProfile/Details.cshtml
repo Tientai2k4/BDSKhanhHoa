@@ -1,0 +1,173 @@
+﻿@model BDSKhanhHoa.Models.BusinessProfile
+@{
+    ViewData["Title"] = "Hồ sơ Chủ Đầu Tư";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+}
+
+<div class="container-fluid px-4 mt-4 animate__animated animate__fadeIn">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-action="Index" class="text-decoration-none">Mạng lưới Đối tác</a></li>
+                <li class="breadcrumb-item active fw-bold text-dark">Hồ sơ: @Model.BusinessName</li>
+            </ol>
+        </nav>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold">
+            <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- CỘT TRÁI: THÔNG TIN DOANH NGHIỆP -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
+                        <i class="bi bi-building-fill fs-5"></i>
+                    </div>
+                    <h5 class="mb-0 fw-bold">Định danh Doanh nghiệp / Pháp nhân</h5>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <label class="small fw-bold text-muted text-uppercase mb-1">Tên doanh nghiệp / Chủ đầu tư</label>
+                            <h4 class="fw-bold text-dark mb-0">@Model.BusinessName</h4>
+                        </div>
+                        <div class="col-md-4 text-md-end align-self-end">
+                            @if (Model.VerificationStatus == "Approved")
+                            {
+                                <span class="badge bg-success px-4 py-2 rounded-pill fs-6 border border-success"><i class="bi bi-check-circle-fill me-2"></i>Đang hoạt động</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger px-4 py-2 rounded-pill fs-6 border border-danger"><i class="bi bi-lock-fill me-2"></i>Đang đình chỉ</span>
+                            }
+                        </div>
+
+                        <div class="col-12"><hr class="opacity-10 my-1"></div>
+
+                        <div class="col-md-5">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <label class="small text-muted mb-1 fw-bold"><i class="bi bi-upc-scan me-1"></i> Mã số thuế (MST)</label>
+                                <div class="fw-bold text-primary font-monospace fs-5">@Model.TaxCode</div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-7">
+                            <div class="p-3 bg-light rounded-3 border h-100">
+                                <label class="small text-muted mb-1 fw-bold"><i class="bi bi-envelope-at me-1"></i> Email doanh nghiệp (Nhận văn bản)</label>
+                                <div class="fw-bold text-dark fs-6">@(string.IsNullOrEmpty(Model.BusinessEmail) ? "Không có dữ liệu" : Model.BusinessEmail)</div>
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="opacity-10 my-1"></div>
+
+                        <div class="col-md-6">
+                            <label class="small text-muted mb-1 fw-bold">Đại diện pháp luật</label>
+                            <div class="fw-bold fs-6 border-bottom pb-2 border-primary-subtle text-dark">@Model.RepresentativeName</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted mb-1 fw-bold">Điện thoại doanh nghiệp</label>
+                            <div class="fw-bold fs-6 border-bottom pb-2 border-primary-subtle text-dark">@Model.RepresentativePhone</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="small text-muted mb-1 fw-bold">Địa chỉ Trụ sở / Văn phòng làm việc</label>
+                            <div class="fw-bold fs-6 border p-3 rounded-3 bg-light bg-opacity-50 text-dark">
+                                <i class="bi bi-geo-alt-fill text-danger me-2"></i> @Model.BusinessAddress
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT PHẢI: THÔNG TIN TÀI KHOẢN QUẢN LÝ (Gắn với AdminNote & Position) -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-4 border-top border-primary border-4">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold mb-4 text-primary text-uppercase" style="letter-spacing: 0.5px;">
+                        <i class="bi bi-person-badge me-2"></i>Tài khoản Quản trị Dự án
+                    </h6>
+
+                    @if (Model.User != null)
+                    {
+                        <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                            <img src="@(string.IsNullOrEmpty(Model.User.Avatar) ? "/images/avatars/default.png" : Model.User.Avatar)"
+                                 class="rounded-circle border border-2 shadow-sm me-3" width="60" height="60" style="object-fit: cover;">
+                            <div>
+                                <div class="fw-bold text-dark fs-6">@Model.User.FullName</div>
+                                <div class="small text-muted">@@@Model.User.Username</div>
+                            </div>
+                        </div>
+
+                        <!-- BỔ SUNG CHỨC DANH -->
+                        <div class="mb-3">
+                            <label class="small text-muted mb-1">Chức danh / Vị trí:</label>
+                            <div class="fw-bold text-dark">
+                                @if (!string.IsNullOrEmpty(Model.User.Position))
+                                {
+                                    <i class="bi bi-briefcase-fill text-secondary me-1"></i> 
+                                    @Model.User.Position
+                                }
+                                else
+                                {
+                                    <span class="text-muted fst-italic">Chưa cập nhật chức danh</span>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- BỔ SUNG GHI CHÚ CỦA ADMIN -->
+                        <div class="mb-4">
+                            <label class="small text-muted mb-1 text-danger fw-bold"><i class="bi bi-journal-bookmark-fill me-1"></i> Ghi chú nội bộ Admin:</label>
+                            <div class="p-3 bg-danger bg-opacity-10 border border-danger-subtle rounded-3 text-danger fw-medium small" style="line-height: 1.6;">
+                                @if (!string.IsNullOrEmpty(Model.User.AdminNote))
+                                {
+                                    @Model.User.AdminNote
+                                }
+                                else
+                                {
+                                    <span class="opacity-75 fst-italic">Không có ghi chú nào cho tài khoản này.</span>
+                                }
+                            </div>
+                        </div>
+
+                        <a href="/Admin/Users/Edit/@Model.UserID" class="btn btn-primary w-100 rounded-pill fw-bold shadow-sm">
+                            <i class="bi bi-pencil-square me-2"></i> Chỉnh sửa Hồ sơ
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning border-0 rounded-3 mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i> Lỗi: Không tìm thấy tài khoản liên kết!
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 bg-light">
+                <div class="card-body p-4">
+                    <h6 class="fw-bold text-dark mb-4 text-uppercase" style="letter-spacing: 0.5px;">
+                        <i class="bi bi-clock-history me-2"></i>Nhật ký Hệ thống
+                    </h6>
+
+                    <div class="position-relative border-start border-2 border-primary ms-2 ps-3 py-1 mb-3">
+                        <div class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -7px; top: 12px;"></div>
+                        <div class="small text-muted fw-bold mb-1">Khởi tạo hệ thống</div>
+                        <div class="fw-bold fs-6 text-dark">@Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm")</div>
+                    </div>
+
+                    @if (Model.UpdatedAt.HasValue)
+                    {
+                        <div class="position-relative border-start border-2 border-warning ms-2 ps-3 py-1">
+                            <div class="position-absolute bg-warning rounded-circle shadow-sm" style="width: 12px; height: 12px; left: -7px; top: 12px;"></div>
+                            <div class="small text-muted fw-bold mb-1">Lần cập nhật cuối</div>
+                            <div class="fw-bold fs-6 text-dark">@Model.UpdatedAt.Value.ToString("dd/MM/yyyy - HH:mm")</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

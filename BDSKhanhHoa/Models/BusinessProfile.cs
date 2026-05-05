@@ -12,10 +12,6 @@ namespace BDSKhanhHoa.Models
         [Required]
         public int UserID { get; set; }
 
-        [Required]
-        [StringLength(50)]
-        public string AccountType { get; set; } = "Business";
-
         [Required(ErrorMessage = "Tên doanh nghiệp là bắt buộc")]
         [StringLength(255)]
         public string BusinessName { get; set; }
@@ -23,9 +19,6 @@ namespace BDSKhanhHoa.Models
         [Required(ErrorMessage = "Mã số thuế là bắt buộc")]
         [StringLength(50)]
         public string TaxCode { get; set; }
-
-        [StringLength(100)]
-        public string? BusinessRegistrationNo { get; set; }
 
         [Required(ErrorMessage = "Tên người đại diện pháp luật là bắt buộc")]
         [StringLength(100)]
@@ -37,32 +30,27 @@ namespace BDSKhanhHoa.Models
 
         [EmailAddress]
         [StringLength(255)]
-        public string? BusinessEmail { get; set; } // Dùng để đối chiếu Domain công ty
+        public string? BusinessEmail { get; set; } // Dùng để gửi mail liên hệ trong Admin
 
         [Required(ErrorMessage = "Địa chỉ doanh nghiệp là bắt buộc")]
         [StringLength(500)]
         public string BusinessAddress { get; set; }
 
-        // --- CÁC TRƯỜNG CHỐNG MẠO DANH KHÁCH HÀNG DOANH NGHIỆP ---
-        public bool IsLegalRepresentative { get; set; } = true; // Tôi là người đại diện pháp luật?
-        public string? AuthorizationFile { get; set; } // Giấy ủy quyền (Bắt buộc nếu IsLegalRepresentative = false)
-
-        public string? LicenseImage { get; set; }
-        public string? TaxCertificateImage { get; set; }
+        // --- HỒ SƠ CHỨNG THỰC ---
+        public string? LicenseImage { get; set; } // Ảnh Giấy phép KD
+        public string? TaxCertificateImage { get; set; } // Ảnh Chứng nhận MST
 
         [StringLength(50)]
-        public string VerificationStatus { get; set; } = "Pending"; // Pending, NeedMoreInfo, Approved, Rejected
+        public string VerificationStatus { get; set; } = "Pending"; // Pending, Approved, Rejected
 
-        public DateTime? SubmittedAt { get; set; } = DateTime.Now;
-
-        // --- GHI VẾT KIỂM DUYỆT (AUDIT) ---
+        // --- GHI VẾT KIỂM DUYỆT ---
         public int? ReviewedByUserID { get; set; }
-        public DateTime? ReviewedAt { get; set; }
         public string? RejectionReason { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? UpdatedAt { get; set; }
 
+        // --- NAVIGATION PROPERTIES ---
         [ForeignKey("UserID")]
         public virtual User? User { get; set; }
 

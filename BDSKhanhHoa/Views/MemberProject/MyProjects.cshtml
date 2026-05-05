@@ -1,150 +1,226 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
 @{
-    ViewData["Title"] = "Kho Dự án đang quản lý";
+    ViewData["Title"] = "Quản lý danh mục Dự án";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
-
-    // Lấy dictionary số lượng Lead từ Controller
     var leadCounts = ViewBag.LeadCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
 }
 
 <style>
-    .project-portfolio-card {
-        border: none;
-        border-radius: 24px;
-        transition: all 0.4s ease;
-        background: #fff;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
-        position: relative;
+    .project-card {
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         overflow: hidden;
+        height: 100%;
         display: flex;
         flex-direction: column;
-        height: 100%;
     }
 
-        .project-portfolio-card:hover {
-            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+        .project-card:hover {
             transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-color: #4f46e5;
         }
 
-    .img-wrapper {
-        height: 220px;
+    .project-img-wrapper {
         position: relative;
+        height: 220px;
         overflow: hidden;
     }
 
-        .img-wrapper img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-    .lead-badge {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: rgba(255, 255, 255, 0.95);
-        color: #ef4444;
-        padding: 8px 16px;
-        border-radius: 12px;
-        font-weight: 900;
-        font-size: 0.9rem;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.15);
-        backdrop-filter: blur(4px);
+    .project-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.5s ease;
     }
 
-    .project-status {
+    .project-card:hover .project-img {
+        transform: scale(1.05);
+    }
+
+    .status-badge {
         position: absolute;
-        top: 20px;
-        left: 20px;
-        background: #10b981;
-        color: #fff;
-        padding: 6px 16px;
-        border-radius: 50px;
-        font-weight: 800;
+        top: 16px;
+        right: 16px;
+        padding: 6px 14px;
+        border-radius: 30px;
+        font-weight: 700;
         font-size: 0.75rem;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         text-transform: uppercase;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        letter-spacing: 0.5px;
     }
 
-    .card-footer-custom {
-        background: #f8fafc;
-        border-top: 1px solid #f1f5f9;
-        padding: 15px 24px;
+    .status-selling {
+        background: rgba(16, 185, 129, 0.9);
+        color: white;
+    }
+
+    .status-pending {
+        background: rgba(245, 158, 11, 0.9);
+        color: white;
+    }
+
+    .status-handed {
+        background: rgba(79, 70, 229, 0.9);
+        color: white;
+    }
+
+    .project-stats {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        margin-top: auto;
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin-top: 16px;
     }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-val {
+        font-weight: 800;
+        color: #0f172a;
+        font-size: 1.1rem;
+    }
+
+    .stat-lbl {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .action-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: auto;
+        padding-top: 20px;
+    }
+
+    .btn-grid-action {
+        padding: 10px 5px;
+        border-radius: 10px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-align: center;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+    }
+
+    .btn-crm {
+        background: #eef2ff;
+        color: #4f46e5;
+        border: 1px solid #e0e7ff;
+    }
+
+        .btn-crm:hover {
+            background: #4f46e5;
+            color: white;
+        }
+
+    .btn-timeline {
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #dcfce7;
+    }
+
+        .btn-timeline:hover {
+            background: #16a34a;
+            color: white;
+        }
+
+    .btn-vault {
+        background: #fffbeb;
+        color: #d97706;
+        border: 1px solid #fef3c7;
+    }
+
+        .btn-vault:hover {
+            background: #d97706;
+            color: white;
+        }
 </style>
 
-<div class="container-fluid px-0 animate__animated animate__fadeIn">
-
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 bg-white p-4 p-md-5 rounded-4 shadow-sm border border-light">
+<div class="container-fluid pb-5 pt-3">
+    <div class="d-flex justify-content-between align-items-end mb-5">
         <div>
-            <h3 class="fw-black text-dark mb-2"><i class="bi bi-buildings-fill text-primary me-2"></i>KHO DỰ ÁN BẤT ĐỘNG SẢN</h3>
-            <p class="text-muted fs-6 mb-0">Danh sách các siêu dự án đã được Ban quản trị cấp quyền quản lý cho doanh nghiệp của bạn.</p>
-        </div>
-        <div class="mt-4 mt-md-0 text-md-end">
-            <h1 class="display-4 fw-black text-primary mb-0">@Model.Count()</h1>
-            <p class="fw-bold text-uppercase small text-muted letter-spacing-1">Dự án hiện hành</p>
+            <h2 class="fw-bold text-dark mb-2">Danh mục Dự án</h2>
+            <p class="text-muted mb-0">Quản lý, điều phối thông tin và khách hàng tiềm năng cho các dự án bạn đang phụ trách tại Khánh Hòa.</p>
         </div>
     </div>
 
-    @if (!Model.Any())
-    {
-        <div class="text-center py-5 my-4 bg-white rounded-5 shadow-sm border border-light">
-            <i class="bi bi-folder-x display-1 text-muted opacity-25 mb-4 d-block"></i>
-            <h4 class="fw-black text-dark mb-3">Chưa có dự án nào được bàn giao</h4>
-            <p class="text-secondary fs-6 mb-4 max-w-500 mx-auto">Tài khoản doanh nghiệp của bạn hiện tại chưa được gán quyền quản lý dự án nào. Vui lòng liên hệ Admin hệ thống để khởi tạo và cấu hình.</p>
-            <a href="tel:19008899" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold shadow"><i class="bi bi-telephone-outbound-fill me-2"></i> Gọi hỗ trợ 1900 88 99</a>
-        </div>
-    }
-    else
+    @if (Model != null && Model.Any())
     {
         <div class="row g-4">
             @foreach (var item in Model)
             {
-                // Lấy số Lead của dự án này từ Dictionary, nếu ko có thì là 0
-                int leadCount = leadCounts.ContainsKey(item.ProjectID) ? leadCounts[item.ProjectID] : 0;
+                int leadsCount = leadCounts.ContainsKey(item.ProjectID) ? leadCounts[item.ProjectID] : 0;
+                string badgeClass = item.ProjectStatus == "Đang mở bán" ? "status-selling" :
+                (item.ProjectStatus == "Đã bàn giao" ? "status-handed" : "status-pending");
 
                 <div class="col-xl-4 col-md-6">
-                    <div class="project-portfolio-card">
-                        <div class="img-wrapper">
-                            <span class="project-status">@item.ProjectStatus</span>
+                    <div class="project-card">
+                        <div class="project-img-wrapper">
+                            <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/default-project.jpg" : item.MainImage)" class="project-img" alt="@item.ProjectName" />
+                            <div class="status-badge @badgeClass">@item.ProjectStatus</div>
+                        </div>
 
-                            @if (leadCount > 0)
-                            {
-                                <div class="lead-badge animate__animated animate__pulse animate__infinite">
-                                    <i class="bi bi-fire me-1"></i> @leadCount Khách
+                        <div class="p-4 d-flex flex-column flex-grow-1">
+                            <div class="mb-1 text-primary small fw-bold"><i class="bi bi-geo-alt-fill me-1"></i>@(item.Ward?.WardName ?? ""), @(item.Area?.AreaName ?? "")</div>
+                            <h5 class="fw-bold text-dark mb-2" style="line-height: 1.4;">@item.ProjectName</h5>
+                            <p class="text-muted small mb-0"><i class="bi bi-building me-1"></i>CĐT: @item.Investor</p>
+
+                            <div class="project-stats">
+                                <div class="stat-item">
+                                    <div class="stat-val text-primary">@leadsCount</div>
+                                    <div class="stat-lbl">Khách quan tâm</div>
                                 </div>
-                            }
-
-                            <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" alt="@item.ProjectName">
-                        </div>
-
-                        <div class="p-4">
-                            <h4 class="fw-bold text-dark text-truncate mb-2" title="@item.ProjectName">@item.ProjectName</h4>
-                            <p class="text-primary fw-bold small mb-3"><i class="bi bi-building-check me-1"></i> CĐT: @item.Investor</p>
-
-                            <div class="d-flex align-items-center gap-2 mb-2 text-muted small fw-medium">
-                                <i class="bi bi-geo-alt-fill text-danger"></i> @item.Ward?.WardName, @item.Area?.AreaName
+                                <div class="stat-item border-start border-end px-3">
+                                    <div class="stat-val text-success">@item.Scale</div>
+                                    <div class="stat-lbl">Quy mô</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-val text-warning">@item.CreatedAt.ToString("MM/yyyy")</div>
+                                    <div class="stat-lbl">Phê duyệt</div>
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center gap-2 text-muted small fw-medium">
-                                <i class="bi bi-calendar-check-fill text-success"></i> Xuất bản: @item.PublishedAt?.ToString("dd/MM/yyyy")
-                            </div>
-                        </div>
 
-                        <div class="card-footer-custom">
-                            <a href="@item.LegalDocs" target="_blank" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3">
-                                <i class="bi bi-file-earmark-pdf-fill me-1"></i> Pháp lý
-                            </a>
-                            <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-primary fw-bold rounded-pill px-4 shadow-sm">
-                                <i class="bi bi-eye-fill me-1"></i> Xem Web
-                            </a>
+                            <div class="action-grid">
+                                <a href="@Url.Action("Index", "MemberProject", new { projectId = item.ProjectID })" class="btn-grid-action btn-crm">
+                                    <i class="bi bi-funnel-fill fs-5"></i>
+                                    <span>Phễu Khách</span>
+                                </a>
+                                <a href="@Url.Action("ManageTimeline", "ProjectTimeline", new { id = item.ProjectID })" class="btn-grid-action btn-timeline">
+                                    <i class="bi bi-calendar-range-fill fs-5"></i>
+                                    <span>Tiến độ</span>
+                                </a>
+                                <a href="@Url.Action("ManageVault", "ProjectVault", new { id = item.ProjectID })" class="btn-grid-action btn-vault">
+                                    <i class="bi bi-safe2-fill fs-5"></i>
+                                    <span>Hồ sơ</span>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
             }
+        </div>
+    }
+    else
+    {
+        <div class="text-center py-5 bg-white rounded-4 border shadow-sm">
+            <img src="~/images/no-projects.svg" alt="No projects" style="width: 200px; opacity: 0.7; margin-bottom: 20px;" />
+            <h4 class="text-dark fw-bold">Chưa có dự án nào được gán</h4>
+            <p class="text-muted w-50 mx-auto">Tài khoản doanh nghiệp của bạn hiện chưa được Quản trị viên phân quyền quản lý dự án nào trên hệ thống. Vui lòng liên hệ Admin để cập nhật hồ sơ.</p>
         </div>
     }
 </div>

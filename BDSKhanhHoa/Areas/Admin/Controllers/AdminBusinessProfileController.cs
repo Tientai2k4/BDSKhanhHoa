@@ -1,14 +1,12 @@
 ﻿using BDSKhanhHoa.Data;
-using BDSKhanhHoa.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Authorize(Roles = "Admin, Staff")] // Chỉ có BQT mới được xem
+    [Authorize(Roles = "Admin, Staff")] // Ban Quản Trị
     public class AdminBusinessProfileController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -18,7 +16,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _context = context;
         }
 
-        // 1. DANH SÁCH CHỦ ĐẦU TƯ / PHÁP NHÂN
+        // 1. DANH SÁCH CHỦ ĐẦU TƯ / DOANH NGHIỆP
         public async Task<IActionResult> Index(string searchString)
         {
             var query = _context.BusinessProfiles
@@ -27,7 +25,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             if (!string.IsNullOrEmpty(searchString))
             {
-                query = query.Where(b => b.BusinessName.Contains(searchString) || b.TaxCode.Contains(searchString));
+                searchString = searchString.ToLower();
+                query = query.Where(b =>
+                    b.BusinessName.ToLower().Contains(searchString) ||
+                    b.TaxCode.Contains(searchString) ||
+                    (b.User != null && b.User.Username.ToLower().Contains(searchString))
+                );
             }
 
             ViewData["CurrentFilter"] = searchString;
@@ -41,7 +44,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             var profile = await _context.BusinessProfiles
                 .Include(b => b.User)
-                .Include(b => b.Reviewer)
                 .FirstOrDefaultAsync(m => m.BusinessProfileID == id);
 
             if (profile == null) return NotFound();
@@ -49,15 +51,15 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(profile);
         }
 
-        // 3. XỬ LÝ KHÓA QUYỀN DOANH NGHIỆP (Nếu phát hiện vi phạm)
+        // 3. KHÓA / MỞ KHÓA HOẠT ĐỘNG DOANH NGHIỆP
         [HttpPost]
         public async Task<IActionResult> ToggleStatus(int id)
         {
             var profile = await _context.BusinessProfiles.FindAsync(id);
-            if (profile == null) return Json(new { success = false });
+            if (profile == null) return Json(new { success = false, message = "Không tìm thấy hồ sơ doanh nghiệp." });
 
-            // Chuyển đổi trạng thái giữa Approved và Rejected (Khóa)
-            profile.VerificationStatus = (profile.VerificationStatus == "Approved") ? "Rejected" : "Approved";
+            // Toggle giữa Approved (Đang hoạt động) và Suspended (Đình chỉ/Khóa)
+            profile.VerificationStatus = (profile.VerificationStatus == "Approved") ? "Suspended" : "Approved";
             profile.UpdatedAt = DateTime.Now;
 
             await _context.SaveChangesAsync();

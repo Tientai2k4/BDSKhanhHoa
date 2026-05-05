@@ -1,0 +1,226 @@
+﻿@model BDSKhanhHoa.Models.Project
+@{
+    ViewData["Title"] = "Kho tài liệu dự án";
+    Layout = "~/Views/Shared/_BusinessLayout.cshtml";
+    var vaultFiles = ViewBag.VaultFiles as List<BDSKhanhHoa.Controllers.ProjectVaultController.VaultFileDto> ?? new List<BDSKhanhHoa.Controllers.ProjectVaultController.VaultFileDto>();
+    var historyRequests = ViewBag.HistoryRequests as List<BDSKhanhHoa.Models.ContactMessage> ?? new List<BDSKhanhHoa.Models.ContactMessage>();
+}
+
+<style>
+    .vault-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 28px;
+        padding: 45px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 35px;
+    }
+
+        .vault-hero::after {
+            content: '\F52F';
+            font-family: "bootstrap-icons";
+            position: absolute;
+            right: -30px;
+            bottom: -50px;
+            font-size: 15rem;
+            color: #fff;
+            opacity: 0.03;
+            transform: rotate(-15deg);
+        }
+
+    .status-lock-pill {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        padding: 8px 18px;
+        border-radius: 12px;
+        font-weight: 800;
+        color: #fbbf24;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .doc-item-row {
+        display: flex;
+        align-items: center;
+        padding: 20px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        margin-bottom: 15px;
+        transition: 0.3s;
+    }
+
+        .doc-item-row:hover {
+            transform: translateX(8px);
+            border-color: #3b82f6;
+        }
+
+    .file-icon-box {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-right: 15px;
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    /* Style cho Lịch sử yêu cầu */
+    .history-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 25px;
+        margin-top: 40px;
+    }
+
+    .req-item {
+        border-left: 3px solid #cbd5e1;
+        padding-left: 20px;
+        margin-bottom: 25px;
+        position: relative;
+    }
+
+        .req-item.done {
+            border-color: #10b981;
+        }
+
+        .req-item::before {
+            content: '';
+            position: absolute;
+            left: -9px;
+            top: 0;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #fff;
+            border: 3px solid #cbd5e1;
+        }
+
+        .req-item.done::before {
+            border-color: #10b981;
+        }
+
+    .request-form-card {
+        background: #ffffff;
+        border: 2px dashed #cbd5e1;
+        border-radius: 28px;
+        padding: 30px;
+        position: sticky;
+        top: 100px;
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
+
+    @if (TempData["Success"] != null)
+    {
+        @* FIX LỖI ENCODING: Dùng Html.Raw và bọc trong dấu nháy đơn *@
+        <script>
+            Swal.fire({
+                icon: 'success',
+                title: 'Thành công',
+                html: `@Html.Raw(TempData["Success"])`,
+                confirmButtonColor: '#4f46e5'
+            });
+        </script>
+    }
+
+    <div class="mb-4">
+        <a href="@Url.Action("Index")" class="btn btn-light border rounded-pill px-4 fw-bold shadow-sm">
+            <i class="bi bi-arrow-left-circle-fill text-primary me-2"></i> Trở về Kho dữ liệu
+        </a>
+    </div>
+
+    <div class="vault-hero shadow-lg">
+        <div class="position-relative z-1">
+            <div class="status-lock-pill mb-4"><i class="bi bi-shield-lock-fill"></i> HỒ SƠ NIÊM YẾT CHÍNH THỨC</div>
+            <h1 class="fw-900 mb-2">@Model.ProjectName</h1>
+            <p class="text-light opacity-75 mb-0 w-75">Hệ thống lưu trữ vĩnh viễn. Để đảm bảo tính pháp lý, Chủ đầu tư chỉ có quyền xem và tải hồ sơ. Mọi thay đổi phải gửi yêu cầu cho Quản trị viên.</p>
+        </div>
+    </div>
+
+    <div class="row g-5">
+        <div class="col-xl-7 col-lg-8">
+            <!-- 1. TÀI LIỆU ĐÃ DUYỆT -->
+            <h4 class="fw-800 text-dark mb-4">Tài liệu đã thẩm định (@vaultFiles.Count)</h4>
+            @foreach (var file in vaultFiles)
+            {
+                <div class="doc-item-row shadow-sm">
+                    <div class="file-icon-box">
+                        <i class="bi @(file.FileType == ".pdf" ? "bi-file-earmark-pdf-fill text-danger" : "bi-file-earmark-image-fill text-primary")"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="fw-bold text-dark mb-1">@file.FileName@file.FileType</h6>
+                        <small class="text-muted fw-bold">@file.UploadedAt.ToString("dd/MM/yyyy") | @(Math.Round(file.FileSize / 1024.0, 1)) KB</small>
+                    </div>
+                    <a href="@file.FilePath" target="_blank" class="btn btn-outline-primary rounded-pill px-4 fw-bold">Tải về</a>
+                </div>
+            }
+
+            <!-- 2. LỊCH SỬ YÊU CẦU (PHẦN MỚI) -->
+            <div class="history-card shadow-sm">
+                <h5 class="fw-800 text-dark mb-4 border-bottom pb-3"><i class="bi bi-clock-history me-2 text-primary"></i>Lịch sử yêu cầu chỉnh sửa</h5>
+                @if (historyRequests.Any())
+                {
+                    foreach (var req in historyRequests)
+                    {
+                        <div class="req-item @(req.Status == "Done" ? "done" : "")">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h6 class="fw-bold text-dark mb-1">@req.Subject.Replace($"[Dự án #{Model.ProjectID}] ", "")</h6>
+                                <span class="badge @(req.Status == "Done" ? "bg-success" : "bg-warning text-dark") rounded-pill">@req.Status</span>
+                            </div>
+                            <p class="small text-muted mb-2">Gửi lúc: @req.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</p>
+                            <div class="bg-light p-3 rounded-3 small text-secondary mb-2">"@req.Message"</div>
+                            @if (!string.IsNullOrEmpty(req.AttachmentPath))
+                            {
+                                <a href="@req.AttachmentPath" target="_blank" class="text-primary small fw-bold text-decoration-none"><i class="bi bi-paperclip"></i> Xem file đính kèm</a>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-center text-muted small my-4">Chưa có lịch sử yêu cầu nào.</p>
+                }
+            </div>
+        </div>
+
+        <!-- Cột Phải: Form Gửi -->
+        <div class="col-xl-5 col-lg-4">
+            <div class="request-form-card shadow-sm">
+                <div class="text-center mb-4">
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle d-inline-flex mb-3"><i class="bi bi-envelope-paper-fill text-primary fs-2"></i></div>
+                    <h5 class="fw-900 text-dark">Cập nhật hồ sơ Dự án</h5>
+                    <p class="text-muted small">Gửi tài liệu hoặc ảnh mới cho Quản trị viên duyệt.</p>
+                </div>
+
+                <form asp-action="RequestUpdate" method="post" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="projectId" value="@Model.ProjectID" />
+                    <div class="mb-3">
+                        <label class="form-label-crm small fw-bold text-muted text-uppercase">Chủ đề</label>
+                        <input type="text" name="subject" class="form-control rounded-3" placeholder="VD: Thay đổi ảnh phối cảnh tòa A" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label-crm small fw-bold text-muted text-uppercase">Nội dung chi tiết</label>
+                        <textarea name="reason" class="form-control rounded-3" rows="4" placeholder="Mô tả lý do thay đổi..." required></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label-crm small fw-bold text-muted text-uppercase">Đính kèm file mới</label>
+                        <input type="file" name="attachment" class="form-control rounded-3 bg-light" />
+                    </div>
+                    <button type="submit" class="btn btn-dark w-100 py-3 rounded-4 fw-bold shadow-lg">GỬI YÊU CẦU CHO ADMIN</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

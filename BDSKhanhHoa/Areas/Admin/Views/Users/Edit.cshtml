@@ -1,126 +1,191 @@
 ﻿@model BDSKhanhHoa.Models.User
 @{
-    ViewData["Title"] = "Cập nhật Hồ sơ";
+    ViewData["Title"] = "Cập nhật Hồ sơ Người dùng";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    var bizProfile = ViewBag.BusinessProfile as BDSKhanhHoa.Models.BusinessProfile;
+    bool hasBusiness = bizProfile != null;
 }
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
-<div class="container py-4 animate__animated animate__fadeIn">
+<style>
+    .input-group-text {
+        background-color: #fff;
+        border-right: none;
+        color: #94a3b8;
+    }
+
+    .form-control:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .input-with-icon {
+        border-left: none;
+    }
+
+    .form-check-input:checked {
+        background-color: #10b981;
+        border-color: #10b981;
+    }
+
+    .card-custom {
+        border: none;
+        border-radius: 1.25rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+
+    .biz-card {
+        background-color: #fffbeb;
+        border: 1px solid #fbbf24;
+        border-radius: 1rem;
+    }
+
+    .note-box {
+        background-color: #fee2e2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+</style>
+
+<div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-7">
+        <div class="col-xl-10">
 
-            <div class="card border-0 shadow-lg rounded-4 mb-4 overflow-hidden">
-                <div class="card-header bg-warning py-3 border-bottom-0">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pencil-square me-2"></i>CẬP NHẬT QUYỀN HẠN HỆ THỐNG</h5>
-                        <a asp-action="Index" class="btn btn-sm btn-dark border-0 px-3 rounded-pill fw-bold shadow-sm">Trở lại</a>
+            <form asp-action="Edit" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="UserID" />
+                @* Thêm các hidden input này để tránh lỗi Required của Model *@
+                <input type="hidden" asp-for="Email" />
+                <input type="hidden" asp-for="Username" />
+
+                <div class="card card-custom mb-4">
+                    <div class="card-header bg-white pt-4 px-4 border-0 d-flex justify-content-between align-items-center">
+                        <h4 class="fw-bold mb-0">Chỉnh sửa tài khoản</h4>
+                        <a asp-action="Index" class="btn btn-outline-secondary btn-sm rounded-pill px-3">Trở lại</a>
                     </div>
-                </div>
-                <div class="card-body p-4 p-md-5 bg-light">
-                    <form asp-action="Edit" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" asp-for="UserID" />
 
-                        <div class="text-center mb-5">
-                            <img src="@(string.IsNullOrEmpty(Model.Avatar) ? "/images/avatars/default.png" : Model.Avatar)"
-                                 class="rounded-circle border border-4 border-white shadow-sm mb-3" width="110" height="110" style="object-fit: cover;">
-                            <h4 class="fw-bold text-dark mb-1">@(Model.FullName ?? Model.Username)</h4>
-                            <span class="badge bg-secondary mb-2 fs-6 shadow-sm">@@@Model.Username</span>
+                    <div class="card-body p-4">
+                        <!-- Header thông tin tĩnh -->
+                        <div class="d-flex align-items-center gap-4 mb-4 pb-4 border-bottom">
+                            <img src="@(Model.Avatar ?? "/images/avatars/default.png")" class="rounded-circle border border-4 border-white shadow-sm" width="80" height="90" style="object-fit: cover;">
+                            <div class="flex-grow-1">
+                                <h5 class="fw-bold mb-1 text-primary">@@@Model.Username</h5>
+                                <span class="badge bg-light text-dark border px-3 py-2 rounded-pill"><i class="bi bi-envelope me-1"></i> @Model.Email</span>
+                            </div>
+                            <div class="text-end">
+                                <label class="form-label fw-bold small text-uppercase d-block mb-1">Trạng thái mở khóa</label>
+                                <div class="form-check form-switch fs-2">
+                                    <input class="form-check-input cursor-pointer" type="checkbox" role="switch" asp-for="IsActive">
+                                </div>
+                            </div>
                         </div>
 
                         <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Họ và tên người dùng <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                    <input asp-for="FullName" class="form-control input-with-icon" required />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Chức danh / Vị trí</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
+                                    <input asp-for="Position" class="form-control input-with-icon" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Số điện thoại liên hệ</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                                    <input asp-for="Phone" class="form-control input-with-icon num-only" maxlength="10" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small">Số Zalo CSKH</label>
+                                <div class="input-group">
+                                    <span class="input-group-text text-info"><i class="bi bi-chat-dots"></i></span>
+                                    <input asp-for="Zalo" class="form-control input-with-icon num-only" maxlength="10" />
+                                </div>
+                            </div>
                             <div class="col-md-12">
-                                <label class="form-label fw-bold small text-muted text-uppercase">Email hệ thống (Khóa cố định)</label>
-                                <div class="input-group shadow-sm rounded-3">
-                                    <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-envelope-lock"></i></span>
-                                    <input type="text" class="form-control bg-white border-0 text-muted fw-bold" value="@Model.Email" readonly disabled />
-                                </div>
+                                <label class="form-label fw-bold small text-danger">Nhóm quyền hạn (Role)</label>
+                                <select asp-for="RoleID" asp-items="ViewBag.RolesList" class="form-select border-danger-subtle fw-bold"></select>
                             </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-dark text-uppercase">Họ và tên</label>
-                                <input asp-for="FullName" class="form-control border-0 shadow-sm py-2" />
+                            <div class="col-12">
+                                <label class="form-label fw-bold small">Địa chỉ thường trú / Công tác</label>
+                                <textarea asp-for="Address" class="form-control" rows="2"></textarea>
                             </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-dark text-uppercase">Số điện thoại</label>
-                                <input asp-for="Phone" class="form-control border-0 shadow-sm py-2" />
-                            </div>
-
-                            <div class="col-12"><hr class="my-3 opacity-10"></div>
-
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-danger text-uppercase">Phân Quyền (Roles)</label>
-                                <select asp-for="RoleID" asp-items="ViewBag.RolesList" class="form-select border-danger shadow-sm py-2 fw-bold text-danger"></select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-success text-uppercase">Khóa / Mở Khóa Tài Khoản</label>
-                                <div class="p-2 border rounded-3 bg-white shadow-sm d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold text-dark small ms-2">Cho phép hoạt động</span>
-                                    <div class="form-check form-switch fs-4 mb-0 me-2">
-                                        <input class="form-check-input cursor-pointer" type="checkbox" role="switch" asp-for="IsActive">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-12">
-                                <label class="form-label fw-bold small text-muted text-uppercase">Địa chỉ / Khu vực</label>
-                                <textarea asp-for="Address" class="form-control border-0 shadow-sm" rows="2"></textarea>
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-danger">Ghi chú quản trị nội bộ</label>
+                                <textarea asp-for="AdminNote" class="form-control note-box" rows="2" placeholder="Ghi chú phân công dự án..."></textarea>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="mt-5 pt-4 border-top d-flex justify-content-end gap-3">
-                            <button type="submit" class="btn btn-warning text-dark px-5 py-2 fw-bold rounded-pill shadow-sm w-100">
-                                <i class="bi bi-save-fill me-2"></i> LƯU THAY ĐỔI
-                            </button>
+                <!-- KYC DOANH NGHIỆP -->
+                <div class="card card-custom mb-4 @(hasBusiness ? "biz-card" : "bg-light")">
+                    <div class="card-body p-4">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input fs-4" type="checkbox" id="checkIsBusiness" name="IsBusiness" @(hasBusiness ? "checked" : "")>
+                            <label class="form-check-label fw-bold ms-2 mt-1" for="checkIsBusiness">Kích hoạt Đặc quyền Doanh nghiệp / CĐT</label>
                         </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card border-danger shadow-sm rounded-4 mt-4">
-                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                    <h5 class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>RE-SET MẬT KHẨU TÀI KHOẢN</h5>
-                    <p class="text-muted small mb-0">Chỉ dùng khi người dùng nhờ Admin can thiệp. Hành động này sẽ thay thế mật khẩu cũ và ghi Log.</p>
-                </div>
-                <div class="card-body p-4">
-                    <form asp-action="ResetPassword" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@Model.UserID" />
-                        <div class="row align-items-center g-3">
-                            <div class="col-md-8">
-                                <div class="input-group shadow-sm rounded-3 overflow-hidden">
-                                    <span class="input-group-text bg-white border-0"><i class="bi bi-key-fill text-danger"></i></span>
-                                    <input type="password" name="newPassword" class="form-control border-0 py-2 bg-white" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" required minlength="6" />
+                        <div id="businessFields" style="@(hasBusiness ? "display: block;" : "display: none;")">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold">Tên Doanh nghiệp / Sàn Giao Dịch</label>
+                                    <input type="text" name="BusinessName" class="form-control" value="@(hasBusiness? bizProfile.BusinessName: "")" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Mã số thuế</label>
+                                    <input type="text" name="TaxCode" class="form-control font-monospace" value="@(hasBusiness? bizProfile.TaxCode: "")" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Email Doanh nghiệp (KYC)</label>
+                                    <input type="email" name="BusinessEmail" class="form-control" value="@(hasBusiness? bizProfile.BusinessEmail: "")" />
                                 </div>
                             </div>
-                            <div class="col-md-4 text-end">
-                                <button type="submit" class="btn btn-danger w-100 py-2 fw-bold rounded-3 shadow-sm" onclick="return confirm('CẢNH BÁO BẢO MẬT: \nBạn có chắc chắn muốn đặt lại mật khẩu của @Model.Username không?');">Đổi Mật Khẩu</button>
-                            </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
 
+                <div class="text-end mb-5">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow fw-bold">Lưu tất cả thay đổi</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
     <script>
-        @if (TempData["Success"] != null)
-        {
-            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</text>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</text>
-        }
+        $(document).ready(function () {
+            $('#checkIsBusiness').change(function () {
+                if ($(this).is(':checked')) {
+                    $('#businessFields').slideDown();
+                    $(this).closest('.card').addClass('biz-card').removeClass('bg-light');
+                } else {
+                    $('#businessFields').slideUp();
+                    $(this).closest('.card').removeClass('biz-card').addClass('bg-light');
+                }
+            });
+
+            $('.num-only').on('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+
+            // FIX LỖI GARBLED TEXT (SỬ DỤNG HTML RAW)
+            @if (TempData["Success"] != null)
+            {
+                    <text>Swal.fire({ icon: 'success', title: 'Thành công', text: '@Html.Raw(TempData["Success"])', timer: 3000, toast: true, position: 'top-end', showConfirmButton: false });</text>
+            }
+            @if (TempData["Error"] != null)
+            {
+                    <text>Swal.fire({ icon: 'error', title: 'Lỗi dữ liệu', text: '@Html.Raw(TempData["Error"])' });</text>
+            }
+        });
     </script>
 }

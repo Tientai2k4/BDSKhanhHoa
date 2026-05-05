@@ -1,5 +1,6 @@
 ﻿@using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
+@using BDSKhanhHoa.Models
 @inject BDSKhanhHoa.Data.ApplicationDbContext _context
 
 @{
@@ -11,15 +12,15 @@
 
     bool isBusinessVerified = businessProfile != null && businessProfile.VerificationStatus == "Approved";
     bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
-
     bool canPostSingleAd = User.Identity.IsAuthenticated && !isBusinessVerified && !isAdminOrStaff;
 
     int unreadCount = 0;
-    var topNotifications = new List<BDSKhanhHoa.Models.Notification>();
+    var topNotifications = new List<Notification>();
 
     if (User.Identity.IsAuthenticated && currentUserId > 0)
     {
         unreadCount = _context.Notifications.Count(n => n.UserID == currentUserId && !n.IsRead);
+
         topNotifications = _context.Notifications
             .AsNoTracking()
             .Where(n => n.UserID == currentUserId)
@@ -27,6 +28,9 @@
             .Take(5)
             .ToList();
     }
+
+    var avatarUrl = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png";
+    var userName = !string.IsNullOrWhiteSpace(User.Identity?.Name) ? User.Identity.Name : "Tài khoản";
 }
 
 <!DOCTYPE html>
@@ -38,7 +42,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
@@ -46,26 +50,697 @@
     <style>
         :root {
             --bg: #f5f8fc;
-            --surface: rgba(255,255,255,.92);
+            --surface: rgba(255,255,255,.96);
+            --surface-2: #ffffff;
             --text: #0f172a;
             --muted: #64748b;
-            --border: #e6edf5;
+            --border: #e5ecf4;
             --primary: #2563eb;
             --primary-2: #1d4ed8;
             --sea: #0ea5e9;
             --sea-2: #0284c7;
+            --success: #16a34a;
+            --danger: #ef4444;
             --shadow-sm: 0 8px 22px rgba(15, 23, 42, .06);
             --shadow-md: 0 16px 38px rgba(15, 23, 42, .10);
+            --shadow-lg: 0 22px 60px rgba(15, 23, 42, .16);
             --radius: 18px;
             --radius-lg: 22px;
+            --radius-xl: 28px;
             --transition: all .22s ease;
         }
 
-        /* =========================
-           MODERN FOOTER 2026
-           ========================= */
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        body {
+            min-height: 100vh;
+        }
+
+        h1, h2, h3, h4, h5, h6, .navbar-brand, .btn, .nav-link {
+            font-family: 'Sora', sans-serif;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        main {
+            min-height: 60vh;
+        }
+
+        /* ═══════════════════════════════════
+                   HEADER
+                ═══════════════════════════════════ */
+        .header-main {
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+            background: rgba(255,255,255,.92);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(230,237,245,.95);
+            box-shadow: 0 1px 0 rgba(15,23,42,.04);
+        }
+
+        .navbar {
+            padding: 0;
+        }
+
+            .navbar > .container {
+                min-height: 78px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+
+        .navbar-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0;
+            margin-right: 0;
+            flex-shrink: 0;
+            white-space: nowrap;
+            min-width: 0;
+        }
+
+            .navbar-brand img {
+                height: 46px;
+                width: auto;
+                object-fit: contain;
+                display: block;
+                flex-shrink: 0;
+            }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+            min-width: 0;
+        }
+
+        .brand-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .brand-subtitle {
+            font-size: .74rem;
+            color: var(--muted);
+            margin: 2px 0 0;
+        }
+
+        .desktop-shell {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .navbar-nav {
+            gap: 4px;
+            align-items: center;
+        }
+
+        .nav-main-link, .nav-link {
+            color: #475569 !important;
+            font-weight: 700;
+            font-size: .94rem;
+            padding: 10px 12px !important;
+            border-radius: 12px;
+            transition: var(--transition);
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+            .nav-link:hover, .nav-link.active, .nav-main-link:hover {
+                color: var(--primary) !important;
+                background: rgba(37,99,235,.08);
+            }
+
+        .nav-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .nav-text {
+            white-space: nowrap;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+            margin-left: auto;
+            min-width: 0;
+        }
+
+        .btn-post-ad {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: linear-gradient(135deg, var(--sea), var(--sea-2));
+            color: #fff !important;
+            border: none;
+            border-radius: 999px;
+            padding: 11px 18px;
+            font-weight: 800;
+            font-size: .88rem;
+            box-shadow: 0 12px 26px rgba(14,165,233,.24);
+            transition: var(--transition);
+            text-transform: uppercase;
+            letter-spacing: .02em;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+            .btn-post-ad:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 16px 30px rgba(14,165,233,.30);
+                color: #fff !important;
+            }
+
+        .btn-post-ad-sm {
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 50%;
+        }
+
+        .icon-btn {
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #334155;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            flex-shrink: 0;
+            text-decoration: none;
+            position: relative;
+        }
+
+            .icon-btn:hover {
+                transform: translateY(-1px);
+                color: var(--primary);
+                border-color: rgba(37,99,235,.18);
+            }
+
+        .user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 240px;
+            padding: 7px 12px 7px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: var(--shadow-sm);
+            white-space: nowrap;
+        }
+
+            .user-pill img {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 2px solid rgba(148,163,184,.35);
+                flex-shrink: 0;
+            }
+
+            .user-pill .name {
+                font-size: .92rem;
+                font-weight: 700;
+                color: #0f172a;
+                max-width: 130px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+        .navbar-toggler {
+            border: none;
+            padding: 0;
+            box-shadow: none !important;
+            flex-shrink: 0;
+            background: transparent;
+            width: 42px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            position: relative;
+            z-index: 1050;
+        }
+
+            .navbar-toggler:focus {
+                box-shadow: none !important;
+            }
+
+        .dropdown-menu {
+            border: 1px solid rgba(230,237,245,.96);
+            border-radius: 16px;
+            box-shadow: var(--shadow-md);
+            padding: 10px;
+        }
+
+        .dropdown-item {
+            border-radius: 12px;
+            font-weight: 600;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+            .dropdown-item:active {
+                background: rgba(37,99,235,.1);
+                color: var(--text);
+            }
+
+        .notification-list {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .notification-preview {
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ═══════════════════════════════════
+                   MOBILE HEADER ACTIONS
+                ═══════════════════════════════════ */
+        .mobile-header-actions {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            flex-shrink: 0;
+            min-width: 0;
+        }
+
+            .mobile-header-actions .icon-btn {
+                width: 42px;
+                height: 42px;
+            }
+
+            .mobile-header-actions .btn-post-ad-sm {
+                width: 42px;
+                height: 42px;
+                padding: 0;
+            }
+
+            .mobile-header-actions .menu-btn {
+                width: 42px;
+                height: 42px;
+                background: #fff;
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-sm);
+            }
+
+                .mobile-header-actions .menu-btn i {
+                    font-size: 1.55rem;
+                    line-height: 1;
+                    color: var(--primary);
+                }
+
+        /* ═══════════════════════════════════
+                   MOBILE OFFCANVAS — ĐÃ VIẾT LẠI
+                ═══════════════════════════════════ */
+        .offcanvas-mobile {
+            width: min(92vw, 400px);
+            border-left: 1px solid rgba(229,234,242,.92);
+            z-index: 1055;
+        }
+
+            .offcanvas-mobile .offcanvas-header {
+                padding: 16px 20px;
+                background: linear-gradient(135deg, #1d4ed8, #2563eb);
+                color: #fff;
+                flex-shrink: 0;
+            }
+
+            .offcanvas-mobile .offcanvas-body {
+                padding: 0;
+                background: #f0f4f9;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+            }
+
+        /* ── Block tài khoản ── */
+        .mob-account-block {
+            background: #fff;
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid #e8eef6;
+        }
+
+        .mob-user-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+            .mob-user-row img {
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 2.5px solid #dbeafe;
+                flex-shrink: 0;
+            }
+
+        .mob-user-name {
+            font-family: 'Sora', sans-serif;
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text);
+            margin: 0 0 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mob-user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: .74rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 100px;
+        }
+
+        .mob-badge-personal {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
+        .mob-badge-business {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+        }
+
+        .mob-badge-admin {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        /* Nút hành động */
+        .mob-action-row {
+            display: grid;
+            gap: 10px;
+        }
+
+            .mob-action-row.two-col {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .mob-action-row.one-col {
+                grid-template-columns: 1fr;
+            }
+
+        .mob-action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 14px;
+            border-radius: 12px;
+            font-family: 'Sora', sans-serif;
+            font-size: .88rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .mob-btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff !important;
+            box-shadow: 0 4px 14px rgba(37,99,235,.25);
+        }
+
+            .mob-btn-primary:hover {
+                transform: translateY(-1px);
+                color: #fff !important;
+            }
+
+        .mob-btn-outline {
+            background: #fff;
+            color: var(--primary) !important;
+            border: 1.5px solid #bfdbfe;
+        }
+
+            .mob-btn-outline:hover {
+                background: #eff6ff;
+                color: var(--primary) !important;
+            }
+
+        /* ── Block section (nav group) ── */
+        .mob-section {
+            background: #fff;
+            margin-top: 10px;
+            border-top: 1px solid #e8eef6;
+            border-bottom: 1px solid #e8eef6;
+        }
+
+        .mob-section-title {
+            font-family: 'Sora', sans-serif;
+            font-size: .7rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            padding: 14px 20px 6px;
+        }
+
+        /* Nav items */
+        .mob-nav-list {
+            list-style: none;
+            margin: 0;
+            padding: 0 10px 10px;
+        }
+
+            .mob-nav-list li {
+                margin: 0;
+            }
+
+        .mob-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-family: 'Sora', sans-serif;
+            font-size: .93rem;
+            font-weight: 600;
+            color: var(--text) !important;
+            text-decoration: none;
+            transition: var(--transition);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+        }
+
+            .mob-nav-item:hover {
+                background: #eff6ff;
+                color: var(--primary) !important;
+            }
+
+                .mob-nav-item:hover .mob-nav-icon {
+                    color: var(--primary);
+                }
+
+            .mob-nav-item.danger {
+                color: #dc2626 !important;
+            }
+
+                .mob-nav-item.danger:hover {
+                    background: #fef2f2;
+                    color: #dc2626 !important;
+                }
+
+        .mob-nav-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .95rem;
+            flex-shrink: 0;
+            transition: var(--transition);
+        }
+
+        .icon-home {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .icon-sell {
+            background: #fff7ed;
+            color: #ea580c;
+        }
+
+        .icon-rent {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .icon-project {
+            background: #f5f3ff;
+            color: #7c3aed;
+        }
+
+        .icon-news {
+            background: #fef9c3;
+            color: #ca8a04;
+        }
+
+        .icon-contact {
+            background: #ecfeff;
+            color: #0891b2;
+        }
+
+        .icon-profile {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .icon-myads {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .icon-fav {
+            background: #fff1f2;
+            color: #e11d48;
+        }
+
+        .icon-admin {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .icon-crm {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .icon-kyc {
+            background: #eff6ff;
+            color: #0284c7;
+        }
+
+        .icon-logout {
+            background: #fff1f2;
+            color: #e11d48;
+        }
+
+        .icon-login {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .icon-register {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        /* ── Shortcut block (cuối) ── */
+        .mob-shortcuts {
+            background: #fff;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-top: 1px solid #e8eef6;
+            border-bottom: 1px solid #e8eef6;
+            padding: 6px 10px 14px;
+        }
+
+        .mob-shortcuts-title {
+            font-family: 'Sora', sans-serif;
+            font-size: .7rem;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            padding: 14px 10px 10px;
+        }
+
+        .mob-shortcut-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .mob-shortcut-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 12px;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            font-family: 'Sora', sans-serif;
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--text) !important;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+            .mob-shortcut-btn:hover {
+                background: #eff6ff;
+                border-color: #bfdbfe;
+                color: var(--primary) !important;
+            }
+
+            .mob-shortcut-btn i {
+                font-size: .9rem;
+                flex-shrink: 0;
+            }
+
+        /* ═══════════════════════════════════
+                   FOOTER
+                ═══════════════════════════════════ */
         .footer-modern {
-            background: radial-gradient(circle at top left, rgba(14, 165, 233, .16), transparent 28%), radial-gradient(circle at top right, rgba(37, 99, 235, .14), transparent 24%), linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+            background: radial-gradient(circle at top left,rgba(14,165,233,.16),transparent 28%), radial-gradient(circle at top right,rgba(37,99,235,.14),transparent 24%), linear-gradient(180deg,#0b1220 0%,#0f172a 100%);
             color: #cbd5e1;
             margin-top: 72px;
             position: relative;
@@ -76,14 +751,14 @@
                 content: "";
                 position: absolute;
                 inset: 0;
-                background: linear-gradient(135deg, rgba(255,255,255,.03), transparent 40%);
+                background: linear-gradient(135deg,rgba(255,255,255,.03),transparent 40%);
                 pointer-events: none;
             }
 
         .footer-top {
             position: relative;
             padding: 56px 0 34px;
-            border-bottom: 1px solid rgba(148, 163, 184, .14);
+            border-bottom: 1px solid rgba(148,163,184,.14);
         }
 
         .footer-brand {
@@ -221,14 +896,14 @@
         }
 
             .footer-social:hover {
-                background: linear-gradient(135deg, #0ea5e9, #2563eb);
+                background: linear-gradient(135deg,#0ea5e9,#2563eb);
                 transform: translateY(-2px);
                 color: #fff;
             }
 
         .footer-badges {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(2,minmax(0,1fr));
             gap: 10px;
             margin-top: 18px;
         }
@@ -237,7 +912,7 @@
             padding: 12px 14px;
             border-radius: 16px;
             background: rgba(255,255,255,.05);
-            border: 1px solid rgba(148, 163, 184, .12);
+            border: 1px solid rgba(148,163,184,.12);
             color: #e2e8f0;
             font-size: .86rem;
             line-height: 1.5;
@@ -253,8 +928,8 @@
         .footer-newsletter {
             border-radius: 20px;
             padding: 18px;
-            background: linear-gradient(135deg, rgba(14, 165, 233, .14), rgba(37, 99, 235, .10));
-            border: 1px solid rgba(125, 211, 252, .16);
+            background: linear-gradient(135deg,rgba(14,165,233,.14),rgba(37,99,235,.10));
+            border: 1px solid rgba(125,211,252,.16);
         }
 
             .footer-newsletter p {
@@ -265,9 +940,9 @@
             }
 
             .footer-newsletter .form-control {
-                background: rgba(15, 23, 42, .55);
+                background: rgba(15,23,42,.55);
                 color: #fff;
-                border: 1px solid rgba(148, 163, 184, .22);
+                border: 1px solid rgba(148,163,184,.22);
                 border-radius: 14px;
                 box-shadow: none !important;
             }
@@ -286,7 +961,7 @@
         .footer-trustbar {
             position: relative;
             padding: 18px 0;
-            border-bottom: 1px solid rgba(148, 163, 184, .12);
+            border-bottom: 1px solid rgba(148,163,184,.12);
             background: rgba(255,255,255,.02);
         }
 
@@ -348,337 +1023,9 @@
                     color: #fff;
                 }
 
-        /* responsive */
-        @@media (max-width: 991.98px) {
-            .footer-top {
-                padding: 44px 0 28px;
-            }
-
-            .footer-badges {
-                grid-template-columns: 1fr;
-            }
-
-            .footer-bottom-inner {
-                justify-content: center;
-                text-align: center;
-            }
-
-            .footer-legal {
-                justify-content: center;
-            }
-        }
-
-        @@media (max-width: 575.98px) {
-            .footer-brand {
-                align-items: flex-start;
-            }
-
-                .footer-brand img {
-                    width: 48px;
-                    height: 48px;
-                }
-
-            .footer-newsletter {
-                padding: 16px;
-            }
-        }
-        * {
-            box-sizing: border-box;
-        }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            text-rendering: optimizeLegibility;
-        }
-
-        h1, h2, h3, h4, h5, h6, .navbar-brand, .btn, .nav-link {
-            font-family: 'Sora', sans-serif;
-        }
-
-        .header-main {
-            position: sticky;
-            top: 0;
-            z-index: 1030;
-            background: rgba(255,255,255,.92);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            border-bottom: 1px solid rgba(230, 237, 245, .95);
-            box-shadow: 0 1px 0 rgba(15,23,42,.04);
-        }
-
-        .navbar {
-            padding: 0;
-        }
-
-            .navbar > .container {
-                min-height: 78px;
-                display: flex;
-                align-items: center;
-            }
-
-        .navbar-brand {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0;
-            margin-right: 16px;
-            flex-shrink: 0;
-            white-space: nowrap;
-        }
-
-            .navbar-brand img {
-                height: 46px;
-                width: auto;
-                object-fit: contain;
-                display: block;
-            }
-
-        .navbar-collapse {
-            min-width: 0;
-        }
-
-        .navbar-nav {
-            gap: 2px;
-            flex-wrap: nowrap;
-            align-items: center;
-        }
-
-        .nav-main-link,
-        .nav-link {
-            color: #475569 !important;
-            font-weight: 700;
-            font-size: .94rem;
-            padding: 10px 12px !important;
-            border-radius: 12px;
-            transition: var(--transition);
-            white-space: nowrap;
-            line-height: 1;
-        }
-
-            .nav-link:hover,
-            .nav-link.active,
-            .nav-main-link:hover {
-                color: var(--primary) !important;
-                background: rgba(37, 99, 235, .08);
-            }
-
-        .nav-icon {
-            font-size: 1rem;
-            flex-shrink: 0;
-        }
-
-        .nav-text {
-            white-space: nowrap;
-        }
-
-        .nav-shell {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 0;
-            flex: 1;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: nowrap;
-            white-space: nowrap;
-            margin-left: auto;
-            min-width: 0;
-        }
-
-        .btn-post-ad {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            background: linear-gradient(135deg, var(--sea), var(--sea-2));
-            color: #fff !important;
-            border: none;
-            border-radius: 999px;
-            padding: 11px 18px;
-            font-weight: 800;
-            font-size: .88rem;
-            box-shadow: 0 12px 26px rgba(14, 165, 233, .24);
-            transition: var(--transition);
-            text-transform: uppercase;
-            letter-spacing: .02em;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-            .btn-post-ad:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 16px 30px rgba(14, 165, 233, .30);
-                color: #fff !important;
-            }
-
-        .icon-btn {
-            width: 42px;
-            height: 42px;
-            border: 1px solid var(--border);
-            border-radius: 50%;
-            background: #fff;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #334155;
-            box-shadow: var(--shadow-sm);
-            transition: var(--transition);
-            flex-shrink: 0;
-            text-decoration: none;
-        }
-
-            .icon-btn:hover {
-                transform: translateY(-1px);
-                color: var(--primary);
-                border-color: rgba(37, 99, 235, .18);
-            }
-
-        .user-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            max-width: 240px;
-            padding: 7px 12px 7px 8px;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            background: #fff;
-            box-shadow: var(--shadow-sm);
-            white-space: nowrap;
-        }
-
-            .user-pill img {
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                object-fit: cover;
-                border: 2px solid rgba(148, 163, 184, .35);
-                flex-shrink: 0;
-            }
-
-            .user-pill .name {
-                font-size: .92rem;
-                font-weight: 700;
-                color: #0f172a;
-                max-width: 130px;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-        .navbar-toggler {
-            border: none;
-            padding: 8px 10px;
-            box-shadow: none !important;
-            flex-shrink: 0;
-        }
-
-            .navbar-toggler:focus {
-                box-shadow: none !important;
-            }
-
-        .dropdown-menu {
-            border: 1px solid rgba(230,237,245,.96);
-            border-radius: 16px;
-            box-shadow: var(--shadow-md);
-            padding: 10px;
-        }
-
-        .dropdown-item {
-            border-radius: 12px;
-            font-weight: 600;
-            padding-top: 10px;
-            padding-bottom: 10px;
-        }
-
-            .dropdown-item:active {
-                background: rgba(37, 99, 235, .1);
-                color: var(--text);
-            }
-
-        .notification-list {
-            max-height: 320px;
-            overflow-y: auto;
-        }
-
-        .notification-preview {
-            line-height: 1.35;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .nav-hover-menu {
-            position: relative;
-        }
-
-        .nav-hover-dropdown {
-            min-width: 320px;
-            margin-top: 12px;
-        }
-
-        .dropdown-item-rich {
-            transition: all .22s ease;
-            border: 1px solid transparent;
-        }
-
-            .dropdown-item-rich:hover {
-                background-color: #f8fafc;
-                border-color: #e2e8f0;
-                transform: translateX(4px);
-                box-shadow: 0 4px 10px rgba(0,0,0,0.02);
-            }
-
-        .icon-box-menu {
-            width: 38px;
-            height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 10px;
-            transition: all .3s ease;
-            flex-shrink: 0;
-        }
-
-        .dropdown-item-rich:hover .icon-box-menu {
-            transform: scale(1.08);
-        }
-
-        .nav-dd-title {
-            font-size: .94rem;
-        }
-
-        @@media (min-width: 1200px) {
-            .nav-hover-menu .dropdown-menu {
-                display: block;
-                opacity: 0;
-                visibility: hidden;
-                transform: translateY(10px);
-                pointer-events: none;
-                transition: all .22s ease;
-            }
-
-            .nav-hover-menu:hover .dropdown-menu {
-                opacity: 1;
-                visibility: visible;
-                transform: translateY(0);
-                pointer-events: auto;
-            }
-        }
-
-        main {
-            min-height: 60vh;
-        }
-
+        /* ═══════════════════════════════════
+                   AI CHAT
+                ═══════════════════════════════════ */
         .ai-chatbot-btn {
             position: fixed;
             right: 24px;
@@ -827,81 +1174,12 @@
                 border-radius: 0 14px 14px 0;
             }
 
-        footer {
-            background: #0f172a;
-            color: #94a3b8;
-            margin-top: 72px;
-        }
-
-        .footer-link {
-            color: #94a3b8;
-            text-decoration: none;
-            display: block;
-            margin-bottom: 10px;
-        }
-
-            .footer-link:hover {
-                color: #fff;
-            }
-
-        .footer-title {
-            color: #fff;
-            font-weight: 800;
-            margin-bottom: 18px;
-            text-transform: uppercase;
-            letter-spacing: .03em;
-            font-size: .92rem;
-        }
-
-        .footer-social {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            background: rgba(255,255,255,.07);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            text-decoration: none;
-            margin-right: 8px;
-        }
-
-            .footer-social:hover {
-                background: var(--primary);
-                color: #fff;
-            }
-
-        .footer-contact-item {
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-            .footer-contact-item i {
-                color: #60a5fa;
-                margin-top: 3px;
-            }
-
-        .copyright-bar {
-            padding: 18px 0;
-            border-top: 1px solid rgba(255,255,255,.06);
-            background: rgba(0,0,0,.18);
-        }
-
-            .copyright-bar p {
-                margin: 0;
-                font-size: .86rem;
-            }
-
+        /* ═══════════════════════════════════
+                   RESPONSIVE
+                ═══════════════════════════════════ */
         @@media (max-width: 1399.98px) {
             .navbar > .container {
                 min-height: 72px;
-            }
-
-            .nav-main-link, .nav-link {
-                font-size: .90rem;
-                padding: 9px 10px !important;
             }
 
             .user-pill {
@@ -918,37 +1196,39 @@
                 min-height: 68px;
             }
 
-            .header-actions {
-                gap: 8px;
+            .desktop-shell {
+                display: none !important;
+            }
+
+            .mobile-header-actions {
+                display: flex !important;
+            }
+
+            .navbar-brand img {
+                height: 42px;
+            }
+
+            .brand-subtitle {
+                display: none;
             }
         }
 
         @@media (max-width: 991.98px) {
-            .navbar-collapse {
-                padding: 12px 0 16px;
+            .footer-top {
+                padding: 44px 0 28px;
             }
 
-            .navbar-nav {
-                flex-wrap: wrap;
-                gap: 6px;
-                align-items: stretch;
+            .footer-badges {
+                grid-template-columns: 1fr;
             }
 
-            .header-actions {
-                width: 100%;
-                justify-content: flex-start;
-                flex-wrap: wrap;
-                margin-top: 10px;
+            .footer-bottom-inner {
+                justify-content: center;
+                text-align: center;
             }
 
-            .user-pill {
-                max-width: 100%;
-            }
-
-            .nav-hover-dropdown {
-                position: static !important;
-                transform: none !important;
-                margin-top: 8px;
+            .footer-legal {
+                justify-content: center;
             }
 
             .chat-widget {
@@ -965,202 +1245,470 @@
         }
 
         @@media (max-width: 575.98px) {
-            .navbar-brand img {
-                height: 40px;
+            .navbar > .container {
+                min-height: 64px;
+                gap: 10px;
             }
 
-            .btn-post-ad {
-                width: 100%;
-                justify-content: center;
+            .navbar-brand {
+                max-width: calc(100% - 160px);
             }
 
-            .header-actions {
+                .navbar-brand img {
+                    height: 38px;
+                }
+
+            .brand-text {
+                display: none;
+            }
+
+            .mobile-header-actions {
                 gap: 8px;
+            }
+
+                .mobile-header-actions .icon-btn,
+                .mobile-header-actions .btn-post-ad-sm,
+                .mobile-header-actions .menu-btn {
+                    width: 40px;
+                    height: 40px;
+                }
+
+            .footer-brand {
+                align-items: flex-start;
+            }
+
+                .footer-brand img {
+                    width: 48px;
+                    height: 48px;
+                }
+
+            .footer-newsletter {
+                padding: 16px;
+            }
+
+            .ai-chatbot-btn {
+                width: 54px;
+                height: 54px;
+            }
+
+            .mob-action-row.two-col {
+                grid-template-columns: 1fr;
+            }
+
+            .mob-shortcut-grid {
+                grid-template-columns: 1fr 1fr;
             }
         }
     </style>
 </head>
 <body>
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
     <header class="header-main">
-        <nav class="navbar navbar-expand-xl">
+        <nav class="navbar navbar-expand-xl navbar-light">
             <div class="container">
-                <a class="navbar-brand" asp-controller="Home" asp-action="Index">
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index" aria-label="Trang chủ BĐS Khánh Hòa">
                     <img src="/images/logo.png" alt="BDS Khánh Hòa Logo">
+                    <div class="brand-text">
+                        <p class="brand-title">BĐS Khánh Hòa</p>
+                        <p class="brand-subtitle">Mua bán · Cho thuê · Dự án</p>
+                    </div>
                 </a>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent" aria-controls="navContent" aria-expanded="false" aria-label="Mở menu">
-                    <i class="bi bi-list fs-1 text-primary"></i>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navContent">
-                    <div class="nav-shell w-100">
-                        <ul class="navbar-nav mx-xl-auto mb-2 mb-xl-0">
-                            <li class="nav-item">
-                                <a class="nav-link nav-main-link" asp-controller="Home" asp-action="Index">
-                                    <i class="bi bi-house me-1"></i><span class="nav-text">Trang chủ</span>
-                                </a>
-                            </li>
-
-                            @await Component.InvokeAsync("NavbarMenu")
-
-                            <li class="nav-item">
-                                <a class="nav-link nav-main-link" href="/Project">
-                                    <i class="bi bi-buildings me-1"></i><span class="nav-text">Dự án</span>
-                                </a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link nav-main-link" href="/Blog">
-                                    <i class="bi bi-newspaper me-1"></i><span class="nav-text">Tin thị trường</span>
-                                </a>
-                            </li>
-
-                            <li class="nav-item">
-                                <a class="nav-link nav-main-link" asp-controller="Contact" asp-action="Index">
-                                    <i class="bi bi-chat-dots me-1"></i><span class="nav-text">Liên hệ</span>
-                                </a>
-                            </li>
-                        </ul>
-
-                        <div class="header-actions">
-                            @if (User.Identity.IsAuthenticated)
+                <!-- Mobile header right buttons -->
+                <div class="mobile-header-actions d-xl-none ms-auto">
+                    @if (User.Identity.IsAuthenticated)
+                    {
+                        <a href="/Notification/Index" class="icon-btn position-relative" title="Thông báo">
+                            <i class="bi bi-bell-fill"></i>
+                            @if (unreadCount > 0)
                             {
-                                @if (canPostSingleAd)
-                                {
-                                    <a href="/Property/Create" class="btn-post-ad">
-                                        <i class="bi bi-plus-circle"></i>
-                                        <span>Đăng tin</span>
-                                    </a>
-                                }
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size:.63rem;">
+                                    @(unreadCount > 9 ? "9+" : unreadCount.ToString())
+                                </span>
+                            }
+                        </a>
+                        @if (canPostSingleAd)
+                        {
+                            <a href="/Property/Create" class="btn-post-ad btn-post-ad-sm" title="Đăng tin">
+                                <i class="bi bi-plus-lg"></i>
+                            </a>
+                        }
+                        else
+                        {
+                            <a href="/Account/Profile" class="icon-btn" title="Tài khoản">
+                                <i class="bi bi-person-circle"></i>
+                            </a>
+                        }
+                    }
+                    else
+                    {
+                        <a href="/Account/Login" class="icon-btn" title="Đăng nhập">
+                            <i class="bi bi-person-lock"></i>
+                        </a>
+                    }
+                    <button class="navbar-toggler menu-btn" type="button"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#mobileMenu"
+                            aria-controls="mobileMenu"
+                            aria-label="Mở menu">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
 
-                                <div class="dropdown">
-                                    <a href="#" class="icon-btn position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Thông báo">
-                                        <i class="bi bi-bell-fill"></i>
-                                        @if (unreadCount > 0)
-                                        {
-                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size:.63rem;">
-                                                @(unreadCount > 9 ? "9+" : unreadCount.ToString())
-                                            </span>
-                                        }
-                                    </a>
+                <!-- Desktop nav -->
+                <div class="desktop-shell w-100 d-none d-xl-flex">
+                    <ul class="navbar-nav mx-auto mb-0 flex-row">
+                        <li class="nav-item">
+                            <a class="nav-link nav-main-link" asp-controller="Home" asp-action="Index">
+                                <i class="bi bi-house me-1"></i><span class="nav-text">Trang chủ</span>
+                            </a>
+                        </li>
+                        @await Component.InvokeAsync("NavbarMenu")
+                        <li class="nav-item">
+                            <a class="nav-link nav-main-link" href="/Project">
+                                <i class="bi bi-buildings me-1"></i><span class="nav-text">Dự án</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link nav-main-link" href="/Blog">
+                                <i class="bi bi-newspaper me-1"></i><span class="nav-text">Tin thị trường</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link nav-main-link" asp-controller="Contact" asp-action="Index">
+                                <i class="bi bi-chat-dots me-1"></i><span class="nav-text">Liên hệ</span>
+                            </a>
+                        </li>
+                    </ul>
 
-                                    <div class="dropdown-menu dropdown-menu-end p-0" style="width:320px; overflow:hidden;">
-                                        <div class="px-3 py-2 fw-bold text-white" style="background: linear-gradient(135deg, var(--primary), #3b82f6);">
-                                            Thông báo của bạn
-                                        </div>
-
-                                        <div class="notification-list">
-                                            @if (topNotifications.Any())
-                                            {
-                                                foreach (var noti in topNotifications)
-                                                {
-                                                    <a href="/Notification/Details/@noti.NotificationID"
-                                                       class="dropdown-item border-bottom @(noti.IsRead ? "" : "bg-light")">
-                                                        <div class="fw-bold text-dark text-truncate">@noti.Title</div>
-                                                        <div class="text-muted small notification-preview">@noti.Content</div>
-                                                    </a>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <div class="p-4 text-center text-muted small">Không có thông báo mới</div>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="dropdown">
-                                    <button class="btn p-0 border-0 bg-transparent" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <span class="user-pill">
-                                            <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")" alt="Avatar">
-                                            <span class="name">@User.Identity.Name</span>
-                                            <i class="bi bi-chevron-down text-secondary ms-1"></i>
+                    <div class="header-actions">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            @if (canPostSingleAd)
+                            {
+                                <a href="/Property/Create" class="btn-post-ad">
+                                    <i class="bi bi-plus-circle"></i>
+                                    <span>Đăng tin</span>
+                                </a>
+                            }
+                            <!-- Notification dropdown -->
+                            <div class="dropdown">
+                                <a href="#" class="icon-btn position-relative" data-bs-toggle="dropdown" aria-expanded="false" title="Thông báo">
+                                    <i class="bi bi-bell-fill"></i>
+                                    @if (unreadCount > 0)
+                                    {
+                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size:.63rem;">
+                                            @(unreadCount > 9 ? "9+" : unreadCount.ToString())
                                         </span>
-                                    </button>
-
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        @if (isAdminOrStaff)
+                                    }
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end p-0" style="width:320px;overflow:hidden;">
+                                    <div class="px-3 py-2 fw-bold text-white" style="background:linear-gradient(135deg,var(--primary),#3b82f6);">
+                                        Thông báo của bạn
+                                    </div>
+                                    <div class="notification-list">
+                                        @if (topNotifications.Any())
                                         {
-                                            <li><h6 class="dropdown-header text-danger">Hệ thống quản trị</h6></li>
-                                            <li>
-                                                <a class="dropdown-item" href="/Admin/Dashboard">
-                                                    <i class="bi bi-speedometer2 me-2 text-danger"></i>Bảng điều khiển Admin
+                                            foreach (var noti in topNotifications)
+                                            {
+                                                <a href="/Notification/Details/@noti.NotificationID"
+                                                   class="dropdown-item border-bottom @(noti.IsRead ? "" : "bg-light")">
+                                                    <div class="fw-bold text-dark text-truncate">@noti.Title</div>
+                                                    <div class="text-muted small notification-preview">@noti.Content</div>
                                                 </a>
-                                            </li>
-                                        }
-                                        else if (isBusinessVerified)
-                                        {
-                                            <li><h6 class="dropdown-header text-primary fw-bold text-uppercase small" style="letter-spacing: 1px;">Cổng Chủ Đầu Tư</h6></li>
-                                            <li>
-                                                <a class="dropdown-item py-2" href="/MemberProject/Index">
-                                                    <i class="bi bi-funnel-fill me-2 text-success"></i>Quản lý khách hàng (CRM)
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item py-2" href="/MemberProject/MyProjects">
-                                                    <i class="bi bi-buildings-fill me-2 text-primary"></i>Kho dự án đang quản lý
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item py-2" href="/Account/Profile">
-                                                    <i class="bi bi-person-vcard me-2 text-info"></i>Hồ sơ pháp nhân (KYC)
-                                                </a>
-                                            </li>
+                                            }
                                         }
                                         else
                                         {
-                                            <li><h6 class="dropdown-header text-muted">Tài khoản cá nhân</h6></li>
-                                            <li>
-                                                <a class="dropdown-item" href="/Account/Profile">
-                                                    <i class="bi bi-person-circle me-2 text-primary"></i>Hồ sơ của tôi
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item" href="/Property/MyAds">
-                                                    <i class="bi bi-card-checklist me-2 text-primary"></i>Quản lý tin đăng
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item" href="/Favorite/Index">
-                                                    <i class="bi bi-heart-fill me-2 text-danger"></i>Tin đã yêu thích
-                                                </a>
-                                            </li>
+                                            <div class="p-4 text-center text-muted small">Không có thông báo mới</div>
                                         }
-
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
-                                                @Html.AntiForgeryToken()
-                                                <button type="submit" class="dropdown-item text-danger fw-bold">
-                                                    <i class="bi bi-box-arrow-right me-2"></i>Thoát tài khoản
-                                                </button>
-                                            </form>
-                                        </li>
-                                    </ul>
+                                    </div>
                                 </div>
-                            }
-                            else
-                            {
-                                <a href="/Account/Login" class="btn-post-ad">
-                                    <i class="bi bi-person-lock"></i>
-                                    <span>Đăng nhập</span>
-                                </a>
-                            }
-                        </div>
+                            </div>
+                            <!-- User dropdown -->
+                            <div class="dropdown">
+                                <button class="btn p-0 border-0 bg-transparent" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="user-pill">
+                                        <img src="@avatarUrl" alt="Avatar">
+                                        <span class="name">@userName</span>
+                                        <i class="bi bi-chevron-down text-secondary ms-1"></i>
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @if (isAdminOrStaff)
+                                    {
+                                        <li><h6 class="dropdown-header text-danger">Hệ thống quản trị</h6></li>
+                                        <li>
+                                            <a class="dropdown-item" href="/Admin/Dashboard">
+                                                <i class="bi bi-speedometer2 me-2 text-danger"></i>Bảng điều khiển Admin
+                                            </a>
+                                        </li>
+                                    }
+                                    else if (isBusinessVerified)
+                                    {
+                                        <li><h6 class="dropdown-header text-primary fw-bold text-uppercase small" style="letter-spacing:1px;">Dành Cho Đối Tác</h6></li>
+                                        <li>
+                                            <a class="dropdown-item py-2 fw-semibold text-primary bg-light rounded-2 mx-2 mb-1" style="width: auto;" href="/MemberProject/Index">
+                                                <i class="bi bi-rocket-takeoff-fill me-2 text-accent"></i>Vào Cổng Quản Lý Dự Án
+                                            </a>
+                                        </li>
+                                    }
+                                    else
+                                    {
+                                        <li><h6 class="dropdown-header text-muted">Tài khoản cá nhân</h6></li>
+                                        <li><a class="dropdown-item" href="/Account/Profile"><i class="bi bi-person-circle me-2 text-primary"></i>Hồ sơ của tôi</a></li>
+                                        <li><a class="dropdown-item" href="/Property/MyAds"><i class="bi bi-card-checklist me-2 text-primary"></i>Quản lý tin đăng</a></li>
+                                        <li><a class="dropdown-item" href="/Favorite/Index"><i class="bi bi-heart-fill me-2 text-danger"></i>Tin đã yêu thích</a></li>
+                                    }
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="dropdown-item text-danger fw-bold">
+                                                <i class="bi bi-box-arrow-right me-2"></i>Thoát tài khoản
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        }
+                        else
+                        {
+                            <a href="/Account/Login" class="btn-post-ad">
+                                <i class="bi bi-person-lock"></i><span>Đăng nhập</span>
+                            </a>
+                        }
                     </div>
                 </div>
             </div>
         </nav>
     </header>
 
+    <!-- ═══════════════ MOBILE OFFCANVAS MENU ═══════════════ -->
+    <div class="offcanvas offcanvas-end offcanvas-mobile" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenuLabel">
+
+        <!-- Header offcanvas -->
+        <div class="offcanvas-header">
+            <div class="d-flex align-items-center gap-3">
+                <img src="/images/logo.png" alt="BDS Khánh Hòa" style="width:36px;height:36px;object-fit:contain;border-radius:8px;">
+                <div>
+                    <div style="font-family:'Sora',sans-serif;font-weight:800;font-size:1rem;line-height:1.2;">BĐS Khánh Hòa</div>
+                    <small style="opacity:.8;font-size:.78rem;">Menu điều hướng</small>
+                </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Đóng"></button>
+        </div>
+
+        <!-- Body offcanvas -->
+        <div class="offcanvas-body">
+
+            <!-- ── BLOCK 1: TÀI KHOẢN ── -->
+            <div class="mob-account-block">
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <!-- Thông tin user -->
+                    <div class="mob-user-row">
+                        <img src="@avatarUrl" alt="Avatar">
+                        <div style="min-width:0;flex:1;">
+                            <div class="mob-user-name">@userName</div>
+                            @if (isAdminOrStaff)
+                            {
+                                <span class="mob-user-badge mob-badge-admin">
+                                    <i class="bi bi-shield-fill-check"></i> Admin / Staff
+                                </span>
+                            }
+                            else if (isBusinessVerified)
+                            {
+                                <span class="mob-user-badge mob-badge-business">
+                                    <i class="bi bi-building-check"></i> Doanh nghiệp
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="mob-user-badge mob-badge-personal">
+                                    <i class="bi bi-person-fill"></i> Cá nhân
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Nút hành động -->
+                    <div class="mob-action-row @(canPostSingleAd ? "two-col" : "one-col")">
+                        @if (canPostSingleAd)
+                        {
+                            <a href="/Property/Create" class="mob-action-btn mob-btn-primary" data-bs-dismiss="offcanvas">
+                                <i class="bi bi-plus-circle-fill"></i> Đăng tin
+                            </a>
+                        }
+                        <a href="/Notification/Index" class="mob-action-btn mob-btn-outline position-relative" data-bs-dismiss="offcanvas">
+                            <i class="bi bi-bell-fill"></i>
+                            Thông báo
+                            @if (unreadCount > 0)
+                            {
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="font-size:.6rem;transform:translate(-60%,-30%)!important;">
+                                    @(unreadCount > 9 ? "9+" : unreadCount.ToString())
+                                </span>
+                            }
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <!-- Khách -->
+                    <div class="mob-user-row">
+                        <img src="/images/avatars/default-user.png" alt="Avatar">
+                        <div style="min-width:0;">
+                            <div class="mob-user-name">Khách truy cập</div>
+                            <div style="font-size:.8rem;color:var(--muted);margin-top:3px;">Đăng nhập để sử dụng đầy đủ tính năng</div>
+                        </div>
+                    </div>
+                    <div class="mob-action-row two-col">
+                        <a href="/Account/Login" class="mob-action-btn mob-btn-primary" data-bs-dismiss="offcanvas">
+                            <i class="bi bi-person-lock"></i> Đăng nhập
+                        </a>
+                        <a href="/Account/Register" class="mob-action-btn mob-btn-outline" data-bs-dismiss="offcanvas">
+                            <i class="bi bi-person-plus"></i> Đăng ký
+                        </a>
+                    </div>
+                }
+            </div>
+
+            <!-- ── BLOCK 2: ĐIỀU HƯỚNG CHÍNH ── -->
+            <div class="mob-section">
+                <div class="mob-section-title">Điều hướng chính</div>
+                <ul class="mob-nav-list">
+                    <li>
+                        <a class="mob-nav-item" asp-controller="Home" asp-action="Index" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-home"><i class="bi bi-house-fill"></i></span>
+                            Trang chủ
+                        </a>
+                    </li>
+                    <li>
+                        <a class="mob-nav-item" href="/BatDongSan/NhaDatBan" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-sell"><i class="bi bi-building-fill"></i></span>
+                            Nhà đất bán
+                        </a>
+                    </li>
+                    <li>
+                        <a class="mob-nav-item" href="/BatDongSan/NhaDatChoThue" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-rent"><i class="bi bi-key-fill"></i></span>
+                            Nhà đất cho thuê
+                        </a>
+                    </li>
+                    <li>
+                        <a class="mob-nav-item" href="/Project" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-project"><i class="bi bi-buildings-fill"></i></span>
+                            Dự án
+                        </a>
+                    </li>
+                    <li>
+                        <a class="mob-nav-item" href="/Blog" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-news"><i class="bi bi-newspaper"></i></span>
+                            Tin thị trường
+                        </a>
+                    </li>
+                    <li>
+                        <a class="mob-nav-item" asp-controller="Contact" asp-action="Index" data-bs-dismiss="offcanvas">
+                            <span class="mob-nav-icon icon-contact"><i class="bi bi-chat-dots-fill"></i></span>
+                            Liên hệ
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ── BLOCK 3: TÀI KHOẢN & QUẢN LÝ ── -->
+            @if (User.Identity.IsAuthenticated)
+            {
+                <div class="mob-section">
+                    <div class="mob-section-title">Tài khoản &amp; Quản lý</div>
+                    <ul class="mob-nav-list">
+                        @if (isAdminOrStaff)
+                        {
+                            <li>
+                                <a class="mob-nav-item" href="/Admin/Dashboard" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon icon-admin"><i class="bi bi-speedometer2"></i></span>
+                                    Bảng điều khiển Admin
+                                </a>
+                            </li>
+                        }
+                        else if (isBusinessVerified)
+                        {
+                            <li>
+                                <a class="mob-nav-item fw-bold text-primary" style="background-color: rgba(13, 110, 253, 0.05); border-left: 3px solid #0d6efd;" href="/MemberProject/Index" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon"><i class="bi bi-rocket-takeoff-fill text-primary"></i></span>
+                                    Vào Cổng Quản Lý Dự Án
+                                </a>
+                            </li>
+                        }
+                        else
+                        {
+                            <li>
+                                <a class="mob-nav-item" href="/Account/Profile" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon icon-profile"><i class="bi bi-person-circle"></i></span>
+                                    Hồ sơ của tôi
+                                </a>
+                            </li>
+                            <li>
+                                <a class="mob-nav-item" href="/Property/MyAds" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon icon-myads"><i class="bi bi-card-checklist"></i></span>
+                                    Quản lý tin đăng
+                                </a>
+                            </li>
+                            <li>
+                                <a class="mob-nav-item" href="/Favorite/Index" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon icon-fav"><i class="bi bi-heart-fill"></i></span>
+                                    Tin đã yêu thích
+                                </a>
+                            </li>
+                        }
+
+                        <!-- Thoát tài khoản -->
+                        <li>
+                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="mob-nav-item danger" data-bs-dismiss="offcanvas">
+                                    <span class="mob-nav-icon icon-logout"><i class="bi bi-box-arrow-right"></i></span>
+                                    Thoát tài khoản
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            }
+
+            <!-- ── BLOCK 4: LỐI TẮT NHANH ── -->
+            <div class="mob-shortcuts">
+                <div class="mob-shortcuts-title">Truy cập nhanh</div>
+                <div class="mob-shortcut-grid">
+                    <a href="/BatDongSan/NhaDatBan" class="mob-shortcut-btn" data-bs-dismiss="offcanvas">
+                        <i class="bi bi-house-door-fill" style="color:#ea580c;"></i> Nhà đất bán
+                    </a>
+                    <a href="/BatDongSan/NhaDatChoThue" class="mob-shortcut-btn" data-bs-dismiss="offcanvas">
+                        <i class="bi bi-key-fill" style="color:#16a34a;"></i> Cho thuê
+                    </a>
+                    <a href="/Project" class="mob-shortcut-btn" data-bs-dismiss="offcanvas">
+                        <i class="bi bi-buildings-fill" style="color:#7c3aed;"></i> Dự án
+                    </a>
+                    <a href="/Blog" class="mob-shortcut-btn" data-bs-dismiss="offcanvas">
+                        <i class="bi bi-newspaper" style="color:#ca8a04;"></i> Tin tức
+                    </a>
+                </div>
+            </div>
+
+        </div><!-- end offcanvas-body -->
+    </div><!-- end offcanvas -->
+
     <main role="main">
         @RenderBody()
     </main>
 
+    <!-- AI Chatbot button -->
     <div class="ai-chatbot-btn" id="chatbotToggle" title="Trợ lý AI">
         <i class="bi bi-robot"></i>
     </div>
 
+    <!-- Chat Widget -->
     <div id="chatWidget" class="chat-widget">
         <div class="chat-header">
             <div class="d-flex align-items-center gap-2">
@@ -1172,7 +1720,6 @@
             </div>
             <i class="bi bi-x-lg fs-5" id="chatClose" style="cursor:pointer;opacity:.85;"></i>
         </div>
-
         <div id="chatBody" class="chat-body">
             <div class="chat-message bot">
                 <div class="bubble animate__animated animate__fadeIn">
@@ -1180,17 +1727,15 @@
                 </div>
             </div>
         </div>
-
         <div class="chat-footer">
             <div class="input-group">
                 <input id="chatInput" type="text" class="form-control" placeholder="Nhập câu hỏi..." autocomplete="off">
-                <button id="chatSendBtn" class="btn btn-primary px-3">
-                    <i class="bi bi-send-fill"></i>
-                </button>
+                <button id="chatSendBtn" class="btn btn-primary px-3"><i class="bi bi-send-fill"></i></button>
             </div>
         </div>
     </div>
 
+    <!-- ═══════════════ FOOTER ═══════════════ -->
     <footer class="footer-modern">
         <div class="footer-top">
             <div class="container">
@@ -1203,13 +1748,11 @@
                                 <p class="footer-brand-subtitle">Sàn tin đăng bất động sản tại Khánh Hòa</p>
                             </div>
                         </div>
-
                         <p class="footer-desc">
                             Nền tảng đăng tin, tìm kiếm và kết nối bất động sản tại Khánh Hòa.
                             Hỗ trợ tin bán, tin thuê, dự án, chủ đầu tư, môi giới và khách mua
                             với trải nghiệm rõ ràng, nhanh và minh bạch.
                         </p>
-
                         <div class="footer-badges">
                             <div class="footer-badge">
                                 <strong>Giao dịch minh bạch</strong>
@@ -1220,7 +1763,6 @@
                                 Tư vấn liên hệ, phản hồi và cập nhật thông tin liên tục.
                             </div>
                         </div>
-
                         <div class="footer-socials">
                             <a href="#" class="footer-social" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
                             <a href="#" class="footer-social" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
@@ -1232,59 +1774,29 @@
 
                     <div class="col-lg-2 col-md-6 col-6">
                         <div class="footer-section-title">Khám phá</div>
-                        <a class="footer-link" href="/BatDongSan/NhaDatBan">
-                            <i class="bi bi-house-door-fill"></i><span>Nhà đất bán</span>
-                        </a>
-                        <a class="footer-link" href="/BatDongSan/NhaDatChoThue">
-                            <i class="bi bi-key-fill"></i><span>Nhà đất cho thuê</span>
-                        </a>
-                        <a class="footer-link" href="/Project">
-                            <i class="bi bi-buildings-fill"></i><span>Dự án</span>
-                        </a>
-                        <a class="footer-link" href="/Blog">
-                            <i class="bi bi-newspaper"></i><span>Tin thị trường</span>
-                        </a>
-                        <a class="footer-link" href="/Favorite/Index">
-                            <i class="bi bi-heart-fill"></i><span>Tin yêu thích</span>
-                        </a>
+                        <a class="footer-link" href="/BatDongSan/NhaDatBan"><i class="bi bi-house-door-fill"></i><span>Nhà đất bán</span></a>
+                        <a class="footer-link" href="/BatDongSan/NhaDatChoThue"><i class="bi bi-key-fill"></i><span>Nhà đất cho thuê</span></a>
+                        <a class="footer-link" href="/Project"><i class="bi bi-buildings-fill"></i><span>Dự án</span></a>
+                        <a class="footer-link" href="/Blog"><i class="bi bi-newspaper"></i><span>Tin thị trường</span></a>
+                        <a class="footer-link" href="/Favorite/Index"><i class="bi bi-heart-fill"></i><span>Tin yêu thích</span></a>
                     </div>
 
                     <div class="col-lg-2 col-md-6 col-6">
                         <div class="footer-section-title">Hỗ trợ</div>
-                        <a class="footer-link" href="/Account/Profile">
-                            <i class="bi bi-person-circle"></i><span>Hồ sơ tài khoản</span>
-                        </a>
-                        <a class="footer-link" href="/Property/MyAds">
-                            <i class="bi bi-card-checklist"></i><span>Quản lý tin đăng</span>
-                        </a>
-                        <a class="footer-link" href="/Contact">
-                            <i class="bi bi-headset"></i><span>Liên hệ hỗ trợ</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-question-circle"></i><span>Hỏi đáp thường gặp</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-megaphone-fill"></i><span>Báo giá đăng tin</span>
-                        </a>
+                        <a class="footer-link" href="/Account/Profile"><i class="bi bi-person-circle"></i><span>Hồ sơ tài khoản</span></a>
+                        <a class="footer-link" href="/Property/MyAds"><i class="bi bi-card-checklist"></i><span>Quản lý tin đăng</span></a>
+                        <a class="footer-link" href="/Contact"><i class="bi bi-headset"></i><span>Liên hệ hỗ trợ</span></a>
+                        <a class="footer-link" href="#"><i class="bi bi-question-circle"></i><span>Hỏi đáp thường gặp</span></a>
+                        <a class="footer-link" href="#"><i class="bi bi-megaphone-fill"></i><span>Báo giá đăng tin</span></a>
                     </div>
 
                     <div class="col-lg-2 col-md-6 col-6">
                         <div class="footer-section-title">Pháp lý</div>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-shield-lock-fill"></i><span>Chính sách bảo mật</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-file-earmark-text"></i><span>Điều khoản sử dụng</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-file-check-fill"></i><span>Quy định đăng tin</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-cash-coin"></i><span>Chính sách VIP</span>
-                        </a>
-                        <a class="footer-link" href="#">
-                            <i class="bi bi-exclamation-triangle"></i><span>Chống spam / lừa đảo</span>
-                        </a>
+                        <a class="footer-link" href="/Page/privacy"><i class="bi bi-shield-lock-fill"></i><span>Chính sách bảo mật</span></a>
+                        <a class="footer-link" href="/Page/terms"><i class="bi bi-file-earmark-text"></i><span>Điều khoản sử dụng</span></a>
+                        <a class="footer-link" href="/Page/rules"><i class="bi bi-file-check-fill"></i><span>Quy định đăng tin</span></a>
+                        <a class="footer-link" href="/Page/vip-policy"><i class="bi bi-cash-coin"></i><span>Chính sách VIP</span></a>
+                        <a class="footer-link" href="/Page/anti-spam"><i class="bi bi-exclamation-triangle"></i><span>Chống spam / lừa đảo</span></a>
                     </div>
 
                     <div class="col-lg-2 col-md-6">
@@ -1297,7 +1809,6 @@
                                     <a href="#" class="value">02 Nguyễn Đình Chiểu, Vĩnh Thọ, Nha Trang, Khánh Hòa</a>
                                 </div>
                             </div>
-
                             <div class="footer-contact-item">
                                 <div class="icon"><i class="bi bi-telephone-fill"></i></div>
                                 <div class="info">
@@ -1305,7 +1816,6 @@
                                     <a href="tel:1900889900" class="value">1900 88 99</a>
                                 </div>
                             </div>
-
                             <div class="footer-contact-item">
                                 <div class="icon"><i class="bi bi-envelope-fill"></i></div>
                                 <div class="info">
@@ -1313,7 +1823,6 @@
                                     <a href="mailto:support@bdskhanhhoa.vn" class="value">support@bdskhanhhoa.vn</a>
                                 </div>
                             </div>
-
                             <div class="footer-contact-item">
                                 <div class="icon"><i class="bi bi-clock-fill"></i></div>
                                 <div class="info">
@@ -1329,16 +1838,12 @@
                     <div class="row align-items-center g-3">
                         <div class="col-lg-7">
                             <h5 class="text-white fw-bold mb-2">Nhận tin bất động sản mới mỗi ngày</h5>
-                            <p class="mb-0">
-                                Đăng ký để nhận cập nhật dự án, tin bán, tin thuê và các cơ hội nổi bật tại Khánh Hòa.
-                            </p>
+                            <p class="mb-0">Đăng ký để nhận cập nhật dự án, tin bán, tin thuê và các cơ hội nổi bật tại Khánh Hòa.</p>
                         </div>
                         <div class="col-lg-5">
                             <form class="d-flex gap-2">
                                 <input type="email" class="form-control" placeholder="Nhập email của bạn">
-                                <button type="submit" class="btn btn-info text-white fw-bold px-4">
-                                    Đăng ký
-                                </button>
+                                <button type="submit" class="btn btn-info text-white fw-bold px-4">Đăng ký</button>
                             </form>
                         </div>
                     </div>
@@ -1374,15 +1879,12 @@
         <div class="footer-bottom">
             <div class="container">
                 <div class="footer-bottom-inner">
-                    <p>
-                        © 2026 BĐS Khánh Hòa. Phát triển bởi Nguyễn Tiến Tài.
-                    </p>
-
+                    <p>© 2026 BĐS Khánh Hòa. Phát triển bởi Nguyễn Tiến Tài.</p>
                     <div class="footer-legal">
-                        <a href="#">Chính sách bảo mật</a>
-                        <a href="#">Điều khoản</a>
-                        <a href="#">Quy định đăng tin</a>
-                        <a href="#">Liên hệ</a>
+                        <a href="/Page/privacy">Chính sách bảo mật</a>
+                        <a href="/Page/terms">Điều khoản</a>
+                        <a href="/Page/rules">Quy định đăng tin</a>
+                        <a href="/Contact">Liên hệ</a>
                     </div>
                 </div>
             </div>
@@ -1394,23 +1896,16 @@
 
     <script>
         $(function () {
-            const $btn = $('#chatbotToggle');
+            const $btn    = $('#chatbotToggle');
             const $widget = $('#chatWidget');
-            const $input = $('#chatInput');
-            const $body = $('#chatBody');
+            const $input  = $('#chatInput');
+            const $body   = $('#chatBody');
 
             $btn.on('click', function () {
-                if ($widget.is(':visible')) {
-                    $widget.fadeOut(200);
-                } else {
-                    $widget.fadeIn(200).css('display', 'flex');
-                    $input.trigger('focus');
-                }
+                if ($widget.is(':visible')) { $widget.fadeOut(200); }
+                else { $widget.fadeIn(200).css('display','flex'); $input.trigger('focus'); }
             });
-
-            $('#chatClose').on('click', function () {
-                $widget.fadeOut(200);
-            });
+            $('#chatClose').on('click', function () { $widget.fadeOut(200); });
 
             function appendMessage(text, sender) {
                 const html = `<div class="chat-message ${sender} animate__animated animate__fadeInUp animate__faster"><div class="bubble">${text}</div></div>`;
@@ -1421,7 +1916,6 @@
             async function handleChat() {
                 const message = $input.val().trim();
                 if (!message) return;
-
                 appendMessage(message, 'user');
                 $input.val('');
 
@@ -1435,13 +1929,10 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message })
                     });
-
                     if (!response.ok) throw new Error('API Error');
-
                     const data = await response.json();
-                    $(`#${loadingId}`).remove();
+                    $('#' + loadingId).remove();
                     appendMessage(data.message, 'bot');
-
                     if (data.suggestedProperties && data.suggestedProperties.length > 0) {
                         data.suggestedProperties.forEach(p => {
                             $body.append(`
@@ -1456,17 +1947,14 @@
                         });
                     }
                 } catch (e) {
-                    $(`#${loadingId}`).remove();
+                    $('#' + loadingId).remove();
                     appendMessage('Lỗi kết nối. Vui lòng thử lại sau.', 'bot');
                 }
-
                 $body.scrollTop($body[0].scrollHeight);
             }
 
             $('#chatSendBtn').on('click', handleChat);
-            $input.on('keypress', function (e) {
-                if (e.which === 13) handleChat();
-            });
+            $input.on('keypress', function (e) { if (e.which === 13) handleChat(); });
         });
     </script>
 

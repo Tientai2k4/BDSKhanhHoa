@@ -6,401 +6,633 @@
     var userName = User.Identity.Name;
     var currentUser = _context.Users.FirstOrDefault(u => u.Username == userName);
     var avatarUrl = (currentUser != null && !string.IsNullOrEmpty(currentUser.Avatar)) ? currentUser.Avatar : "/images/avatars/default-user.png";
+    var userRoleStr = currentUser?.RoleID == 1 ? "SUPER ADMIN" : "QUẢN TRỊ VIÊN";
 }
 
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - BDSKhanhHoa Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>@ViewData["Title"] - Hệ thống Điều hành BDS Khánh Hòa</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 
     <style>
         :root {
-            --sidebar-bg: #0f172a;
-            --sidebar-hover: #1e293b;
-            --accent-blue: #3b82f6;
-            --text-gray: #94a3b8;
-            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            /* Color Palette 2026 */
+            --bg-body: #f8fafc;
+            --bg-sidebar: #0f172a;
+            --bg-sidebar-hover: #1e293b;
+            --text-sidebar: #94a3b8;
+            --text-sidebar-active: #ffffff;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --header-h: 70px;
+            --sidebar-w: 260px;
+            --sidebar-w-mini: 80px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
-            display: flex;
-            min-height: 100vh;
+            background-color: var(--bg-body);
+            color: #334155;
+            overflow-x: hidden;
         }
 
         /* --- SIDEBAR --- */
         .sidebar {
-            width: 270px;
-            background: var(--sidebar-bg);
-            color: white;
-            transition: var(--transition);
-            position: fixed;
+            width: var(--sidebar-w);
             height: 100vh;
-            z-index: 1050;
+            background: var(--bg-sidebar);
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1040;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
         }
 
-        .sidebar-header {
-            padding: 25px 20px;
-            background: rgba(0,0,0,0.3);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .sidebar-menu {
-            padding: 10px 0;
-            overflow-y: auto;
-            height: calc(100vh - 100px);
-        }
-
-            .sidebar-menu::-webkit-scrollbar {
-                width: 5px;
+            .sidebar.collapsed {
+                width: var(--sidebar-w-mini);
             }
 
-            .sidebar-menu::-webkit-scrollbar-thumb {
-                background: rgba(255,255,255,0.15);
-                border-radius: 5px;
-            }
-
-        .menu-label {
-            padding: 20px 25px 10px;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            color: var(--text-gray);
-            letter-spacing: 1px;
-            font-weight: 800;
-            border-bottom: 1px dashed rgba(255,255,255,0.05);
-            margin-bottom: 5px;
-        }
-
-        .nav-link-admin {
-            color: #cbd5e1;
-            text-decoration: none;
-            padding: 12px 25px;
+        .sidebar-brand {
+            height: var(--header-h);
             display: flex;
             align-items: center;
-            transition: 0.2s;
-            border-left: 4px solid transparent;
-            font-size: 0.95rem;
-            font-weight: 500;
+            padding: 0 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: white;
+            text-decoration: none;
+            overflow: hidden;
+            white-space: nowrap;
         }
 
-            .nav-link-admin:hover, .nav-link-admin[aria-expanded="true"] {
-                background: var(--sidebar-hover);
-                color: white;
-            }
-
-            .nav-link-admin.active {
-                background: rgba(59, 130, 246, 0.15);
-                color: var(--accent-blue);
-                border-left-color: var(--accent-blue);
-                font-weight: 700;
-            }
-
-            .nav-link-admin i:first-child {
-                font-size: 1.2rem;
-                margin-right: 12px;
-                width: 22px;
+            .sidebar-brand i {
+                font-size: 1.5rem;
+                color: var(--accent);
+                min-width: 40px;
                 text-align: center;
             }
 
-        .rotate-icon {
-            transition: transform 0.3s;
-            margin-left: auto;
+        .sidebar-menu {
+            flex-grow: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 15px 0;
         }
 
-        .nav-link-admin[aria-expanded="true"] .rotate-icon {
+            /* Tùy chỉnh thanh cuộn sidebar */
+            .sidebar-menu::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            .sidebar-menu::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 4px;
+            }
+
+        .menu-title {
+            padding: 15px 20px 5px 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-sidebar);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            white-space: nowrap;
+            opacity: 1;
+            transition: var(--transition);
+        }
+
+        .sidebar.collapsed .menu-title {
+            opacity: 0;
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        .nav-item {
+            margin: 2px 12px;
+            list-style: none;
+        }
+
+        .nav-link-custom {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            color: var(--text-sidebar);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+            .nav-link-custom i.icon-main {
+                font-size: 1.1rem;
+                min-width: 32px;
+                text-align: center;
+                margin-right: 10px;
+                transition: var(--transition);
+            }
+
+        .sidebar.collapsed .nav-link-custom {
+            padding: 12px 10px;
+            justify-content: center;
+        }
+
+            .sidebar.collapsed .nav-link-custom i.icon-main {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+
+        .sidebar.collapsed .nav-text, .sidebar.collapsed .icon-arrow {
+            display: none !important;
+        }
+
+        .nav-link-custom:hover {
+            background: var(--bg-sidebar-hover);
+            color: var(--text-sidebar-active);
+        }
+
+        .nav-link-custom.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .nav-link-custom[aria-expanded="true"] {
+            background: var(--bg-sidebar-hover);
+            color: white;
+        }
+
+        .icon-arrow {
+            margin-left: auto;
+            font-size: 0.75rem;
+            transition: transform 0.3s;
+        }
+
+        .nav-link-custom[aria-expanded="true"] .icon-arrow {
             transform: rotate(90deg);
         }
 
         .submenu {
-            background: rgba(0,0,0,0.25);
-            padding-left: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin: 4px 0 4px 10px;
+            padding: 5px 0;
+            list-style: none;
         }
 
-            .submenu .nav-link-admin {
-                padding: 10px 25px;
-                font-size: 0.9rem;
+        .sidebar.collapsed .submenu {
+            display: none !important;
+        }
+        /* Ẩn submenu khi thu gọn */
+
+        .submenu .nav-link-custom {
+            padding: 8px 12px 8px 30px;
+            font-size: 0.85rem;
+            margin: 0;
+            border-radius: 0;
+        }
+
+            .submenu .nav-link-custom:hover {
+                background: transparent;
+                color: white;
+                padding-left: 35px;
             }
 
-        /* --- MAIN CONTENT --- */
-        .main-wrapper {
-            margin-left: 270px;
-            width: calc(100% - 270px);
+        /* --- MAIN CONTENT & HEADER --- */
+        .wrapper {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            transition: all 0.3s;
+            transition: var(--transition);
         }
 
-        .top-navbar {
-            height: 75px;
-            background: white;
+            .wrapper.expanded {
+                margin-left: var(--sidebar-w-mini);
+            }
+
+        .topbar {
+            height: var(--header-h);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 30px;
-            border-bottom: 1px solid #e2e8f0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            position: sticky;
+            top: 0;
+            z-index: 1030;
         }
 
-        .content-area {
-            padding: 30px;
+        .btn-toggle {
+            background: white;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+            .btn-toggle:hover {
+                background: #f1f5f9;
+                color: var(--accent);
+            }
+
+        .page-content {
+            padding: 24px;
             flex-grow: 1;
         }
 
-        /* Animation cho chuông khi có thông báo mới */
+        /* Animation Chuông */
         .bell-shake {
-            animation: bell-shake 2s infinite ease-in-out;
+            animation: shake 1.5s infinite cubic-bezier(.36,.07,.19,.97) both;
         }
-
-        @@keyframes bell-shake {
-            0%, 100%
+        @@keyframes shake {
+            10%, 90%
 
         {
-            transform: rotate(0);
+            transform: translate3d(-1px, 0, 0) rotate(-5deg);
         }
 
-        10%, 20% {
-            transform: rotate(15deg);
+        20%, 80% {
+            transform: translate3d(2px, 0, 0) rotate(5deg);
         }
 
-        30%, 40% {
-            transform: rotate(-15deg);
+        30%, 50%, 70% {
+            transform: translate3d(-3px, 0, 0) rotate(-10deg);
         }
 
-        50%, 60% {
-            transform: rotate(10deg);
-        }
-
-        70%, 80% {
-            transform: rotate(-10deg);
+        40%, 60% {
+            transform: translate3d(3px, 0, 0) rotate(10deg);
         }
 
         }
 
-        @@media (max-width: 992px) {
+        /* --- MOBILE RESPONSIVE --- */
+        @@media (max-width: 991.98px) {
             .sidebar
 
         {
-            margin-left: -270px;
+            transform: translateX(-100%);
+            width: 280px !important;
         }
 
-        .main-wrapper {
+        .sidebar.mobile-show {
+            transform: translateX(0);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        }
+
+        .wrapper, .wrapper.expanded {
             margin-left: 0;
             width: 100%;
         }
 
-        .sidebar.show {
-            margin-left: 0;
+        .sidebar.collapsed .menu-title, .sidebar.collapsed .nav-text, .sidebar.collapsed .icon-arrow, .sidebar.collapsed .submenu {
+            display: block !important;
+            opacity: 1;
+            height: auto;
         }
+
+        .sidebar.collapsed .nav-link-custom {
+            justify-content: flex-start;
+            padding: 10px 12px;
+        }
+
+            .sidebar.collapsed .nav-link-custom i.icon-main {
+                margin-right: 10px;
+                font-size: 1.1rem;
+            }
+        /* Lớp phủ màn hình khi mở menu mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.5);
+            z-index: 1035;
+            backdrop-filter: blur(2px);
+        }
+
+            .sidebar-overlay.show {
+                display: block;
+            }
 
         }
     </style>
 </head>
 <body>
-    <aside class="sidebar shadow-lg">
-        <div class="sidebar-header text-center">
-            <h4 class="fw-bolder m-0 text-white d-flex align-items-center justify-content-center">
-                <i class="bi bi-shield-check me-2 text-primary fs-3"></i> ADMIN PANEL
-            </h4>
-            <div class="badge bg-success bg-opacity-25 text-success border border-success mt-2 rounded-pill px-3 py-1">Vận Hành Hệ Thống</div>
-        </div>
+
+    <!-- Lớp phủ cho Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <a href="/Admin/Dashboard" class="sidebar-brand">
+            <i class="bi bi-hexagon-fill"></i>
+            <span class="nav-text ms-2 fw-bolder fs-5 tracking-tight">ADMIN BĐS</span>
+        </a>
 
         <div class="sidebar-menu">
-            <div class="menu-label text-white"><i class="bi bi-display me-1"></i> Giám sát hệ thống</div>
-            <a href="/Admin/Dashboard" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Dashboard" ? "active" : "")">
-                <i class="bi bi-speedometer2"></i> Bảng điều khiển
-            </a>
-            <a href="/Admin/AuditLogs/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "AuditLogs" ? "active" : "")">
-                <i class="bi bi-terminal"></i> Nhật ký hệ thống (Logs)
-            </a>
-
-            <div class="menu-label text-info"><i class="bi bi-building-check me-1"></i> Đối tác & Dự án</div>
-
-            <a class="nav-link-admin" data-bs-toggle="collapse" href="#businessSubmenu" role="button">
-                <i class="bi bi-briefcase"></i> Quản lý CĐT
-                <i class="bi bi-chevron-right rotate-icon small ms-2"></i>
-            </a>
-            <div class="collapse submenu" id="businessSubmenu">
-                <a href="/Admin/Users/Create" class="nav-link-admin text-warning fw-bold"><i class="bi bi-person-plus-fill"></i> Cấp tài khoản mới</a>
-                <a href="/Admin/AdminBusinessProfile/Index" class="nav-link-admin"><i class="bi bi-list-stars"></i> Quản lý pháp nhân</a>
-            </div>
-
-            <a class="nav-link-admin" data-bs-toggle="collapse" href="#projectSubmenu" role="button">
-                <i class="bi bi-buildings"></i> Quản trị Dự án
-                <i class="bi bi-chevron-right rotate-icon small ms-2"></i>
-            </a>
-            <div class="collapse submenu" id="projectSubmenu">
-                <a href="/Admin/AdminProject/Create" class="nav-link-admin text-warning fw-bold"><i class="bi bi-plus-circle"></i> Đăng Dự án mới</a>
-                <a href="/Admin/Projects/Index" class="nav-link-admin"><i class="bi bi-list-columns"></i> Kho dự án công khai</a>
-            </div>
-
-            <div class="menu-label text-warning"><i class="bi bi-kanban me-1"></i> Quản lý Nghiệp vụ</div>
-            <a class="nav-link-admin" data-bs-toggle="collapse" href="#propertySubmenu" role="button">
-                <i class="bi bi-house-door"></i> Duyệt Tin Rao Vặt
-                <i class="bi bi-chevron-right rotate-icon small ms-2"></i>
-            </a>
-            <div class="collapse submenu" id="propertySubmenu">
-                <a href="/Admin/Properties/Verify" class="nav-link-admin text-info fw-bold"><i class="bi bi-eye"></i> Chờ duyệt (Pending)</a>
-                <a href="/Admin/Properties/Index" class="nav-link-admin"><i class="bi bi-list-ul"></i> Tất cả tin đăng</a>
-            </div>
-
-            <div class="menu-label text-primary"><i class="bi bi-database-gear me-1"></i> Dữ liệu nền tảng</div>
-            <a href="/Admin/PropertyTypes/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyTypes" ? "active" : "")"><i class="bi bi-tags"></i> Loại hình BĐS</a>
-            <a href="/Admin/PropertyFeatures/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyFeatures" ? "active" : "")"><i class="bi bi-stars"></i> Danh mục tiện ích</a>
-            <a href="/Admin/Areas/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Areas" ? "active" : "")"><i class="bi bi-geo-alt"></i> Phân bổ Khu vực</a>
-
-            <div class="menu-label text-success"><i class="bi bi-cash-coin me-1"></i> Kinh doanh & Tài chính</div>
-            <a href="/Admin/PostServicePackages/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PostServicePackages" ? "active" : "")"><i class="bi bi-gem"></i> Cấu hình Gói VIP</a>
-            <a href="/Admin/Vouchers/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Vouchers" ? "active" : "") text-success fw-bold">
-                <i class="bi bi-ticket-perforated"></i> Quản lý Voucher
-            </a>
-            <a href="/Admin/Transactions/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Transactions" ? "active" : "")"><i class="bi bi-arrow-left-right"></i> Tài chính & Đối soát</a>
-
-            <div class="menu-label text-danger"><i class="bi bi-shield-exclamation me-1"></i> Vi phạm & Hỗ trợ</div>
-            <a href="/Admin/PropertyReports/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyReports" ? "active" : "")"><i class="bi bi-flag"></i> Báo cáo tin lừa đảo</a>
-            <a href="/Admin/Comments/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Comments" ? "active" : "")"><i class="bi bi-chat-left-text"></i> Kiểm duyệt bình luận</a>
-            <a href="/Admin/Consultations/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Consultations" ? "active" : "")"><i class="bi bi-envelope-paper"></i> Hòm thư Liên hệ</a>
-
-            <div class="menu-label text-info"><i class="bi bi-robot me-1"></i> Nội dung & AI Chatbot</div>
-            <a href="/Admin/Blog/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Blog" ? "active" : "")"><i class="bi bi-newspaper"></i> Quản lý Bài viết</a>
-            <a href="/Admin/Banners/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Banners" ? "active" : "")"><i class="bi bi-images"></i> Quản lý Banner</a>
-
-            <a class="nav-link-admin" data-bs-toggle="collapse" href="#aiSubmenu" role="button">
-                <i class="bi bi-cpu text-primary"></i> Trợ lý ảo AI
-                <i class="bi bi-chevron-right rotate-icon small ms-auto"></i>
-            </a>
-            <div class="collapse submenu" id="aiSubmenu">
-                <a href="/Admin/ChatLogs/Index" class="nav-link-admin"><i class="bi bi-chat-square-quote"></i> Lịch sử chat khách</a>
-                <a href="/Admin/AISettings/Index" class="nav-link-admin"><i class="bi bi-gear"></i> Cấu hình Prompt</a>
-            </div>
-
-            <div class="menu-label"><i class="bi bi-person-gear me-1"></i> Tài khoản & Hệ thống</div>
-            <a href="/Admin/Users/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Users" ? "active" : "")">
-                <i class="bi bi-people"></i> Danh sách Người dùng
-            </a>
-            <a href="/Admin/SystemNotifications/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "SystemNotifications" ? "active" : "")">
-                <i class="bi bi-megaphone"></i> Gửi Thông báo hệ thống
-            </a>
-
-            <div class="px-3 my-3">
-                <hr class="border-secondary opacity-25 m-0" style="border-top: 1px dashed rgba(255,255,255,0.2);">
-            </div>
-
-            <a href="/" class="nav-link-admin text-info opacity-75 transition-hover">
-                <i class="bi bi-box-arrow-up-right"></i> Về Trang chủ (Xem Web)
-            </a>
-
-            <div class="menu-label text-danger"><i class="bi bi-life-preserver me-1"></i> Yêu cầu & Điều phối</div>
-
-            <a href="/Admin/SupportTickets/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "SupportTickets" ? "active" : "")">
-                <i class="bi bi-inbox"></i> Yêu cầu từ CĐT
-            </a>
-
-            <a href="/Admin/Appointments/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Appointments" ? "active" : "")">
-                <i class="bi bi-calendar2-week"></i> Quản lý Lịch hẹn
-            </a>
-
-            <div class="menu-label text-primary"><i class="bi bi-database-check me-1"></i> Hệ thống & Sao lưu</div>
-
-            <a href="/Admin/Backup/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Backup" ? "active" : "")">
-                <i class="bi bi-cloud-arrow-down"></i> Sao lưu & Phục hồi dữ liệu
-            </a>
-
-            <a href="/Admin/Pages/Index" class="nav-link-admin @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Pages" ? "active" : "")">
-                <i class="bi bi-file-earmark-text"></i> Quản lý Trang tĩnh
-            </a>
-            <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" id="adminLogoutForm" class="m-0 p-0">
-                @Html.AntiForgeryToken()
-                <a href="javascript:document.getElementById('adminLogoutForm').submit()" class="nav-link-admin text-danger fw-bold transition-hover">
-                    <i class="bi bi-power"></i> Đăng xuất an toàn
+            <div class="menu-title">Giám sát hệ thống</div>
+            <li class="nav-item">
+                <a href="/Admin/Dashboard" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Dashboard" ? "active" : "")">
+                    <i class="bi bi-grid-1x2-fill icon-main text-primary"></i> <span class="nav-text">Bảng điều khiển</span>
                 </a>
-            </form>
+            </li>
+            <li class="nav-item">
+                <a href="/Admin/AuditLogs/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "AuditLogs" ? "active" : "")">
+                    <i class="bi bi-terminal-fill icon-main text-secondary"></i> <span class="nav-text">Nhật ký (Logs)</span>
+                </a>
+            </li>
+
+            <div class="menu-title mt-2">Nghiệp vụ cốt lõi</div>
+
+            <!-- Đối tác CĐT -->
+            <li class="nav-item">
+                <a class="nav-link-custom" data-bs-toggle="collapse" href="#menuBusiness" role="button">
+                    <i class="bi bi-buildings-fill icon-main text-info"></i> <span class="nav-text">Đối tác & Dự án</span>
+                    <i class="bi bi-chevron-right icon-arrow"></i>
+                </a>
+                <ul class="collapse submenu" id="menuBusiness">
+                    <li><a href="/Admin/Users/Create" class="nav-link-custom text-warning"><i class="bi bi-plus-circle me-2"></i>Cấp tài khoản CĐT</a></li>
+                    <li><a href="/Admin/AdminBusinessProfile/Index" class="nav-link-custom"><i class="bi bi-shield-check me-2"></i>Quản lý Pháp nhân</a></li>
+                    <li><a href="/Admin/AdminProject/Create" class="nav-link-custom"><i class="bi bi-cloud-upload me-2"></i>Đăng Dự án mới</a></li>
+                    <li><a href="/Admin/AdminProject/Index" class="nav-link-custom"><i class="bi bi-kanban me-2"></i>Kho dự án mở</a></li>
+                    <li class="nav-item">
+                    <a href="/Admin/SupportTickets/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "SupportTickets" ? "active" : "")"><i class="bi bi-inbox-fill icon-main"></i> <span class="nav-text">Yêu cầu từ CĐT</span></a>
+                    </li>
+                </ul>
+            </li>
+
+            <!-- Rao vặt -->
+            <li class="nav-item">
+                <a class="nav-link-custom" data-bs-toggle="collapse" href="#menuProperties" role="button">
+                    <i class="bi bi-house-door-fill icon-main text-warning"></i> <span class="nav-text">Quản lý Tin Rao Vặt</span>
+                    <i class="bi bi-chevron-right icon-arrow"></i>
+                </a>
+                <ul class="collapse submenu" id="menuProperties">
+                    <li><a href="/Admin/Properties/Verify" class="nav-link-custom text-info"><i class="bi bi-hourglass-split me-2"></i>Chờ duyệt (Pending)</a></li>
+                    <li><a href="/Admin/Properties/Index" class="nav-link-custom"><i class="bi bi-list-check me-2"></i>Tất cả tin đăng</a></li>
+                </ul>
+            </li>
+            <!-- ================= BỔ SUNG: KHỐI TƯƠNG TÁC & KHÁCH HÀNG (CRM) ================= -->
+            <div class="menu-title mt-2">Tương Tác & CRM Khách Hàng</div>
+
+            <!-- Bình luận BĐS -->
+            <li class="nav-item">
+                <a href="/Admin/Comments/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Comments" ? "active" : "")">
+                    <i class="bi bi-chat-quote-fill icon-main text-primary"></i>
+                    <span class="nav-text">Bình luận BĐS</span>
+                </a>
+            </li>
+
+            <!-- Tin nhắn Liên hệ -->
+            <li class="nav-item">
+                <a href="/Admin/Contact/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Contact" ? "active" : "")">
+                    <i class="bi bi-envelope-paper-fill icon-main text-warning"></i>
+                    <span class="nav-text">Tin nhắn Liên hệ</span>
+                </a>
+            </li>
+
+            <!-- Báo cáo Lừa đảo -->
+            <li class="nav-item">
+                <a href="/Admin/PropertyReports/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyReports" ? "active" : "")">
+                    <i class="bi bi-flag-fill icon-main text-danger"></i>
+                    <span class="nav-text">Báo cáo Lừa đảo</span>
+                </a>
+            </li>
+
+            <!-- Lịch hẹn Hệ thống -->
+            <li class="nav-item">
+                <a href="/Admin/Appointments/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Appointments" ? "active" : "")">
+                    <i class="bi bi-calendar2-check-fill icon-main text-success"></i>
+                    <span class="nav-text">Lịch hẹn Hệ thống</span>
+                </a>
+            </li>
+
+            <!-- Yêu cầu Tư vấn (Leads) -->
+            <li class="nav-item">
+                <a href="/Admin/Consultations/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Consultations" ? "active" : "")">
+                    <i class="bi bi-headset icon-main text-info"></i>
+                    <span class="nav-text">Yêu cầu Tư vấn (Leads)</span>
+                </a>
+            </li>
+            <!-- Tài chính -->
+            <div class="menu-title mt-2">Kinh Doanh & Doanh Thu</div>
+            <li class="nav-item">
+                <a class="nav-link-custom" data-bs-toggle="collapse" href="#menuFinance" role="button">
+                    <i class="bi bi-piggy-bank-fill icon-main text-success"></i> <span class="nav-text">Quản trị Tài chính</span>
+                    <i class="bi bi-chevron-right icon-arrow"></i>
+                </a>
+                <ul class="collapse submenu" id="menuFinance">
+                    <li><a href="/Admin/PostServicePackages/Index" class="nav-link-custom"><i class="bi bi-gem me-2"></i>Cấu hình Gói VIP</a></li>
+                    <li><a href="/Admin/Vouchers/Index" class="nav-link-custom"><i class="bi bi-ticket-perforated me-2"></i>Khuyến mãi / Voucher</a></li>
+                    <li><a href="/Admin/Transactions/Index" class="nav-link-custom"><i class="bi bi-receipt me-2"></i>Tài chính & Đối soát</a></li>
+                </ul>
+            </li>
+
+            <!-- ================= BỔ SUNG: KHỐI QUẢN LÝ NỘI DUNG (CMS) ================= -->
+            <div class="menu-title mt-2">Nội Dung & Trưng Bày</div>
+            <li class="nav-item">
+                <a class="nav-link-custom" data-bs-toggle="collapse" href="#menuCMS" role="button">
+                    <i class="bi bi-layout-text-window-reverse icon-main text-primary"></i>
+                    <span class="nav-text">Quản lý CMS</span>
+                    <i class="bi bi-chevron-right icon-arrow"></i>
+                </a>
+                <ul class="collapse submenu" id="menuCMS">
+                    <li><a href="/Admin/Banners/Index" class="nav-link-custom"><i class="bi bi-images me-2"></i>Quản lý Banners</a></li>
+                    <li><a href="/Admin/Blog/Index" class="nav-link-custom"><i class="bi bi-newspaper me-2"></i>Bài viết / Tin tức</a></li>
+                    <li><a href="/Admin/Pages/Index" class="nav-link-custom"><i class="bi bi-file-earmark-text me-2"></i>Trang tĩnh (Quy định)</a></li>
+                </ul>
+            </li>
+
+            <div class="menu-title mt-2">Dữ liệu & Cấu hình</div>
+            <li class="nav-item">
+                <a href="/Admin/PropertyTypes/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyTypes" ? "active" : "")"><i class="bi bi-tags-fill icon-main"></i> <span class="nav-text">Loại hình BĐS</span></a>
+            </li>
+            <li class="nav-item">
+                <a href="/Admin/Areas/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Areas" ? "active" : "")"><i class="bi bi-geo-alt-fill icon-main"></i> <span class="nav-text">Phân bổ Khu vực</span></a>
+            </li>
+            <li class="nav-item">
+                <a href="/Admin/PropertyFeatures/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "PropertyFeatures" ? "active" : "")"><i class="bi bi-stars icon-main"></i> <span class="nav-text">Danh mục Tiện ích</span></a>
+            </li>
+            <li class="nav-item">
+                <a href="/Admin/Backup/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Backup" ? "active" : "")">
+                    <i class="bi bi-database-down icon-main text-success"></i> <span class="nav-text">Sao lưu (Backup)</span>
+                </a>
+            </li>
+
+         
+          
+
+            <div class="menu-title mt-2">Hệ thống Trợ lý AI</div>
+            <li class="nav-item">
+                <a class="nav-link-custom" data-bs-toggle="collapse" href="#menuAI" role="button">
+                    <i class="bi bi-robot icon-main text-info"></i> <span class="nav-text">Quản trị Trợ lý ảo</span>
+                    <i class="bi bi-chevron-right icon-arrow"></i>
+                </a>
+                <ul class="collapse submenu" id="menuAI">
+                    <li><a href="/Admin/ChatLogs/Index" class="nav-link-custom"><i class="bi bi-chat-quote me-2"></i>Lịch sử Chatbot</a></li>
+                    <li><a href="/Admin/AISettings/Index" class="nav-link-custom"><i class="bi bi-sliders me-2"></i>Cấu hình Prompt AI</a></li>
+                </ul>
+            </li>
+
+            <li class="nav-item">
+                <a href="/Admin/Users/Index" class="nav-link-custom mt-3 border border-secondary border-opacity-25 @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Users" ? "active" : "")">
+                    <i class="bi bi-people-fill icon-main"></i> <span class="nav-text">Quản trị Người dùng</span>
+                </a>
+            </li>
         </div>
     </aside>
 
-    <div class="main-wrapper">
-        <nav class="top-navbar sticky-top">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-light border d-lg-none me-3" id="sidebarToggle"><i class="bi bi-list fs-5"></i></button>
-                <div>
-                    <h5 class="fw-bold m-0 text-dark">@ViewData["Title"]</h5>
-                    <small class="text-muted fw-medium d-none d-sm-block">Khu vực điều hành hệ thống</small>
+    <!-- WRAPPER CONTENT -->
+    <div class="wrapper" id="wrapper">
+        <!-- TOPBAR -->
+        <header class="topbar">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn-toggle" id="btnToggleSidebar">
+                    <i class="bi bi-text-indent-right fs-5"></i>
+                </button>
+                <div class="d-none d-md-block">
+                    <h5 class="fw-bold m-0 text-dark" style="font-size: 1.1rem;">@ViewData["Title"]</h5>
+                    <small class="text-muted fw-medium">Hệ thống Điều hành Trung tâm</small>
                 </div>
             </div>
 
             <div class="d-flex align-items-center gap-3">
+                <!-- Nút xem Web -->
+                <a href="/" target="_blank" class="btn btn-light border rounded-circle d-none d-md-flex align-items-center justify-content-center" style="width: 38px; height:38px;" title="Xem Website ngoài">
+                    <i class="bi bi-globe text-secondary"></i>
+                </a>
+
+                <!-- Chuông thông báo -->
                 <div class="dropdown">
-                    <button class="btn btn-light position-relative p-2 rounded-circle border shadow-sm" data-bs-toggle="dropdown" id="adminBellBtn">
-                        <i class="bi bi-bell-fill text-secondary" id="bellIcon"></i>
-                        <span id="adminBellBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style="display:none; font-size: 0.65rem;">0</span>
+                    <button class="btn btn-light border position-relative rounded-circle d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" id="adminBellBtn" style="width: 38px; height:38px;">
+                        <i class="bi bi-bell-fill text-secondary fs-6" id="bellIcon"></i>
+                        <span id="adminBellBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white" style="display:none; font-size: 0.6rem;">0</span>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-3 p-3" id="adminBellMenu" style="width: 320px; border-radius: 12px;">
-                        <li class="fw-bold border-bottom pb-2 mb-2 text-dark"><i class="bi bi-lightning-charge me-2 text-primary"></i> Công việc cần xử lý</li>
-                        <div id="adminBellList">
-                        <li class="text-center py-3 text-muted small">Đang tải dữ liệu...</li>
-                </div>
-                </ul>
-            </div>
-
-            <div class="vr mx-2 bg-secondary opacity-25"></div>
-
-            <div class="dropdown">
-                <div class="d-flex align-items-center gap-3 cursor-pointer" data-bs-toggle="dropdown" role="button">
-                    <img src="@avatarUrl" class="rounded-circle border border-2 border-primary shadow-sm" width="42" height="42" style="object-fit: cover;">
-                    <div class="d-none d-sm-block text-end">
-                        <p class="m-0 fw-bold small text-dark lh-1">@User.Identity.Name</p>
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1" style="font-size: 0.65rem;">QUẢN TRỊ VIÊN</span>
+                    <div class="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-0" style="width: 320px; border-radius: 12px; overflow:hidden;">
+                        <div class="bg-primary p-3 text-white">
+                            <h6 class="mb-0 fw-bold"><i class="bi bi-lightning-charge-fill me-2"></i>Công việc cần xử lý</h6>
+                        </div>
+                        <ul class="list-unstyled mb-0 p-2" id="adminBellList">
+                            <li class="text-center py-3 text-muted small">Đang tải dữ liệu...</li>
+                        </ul>
                     </div>
                 </div>
-                <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 mt-3 p-2" style="border-radius: 12px; min-width: 200px;">
-                    <li><a class="dropdown-item py-2 rounded-2 fw-medium" href="/Account/Profile"><i class="bi bi-person-gear me-2 text-primary"></i>Cài đặt cá nhân</a></li>
-                    <li><hr class="dropdown-divider my-2"></li>
-                    <li>
-                        <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="dropdown-item py-2 rounded-2 text-danger fw-bold w-100 text-start border-0 bg-transparent">
-                                <i class="bi bi-power me-2"></i>Thoát hệ thống
-                            </button>
-                        </form>
-                    </li>
-                </ul>
+
+                <div class="vr bg-secondary opacity-25" style="height: 25px;"></div>
+
+                <!-- User Profile -->
+                <div class="dropdown">
+                    <div class="d-flex align-items-center gap-2 cursor-pointer" data-bs-toggle="dropdown" role="button">
+                        <div class="text-end d-none d-sm-block">
+                            <div class="fw-bold text-dark fs-6" style="line-height: 1;">@User.Identity.Name</div>
+                            <small class="text-primary fw-bold" style="font-size: 0.65rem;">@userRoleStr</small>
+                        </div>
+                        <img src="@avatarUrl" class="rounded-circle border border-2 border-white shadow-sm" width="40" height="40" style="object-fit: cover;">
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 p-2" style="border-radius: 12px; min-width: 200px;">
+                        <li><a class="dropdown-item py-2 rounded fw-medium" href="/Account/Profile"><i class="bi bi-person-vcard text-primary me-2"></i>Hồ sơ cá nhân</a></li>
+                        <li><a class="dropdown-item py-2 rounded fw-medium" href="/Admin/SystemNotifications/Index"><i class="bi bi-megaphone text-warning me-2"></i>Phát thông báo</a></li>
+                        <li><hr class="dropdown-divider my-2"></li>
+                        <li>
+                            <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="dropdown-item py-2 rounded text-danger fw-bold text-start">
+                                    <i class="bi bi-power me-2"></i>Đăng xuất
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
             </div>
+        </header>
+
+        <!-- NỘI DUNG ĐỘNG -->
+        <main class="page-content">
+            @RenderBody()
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="bg-white border-top py-3 px-4 mt-auto">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-muted">
+                <span>&copy; 2026 <strong>BDS Khánh Hòa</strong> - Quản trị thông minh</span>
+                <span class="mt-2 mt-md-0 d-flex align-items-center">
+                    Dev by <b class="ms-1 text-dark">Nguyễn Tiến Tài</b> <i class="bi bi-code-slash ms-2"></i>
+                </span>
+            </div>
+        </footer>
     </div>
-    </nav>
 
-    <main class="content-area">
-        @RenderBody()
-    </main>
-
-    <footer class="py-4 px-4 bg-white border-top mt-auto">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-muted fw-medium">
-            <span>&copy; 2026 - <strong>Khoa CNTT - Đại học Nha Trang</strong></span>
-            <span class="mt-2 mt-md-0">Hệ thống phát triển bởi <strong>Nguyễn Tiến Tài</strong></span>
-        </div>
-    </footer>
-    </div>
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SCRIPTS -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         $(document).ready(function() {
-            // Sidebar Toggle
-            $('#sidebarToggle').click(function() { $('.sidebar').toggleClass('show'); });
+            // --- LOGIC TOGGLE SIDEBAR HIỆN ĐẠI ---
+            const sidebar = $('#sidebar');
+            const wrapper = $('#wrapper');
+            const overlay = $('#sidebarOverlay');
 
-            // Tự động mở Dropdown Menu nếu đang ở trang con
-            $('.submenu .nav-link-admin.active').each(function() {
-                $(this).closest('.collapse').addClass('show');
-                $(this).closest('.collapse').prev('.nav-link-admin').attr('aria-expanded', 'true');
+            // Xử lý nút bấm tùy theo kích thước màn hình
+            $('#btnToggleSidebar').click(function() {
+                if ($(window).width() >= 992) {
+                    // Màn Desktop: Thu nhỏ / Phóng to
+                    sidebar.toggleClass('collapsed');
+                    wrapper.toggleClass('expanded');
+                    // Đổi icon nút
+                    const icon = $(this).find('i');
+                    if(sidebar.hasClass('collapsed')) {
+                        icon.removeClass('bi-text-indent-right').addClass('bi-text-indent-left');
+                        // Đóng tất cả submenu đang mở khi thu nhỏ
+                        $('.submenu.show').collapse('hide');
+                    } else {
+                        icon.removeClass('bi-text-indent-left').addClass('bi-text-indent-right');
+                    }
+                } else {
+                    // Màn Mobile: Trượt ra / Vào
+                    sidebar.toggleClass('mobile-show');
+                    overlay.toggleClass('show');
+                }
             });
 
-            // LOGIC CẬP NHẬT CHUÔNG THÔNG BÁO ADMIN
+            // Bấm ra ngoài lớp phủ để đóng menu trên Mobile
+            overlay.click(function() {
+                sidebar.removeClass('mobile-show');
+                $(this).removeClass('show');
+            });
+
+            // Xử lý Menu đang Active (Giữ menu mở khi load trang)
+            $('.nav-link-custom.active').each(function() {
+                const parentCollapse = $(this).closest('.collapse');
+                if (parentCollapse.length > 0) {
+                    parentCollapse.addClass('show');
+                    parentCollapse.prev('.nav-link-custom').attr('aria-expanded', 'true');
+                }
+            });
+
+            // --- LOGIC CHUÔNG THÔNG BÁO AJAX (Giữ nguyên C# Logic) ---
             function fetchAdminAlerts() {
                 $.ajax({
                     url: '/Admin/SystemNotifications/GetAdminAlerts',
@@ -415,40 +647,38 @@
 
                             if (res.totalAlerts > 0) {
                                 badge.show().text(res.totalAlerts);
-                                bellIcon.addClass('bell-shake');
+                                bellIcon.addClass('bell-shake text-primary').removeClass('text-secondary');
 
                                 if (res.newReports > 0) {
                                     list.append(`
-                                        <li>
-                                            <a href="/Admin/PropertyReports/Index" class="dropdown-item py-2 text-wrap small border-bottom">
-                                                <span class="text-danger fw-bold">[Báo cáo]</span> Có ${res.newReports} tin đăng bị báo cáo lừa đảo.
-                                            </a>
-                                        </li>
-                                    `);
+                                        <li><a href="/Admin/PropertyReports/Index" class="dropdown-item py-2 px-3 text-wrap small border-bottom">
+                                            <div class="d-flex align-items-center">
+                                                <div class="bg-danger bg-opacity-10 text-danger p-2 rounded-circle me-3"><i class="bi bi-flag-fill"></i></div>
+                                                <div><strong class="text-dark d-block">Báo cáo vi phạm mới</strong>Có ${res.newReports} tin rao vặt bị khách hàng report.</div>
+                                            </div>
+                                        </a></li>`);
                                 }
                                 if (res.pendingProperties > 0) {
                                     list.append(`
-                                        <li>
-                                            <a href="/Admin/Properties/Verify" class="dropdown-item py-2 text-wrap small border-bottom">
-                                                <span class="text-info fw-bold">[Tin đăng]</span> Có ${res.pendingProperties} tin rao vặt đang chờ duyệt.
-                                            </a>
-                                        </li>
-                                    `);
+                                        <li><a href="/Admin/Properties/Verify" class="dropdown-item py-2 px-3 text-wrap small border-bottom">
+                                            <div class="d-flex align-items-center">
+                                                <div class="bg-warning bg-opacity-10 text-warning p-2 rounded-circle me-3"><i class="bi bi-house-add-fill"></i></div>
+                                                <div><strong class="text-dark d-block">Tin đăng chờ duyệt</strong>Có ${res.pendingProperties} bài đăng đang đợi kiểm duyệt.</div>
+                                            </div>
+                                        </a></li>`);
                                 }
-
                             } else {
                                 badge.hide();
-                                bellIcon.removeClass('bell-shake');
-                                list.append('<li class="text-center py-4 text-muted small"><i class="bi bi-check2-circle fs-3 text-success d-block mb-2"></i>Mọi thứ đã được xử lý xong!</li>');
+                                bellIcon.removeClass('bell-shake text-primary').addClass('text-secondary');
+                                list.append('<li class="text-center py-4 text-muted small"><i class="bi bi-check2-circle fs-2 text-success d-block mb-2"></i>Tuyệt vời! Không có công việc nào tồn đọng.</li>');
                             }
                         }
                     }
                 });
             }
 
-            // Chạy ngay khi load và lặp lại mỗi 30 giây
             fetchAdminAlerts();
-            setInterval(fetchAdminAlerts, 30000);
+            setInterval(fetchAdminAlerts, 30000); // 30s check 1 lần
         });
     </script>
     @await RenderSectionAsync("Scripts", required: false)

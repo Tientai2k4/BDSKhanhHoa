@@ -1,166 +1,256 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
 @{
-    ViewData["Title"] = "Kho tài liệu & pháp lý";
+    ViewData["Title"] = "Trung tâm Lưu trữ & Pháp lý Dự án";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
     int totalProjects = ViewBag.TotalProjects ?? 0;
     int hasLegalDocs = ViewBag.HasLegalDocs ?? 0;
-    int hasImages = ViewBag.HasImages ?? 0;
-    int hasContent = ViewBag.HasContent ?? 0;
+    string businessName = ViewBag.BusinessName as string ?? "Doanh nghiệp đối tác";
 }
 
 <style>
-    .vault-topbar, .vault-card {
-        background: #fff;
-        border-radius: 24px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-        border: 1px solid rgba(148,163,184,.15);
+    :root {
+        --vault-primary: #1e293b;
+        --vault-accent: #3b82f6;
     }
 
     .vault-topbar {
-        padding: 22px 24px;
-        margin-bottom: 18px;
+        background: #fff;
+        border-radius: 24px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 25px;
     }
 
     .vault-title {
-        font-size: 1.45rem;
-        font-weight: 800;
-        margin-bottom: 4px;
+        font-size: 1.75rem;
+        font-weight: 900;
+        color: var(--vault-primary);
+        letter-spacing: -0.02em;
     }
 
-    .vault-subtitle {
-        color: #64748b;
-        margin-bottom: 0;
-    }
-
-    .vault-chip {
+    .stat-pill {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 14px;
-        border-radius: 999px;
+        gap: 10px;
+        padding: 12px 20px;
+        border-radius: 16px;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         font-weight: 700;
-        color: #334155;
+        color: #475569;
+        transition: all 0.3s;
     }
 
-    .doc-card {
-        border: 1px solid #e2e8f0;
-        border-radius: 20px;
-        overflow: hidden;
+        .stat-pill:hover {
+            border-color: var(--vault-accent);
+            transform: translateY(-2px);
+        }
+
+    .project-card-vault {
         background: #fff;
+        border-radius: 28px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 
-    .doc-thumb {
+        .project-card-vault:hover {
+            border-color: var(--vault-accent);
+            box-shadow: 0 20px 40px rgba(59, 130, 246, 0.08);
+            transform: translateY(-8px);
+        }
+
+    .vault-img-container {
+        position: relative;
+        height: 200px;
+    }
+
+    .vault-img {
         width: 100%;
-        height: 180px;
+        height: 100%;
         object-fit: cover;
-        background: #f8fafc;
     }
 
-    .doc-body {
-        padding: 18px;
-    }
-
-    .doc-label {
-        font-size: .78rem;
+    .vault-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        padding: 6px 12px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.7rem;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 800;
-        color: #64748b;
-        margin-bottom: 6px;
+        backdrop-filter: blur(8px);
+        background: rgba(15, 23, 42, 0.8);
+        color: white;
     }
 
-    .file-link {
-        display: inline-flex;
+    .doc-status-item {
+        display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 14px;
+        margin-bottom: 8px;
+    }
+
+    .doc-icon-box {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+    }
+
+    .btn-vault-action {
+        background: var(--vault-primary);
+        color: #fff;
+        border-radius: 14px;
+        padding: 12px;
+        font-weight: 700;
+        text-align: center;
         text-decoration: none;
-        font-weight: 800;
+        display: block;
+        width: 100%;
+        transition: 0.3s;
+        margin-top: auto;
+    }
+
+        .btn-vault-action:hover {
+            background: var(--vault-accent);
+            color: white;
+        }
+
+    .storage-bar {
+        height: 8px;
+        border-radius: 10px;
+        background: #e2e8f0;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+
+    .storage-progress {
+        height: 100%;
+        background: var(--vault-accent);
+        width: 35%; /* Demo static */
     }
 </style>
 
-<div class="vault-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
-    <div>
-        <div class="vault-title">Kho tài liệu & pháp lý</div>
-        <p class="vault-subtitle">Tập trung các file đã có sẵn trong hồ sơ dự án: ảnh, banner, tài liệu pháp lý, nội dung truyền thông.</p>
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
+
+    <!-- TOPBAR THỐNG KÊ KHO -->
+    <div class="vault-topbar d-flex flex-column flex-lg-row justify-content-between align-items-center gap-4">
+        <div>
+            <div class="vault-title">Kho Lưu trữ Pháp lý tập trung</div>
+            <p class="text-muted fw-medium mb-0">Quản lý tài liệu bảo mật, ảnh phối cảnh và hồ sơ dự án 256-bit.</p>
+            <div class="mt-2 text-primary fw-bold"><i class="bi bi-building"></i> @businessName</div>
+        </div>
+        <div class="d-flex gap-3 flex-wrap justify-content-center">
+            <div class="stat-pill">
+                <i class="bi bi-folder-fill text-warning fs-4"></i>
+                <div><div class="small text-muted">Tổng dự án</div><div>@totalProjects</div></div>
+            </div>
+            <div class="stat-pill border-success-subtle bg-success bg-opacity-10">
+                <i class="bi bi-shield-check text-success fs-4"></i>
+                <div><div class="small text-muted">Đã nộp hồ sơ</div><div class="text-success">@hasLegalDocs</div></div>
+            </div>
+            
+        </div>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <span class="vault-chip"><i class="bi bi-building"></i> @totalProjects dự án</span>
-        <span class="vault-chip"><i class="bi bi-file-earmark-pdf"></i> @hasLegalDocs hồ sơ có file</span>
-        <span class="vault-chip"><i class="bi bi-images"></i> @hasImages có ảnh</span>
-        <span class="vault-chip"><i class="bi bi-file-text"></i> @hasContent có nội dung</span>
-    </div>
-</div>
 
-@if (Model != null && Model.Any())
-{
-    <div class="row g-4">
-        @foreach (var item in Model)
-        {
-            var image = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
-            var thumbnail = string.IsNullOrWhiteSpace(item.Thumbnail) ? "/images/no-image.jpg" : item.Thumbnail;
+    <!-- DANH SÁCH DỰ ÁN & HỒ SƠ -->
+    @if (Model != null && Model.Any())
+    {
+        <div class="row g-4">
+            @foreach (var item in Model)
+            {
+                var cover = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+                bool hasDocs = !string.IsNullOrWhiteSpace(item.LegalDocsJson) || !string.IsNullOrWhiteSpace(item.LegalDocs);
 
-            <div class="col-xl-4 col-lg-6">
-                <div class="doc-card">
-                    <img src="@image" class="doc-thumb" alt="@item.ProjectName" />
-                    <div class="doc-body">
-                        <h5 class="fw-bold mb-2">@item.ProjectName</h5>
-                        <div class="text-muted small mb-3">
-                            @item.Ward?.WardName, @item.Area?.AreaName
+                <div class="col-xl-4 col-lg-6">
+                    <div class="project-card-vault animate__animated animate__fadeInUp">
+                        <div class="vault-img-container">
+                            <img src="@cover" class="vault-img" alt="@item.ProjectName" />
+                            <div class="vault-badge">Project ID: #@item.ProjectID</div>
                         </div>
 
-                        <div class="mb-3">
-                            <div class="doc-label">Ảnh đại diện</div>
-                            <a href="@image" target="_blank" class="file-link text-primary">
-                                <i class="bi bi-image"></i> Mở ảnh đại diện
-                            </a>
-                        </div>
+                        <div class="p-4 d-flex flex-column flex-grow-1">
+                            <h5 class="fw-900 text-dark mb-1">@item.ProjectName</h5>
+                            <p class="text-muted small mb-4"><i class="bi bi-geo-alt"></i> @item.Ward?.WardName, @item.Area?.AreaName</p>
 
-                        <div class="mb-3">
-                            <div class="doc-label">Ảnh thumbnail</div>
-                            <a href="@thumbnail" target="_blank" class="file-link text-primary">
-                                <i class="bi bi-card-image"></i> Mở thumbnail
-                            </a>
-                        </div>
+                            <!-- Trạng thái các loại file -->
+                            <div class="doc-status-item">
+                                <div class="doc-icon-box @(hasDocs ? "bg-success bg-opacity-10 text-success" : "bg-light text-muted")">
+                                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold small text-dark">Hồ sơ Pháp lý</div>
+                                    <div class="small text-muted">@(hasDocs ? "Đã lưu trữ an toàn" : "Chưa cập nhật file")</div>
+                                </div>
+                                @if (hasDocs)
+                                {
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                }
+                            </div>
 
-                        <div class="mb-3">
-                            <div class="doc-label">Tài liệu pháp lý</div>
-                            @if (!string.IsNullOrWhiteSpace(item.LegalDocs))
-                            {
-                                <a href="@item.LegalDocs" target="_blank" class="file-link text-success">
-                                    <i class="bi bi-file-earmark-pdf-fill"></i> Xem file pháp lý
+                            <div class="doc-status-item">
+                                <div class="doc-icon-box @(!string.IsNullOrEmpty(item.MainImage) ? "bg-primary bg-opacity-10 text-primary" : "bg-light text-muted")">
+                                    <i class="bi bi-images"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold small text-dark">Bộ sưu tập Hình ảnh</div>
+                                    <div class="small text-muted">@(!string.IsNullOrEmpty(item.MainImage) ? "Đã có ảnh đại diện" : "Thiếu ảnh phối cảnh")</div>
+                                </div>
+                            </div>
+
+                            <div class="doc-status-item">
+                                <div class="doc-icon-box @(!string.IsNullOrEmpty(item.ContentHtml) ? "bg-info bg-opacity-10 text-info" : "bg-light text-muted")">
+                                    <i class="bi bi-file-text-fill"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold small text-dark">Nội dung Truyền thông</div>
+                                    <div class="small text-muted">@(!string.IsNullOrEmpty(item.ContentHtml) ? "Đã soạn thảo HTML" : "Chưa có bài giới thiệu")</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-top">
+                                <div class="d-flex justify-content-between small fw-bold text-muted mb-1">
+                                    <span>Tình trạng hồ sơ</span>
+                                    <span>@(hasDocs ? "80%" : "30%")</span>
+                                </div>
+                                <div class="storage-bar">
+                                    <div class="storage-progress" style="width: @(hasDocs ? "80%" : "30%")"></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <a href="@Url.Action("ManageVault", "ProjectVault", new { id = item.ProjectID })" class="btn-vault-action">
+                                    <i class="bi bi-shield-lock-fill me-2"></i> TRUY CẬP KHO HỒ SƠ
                                 </a>
-                            }
-                            else
-                            {
-                                <div class="text-muted">Chưa có file pháp lý.</div>
-                            }
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="doc-label">Nội dung mô tả</div>
-                            <div class="text-muted">
-                                @(string.IsNullOrWhiteSpace(item.ContentHtml) ? "Chưa có nội dung chi tiết." : "Đã có nội dung HTML trong hồ sơ dự án.")
                             </div>
                         </div>
-
-                        <a href="/Project/Details/@item.ProjectID" class="btn btn-outline-primary rounded-pill fw-bold w-100">
-                            Xem trang dự án
-                        </a>
                     </div>
                 </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="vault-topbar p-5 text-center">
+            <div class="py-5">
+                <i class="bi bi-folder-x display-1 text-muted opacity-25"></i>
+                <h3 class="fw-900 text-dark mt-4">Chưa có dự án để lưu trữ</h3>
+                <p class="text-muted px-5">Vui lòng liên hệ Admin để được bàn giao quyền quản lý dự án. Sau khi được gán quyền, bạn có thể tải lên toàn bộ tài liệu pháp lý tại đây.</p>
+                <a href="/" class="btn btn-primary rounded-pill px-5 py-3 fw-bold mt-3 shadow">Quay lại Trang chủ</a>
             </div>
-        }
-    </div>
-}
-else
-{
-    <div class="vault-card p-5 text-center">
-        <i class="bi bi-folder2-open display-1 text-muted opacity-25"></i>
-        <h5 class="fw-bold mt-3">Chưa có dự án để lưu tài liệu</h5>
-        <div class="text-muted">Khi có dự án, bạn sẽ xem lại toàn bộ ảnh và file đã gắn sẵn ở đây.</div>
-    </div>
-}
+        </div>
+    }
+</div>
