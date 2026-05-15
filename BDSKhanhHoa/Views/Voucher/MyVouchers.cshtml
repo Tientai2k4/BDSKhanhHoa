@@ -1,0 +1,257 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.Voucher>
+@{
+    ViewData["Title"] = "Kho Voucher Của Tôi";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+    var usedCodes = ViewBag.UsedCodes as List<string> ?? new List<string>();
+}
+
+<style>
+    .voucher-container {
+        background: #f8fafc;
+        min-height: calc(100vh - 100px);
+        padding-top: 40px;
+        padding-bottom: 60px;
+    }
+
+    .coupon-card {
+        background: #fff;
+        border-radius: 16px;
+        display: flex;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        position: relative;
+        transition: transform 0.3s ease;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+    }
+
+        .coupon-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+    .coupon-left {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 35%;
+        border-right: 2px dashed rgba(255,255,255,0.5);
+        position: relative;
+    }
+
+        /* Hiệu ứng cắt răng cưa 2 đầu */
+        .coupon-left::before, .coupon-left::after {
+            content: '';
+            position: absolute;
+            right: -12px;
+            width: 24px;
+            height: 24px;
+            background-color: #f8fafc;
+            border-radius: 50%;
+        }
+
+        .coupon-left::before {
+            top: -12px;
+        }
+
+        .coupon-left::after {
+            bottom: -12px;
+        }
+
+    .coupon-right {
+        padding: 20px 25px;
+        width: 65%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .btn-copy-code {
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 800;
+        font-size: 0.9rem;
+        transition: 0.2s;
+        white-space: nowrap;
+    }
+
+        .btn-copy-code:hover {
+            background: #3b82f6;
+            color: white;
+        }
+
+    /* Trạng thái đã sử dụng hoặc hết hạn */
+    .coupon-card.disabled {
+        filter: grayscale(100%);
+        opacity: 0.7;
+        pointer-events: none;
+    }
+
+        .coupon-card.disabled .coupon-left {
+            background: #94a3b8;
+        }
+
+    .watermark {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%) rotate(-15deg);
+        font-size: 2rem;
+        font-weight: 900;
+        color: rgba(239, 68, 68, 0.2);
+        pointer-events: none;
+        border: 4px solid rgba(239, 68, 68, 0.2);
+        padding: 5px 15px;
+        border-radius: 10px;
+        z-index: 10;
+    }
+
+    @@media (max-width: 768px) {
+        .coupon-card {
+            flex-direction: column;
+        }
+
+        .coupon-left {
+            width: 100%;
+            padding: 20px;
+            border-right: none;
+            border-bottom: 2px dashed rgba(255,255,255,0.5);
+        }
+
+            .coupon-left::before {
+                left: -12px;
+                top: auto;
+                bottom: -12px;
+            }
+
+            .coupon-left::after {
+                right: -12px;
+                bottom: -12px;
+            }
+
+        .coupon-right {
+            width: 100%;
+            padding: 20px;
+        }
+    }
+</style>
+
+<div class="voucher-container">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-5 animate__animated animate__fadeInDown">
+            <div>
+                <h2 class="fw-black text-dark mb-1"><i class="bi bi-ticket-perforated text-primary me-2"></i> Kho Voucher Của Tôi</h2>
+                <p class="text-muted mb-0">Lưu lại mã và nhập vào bước thanh toán để nhận ưu đãi</p>
+            </div>
+            <a href="/Package/Buy" class="btn btn-primary rounded-pill fw-bold px-4 py-2 shadow-sm d-none d-md-block">Mua dịch vụ ngay</a>
+        </div>
+
+        <div class="row">
+            @if (!Model.Any())
+            {
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted opacity-25"></i>
+                    <h5 class="mt-3 fw-bold text-muted">Chưa có chương trình khuyến mãi nào</h5>
+                </div>
+            }
+            else
+            {
+                foreach (var v in Model)
+                {
+                    bool isUsed = usedCodes.Contains(v.Code.ToUpper());
+                    bool isExpired = !v.IsActive || v.ExpiryDate < DateTime.Now;
+                    bool isWaiting = v.StartDate > DateTime.Now; // Chưa đến ngày bắt đầu
+                    bool isOutOfStock = v.UsedCount >= v.Quantity;
+                    bool isDisabled = isUsed || isExpired || isOutOfStock;
+
+                    <div class="col-xl-6 col-lg-6 animate__animated animate__fadeInUp">
+                        <div class="coupon-card @(isDisabled ? "disabled" : "")">
+                            @if (isUsed)
+                            {
+                                <div class="watermark">ĐÃ SỬ DỤNG</div>
+                            }
+                            else if (isExpired)
+                            {
+
+                                <div class="watermark">HẾT HẠN</div>
+                            }
+                            else if (isOutOfStock)
+                            {
+
+                                <div class="watermark">HẾT LƯỢT</div>
+                            }
+
+                            <div class="coupon-left">
+                                <h3 class="fw-black mb-0 text-center" style="font-size: 1.6rem;">Giảm @v.DiscountPercent.ToString("0.##")%</h3>
+                                <div class="mt-2 text-center" style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px;">
+                                    <small class="fw-bold">Đơn từ @v.MinOrderAmount.ToString("N0")đ</small>
+                                </div>
+                            </div>
+
+                            <div class="coupon-right">
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="fw-bold text-dark mb-0 font-monospace">@v.Code.ToUpper()</h5>
+                                        <span class="badge bg-light text-dark border"><i class="bi bi-people-fill text-muted me-1"></i> Còn @(v.Quantity - v.UsedCount) lượt</span>
+                                    </div>
+                                    <p class="text-muted small mb-0 fw-medium">
+                                        @if (!string.IsNullOrEmpty(v.Description))
+                                        {
+                                            @v.Description
+                                        }
+                                        else
+                                        {
+                                            <text>Giảm @v.DiscountPercent.ToString("0.##")% cho tổng giá trị đơn hàng, tối đa @v.MaxDiscountAmount.ToString("N0")đ. Mỗi tài khoản sử dụng 1 lần.</text>
+                                        }
+                                    </p>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-end mt-3 border-top pt-3">
+                                    <div>
+                                        @if (isWaiting)
+                                        {
+                                            <small class="text-warning fw-bold d-block"><i class="bi bi-hourglass-split me-1"></i> Bắt đầu: @v.StartDate.ToString("dd/MM/yyyy HH:mm")</small>
+                                        }
+                                        <small class="text-danger fw-bold d-block"><i class="bi bi-clock-history me-1"></i> HSD: @v.ExpiryDate.ToString("dd/MM/yyyy HH:mm")</small>
+                                    </div>
+                                    @if (!isDisabled)
+                                    {
+                                        <button class="btn-copy-code" onclick="copyVoucherCode('@v.Code.ToUpper()')">
+                                            Sao chép mã
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function copyVoucherCode(code) {
+            navigator.clipboard.writeText(code).then(function() {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Đã sao chép mã: ' + code,
+                    showConfirmButton: false,
+                    timer: 2000,
+                    customClass: { popup: 'rounded-4' }
+                });
+            });
+        }
+    </script>
+}

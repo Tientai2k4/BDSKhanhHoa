@@ -1,4 +1,6 @@
-﻿namespace BDSKhanhHoa.ViewModels
+﻿using System.Collections.Generic;
+
+namespace BDSKhanhHoa.ViewModels
 {
     public class ChatResponse
     {

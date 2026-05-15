@@ -21,10 +21,13 @@ namespace BDSKhanhHoa.Models
         [ForeignKey("PropertyID")]
         public Property? Property { get; set; }
 
-        [Required]
-        public string MessageContent { get; set; }
+        public string? MessageContent { get; set; }
+
+        // --- 2 TRƯỜNG MỚI THÊM VÀO ---
+        public string? AttachmentUrl { get; set; } // Đường dẫn lưu file/ảnh
+        public string MessageType { get; set; } = "Text"; // Giá trị: "Text", "Image", "File"
 
         public bool IsRead { get; set; }
-        public DateTime? CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
     }
 }

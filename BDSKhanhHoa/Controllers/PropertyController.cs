@@ -1,5 +1,6 @@
 ﻿using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,11 +15,12 @@ namespace BDSKhanhHoa.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _hostEnvironment;
-
-        public PropertyController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment)
+        private readonly IAuditLogService _auditLogService;
+        public PropertyController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment, IAuditLogService auditLogService)
         {
             _context = context;
             _hostEnvironment = hostEnvironment;
+            _auditLogService = auditLogService;
         }
 
         [AllowAnonymous]
@@ -48,7 +50,7 @@ namespace BDSKhanhHoa.Controllers
         }
 
         // ==========================================
-        // 0. TRANG SEARCH CHÍNH (ĐÃ TỐI ƯU SẮP XẾP)
+        // 0. TRANG SEARCH CHÍNH (ĐÃ BỔ SUNG AUTO-DOWNGRADE)
         // ==========================================
         [AllowAnonymous]
         [Route("Property/Search")]
@@ -60,6 +62,33 @@ namespace BDSKhanhHoa.Controllers
        string? legalStatus = null, string[]? amenities = null, int? packageId = null,
        string? sortOrder = null, int page = 1)
         {
+            // ---------------------------------------------------------
+            // [THÊM MỚI]: TỰ ĐỘNG HẠ CẤP TIN VIP HẾT HẠN Ở MÀN HÌNH TÌM KIẾM
+            // ---------------------------------------------------------
+            var normalPackage = await _context.PostServicePackages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
+
+            if (normalPackage != null)
+            {
+                var expiredVipProperties = await _context.Properties
+                    .Where(p => p.VipExpiryDate.HasValue
+                             && p.VipExpiryDate.Value < DateTime.Now
+                             && p.PackageID != normalPackage.PackageID)
+                    .ToListAsync();
+
+                if (expiredVipProperties.Any())
+                {
+                    foreach (var prop in expiredVipProperties)
+                    {
+                        prop.PackageID = normalPackage.PackageID; // Về Tin Thường
+                        prop.VipExpiryDate = null;
+                    }
+                    await _context.SaveChangesAsync();
+                }
+            }
+            // ---------------------------------------------------------
+
             int pageSize = 12;
             page = Math.Max(1, page);
 
@@ -145,25 +174,23 @@ namespace BDSKhanhHoa.Controllers
             }
 
             // SẮP XẾP KHOA HỌC CHUẨN XÁC
-            // Ưu tiên 1: PriorityLevel (Số càng nhỏ càng nằm trên: Kim cương=10, Vàng=40. Tin thường cho số 9999 để nằm chót)
-            // Ưu tiên 2: Mới tới các tiêu chí Giá hoặc Diện tích NẰM TRONG CÙNG 1 LOẠI VIP
             query = sortOrder switch
             {
                 "price_asc" => query
                     .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenBy(p => p.Price), // Thấp -> Cao
+                    .ThenBy(p => p.Price),
 
                 "price_desc" => query
                     .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenByDescending(p => p.Price), // Cao -> Thấp
+                    .ThenByDescending(p => p.Price),
 
                 "area_desc" => query
                     .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenByDescending(p => p.AreaSize), // Rộng -> Hẹp
+                    .ThenByDescending(p => p.AreaSize),
 
                 _ => query
                     .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenByDescending(p => p.CreatedAt) // Mặc định: Tin VIP ưu tiên, nếu cùng VIP thì tin mới nhất lên trước
+                    .ThenByDescending(p => p.CreatedAt)
             };
 
             int totalItems = await query.CountAsync();
@@ -172,7 +199,6 @@ namespace BDSKhanhHoa.Controllers
 
             var results = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-            // 1. GỬI RA VIEW DANH SÁCH DỰ ÁN THỰC TẾ
             ViewBag.LatestProjects = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Area)
@@ -181,7 +207,6 @@ namespace BDSKhanhHoa.Controllers
                 .Take(4)
                 .ToListAsync();
 
-            // 2. GỬI RA VIEW DANH SÁCH ID TIN ĐÃ LƯU ĐỂ HIỂN THỊ TIM ĐỎ
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             List<int> favoritedIds = new List<int>();
             if (int.TryParse(userIdClaim, out int userIdToken))
@@ -202,7 +227,6 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
 
-            // KIỂM TRA NẾU LÀ YÊU CẦU AJAX THÌ CHỈ TRẢ VỀ PARTIAL (HTML CỦA DANH SÁCH) MÀ KHÔNG LOAD LẠI BỘ LỌC
             if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
             {
                 return PartialView("_PropertyGridPartial", results);
@@ -210,7 +234,6 @@ namespace BDSKhanhHoa.Controllers
 
             return View("Search", results);
         }
-
         [AllowAnonymous]
         [Route("BatDongSan/NhaDatBan")]
         public async Task<IActionResult> NhaDatBan()
@@ -235,6 +258,31 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
+            // ---------------------------------------------------------
+            // [THÊM MỚI]: HẠ CẤP TRONG TRANG QUẢN LÝ CỦA CHỦ NHÀ
+            // Để chủ nhà tự thấy tin mình bị rớt xuống tin thường
+            // ---------------------------------------------------------
+            var normalPackage = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
+
+            if (normalPackage != null)
+            {
+                var myExpiredVips = await _context.Properties
+                    .Where(p => p.UserID == userId && p.VipExpiryDate.HasValue && p.VipExpiryDate.Value < DateTime.Now && p.PackageID != normalPackage.PackageID)
+                    .ToListAsync();
+
+                if (myExpiredVips.Any())
+                {
+                    foreach (var prop in myExpiredVips)
+                    {
+                        prop.PackageID = normalPackage.PackageID;
+                        prop.VipExpiryDate = null;
+                    }
+                    await _context.SaveChangesAsync();
+                }
+            }
+            // ---------------------------------------------------------
+
             var myProperties = await _context.Properties
                 .Include(p => p.PropertyType)
                 .Include(p => p.PostServicePackage)
@@ -244,7 +292,6 @@ namespace BDSKhanhHoa.Controllers
 
             return View(myProperties);
         }
-
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> MarkAsTransacted(int id, string transactionStatus)
@@ -278,7 +325,6 @@ namespace BDSKhanhHoa.Controllers
 
             return RedirectToAction("MyAds");
         }
-
         [HttpGet]
         public async Task<IActionResult> GetAvailablePackages()
         {
@@ -289,7 +335,7 @@ namespace BDSKhanhHoa.Controllers
 
             if (!hasReceivedGift)
             {
-                var normalPackage = await _context.PostServicePackages.FirstOrDefaultAsync(p => p.PackageType == "Tin Thường" || p.Price == 0);
+                var normalPackage = await _context.PostServicePackages.FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
                 if (normalPackage == null) normalPackage = await _context.PostServicePackages.OrderBy(p => p.Price).FirstOrDefaultAsync();
 
                 if (normalPackage != null)
@@ -465,8 +511,40 @@ namespace BDSKhanhHoa.Controllers
                        direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
                 var amenities = Request.Form["Amenities"].ToList();
 
-                if (!string.IsNullOrEmpty(bedrooms)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Cấu trúc", FeatureName = "Phòng ngủ", FeatureValue = bedrooms });
-                if (!string.IsNullOrEmpty(bathrooms)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Cấu trúc", FeatureName = "Phòng vệ sinh", FeatureValue = bathrooms });
+                string bedroomsRaw = Request.Form["Bedrooms"].ToString();
+                string bathroomsRaw = Request.Form["Bathrooms"].ToString();
+
+                int bedroomsValue = 0;
+                int bathroomsValue = 0;
+
+                if (!string.IsNullOrWhiteSpace(bedroomsRaw))
+                {
+                    int.TryParse(bedroomsRaw, out bedroomsValue);
+                }
+
+                if (!string.IsNullOrWhiteSpace(bathroomsRaw))
+                {
+                    int.TryParse(bathroomsRaw, out bathroomsValue);
+                }
+
+                if (bedroomsValue < 0) bedroomsValue = 0;
+                if (bathroomsValue < 0) bathroomsValue = 0;
+
+                features.Add(new PropertyFeature
+                {
+                    PropertyID = prop.PropertyID,
+                    FeatureGroup = "Cấu trúc",
+                    FeatureName = "Phòng ngủ",
+                    FeatureValue = bedroomsValue.ToString()
+                });
+
+                features.Add(new PropertyFeature
+                {
+                    PropertyID = prop.PropertyID,
+                    FeatureGroup = "Cấu trúc",
+                    FeatureName = "Phòng vệ sinh",
+                    FeatureValue = bathroomsValue.ToString()
+                });
                 if (!string.IsNullOrEmpty(direction)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Hướng nhà", FeatureName = "Hướng nhà", FeatureValue = direction });
                 if (!string.IsNullOrEmpty(legalStatus)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = legalStatus });
                 if (amenities.Any()) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", amenities) });
@@ -678,8 +756,37 @@ namespace BDSKhanhHoa.Controllers
                    bds_direction = Request.Form["Direction"], bds_legal = Request.Form["LegalStatus"];
             var bds_amenities = Request.Form["Amenities"].ToList();
 
-            if (!string.IsNullOrEmpty(bds_bedrooms)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng ngủ", FeatureValue = bds_bedrooms });
-            if (!string.IsNullOrEmpty(bds_bathrooms)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Cấu trúc", FeatureName = "Phòng vệ sinh", FeatureValue = bds_bathrooms });
+            int bdsBedroomsValue = 0;
+            int bdsBathroomsValue = 0;
+
+            if (!string.IsNullOrWhiteSpace(bds_bedrooms))
+            {
+                int.TryParse(bds_bedrooms, out bdsBedroomsValue);
+            }
+
+            if (!string.IsNullOrWhiteSpace(bds_bathrooms))
+            {
+                int.TryParse(bds_bathrooms, out bdsBathroomsValue);
+            }
+
+            if (bdsBedroomsValue < 0) bdsBedroomsValue = 0;
+            if (bdsBathroomsValue < 0) bdsBathroomsValue = 0;
+
+            _context.PropertyFeatures.Add(new PropertyFeature
+            {
+                PropertyID = id,
+                FeatureGroup = "Cấu trúc",
+                FeatureName = "Phòng ngủ",
+                FeatureValue = bdsBedroomsValue.ToString()
+            });
+
+            _context.PropertyFeatures.Add(new PropertyFeature
+            {
+                PropertyID = id,
+                FeatureGroup = "Cấu trúc",
+                FeatureName = "Phòng vệ sinh",
+                FeatureValue = bdsBathroomsValue.ToString()
+            });
             if (!string.IsNullOrEmpty(bds_direction)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Hướng nhà", FeatureName = "Hướng nhà", FeatureValue = bds_direction });
             if (!string.IsNullOrEmpty(bds_legal)) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = bds_legal });
             if (bds_amenities.Any()) _context.PropertyFeatures.Add(new PropertyFeature { PropertyID = id, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", bds_amenities) });

@@ -2,117 +2,370 @@
 @using System.Globalization
 
 @{
-    ViewData["Title"] = "Chi tiết sự kiện bảo mật";
+    ViewData["Title"] = $"Phân tích Log #{Model.LogID}";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    // 1. Logic màu sắc và Icon theo Mức độ (Severity)
+    string themeColor = "#3b82f6"; // Mặc định Info (Xanh dương)
+    string bgSoft = "#eff6ff";
+    string iconClass = "bi-info-circle-fill";
+    string severityDescription = "Sự kiện thông tin hệ thống bình thường, không mang tính rủi ro.";
+
+    switch (Model.Severity?.Trim())
+    {
+        case "Critical":
+            themeColor = "#0f172a"; // Đen
+            bgSoft = "#f1f5f9";
+            iconClass = "bi-x-octagon-fill text-dark";
+            severityDescription = "CẢNH BÁO ĐỎ: Hành vi can thiệp hệ thống cực kỳ nghiêm trọng, có thể gây lỗi hoặc lộ dữ liệu.";
+            break;
+        case "Danger":
+            themeColor = "#ef4444"; // Đỏ
+            bgSoft = "#fef2f2";
+            iconClass = "bi-exclamation-triangle-fill text-danger";
+            severityDescription = "NGUY HIỂM: Thao tác xóa, phá hủy dữ liệu hoặc vi phạm an ninh hệ thống.";
+            break;
+        case "Warning":
+            themeColor = "#f59e0b"; // Vàng cam
+            bgSoft = "#fffbeb";
+            iconClass = "bi-exclamation-circle-fill text-warning";
+            severityDescription = "CẢNH BÁO: Các thao tác nhạy cảm như đổi mật khẩu, phân quyền hoặc đăng nhập thất bại.";
+            break;
+        default: // Info
+            themeColor = "#3b82f6";
+            bgSoft = "#eff6ff";
+            iconClass = "bi-info-circle-fill text-primary";
+            break;
+    }
+
+    // 2. Logic kiểm tra xem có JSON Payload hay không
+    bool hasPayload = !string.IsNullOrWhiteSpace(Model.OldValues) || !string.IsNullOrWhiteSpace(Model.NewValues);
+
+    string roleName = "Hệ thống / Guest";
+    if (Model.User != null)
+    {
+        roleName = Model.User.RoleID == 1 ? "Super Admin" : Model.User.RoleID == 2 ? "Staff (Nhân viên)" : "Member (Thành viên)";
+    }
 }
 
 <style>
+    /* Bố cục tổng thể */
     .detail-wrap {
         background: #fff;
-        border-radius: 24px;
-        border: 1px solid rgba(148,163,184,.16);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
-    }
-
-    .meta-card {
-        background: #f8fafc;
+        border-radius: 20px;
         border: 1px solid #e2e8f0;
-        border-radius: 18px;
-        padding: 20px;
-        height: 100%;
-        transition: 0.2s;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, .04);
+        overflow: hidden;
     }
 
-        .meta-card:hover {
+    .detail-header {
+        padding: 35px 40px;
+        background: @bgSoft;
+        border-bottom: 2px dashed rgba(0,0,0,0.05);
+        position: relative;
+    }
+
+    /* Thẻ thông tin (Cards) */
+    .info-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 25px;
+        height: 100%;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        transition: all 0.3s ease;
+    }
+
+        .info-card:hover {
             border-color: #cbd5e1;
-            box-shadow: 0 4px 12px rgba(0,0,0,.03);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.05);
         }
 
-    .meta-label {
-        font-size: .75rem;
+    .info-card-title {
+        font-size: 0.8rem;
         text-transform: uppercase;
-        letter-spacing: .08em;
+        letter-spacing: 0.1em;
         font-weight: 800;
         color: #64748b;
-        margin-bottom: 8px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
-    .meta-value {
-        font-weight: 900;
+    .info-value {
+        font-weight: 800;
         font-size: 1.1rem;
         color: #0f172a;
         word-break: break-word;
     }
 
-    .terminal-box {
-        background-color: #0f172a;
-        color: #10b981;
-        font-family: 'Courier New', Courier, monospace;
-        padding: 20px;
-        border-radius: 16px;
-        border: 1px solid #334155;
-        box-shadow: inset 0 2px 10px rgba(0,0,0,.2);
+    .info-sub {
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 6px;
     }
 
-        .terminal-box p {
-            margin-bottom: 8px;
-            font-size: 0.95rem;
+    /* Terminal UI cho JSON */
+    .code-window {
+        background-color: #0f172a;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        border: 1px solid #334155;
+        height: 100%;
+    }
+
+    .code-header {
+        background: #1e293b;
+        padding: 12px 20px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        border-bottom: 1px solid #334155;
+    }
+
+    .code-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+        .code-dot.red {
+            background: #ff5f56;
         }
 
-    .terminal-label {
+        .code-dot.yellow {
+            background: #ffbd2e;
+        }
+
+        .code-dot.green {
+            background: #27c93f;
+        }
+
+    .code-title {
         color: #94a3b8;
+        font-size: 0.85rem;
+        font-family: 'Consolas', monospace;
         font-weight: bold;
-        width: 150px;
-        display: inline-block;
+        margin-left: auto;
+    }
+
+    .code-body {
+        padding: 20px;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #e2e8f0;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    /* Syntax Highlighting */
+    .json-key {
+        color: #7dd3fc;
+    }
+
+    .json-string {
+        color: #a7f3d0;
+    }
+
+    .json-number {
+        color: #fde047;
+    }
+
+    .json-boolean {
+        color: #c084fc;
+    }
+
+    .json-null {
+        color: #f87171;
+        font-weight: bold;
+    }
+
+    /* Trạng thái trống (Empty State) */
+    .empty-payload {
+        background: #f8fafc;
+        border: 2px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 50px 20px;
+        text-align: center;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        color: #cbd5e1;
+        margin-bottom: 15px;
     }
 </style>
 
-<div class="detail-wrap p-4 p-md-5">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4 border-bottom pb-4">
-        <div>
-            <h3 class="fw-black mb-1 text-dark"><i class="bi bi-search me-2 text-primary"></i>Chi tiết sự kiện #@Model.LogID</h3>
-            <div class="text-muted"><i class="bi bi-clock-history me-1"></i> Ghi nhận lúc: @Model.CreatedAt.ToString("HH:mm:ss dd/MM/yyyy")</div>
-        </div>
-        <a asp-action="Index" class="btn btn-outline-secondary rounded-pill fw-bold px-4">
-            <i class="bi bi-arrow-left me-2"></i> Trở về danh sách
-        </a>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <a asp-action="Index" class="btn btn-light bg-white border fw-bold shadow-sm rounded-pill px-4 py-2">
+        <i class="bi bi-arrow-left me-2"></i> Trở về danh sách
+    </a>
+    <div class="text-muted fw-bold">Chi tiết sự kiện bảo mật</div>
+</div>
 
-    <div class="row g-4 mb-5">
-        <div class="col-xl-6">
-            <div class="meta-card d-flex align-items-center gap-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 54px; height: 54px; font-size: 1.5rem;">
-                    <i class="bi bi-person-fill"></i>
+<div class="detail-wrap">
+    <div class="detail-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <i class="bi @iconClass" style="font-size: 2.5rem;"></i>
+                    <h2 class="fw-black mb-0 text-dark" style="font-size: 2.2rem; letter-spacing: -0.02em;">Log #@Model.LogID</h2>
                 </div>
-                <div>
-                    <div class="meta-label">Người khởi tạo</div>
-                    <div class="meta-value">@(Model.User?.FullName ?? "System Auto")</div>
-                    <div class="text-muted small">Account ID: @(Model.User != null ? Model.UserID.ToString() : "N/A")</div>
+                <div class="text-muted fw-bold ms-1" style="font-size: 1.1rem;">
+                    <i class="bi bi-clock-history me-1"></i> Xảy ra lúc: <span class="text-dark">@Model.CreatedAt.ToString("HH:mm:ss - dd/MM/yyyy")</span>
                 </div>
             </div>
-        </div>
-
-        <div class="col-xl-6">
-            <div class="meta-card d-flex align-items-center gap-3">
-                <div class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 54px; height: 54px; font-size: 1.5rem;">
-                    <i class="bi bi-lightning-charge-fill"></i>
-                </div>
-                <div>
-                    <div class="meta-label">Phân loại hành động</div>
-                    <div class="meta-value">@Model.Action</div>
-                    <div class="text-muted small">Target Entity: @Model.Target</div>
-                </div>
+            <div class="col-md-4 text-md-end mt-4 mt-md-0">
+                <span class="badge border bg-white px-4 py-2 rounded-pill shadow-sm fs-6" style="color: @themeColor; border-color: @themeColor !important;">
+                    <i class="bi bi-shield-check me-1"></i> MỨC ĐỘ: @Model.Severity?.ToUpper()
+                </span>
+                <p class="mt-3 mb-0 text-muted small fw-medium text-wrap text-md-end">@severityDescription</p>
             </div>
         </div>
     </div>
 
-    <h6 class="fw-bold mb-3 text-uppercase text-muted" style="letter-spacing: 1px;"><i class="bi bi-terminal me-2"></i>Dữ liệu hệ thống thô (Raw Data)</h6>
-    <div class="terminal-box">
-        <p><span class="terminal-label">[LOG_ID]</span> @Model.LogID</p>
-        <p><span class="terminal-label">[TIMESTAMP]</span> @Model.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")</p>
-        <p><span class="terminal-label">[ACTION]</span> EXECUTE @Model.Action</p>
-        <p><span class="terminal-label">[TARGET_TABLE]</span> dbo.@Model.Target</p>
-        <p><span class="terminal-label">[EXECUTED_BY]</span> @(Model.User?.Username ?? "NT AUTHORITY\\SYSTEM")</p>
-        <p><span class="terminal-label">[STATUS]</span> <span class="text-white bg-success px-2 rounded-1 small">SUCCESS</span></p>
+    <div class="p-4 p-md-5">
+
+        <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-diagram-3-fill text-primary me-2"></i>Bối cảnh sự kiện (Event Context)</h5>
+
+        <div class="row g-4 mb-5">
+            <div class="col-xl-4 col-md-6">
+                <div class="info-card border-top border-4 border-primary">
+                    <div class="info-card-title"><i class="bi bi-person-bounding-box fs-5"></i> Người Khởi Tạo</div>
+
+                    @if (Model.User != null)
+                    {
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <img src="@(string.IsNullOrEmpty(Model.User.Avatar) ? "/images/avatars/default-user.png" : Model.User.Avatar)"
+                                 class="rounded-circle border" style="width: 50px; height: 50px; object-fit: cover;" alt="Avatar" onerror="this.src='/images/avatars/default-user.png'" />
+                            <div>
+                                <div class="info-value text-primary">@Model.User.FullName</div>
+                                <div class="info-sub mt-0">@Model.User.Email</div>
+                            </div>
+                        </div>
+                        <div class="info-sub"><i class="bi bi-hash"></i> ID Tài khoản: <strong class="text-dark">@Model.UserID</strong></div>
+                        <div class="info-sub"><i class="bi bi-shield-lock"></i> Vai trò: <strong class="text-dark">@roleName</strong></div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px;">
+                                <i class="bi bi-robot fs-3"></i>
+                            </div>
+                            <div>
+                                <div class="info-value text-muted">Hệ thống / Tự động</div>
+                                <div class="info-sub mt-0">Unauthenticated/System</div>
+                            </div>
+                        </div>
+                        <div class="info-sub"><i class="bi bi-hash"></i> ID Tài khoản: <strong class="text-dark">N/A</strong></div>
+                    }
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-6">
+                <div class="info-card border-top border-4 border-success">
+                    <div class="info-card-title"><i class="bi bi-activity fs-5"></i> Thao Tác Thực Hiện</div>
+                    <div class="info-value mb-2">@Model.Action</div>
+
+                    <div class="info-sub mt-3"><i class="bi bi-hdd-stack"></i> Phân khu (Module): </div>
+                    <span class="badge bg-light text-dark border px-3 py-2 mt-1 fs-6">@(string.IsNullOrWhiteSpace(Model.ModuleName) ? "Hệ thống chung" : Model.ModuleName)</span>
+
+                    <div class="info-sub mt-3"><i class="bi bi-bullseye"></i> Đối tượng tác động (Target):</div>
+                    <div class="p-2 bg-light border rounded mt-1 fw-bold text-primary" style="word-break: break-all;">
+                        @(string.IsNullOrWhiteSpace(Model.Target) ? "Không xác định đối tượng cụ thể" : Model.Target)
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-12">
+                <div class="info-card border-top border-4 border-dark">
+                    <div class="info-card-title"><i class="bi bi-router-fill fs-5"></i> Dấu Vết Mạng & Thiết Bị</div>
+
+                    <div class="info-sub mb-1"><i class="bi bi-geo-alt-fill text-danger"></i> Địa chỉ IP truy cập:</div>
+                    <div class="info-value mb-3">@(string.IsNullOrWhiteSpace(Model.IPAddress) ? "Không ghi nhận (Internal)" : Model.IPAddress)</div>
+
+                    <div class="info-sub mb-1"><i class="bi bi-laptop text-info"></i> Thông tin thiết bị (User-Agent):</div>
+                    <div class="p-3 bg-light border rounded mt-1 text-muted small" style="word-break: break-all; max-height: 100px; overflow-y: auto;">
+                        @(string.IsNullOrWhiteSpace(Model.UserAgent) ? "Không có thông tin trình duyệt" : Model.UserAgent)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-braces text-primary me-2"></i>Dữ liệu thay đổi (Data Payload)</h5>
+
+        @if (hasPayload)
+        {
+            <div class="row g-4">
+                <div class="col-xl-6">
+                    <div class="code-window">
+                        <div class="code-header">
+                            <div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div>
+                            <div class="code-title">Old_Values.json (Trước)</div>
+                        </div>
+                        <div class="code-body">
+                            <pre><code id="oldJson">@Html.Raw(string.IsNullOrWhiteSpace(Model.OldValues) ? "null" : Model.OldValues)</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-6">
+                    <div class="code-window">
+                        <div class="code-header">
+                            <div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div>
+                            <div class="code-title">New_Values.json (Sau)</div>
+                        </div>
+                        <div class="code-body">
+                            <pre><code id="newJson">@Html.Raw(string.IsNullOrWhiteSpace(Model.NewValues) ? "null" : Model.NewValues)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty-payload animate__animated animate__fadeIn">
+                <i class="bi bi-inboxes empty-icon"></i>
+                <h4 class="fw-bold text-dark">Sự kiện này không có dữ liệu thay đổi</h4>
+                <p class="text-muted mb-0">Hành động "@Model.Action" là hành vi tương tác một chiều (như đăng nhập, xem dữ liệu, xuất file) nên không phát sinh việc cập nhật hay ghi đè dữ liệu JSON vào cơ sở dữ liệu.</p>
+            </div>
+        }
+
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // Hàm làm đẹp JSON
+        function syntaxHighlight(json) {
+            if (json === "null" || !json || json.trim() === "") return "<span class='json-null'>Không có dữ liệu</span>";
+            try {
+                if (typeof json != 'string') { json = JSON.stringify(json, undefined, 2); }
+                else { json = JSON.stringify(JSON.parse(json), undefined, 2); }
+
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    var cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) { cls = 'json-key'; } else { cls = 'json-string'; }
+                    } else if (/true|false/.test(match)) { cls = 'json-boolean'; }
+                    else if (/null/.test(match)) { cls = 'json-null'; }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+            } catch (e) {
+                // Nếu không phải định dạng JSON (chỉ là chuỗi text)
+                return "<span class='json-string'>\"" + json + "\"</span>";
+            }
+        }
+
+        // Chỉ format nếu DOM tồn tại (khi hasPayload = true)
+        const oldJsonEl = document.getElementById('oldJson');
+        const newJsonEl = document.getElementById('newJson');
+
+        if(oldJsonEl) oldJsonEl.innerHTML = syntaxHighlight(oldJsonEl.innerText);
+        if(newJsonEl) newJsonEl.innerHTML = syntaxHighlight(newJsonEl.innerText);
+    </script>
+}

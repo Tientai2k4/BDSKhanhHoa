@@ -1,454 +1,1723 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@using System.Security.Claims
 @using System.Globalization
 
+@functions {
+    private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
+
+    private string GetSafeImage(string? image)
+    {
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            return "/images/no-image.jpg";
+        }
+
+        image = image.Trim();
+
+        if (image.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("/"))
+        {
+            return image;
+        }
+
+        return "/" + image.TrimStart('/');
+    }
+
+    private string FormatProjectPrice(decimal? priceMin, decimal? priceMax, string? unit)
+    {
+        string priceUnit = string.IsNullOrWhiteSpace(unit) ? "" : unit.Trim();
+
+        if (priceMin.HasValue && priceMax.HasValue)
+        {
+            return $"{priceMin.Value.ToString("0.##", Vi)} - {priceMax.Value.ToString("0.##", Vi)} {priceUnit}".Trim();
+        }
+
+        if (priceMin.HasValue)
+        {
+            return $"Từ {priceMin.Value.ToString("0.##", Vi)} {priceUnit}".Trim();
+        }
+
+        if (priceMax.HasValue)
+        {
+            return $"Đến {priceMax.Value.ToString("0.##", Vi)} {priceUnit}".Trim();
+        }
+
+        return "Đang cập nhật";
+    }
+
+    private string FormatAreaRange(decimal? areaMin, decimal? areaMax)
+    {
+        if (areaMin.HasValue && areaMax.HasValue)
+        {
+            return $"{areaMin.Value.ToString("0.##", Vi)} - {areaMax.Value.ToString("0.##", Vi)} m²";
+        }
+
+        if (areaMin.HasValue)
+        {
+            return $"Từ {areaMin.Value.ToString("0.##", Vi)} m²";
+        }
+
+        if (areaMax.HasValue)
+        {
+            return $"Đến {areaMax.Value.ToString("0.##", Vi)} m²";
+        }
+
+        return "Đang cập nhật";
+    }
+
+    private string GetStatusClass(string? status)
+    {
+        status = status?.Trim() ?? "";
+
+        return status switch
+        {
+            "Đang mở bán" => "status-selling",
+            "Sắp mở bán" => "status-coming",
+            "Đã bàn giao" => "status-done",
+            _ => "status-updating"
+        };
+    }
+
+    private string GetStatusIcon(string? status)
+    {
+        status = status?.Trim() ?? "";
+
+        return status switch
+        {
+            "Đang mở bán" => "bi-lightning-charge-fill",
+            "Sắp mở bán" => "bi-hourglass-split",
+            "Đã bàn giao" => "bi-patch-check-fill",
+            _ => "bi-info-circle-fill"
+        };
+    }
+
+    private string FormatNumber(int value)
+    {
+        return value.ToString("N0", Vi);
+    }
+}
+
 @{
-    ViewData["Title"] = "Dự án Bất động sản Khánh Hòa 2026";
+    ViewData["Title"] = "Danh sách Dự án Bất động sản Khánh Hòa";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
-    var areas = ViewBag.Areas as IEnumerable<BDSKhanhHoa.Models.Area>;
+    var areas = ViewBag.Areas as IEnumerable<BDSKhanhHoa.Models.Area> ?? new List<BDSKhanhHoa.Models.Area>();
+
     string keyword = ViewBag.Keyword as string ?? "";
     int? areaId = ViewBag.AreaId as int?;
     string status = ViewBag.Status as string ?? "";
     string sort = ViewBag.Sort as string ?? "newest";
-    int totalResults = ViewBag.TotalResults ?? 0;
-    int currentPage = ViewBag.CurrentPage ?? 1;
-    int totalPages = ViewBag.TotalPages ?? 1;
+
+    int totalResults = ViewBag.TotalResults is int tr ? tr : 0;
+    int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
+    int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+
+    if (currentPage < 1)
+    {
+        currentPage = 1;
+    }
+
+    if (totalPages < 1)
+    {
+        totalPages = 1;
+    }
+
+    int startPage = Math.Max(1, currentPage - 2);
+    int endPage = Math.Min(totalPages, currentPage + 2);
+
+    bool isAuth = User.Identity?.IsAuthenticated ?? false;
+
+    string currentName = "";
+    string currentPhone = "";
+    string currentEmail = "";
+
+    if (isAuth)
+    {
+        currentName = User.FindFirst(ClaimTypes.Name)?.Value ?? User.FindFirst("FullName")?.Value ?? "";
+        currentEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "";
+        currentPhone = User.FindFirst(ClaimTypes.MobilePhone)?.Value ?? User.FindFirst("Phone")?.Value ?? "";
+    }
+
+    bool statusAllSelected = string.IsNullOrWhiteSpace(status);
+    bool statusComingSelected = status == "Sắp mở bán";
+    bool statusSellingSelected = status == "Đang mở bán";
+    bool statusDoneSelected = status == "Đã bàn giao";
+
+    bool sortNewestSelected = sort == "newest";
+    bool sortPriceAscSelected = sort == "price_asc";
+    bool sortPriceDescSelected = sort == "price_desc";
+    bool sortAreaDescSelected = sort == "area_desc";
 }
 
 <style>
+    @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;800;900&display=swap');
+
     :root {
-        --glass: rgba(255, 255, 255, 0.88);
-        --grad-primary: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        --grad-gold: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        --soft-border: rgba(148, 163, 184, .18);
+        --pj-bg: #f5f7fb;
+        --pj-surface: #ffffff;
+        --pj-soft: #f8fafc;
+        --pj-soft-2: #eef2f7;
+        --pj-border: #e2e8f0;
+        --pj-border-strong: #cbd5e1;
+        --pj-text: #0f172a;
+        --pj-muted: #64748b;
+        --pj-muted-2: #94a3b8;
+        --pj-navy: #07111f;
+        --pj-navy-2: #0f1f38;
+        --pj-blue: #2563eb;
+        --pj-blue-2: #1d4ed8;
+        --pj-sky: #0ea5e9;
+        --pj-cyan: #06b6d4;
+        --pj-green: #16a34a;
+        --pj-emerald: #10b981;
+        --pj-gold: #f59e0b;
+        --pj-orange: #f97316;
+        --pj-red: #ef4444;
+        --pj-purple: #7c3aed;
+        --pj-radius-sm: 14px;
+        --pj-radius: 20px;
+        --pj-radius-lg: 28px;
+        --pj-radius-xl: 38px;
+        --pj-shadow-sm: 0 8px 24px rgba(15, 23, 42, .06);
+        --pj-shadow: 0 18px 50px rgba(15, 23, 42, .10);
+        --pj-shadow-lg: 0 30px 90px rgba(15, 23, 42, .20);
+        --pj-transition: all .26s cubic-bezier(.4, 0, .2, 1);
     }
 
-    .project-hero {
+    body {
+        background: radial-gradient(circle at 10% 0%, rgba(37, 99, 235, .10), transparent 32%), radial-gradient(circle at 92% 4%, rgba(245, 158, 11, .13), transparent 30%), var(--pj-bg);
+        color: var(--pj-text);
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .fw-black {
+        font-weight: 900 !important;
+    }
+
+    .project-page-2026 {
+        min-height: 100vh;
+        padding-bottom: 80px;
+    }
+
+    .project-shell {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .project-hero-2026 {
         position: relative;
-        background: linear-gradient(180deg, rgba(2,6,23,.58), rgba(2,6,23,.62)), url('https://images.unsplash.com/photo-1449156001437-3a16d1dfbe69?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
-        padding: 110px 0 120px;
-        color: #fff;
-        border-radius: 0 0 44px 44px;
         overflow: hidden;
+        color: #fff;
+        background: linear-gradient(135deg, rgba(7, 17, 31, .78), rgba(15, 31, 56, .82)), url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2200&q=85') center/cover no-repeat;
+        border-radius: 0 0 46px 46px;
+        padding: 112px 0 132px;
+        isolation: isolate;
     }
 
-    .hero-title {
-        font-size: clamp(2rem, 4vw, 4rem);
+        .project-hero-2026::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 14% 28%, rgba(14, 165, 233, .34), transparent 28%), radial-gradient(circle at 84% 14%, rgba(245, 158, 11, .28), transparent 28%);
+            z-index: -1;
+        }
+
+        .project-hero-2026::after {
+            content: "";
+            position: absolute;
+            left: 8%;
+            right: 8%;
+            bottom: -1px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+        }
+
+    .hero-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 34px;
+        align-items: end;
+    }
+
+    .hero-badge-2026 {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 38px;
+        padding: 0 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .14);
+        border: 1px solid rgba(255, 255, 255, .20);
+        backdrop-filter: blur(18px);
+        color: rgba(255,255,255,.92);
+        font-size: .82rem;
+        font-weight: 850;
+        box-shadow: 0 10px 28px rgba(0,0,0,.16);
+        margin-bottom: 22px;
+    }
+
+    .hero-title-2026 {
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(2.35rem, 5.6vw, 5rem);
+        line-height: 1.02;
         font-weight: 900;
-        letter-spacing: -1.5px;
-        line-height: 1.05;
+        letter-spacing: -.045em;
+        color: #fff;
+        text-shadow: 0 12px 36px rgba(0,0,0,.36);
+        margin-bottom: 18px;
     }
 
-    .hero-badge {
+        .hero-title-2026 span {
+            color: #fde68a;
+        }
+
+    .hero-sub-2026 {
+        max-width: 760px;
+        color: rgba(255,255,255,.76);
+        font-size: clamp(.98rem, 1.55vw, 1.16rem);
+        line-height: 1.8;
+        font-weight: 550;
+        margin-bottom: 0;
+    }
+
+    .hero-stats-panel {
+        border-radius: 30px;
+        padding: 20px;
+        background: rgba(255,255,255,.13);
+        border: 1px solid rgba(255,255,255,.20);
+        backdrop-filter: blur(24px);
+        box-shadow: 0 24px 70px rgba(0,0,0,.22);
+    }
+
+    .hero-stat-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255,255,255,.10);
+        border: 1px solid rgba(255,255,255,.12);
+        margin-bottom: 10px;
+    }
+
+        .hero-stat-row:last-child {
+            margin-bottom: 0;
+        }
+
+    .hero-stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #111827;
+        background: linear-gradient(135deg, #fef08a, #f59e0b);
+        flex-shrink: 0;
+        font-size: 1.25rem;
+    }
+
+    .hero-stat-label {
+        color: rgba(255,255,255,.62);
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .10em;
+        margin-bottom: 3px;
+    }
+
+    .hero-stat-value {
+        color: #fff;
+        font-weight: 950;
+        font-size: 1.15rem;
+        line-height: 1.2;
+    }
+
+    .filter-floating-wrap {
+        position: relative;
+        z-index: 10;
+        margin-top: -74px;
+    }
+
+    .filter-box-2026 {
+        background: rgba(255, 255, 255, .92);
+        border: 1px solid rgba(255,255,255,.88);
+        border-radius: 34px;
+        padding: 26px;
+        box-shadow: 0 26px 70px rgba(15, 23, 42, .14);
+        backdrop-filter: blur(24px);
+    }
+
+    .filter-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 18px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid rgba(226,232,240,.85);
+    }
+
+    .filter-title {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        color: var(--pj-text);
+        font-weight: 950;
+        font-size: 1.08rem;
+        margin: 0;
+    }
+
+        .filter-title i {
+            width: 42px;
+            height: 42px;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, var(--pj-blue), var(--pj-sky));
+        }
+
+    .filter-note {
+        color: var(--pj-muted);
+        font-size: .86rem;
+        font-weight: 650;
+        margin: 0;
+    }
+
+    .field-label-2026 {
+        color: var(--pj-muted);
+        font-size: .76rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        margin-bottom: 8px;
+    }
+
+    .input-shell-2026 {
+        position: relative;
+    }
+
+        .input-shell-2026 .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--pj-muted-2);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+    .control-2026 {
+        width: 100%;
+        min-height: 54px;
+        border: 1.5px solid var(--pj-border);
+        border-radius: 18px;
+        background: #fff;
+        color: var(--pj-text);
+        font-weight: 750;
+        padding: 0 15px;
+        outline: none;
+        transition: var(--pj-transition);
+        box-shadow: none;
+    }
+
+    .input-shell-2026 .control-2026 {
+        padding-left: 42px;
+    }
+
+    .control-2026:focus {
+        border-color: var(--pj-blue);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+    }
+
+    .btn-search-2026 {
+        width: 100%;
+        min-height: 54px;
+        border: none;
+        border-radius: 18px;
+        color: #fff;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 32%), linear-gradient(135deg, var(--pj-navy), var(--pj-navy-2));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        font-weight: 950;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, .24);
+        transition: var(--pj-transition);
+    }
+
+        .btn-search-2026:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, .34);
+        }
+
+    .result-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin: 38px 0 22px;
+    }
+
+    .section-kicker {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 14px;
-        border-radius: 999px;
-        background: rgba(255,255,255,.12);
-        border: 1px solid rgba(255,255,255,.18);
-        backdrop-filter: blur(10px);
-        font-weight: 700;
-        font-size: .9rem;
+        color: var(--pj-blue);
+        font-size: .76rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .13em;
+        margin-bottom: 9px;
     }
 
-    .filter-box-floating {
-        margin-top: -56px;
-        background: var(--glass);
-        backdrop-filter: blur(16px);
-        border-radius: 28px;
-        padding: 24px;
-        box-shadow: 0 20px 50px rgba(2, 6, 23, .14);
-        border: 1px solid #fff;
-        position: relative;
-        z-index: 10;
-    }
-
-    .search-input,
-    .search-select {
-        min-height: 52px;
-        border-radius: 16px;
-        border: 1px solid #dbe3ef;
-        box-shadow: none !important;
-        font-weight: 600;
-        background: #fff;
-    }
-
-    .btn-search {
-        min-height: 52px;
-        border-radius: 16px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        border: none;
-    }
-
-    .section-title {
-        font-weight: 900;
-        color: #0f172a;
-        letter-spacing: -0.03em;
-    }
-
-    .pj-modern-card {
-        border: none;
-        border-radius: 28px;
-        overflow: hidden;
-        background: #fff;
-        transition: all .35s cubic-bezier(.2,.8,.2,1);
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        border: 1px solid rgba(148,163,184,.14);
-    }
-
-        .pj-modern-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 28px 60px rgba(15, 23, 42, .12);
+        .section-kicker::before {
+            content: "";
+            width: 25px;
+            height: 2px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--pj-blue), var(--pj-sky));
         }
 
-    .pj-img-container {
-        position: relative;
-        height: 260px;
-        overflow: hidden;
-        background: #e2e8f0;
+    .result-title {
+        color: var(--pj-text);
+        font-size: clamp(1.55rem, 3vw, 2.25rem);
+        line-height: 1.2;
+        font-weight: 950;
+        letter-spacing: -.035em;
+        margin: 0 0 7px;
     }
 
-        .pj-img-container img {
+    .result-sub {
+        color: var(--pj-muted);
+        margin: 0;
+        font-weight: 650;
+    }
+
+        .result-sub strong {
+            color: var(--pj-blue);
+            font-weight: 950;
+        }
+
+    .view-chip-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .view-chip {
+        min-height: 38px;
+        padding: 0 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 999px;
+        color: var(--pj-muted);
+        background: #fff;
+        border: 1px solid var(--pj-border);
+        font-size: .82rem;
+        font-weight: 850;
+        box-shadow: var(--pj-shadow-sm);
+    }
+
+    .project-grid-2026 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 22px;
+    }
+
+    .project-card-2026 {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 32px;
+        background: #fff;
+        border: 1px solid rgba(226,232,240,.96);
+        box-shadow: var(--pj-shadow-sm);
+        transition: var(--pj-transition);
+        isolation: isolate;
+    }
+
+        .project-card-2026::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 32px;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: inset 0 0 0 2px rgba(37,99,235,.22);
+            transition: var(--pj-transition);
+            z-index: 3;
+        }
+
+        .project-card-2026:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--pj-shadow);
+            border-color: rgba(191,219,254,.9);
+        }
+
+            .project-card-2026:hover::before {
+                opacity: 1;
+            }
+
+    .project-img-wrap-2026 {
+        position: relative;
+        height: 248px;
+        overflow: hidden;
+        background: var(--pj-navy);
+    }
+
+        .project-img-wrap-2026::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(7,17,31,.38), transparent 42%, rgba(7,17,31,.62));
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .project-img-wrap-2026 img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform .8s ease;
+            object-position: center center;
+            display: block;
+            transition: transform .55s ease;
         }
 
-    .pj-modern-card:hover .pj-img-container img {
-        transform: scale(1.08);
+    .project-card-2026:hover .project-img-wrap-2026 img {
+        transform: scale(1.075);
     }
 
-    .pj-badge {
+    .status-badge-2026 {
         position: absolute;
-        top: 18px;
-        left: 18px;
-        padding: 8px 14px;
+        left: 14px;
+        top: 14px;
+        z-index: 2;
+        min-height: 34px;
+        padding: 0 13px;
         border-radius: 999px;
-        font-weight: 800;
-        font-size: .72rem;
-        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
         color: #fff;
-        z-index: 10;
-        box-shadow: 0 8px 18px rgba(0,0,0,.16);
+        font-size: .72rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 10px 24px rgba(0,0,0,.20);
     }
 
-    .pj-price-overlay {
-        position: absolute;
-        bottom: 18px;
-        right: 18px;
-        background: linear-gradient(135deg, #f59e0b, #d97706);
+    .status-selling {
+        background: linear-gradient(135deg, rgba(22,163,74,.96), rgba(16,185,129,.96));
+    }
+
+    .status-coming {
+        background: linear-gradient(135deg, rgba(245,158,11,.98), rgba(249,115,22,.98));
         color: #111827;
-        padding: 8px 14px;
-        border-radius: 14px;
-        font-weight: 900;
-        font-size: 1rem;
-        box-shadow: 0 10px 22px rgba(245, 158, 11, .28);
     }
 
-    .pj-content {
-        padding: 22px;
-        flex-grow: 1;
+    .status-done {
+        background: linear-gradient(135deg, rgba(71,85,105,.96), rgba(15,23,42,.96));
+    }
+
+    .status-updating {
+        background: linear-gradient(135deg, rgba(37,99,235,.96), rgba(14,165,233,.96));
+    }
+
+    .price-tag-2026 {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        z-index: 2;
+        max-width: calc(100% - 28px);
+        min-height: 40px;
+        padding: 0 15px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #111827;
+        background: linear-gradient(135deg, #fef08a, #f59e0b);
+        font-size: .94rem;
+        font-weight: 950;
+        box-shadow: 0 12px 28px rgba(245,158,11,.30);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .project-body-2026 {
+        padding: 20px;
         display: flex;
         flex-direction: column;
+        flex: 1;
     }
 
-    .pj-title {
-        font-weight: 900;
-        color: #0f172a;
-        margin-bottom: 8px;
-        font-size: 1.18rem;
-        line-height: 1.35;
-    }
-
-    .pj-loc {
-        font-size: .88rem;
-        color: #64748b;
-        margin-bottom: 14px;
-    }
-
-    .pj-desc {
-        font-size: .94rem;
-        color: #475569;
-        margin-bottom: 18px;
-        line-height: 1.65;
-        min-height: 4.2rem;
+    .project-title-2026 {
+        color: var(--pj-text);
+        font-size: 1.14rem;
+        line-height: 1.42;
+        font-weight: 950;
+        letter-spacing: -.02em;
+        margin: 0 0 10px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
         overflow: hidden;
     }
 
-    .pj-meta {
+        .project-title-2026 a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+            .project-title-2026 a:hover {
+                color: var(--pj-blue);
+            }
+
+    .project-location-2026 {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        color: var(--pj-muted);
+        font-size: .86rem;
+        font-weight: 700;
+        line-height: 1.5;
+        margin-bottom: 14px;
+        min-height: 40px;
+    }
+
+        .project-location-2026 i {
+            color: var(--pj-red);
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+    .spec-row-2026 {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
     }
 
-    .pj-footer {
-        border-top: 1px solid #eef2f7;
-        padding-top: 14px;
-        margin-top: auto;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .investor-tag {
-        font-weight: 800;
-        color: #2563eb;
-        font-size: .88rem;
-    }
-
-    .action-row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 16px;
-    }
-
-    .btn-card {
+    .spec-pill-2026 {
+        min-height: 34px;
+        padding: 0 11px;
         border-radius: 999px;
-        font-weight: 800;
-        padding: 10px 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #334155;
+        background: var(--pj-soft);
+        border: 1px solid var(--pj-border);
+        font-size: .78rem;
+        font-weight: 850;
     }
 
-    .btn-card-primary {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #fff;
-        border: none;
+        .spec-pill-2026 i {
+            color: var(--pj-blue);
+        }
+
+    .project-desc-2026 {
+        color: #475569;
+        font-size: .86rem;
+        line-height: 1.68;
+        font-weight: 550;
+        margin-bottom: 16px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
-    .btn-card-outline {
-        background: #fff;
-        color: #0f172a;
-        border: 1px solid #dbe3ef;
+    .project-footer-2026 {
+        margin-top: auto;
+        padding-top: 16px;
+        border-top: 1px dashed var(--pj-border);
     }
 
-    .stat-strip {
-        background: #fff;
-        border-radius: 28px;
-        padding: 24px;
-        margin-top: 34px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
-    }
-
-    .stat-num {
-        font-size: 2.25rem;
+    .investor-2026 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--pj-blue);
+        font-size: .84rem;
         font-weight: 900;
-        color: #0f172a;
-        display: block;
-        line-height: 1;
+        margin-bottom: 14px;
+        min-width: 0;
     }
 
-    .stat-label {
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: .75rem;
-        letter-spacing: 1px;
+        .investor-2026 i {
+            color: var(--pj-green);
+            flex-shrink: 0;
+        }
+
+        .investor-2026 span {
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+    .action-row-2026 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
     }
 
-    .empty-state {
-        border: 1px dashed #cbd5e1;
-        border-radius: 28px;
-        padding: 48px 24px;
+    .btn-card-2026 {
+        min-height: 44px;
+        border-radius: 15px;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 950;
+        transition: var(--pj-transition);
+    }
+
+    .btn-detail-2026 {
+        color: var(--pj-text);
+        background: var(--pj-soft);
+        border: 1px solid var(--pj-border);
+    }
+
+        .btn-detail-2026:hover {
+            color: var(--pj-blue);
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .btn-contact-2026 {
+        color: #fff;
+        background: linear-gradient(135deg, var(--pj-blue), var(--pj-sky));
+        box-shadow: 0 10px 24px rgba(37,99,235,.18);
+    }
+
+        .btn-contact-2026:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(37,99,235,.26);
+        }
+
+    .empty-box-2026 {
+        border-radius: 34px;
+        border: 2px dashed var(--pj-border-strong);
+        background: radial-gradient(circle at top, rgba(37,99,235,.08), transparent 34%), #fff;
+        text-align: center;
+        padding: 64px 24px;
+        box-shadow: var(--pj-shadow-sm);
+    }
+
+    .empty-icon-2026 {
+        width: 86px;
+        height: 86px;
+        border-radius: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--pj-blue);
+        background: #eff6ff;
+        font-size: 2.5rem;
+        margin-bottom: 18px;
+    }
+
+    .pagination-wrap-2026 {
+        display: flex;
+        justify-content: center;
+        margin: 44px 0 8px;
+    }
+
+    .pagination-2026 {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.82);
+        border: 1px solid var(--pj-border);
+        box-shadow: var(--pj-shadow-sm);
+        backdrop-filter: blur(16px);
+    }
+
+    .page-link-2026 {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--pj-text);
+        background: transparent;
+        text-decoration: none;
+        font-weight: 950;
+        transition: var(--pj-transition);
+    }
+
+        .page-link-2026:hover {
+            color: var(--pj-blue);
+            background: #eff6ff;
+        }
+
+        .page-link-2026.active {
+            color: #fff;
+            background: linear-gradient(135deg, var(--pj-blue), var(--pj-sky));
+            box-shadow: 0 10px 24px rgba(37,99,235,.24);
+        }
+
+        .page-link-2026.disabled {
+            color: #cbd5e1;
+            pointer-events: none;
+        }
+
+    .modal-content-2026 {
+        border: none;
+        border-radius: 34px;
+        overflow: hidden;
+        box-shadow: 0 34px 90px rgba(15,23,42,.26);
+    }
+
+    .modal-head-2026 {
+        position: relative;
+        color: #fff;
+        padding: 26px 28px;
+        background: radial-gradient(circle at top right, rgba(245,158,11,.24), transparent 34%), linear-gradient(135deg, var(--pj-navy), #172554);
+        border-bottom: none;
+    }
+
+    .modal-title-2026 {
+        font-size: 1.35rem;
+        font-weight: 950;
+        margin: 0 0 5px;
+        color: #fff;
+    }
+
+    .modal-sub-2026 {
+        color: rgba(255,255,255,.68);
+        margin: 0;
+        font-size: .9rem;
+        font-weight: 600;
+    }
+
+    .modal-body-2026 {
+        padding: 26px;
         background: #fff;
+    }
+
+    .modal-project-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 0 13px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: var(--pj-blue);
+        font-weight: 900;
+        font-size: .82rem;
+        margin-bottom: 16px;
+        max-width: 100%;
+    }
+
+        .modal-project-chip span {
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+    .modal-label-2026 {
+        color: var(--pj-muted);
+        font-size: .76rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        margin-bottom: 7px;
+    }
+
+    .modal-input-2026 {
+        min-height: 52px;
+        border-radius: 16px;
+        border: 1.5px solid var(--pj-border);
+        background: #fff;
+        font-weight: 750;
+        padding: 10px 14px;
+        box-shadow: none !important;
+        transition: var(--pj-transition);
+    }
+
+        .modal-input-2026:focus {
+            border-color: var(--pj-blue);
+            box-shadow: 0 0 0 4px rgba(37,99,235,.10) !important;
+        }
+
+    .btn-submit-2026 {
+        width: 100%;
+        min-height: 54px;
+        border: none;
+        border-radius: 18px;
+        color: #111827;
+        background: linear-gradient(135deg, #fef08a, #f59e0b, #f97316);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        box-shadow: 0 14px 34px rgba(245,158,11,.30);
+        transition: var(--pj-transition);
+    }
+
+        .btn-submit-2026:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 44px rgba(245,158,11,.42);
+        }
+
+    .toast-2026 {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2000;
+        max-width: 380px;
+        display: none;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        color: #fff;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        box-shadow: 0 20px 50px rgba(15,23,42,.26);
+        font-weight: 800;
+        line-height: 1.5;
+    }
+
+        .toast-2026.show {
+            display: flex;
+        }
+
+    .mobile-filter-shortcut {
+        display: none;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .project-grid-2026 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .hero-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-stats-panel {
+            max-width: 480px;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .project-hero-2026 {
+            padding: 92px 0 124px;
+            border-radius: 0 0 34px 34px;
+        }
+
+        .filter-box-2026 {
+            padding: 20px;
+            border-radius: 28px;
+        }
+
+        .filter-title-row {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .project-img-wrap-2026 {
+            height: 236px;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .project-shell {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .project-hero-2026 {
+            padding: 74px 0 112px;
+        }
+
+        .hero-title-2026 {
+            font-size: 2.05rem;
+        }
+
+        .hero-sub-2026 {
+            font-size: .94rem;
+        }
+
+        .hero-stats-panel {
+            display: none;
+        }
+
+        .filter-floating-wrap {
+            margin-top: -60px;
+        }
+
+        .filter-box-2026 {
+            border-radius: 24px;
+            padding: 16px;
+        }
+
+        .filter-title i {
+            width: 38px;
+            height: 38px;
+            border-radius: 14px;
+        }
+
+        .control-2026,
+        .btn-search-2026 {
+            min-height: 50px;
+            border-radius: 16px;
+        }
+
+        .result-head {
+            margin-top: 30px;
+        }
+
+        .view-chip-row {
+            width: 100%;
+        }
+
+        .view-chip {
+            flex: 1;
+            justify-content: center;
+        }
+
+        .project-grid-2026 {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .project-card-2026 {
+            border-radius: 26px;
+        }
+
+            .project-card-2026::before {
+                border-radius: 26px;
+            }
+
+        .project-img-wrap-2026 {
+            height: 230px;
+        }
+
+        .project-body-2026 {
+            padding: 17px;
+        }
+
+        .price-tag-2026 {
+            font-size: .84rem;
+            min-height: 36px;
+            padding: 0 12px;
+        }
+
+        .status-badge-2026 {
+            font-size: .66rem;
+            min-height: 31px;
+            padding: 0 11px;
+        }
+
+        .pagination-2026 {
+            border-radius: 24px;
+        }
+
+        .page-link-2026 {
+            width: 40px;
+            height: 40px;
+        }
+
+        .modal-dialog {
+            margin: 10px;
+        }
+
+        .modal-content-2026 {
+            border-radius: 24px;
+        }
+
+        .modal-head-2026,
+        .modal-body-2026 {
+            padding: 20px;
+        }
+
+        .toast-2026 {
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            max-width: none;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .project-hero-2026 {
+            padding-top: 58px;
+            padding-bottom: 104px;
+        }
+
+        .hero-badge-2026 {
+            min-height: 34px;
+            padding: 0 12px;
+            font-size: .74rem;
+            margin-bottom: 16px;
+        }
+
+        .hero-title-2026 {
+            font-size: 1.78rem;
+        }
+
+        .filter-title-row {
+            display: none;
+        }
+
+        .project-img-wrap-2026 {
+            height: 218px;
+        }
+
+        .action-row-2026 {
+            grid-template-columns: 1fr;
+        }
+
+        .empty-box-2026 {
+            padding: 44px 18px;
+            border-radius: 26px;
+        }
+
+        .modal-project-chip {
+            width: 100%;
+        }
     }
 </style>
 
-<div class="project-hero animate__animated animate__fadeIn">
-    <div class="container position-relative">
-        <div class="mb-3">
-            <span class="hero-badge"><i class="bi bi-buildings-fill"></i> BDS Khánh Hòa 2026</span>
-        </div>
-        <h1 class="hero-title mb-3">Khám phá dự án, xem mặt bằng, đặt lịch hẹn và nhận tư vấn ngay</h1>
-        <p class="fs-5 opacity-75 mb-0" style="max-width: 760px;">
-            Bộ sưu tập dự án đã duyệt, hiển thị theo khu vực, trạng thái, giá và diện tích để khách hàng chọn nhanh hơn.
-        </p>
-    </div>
-</div>
-
-<div class="container">
-    <div class="filter-box-floating animate__animated animate__fadeInUp">
-        <form action="/Project/Search" method="get">
-            <div class="row g-3 align-items-end">
-                <div class="col-lg-4">
-                    <label class="form-label fw-bold small text-muted text-uppercase">Tìm dự án</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0 rounded-start-4">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <input type="text" name="keyword" value="@keyword" class="form-control search-input border-start-0 rounded-end-4" placeholder="Tên dự án, địa danh, chủ đầu tư..." />
+<div class="project-page-2026">
+    <section class="project-hero-2026">
+        <div class="project-shell">
+            <div class="hero-layout">
+                <div>
+                    <div class="hero-badge-2026">
+                        <i class="bi bi-stars text-warning"></i>
+                        BĐS Khánh Hòa · Dự án mới 2026
                     </div>
+
+                    <h1 class="hero-title-2026">
+                        Khám phá dự án <br class="d-none d-md-block" />
+                        <span>đáng đầu tư</span> tại Khánh Hòa
+                    </h1>
+
+                    <p class="hero-sub-2026">
+                        Tìm kiếm dự án theo khu vực, trạng thái mở bán, mức giá và diện tích.
+                        Nhận tư vấn nhanh, xem thông tin chi tiết và kết nối chuyên viên chỉ trong vài giây.
+                    </p>
                 </div>
 
-                <div class="col-lg-2 col-md-6">
-                    <label class="form-label fw-bold small text-muted text-uppercase">Khu vực</label>
-                    <select name="areaId" class="form-select search-select">
-                        <option value="">Tất cả</option>
-                        @if (areas != null)
-                        {
-                            foreach (var a in areas)
-                            {
-                                <option value="@a.AreaID" selected="@(areaId.HasValue && areaId.Value == a.AreaID)">
-                                    @a.AreaName
-                                </option>
-                            }
-                        }
-                    </select>
-                </div>
+                <aside class="hero-stats-panel">
+                    <div class="hero-stat-row">
+                        <div class="hero-stat-icon">
+                            <i class="bi bi-building-check"></i>
+                        </div>
+                        <div>
+                            <div class="hero-stat-label">Dự án tìm thấy</div>
+                            <div class="hero-stat-value">@FormatNumber(totalResults)</div>
+                        </div>
+                    </div>
 
-                <div class="col-lg-2 col-md-6">
-                    <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
-                    <select name="status" class="form-select search-select">
-                        <option value="">Tất cả</option>
-                        <option value="Sắp mở bán" selected="@(status == "Sắp mở bán")">Sắp mở bán</option>
-                        <option value="Đang mở bán" selected="@(status == "Đang mở bán")">Đang mở bán</option>
-                        <option value="Đã bàn giao" selected="@(status == "Đã bàn giao")">Đã bàn giao</option>
-                    </select>
-                </div>
+                    <div class="hero-stat-row">
+                        <div class="hero-stat-icon" style="background:linear-gradient(135deg,#93c5fd,#0ea5e9);color:#fff;">
+                            <i class="bi bi-filter-circle-fill"></i>
+                        </div>
+                        <div>
+                            <div class="hero-stat-label">Bộ lọc thông minh</div>
+                            <div class="hero-stat-value">Khu vực · Giá · Tiến độ</div>
+                        </div>
+                    </div>
 
-                <div class="col-lg-2 col-md-6">
-                    <label class="form-label fw-bold small text-muted text-uppercase">Sắp xếp</label>
-                    <select name="sort" class="form-select search-select">
-                        <option value="newest" selected="@(sort == "newest")">Mới nhất</option>
-                        <option value="price_asc" selected="@(sort == "price_asc")">Giá tăng dần</option>
-                        <option value="price_desc" selected="@(sort == "price_desc")">Giá giảm dần</option>
-                        <option value="area_desc" selected="@(sort == "area_desc")">Diện tích lớn</option>
-                        <option value="name" selected="@(sort == "name")">Tên A-Z</option>
-                    </select>
-                </div>
-
-                <div class="col-lg-2">
-                    <button type="submit" class="btn btn-search w-100 py-3 fw-bold rounded-4 shadow-sm text-white">
-                        TÌM KIẾM NGAY
-                    </button>
-                </div>
+                    <div class="hero-stat-row">
+                        <div class="hero-stat-icon" style="background:linear-gradient(135deg,#86efac,#16a34a);color:#052e16;">
+                            <i class="bi bi-headset"></i>
+                        </div>
+                        <div>
+                            <div class="hero-stat-label">Tư vấn nhanh</div>
+                            <div class="hero-stat-value">Miễn phí</div>
+                        </div>
+                    </div>
+                </aside>
             </div>
-        </form>
-    </div>
+        </div>
+    </section>
 
-    <div class="my-5 pt-2">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
-            <div>
-                <h2 class="section-title mb-1">DỰ ÁN TIÊU BIỂU</h2>
-                <p class="text-muted mb-0">Tổng cộng @totalResults dự án đã phê duyệt</p>
+    <div class="project-shell">
+        <div class="filter-floating-wrap">
+            <div class="filter-box-2026">
+                <div class="filter-title-row">
+                    <div>
+                        <h2 class="filter-title">
+                            <i class="bi bi-sliders2"></i>
+                            Bộ lọc dự án thông minh
+                        </h2>
+                    </div>
+
+                    <p class="filter-note">
+                        Lọc nhanh dự án theo nhu cầu thực tế của bạn.
+                    </p>
+                </div>
+
+                <form action="/Project/Search" method="get">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-lg-4">
+                            <label class="field-label-2026">Từ khóa tìm kiếm</label>
+                            <div class="input-shell-2026">
+                                <i class="bi bi-search input-icon"></i>
+                                <input type="text"
+                                       name="keyword"
+                                       value="@keyword"
+                                       class="control-2026"
+                                       placeholder="Tên dự án, chủ đầu tư, khu vực..." />
+                            </div>
+                        </div>
+
+                        <div class="col-lg-2 col-md-6">
+                            <label class="field-label-2026">Khu vực</label>
+                            <select name="areaId" class="control-2026">
+                                <option value="">Tất cả vị trí</option>
+                                @foreach (var a in areas)
+                                {
+                                    <option value="@a.AreaID" selected="@(areaId.HasValue && areaId.Value == a.AreaID)">
+                                        @a.AreaName
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-lg-2 col-md-6">
+                            <label class="field-label-2026">Trạng thái</label>
+                            <select name="status" class="control-2026">
+                                <option value="" selected="@statusAllSelected">Mọi tiến độ</option>
+                                <option value="Sắp mở bán" selected="@statusComingSelected">Sắp mở bán</option>
+                                <option value="Đang mở bán" selected="@statusSellingSelected">Đang mở bán</option>
+                                <option value="Đã bàn giao" selected="@statusDoneSelected">Đã bàn giao</option>
+                            </select>
+                        </div>
+
+                        <div class="col-lg-2 col-md-6">
+                            <label class="field-label-2026">Sắp xếp</label>
+                            <select name="sort" class="control-2026">
+                                <option value="newest" selected="@sortNewestSelected">Mới cập nhật</option>
+                                <option value="price_asc" selected="@sortPriceAscSelected">Giá thấp → cao</option>
+                                <option value="price_desc" selected="@sortPriceDescSelected">Giá cao → thấp</option>
+                                <option value="area_desc" selected="@sortAreaDescSelected">Diện tích lớn</option>
+                            </select>
+                        </div>
+
+                        <div class="col-lg-2 col-md-6">
+                            <button type="submit" class="btn-search-2026">
+                                <i class="bi bi-funnel-fill"></i>
+                                Lọc dự án
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
-            <a href="/Project/Search" class="btn btn-outline-primary fw-bold rounded-pill px-4">
-                Xem bộ lọc nâng cao <i class="bi bi-sliders ms-1"></i>
-            </a>
         </div>
 
-        <div class="row g-4">
-            @if (Model != null && Model.Any())
-            {
-                foreach (var item in Model)
+        <section class="result-head">
+            <div>
+                <div class="section-kicker">Featured projects</div>
+                <h2 class="result-title">Dự án nổi bật</h2>
+                <p class="result-sub">
+                    Tìm thấy <strong>@FormatNumber(totalResults)</strong> dự án phù hợp với điều kiện lọc.
+                </p>
+            </div>
+
+            <div class="view-chip-row">
+                <span class="view-chip">
+                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                    Giao diện thẻ
+                </span>
+
+                <span class="view-chip">
+                    <i class="bi bi-shield-check"></i>
+                    Dữ liệu đã duyệt
+                </span>
+            </div>
+        </section>
+
+        @if (Model != null && Model.Any())
+        {
+            <section class="project-grid-2026">
+                @foreach (var item in Model)
                 {
-                    string statusColor = item.ProjectStatus == "Đang mở bán" ? "#10b981" :
-                    item.ProjectStatus == "Đã bàn giao" ? "#64748b" : "#f59e0b";
-
-                    string image = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+                    string projectImage = GetSafeImage(!string.IsNullOrWhiteSpace(item.MainImage) ? item.MainImage : "/images/no-image.jpg");
                     string location = $"{item.Ward?.WardName}, {item.Area?.AreaName}";
-                    string priceText = item.PriceMin.HasValue && item.PriceMax.HasValue
-                    ? $"{item.PriceMin:0.##} - {item.PriceMax:0.##} {item.PriceUnit}"
-                    : $"{item.PriceMin:0.##} {item.PriceUnit}";
-                    string detailUrl = $"/Project/Details/{item.ProjectID}";
+                    string projectPriceText = FormatProjectPrice(item.PriceMin, item.PriceMax, item.PriceUnit);
+                    string projectStatus = string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Đang cập nhật" : item.ProjectStatus;
+                    string projectType = string.IsNullOrWhiteSpace(item.ProjectType) ? "Dự án" : item.ProjectType;
+                    string investor = string.IsNullOrWhiteSpace(item.Investor) ? "Đang cập nhật chủ đầu tư" : item.Investor;
+                    string statusClass = GetStatusClass(item.ProjectStatus);
+                    string statusIcon = GetStatusIcon(item.ProjectStatus);
+                    string description = string.IsNullOrWhiteSpace(item.Description) ? "Thông tin mô tả dự án đang được cập nhật." : item.Description;
 
-                    <div class="col-xl-4 col-lg-6">
-                        <div class="pj-modern-card">
-                            <div class="pj-img-container">
-                                <span class="pj-badge" style="background:@statusColor">@item.ProjectStatus</span>
-                                <img src="@image" alt="@item.ProjectName" />
-                                <div class="pj-price-overlay">@priceText</div>
+                    <article class="project-card-2026">
+                        <div class="project-img-wrap-2026">
+                            <img src="@projectImage"
+                                 alt="@item.ProjectName"
+                                 loading="lazy"
+                                 decoding="async"
+                                 draggable="false"
+                                 onerror="this.onerror=null;this.src='/images/no-image.jpg';" />
+
+                            <span class="status-badge-2026 @statusClass">
+                                <i class="bi @statusIcon"></i>
+                                @projectStatus
+                            </span>
+
+                            <span class="price-tag-2026" title="@projectPriceText">
+                                <i class="bi bi-cash-coin"></i>
+                                @projectPriceText
+                            </span>
+                        </div>
+
+                        <div class="project-body-2026">
+                            <h3 class="project-title-2026">
+                                <a href="/Project/Details/@item.ProjectID">
+                                    @item.ProjectName
+                                </a>
+                            </h3>
+
+                            <div class="project-location-2026" title="@location">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                <span>@location</span>
                             </div>
 
-                            <div class="pj-content">
-                                <h3 class="pj-title">@item.ProjectName</h3>
+                            <div class="spec-row-2026">
+                                <span class="spec-pill-2026">
+                                    <i class="bi bi-building"></i>
+                                    @projectType
+                                </span>
 
-                                <div class="pj-loc">
-                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i> @location
+                              
+                            </div>
+
+                            <p class="project-desc-2026">
+                                @description
+                            </p>
+
+                            <div class="project-footer-2026">
+                                <div class="investor-2026" title="@investor">
+                                    <i class="bi bi-patch-check-fill"></i>
+                                    <span>@investor</span>
                                 </div>
 
-                                <div class="pj-desc">
-                                    @(!string.IsNullOrWhiteSpace(item.Description) ? item.Description : "Chưa có mô tả ngắn cho dự án này.")
-                                </div>
-
-                                <div class="pj-meta">
-                                    <span class="badge bg-light text-dark border">@(!string.IsNullOrWhiteSpace(item.ProjectType) ? item.ProjectType : "Dự án")</span>
-                                    <span class="badge bg-light text-dark border">
-                                        @(item.AreaMin.HasValue ? $"{item.AreaMin:0.##}" : "--") - @(item.AreaMax.HasValue ? $"{item.AreaMax:0.##}" : "--") m²
-                                    </span>
-                                    <span class="badge bg-light text-dark border">
-                                        @(!string.IsNullOrWhiteSpace(item.Scale) ? item.Scale : "Đang cập nhật")
-                                    </span>
-                                </div>
-
-                                <div class="pj-footer">
-                                    <span class="investor-tag text-truncate" title="@item.Investor">
-                                        <i class="bi bi-patch-check-fill me-1"></i>@item.Investor
-                                    </span>
-                                    <span class="text-muted small">@item.PublishedAt?.ToString("dd/MM/yyyy")</span>
-                                </div>
-
-                                <div class="action-row">
-                                    <a href="@detailUrl" class="btn btn-card btn-card-primary">
-                                        <i class="bi bi-eye me-1"></i> Xem chi tiết
+                                <div class="action-row-2026">
+                                    <a href="/Project/Details/@item.ProjectID" class="btn-card-2026 btn-detail-2026">
+                                        <i class="bi bi-info-circle"></i>
+                                        Chi tiết
                                     </a>
-                                    <a href="@detailUrl#booking-form" class="btn btn-card btn-card-outline">
-                                        <i class="bi bi-calendar2-week me-1"></i> Đặt lịch
-                                    </a>
+
+                                    <button type="button"
+                                            class="btn-card-2026 btn-contact-2026"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#quickLeadModal"
+                                            data-projectid="@item.ProjectID"
+                                            data-projectname="@item.ProjectName">
+                                        <i class="bi bi-headset"></i>
+                                        Tư vấn
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </article>
                 }
-            }
-            else
-            {
-                <div class="col-12">
-                    <div class="empty-state text-center">
-                        <i class="bi bi-inbox display-1 text-muted opacity-25"></i>
-                        <h4 class="mt-3 fw-bold text-dark">Hiện tại chưa có dự án nào được đăng tải.</h4>
-                        <p class="text-muted mb-0">Hãy đổi bộ lọc hoặc quay lại sau để xem các dự án mới.</p>
-                    </div>
+            </section>
+        }
+        else
+        {
+            <section class="empty-box-2026">
+                <div class="empty-icon-2026">
+                    <i class="bi bi-search"></i>
                 </div>
-            }
-        </div>
-    </div>
 
-    @if (totalPages > 1)
-    {
-        <div class="d-flex justify-content-center mt-4 mb-4">
-            <nav>
-                <ul class="pagination flex-wrap mb-0">
-                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = currentPage - 1 })">
-                            <i class="bi bi-chevron-left"></i>
-                        </a>
-                    </li>
+                <h3 class="fw-black text-dark mb-2">Không tìm thấy dự án phù hợp</h3>
 
-                    @for (int i = 1; i <= totalPages; i++)
+                <p class="text-muted mb-4 fs-6">
+                    Hãy thử thay đổi từ khóa, khu vực, trạng thái hoặc xóa bộ lọc hiện tại.
+                </p>
+
+                <a href="/Project" class="btn-card-2026 btn-contact-2026 d-inline-flex px-4">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Xóa bộ lọc
+                </a>
+            </section>
+        }
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination-wrap-2026">
+                <nav class="pagination-2026">
+                    <a class="page-link-2026 @(currentPage <= 1 ? "disabled" : "")"
+                       href="@Url.Action("Search", "Project", new { keyword, areaId, status, sort, page = currentPage - 1 })">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+
+                    @if (startPage > 1)
                     {
-                        <li class="page-item @(currentPage == i ? "active" : "")">
-                            <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = i })">@i</a>
-                        </li>
+                        <a class="page-link-2026" href="@Url.Action("Search", "Project", new { keyword, areaId, status, sort, page = 1 })">1</a>
+
+                        @if (startPage > 2)
+                        {
+                            <span class="page-link-2026 disabled">...</span>
+                        }
                     }
 
-                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Search", "Project", new { keyword = keyword, areaId = areaId, status = status, sort = sort, page = currentPage + 1 })">
-                            <i class="bi bi-chevron-right"></i>
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <a class="page-link-2026 @(currentPage == i ? "active" : "")"
+                           href="@Url.Action("Search", "Project", new { keyword, areaId, status, sort, page = i })">
+                            @i
                         </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    }
+                    }
 
+                    @if (endPage < totalPages)
+                    {
+                        @if (endPage < totalPages - 1)
+                        {
+                            <span class="page-link-2026 disabled">...</span>
+                        }
 
+                        <a class="page-link-2026" href="@Url.Action("Search", "Project", new { keyword, areaId, status, sort, page = totalPages })">@totalPages</a>
+                    }
+
+                    <a class="page-link-2026 @(currentPage >= totalPages ? "disabled" : "")"
+                       href="@Url.Action("Search", "Project", new { keyword, areaId, status, sort, page = currentPage + 1 })">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </nav>
+            </div>
+        }
+    </div>
 </div>
+
+<div class="modal fade" id="quickLeadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-content-2026">
+            <div class="modal-header modal-head-2026">
+                <div class="pe-3">
+                    <h5 class="modal-title-2026">
+                        <i class="bi bi-headset me-2"></i>
+                        Nhận tư vấn dự án
+                    </h5>
+                    <p class="modal-sub-2026">
+                        Chuyên viên sẽ liên hệ và gửi thông tin chi tiết cho bạn.
+                    </p>
+                </div>
+
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+
+            <div class="modal-body-2026">
+                <div class="modal-project-chip">
+                    <i class="bi bi-building-check"></i>
+                    <span id="modalProjectName">Đang tải tên dự án...</span>
+                </div>
+
+                @if (!isAuth)
+                {
+                    <div class="alert alert-info border-0 rounded-4 mb-4 small">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        <a href="/Account/Login" class="fw-bold text-decoration-none">Đăng nhập</a>
+                        để hệ thống tự động điền sẵn thông tin của bạn.
+                    </div>
+                }
+
+                <form id="frmQuickLead" asp-controller="Project" asp-action="SubmitLead" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="ProjectID" id="modalProjectId" value="" />
+
+                    <div class="mb-3">
+                        <label class="modal-label-2026">Họ và tên của bạn</label>
+                        <input type="text"
+                               name="Name"
+                               class="form-control modal-input-2026"
+                               required
+                               placeholder="Nhập họ và tên"
+                               value="@currentName" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="modal-label-2026">Số điện thoại liên hệ</label>
+                        <input type="tel"
+                               name="Phone"
+                               class="form-control modal-input-2026"
+                               required
+                               placeholder="VD: 0912345678"
+                               value="@currentPhone"
+                               maxlength="10"
+                               minlength="10"
+                               pattern="^0[0-9]{9}$"
+                               title="Số điện thoại phải bắt đầu bằng số 0 và có chính xác 10 chữ số"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="modal-label-2026">Email</label>
+                        <input type="email"
+                               name="Email"
+                               class="form-control modal-input-2026"
+                               placeholder="Nhập địa chỉ email"
+                               value="@currentEmail" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="modal-label-2026">Nhu cầu tư vấn</label>
+                        <textarea name="Message"
+                                  class="form-control modal-input-2026"
+                                  rows="3"
+                                  placeholder="Ví dụ: Tôi muốn nhận báo giá căn 2 phòng ngủ, chính sách thanh toán, lịch xem dự án..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-submit-2026" id="btnSubmitLead">
+                        <i class="bi bi-send-fill"></i>
+                        Gửi yêu cầu tư vấn
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast2026" class="toast-2026">
+    <i class="bi bi-check-circle-fill"></i>
+    <span id="toast2026Text">Gửi yêu cầu thành công.</span>
+</div>
+
+@section Scripts {
+    <script>
+        function showToast2026(message, type) {
+            const toast = document.getElementById('toast2026');
+            const text = document.getElementById('toast2026Text');
+
+            if (!toast || !text) {
+                alert(message || 'Đã xử lý xong.');
+                return;
+            }
+
+            text.innerText = message || 'Đã xử lý xong.';
+
+            if (type === 'error') {
+                toast.style.background = 'linear-gradient(135deg,#991b1b,#ef4444)';
+                toast.querySelector('i').className = 'bi bi-exclamation-triangle-fill';
+            } else {
+                toast.style.background = 'linear-gradient(135deg,#0f172a,#1e293b)';
+                toast.querySelector('i').className = 'bi bi-check-circle-fill';
+            }
+
+            toast.classList.add('show');
+
+            setTimeout(function () {
+                toast.classList.remove('show');
+            }, 3600);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const leadModal = document.getElementById('quickLeadModal');
+            const frmQuickLead = document.getElementById('frmQuickLead');
+            const btnSubmitLead = document.getElementById('btnSubmitLead');
+
+            if (leadModal) {
+                leadModal.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+
+                    if (!button) {
+                        return;
+                    }
+
+                    const projectId = button.getAttribute('data-projectid') || '';
+                    const projectName = button.getAttribute('data-projectname') || 'Dự án đang chọn';
+
+                    const modalProjectId = document.getElementById('modalProjectId');
+                    const modalProjectName = document.getElementById('modalProjectName');
+
+                    if (modalProjectId) {
+                        modalProjectId.value = projectId;
+                    }
+
+                    if (modalProjectName) {
+                        modalProjectName.textContent = projectName;
+                    }
+                });
+            }
+
+            if (frmQuickLead && btnSubmitLead) {
+                frmQuickLead.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+
+                    const originalText = btnSubmitLead.innerHTML;
+
+                    btnSubmitLead.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang gửi...';
+                    btnSubmitLead.disabled = true;
+
+                    const formData = new FormData(frmQuickLead);
+
+                    try {
+                        const response = await fetch(frmQuickLead.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            showToast2026(data.message || 'Gửi yêu cầu tư vấn thành công! Chuyên viên sẽ sớm liên hệ cho bạn.');
+
+                            const modalInstance = bootstrap.Modal.getInstance(leadModal);
+
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            }
+
+                            const messageBox = frmQuickLead.querySelector('textarea[name="Message"]');
+
+                            if (messageBox) {
+                                messageBox.value = '';
+                            }
+                        } else {
+                            showToast2026(data.message || 'Có lỗi xảy ra, vui lòng kiểm tra lại thông tin.', 'error');
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showToast2026('Hệ thống đang bận, vui lòng thử lại sau.', 'error');
+                    } finally {
+                        btnSubmitLead.innerHTML = originalText;
+                        btnSubmitLead.disabled = false;
+                    }
+                });
+            }
+        });
+    </script>
+}

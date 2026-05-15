@@ -1,279 +1,1064 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+
 @{
     ViewData["Title"] = "Quản lý & Kiểm duyệt Tin đăng";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string currentStatus = ViewBag.CurrentStatus as string ?? "";
+    bool duplicateOnly = ViewBag.DuplicateOnly == true;
+    string keyword = ViewBag.Keyword as string ?? "";
+
+    int totalCount = ViewBag.TotalCount is int tc ? tc : 0;
+    int pendingCount = ViewBag.PendingCount is int pc ? pc : 0;
+    int approvedCount = ViewBag.ApprovedCount is int ac ? ac : 0;
+    int rejectedCount = ViewBag.RejectedCount is int rc ? rc : 0;
+    int duplicateCount = ViewBag.DuplicateCount is int dc ? dc : 0;
+    int soldCount = ViewBag.SoldCount is int sc ? sc : 0;
+    int rentedCount = ViewBag.RentedCount is int rtc ? rtc : 0;
+}
+
+@functions {
+    public string StatusText(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "Đang hiển thị",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Bị từ chối",
+            "Sold" => "Đã bán",
+            "Rented" => "Đã cho thuê",
+            "Deleted" => "Đã xóa",
+            _ => string.IsNullOrWhiteSpace(status) ? "Chưa xác định" : status
+        };
+    }
+
+    public string FormatPrice(decimal? price)
+    {
+        if (!price.HasValue)
+        {
+            return "Thỏa thuận";
+        }
+
+        if (price.Value >= 1000000000)
+        {
+            return $"{price.Value / 1000000000:0.##} Tỷ";
+        }
+
+        if (price.Value >= 1000000)
+        {
+            return $"{price.Value / 1000000:0.##} Triệu";
+        }
+
+        return $"{price.Value:0,0} VNĐ";
+    }
+
+    public string SafeText(string? value, string fallback = "Đang cập nhật")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
 }
 
 <style>
-    .admin-card {
-        border: none;
+    :root {
+        --ad-primary: #2563eb;
+        --ad-success: #059669;
+        --ad-warning: #d97706;
+        --ad-danger: #dc2626;
+        --ad-dark: #0f172a;
+        --ad-text: #334155;
+        --ad-muted: #64748b;
+        --ad-border: #e2e8f0;
+        --ad-soft: #f8fafc;
+        --ad-card: #ffffff;
+        --ad-radius: 18px;
+        --ad-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+        --ad-shadow-hover: 0 18px 42px rgba(15, 23, 42, .10);
+    }
+
+    .admin-page {
+        padding: 22px;
+        background: #f6f8fb;
+        min-height: calc(100vh - 80px);
+    }
+
+    .page-hero,
+    .filter-card,
+    .property-card,
+    .empty-card {
+        background: var(--ad-card);
+        border: 1px solid rgba(148, 163, 184, .22);
+        border-radius: var(--ad-radius);
+        box-shadow: var(--ad-shadow);
+    }
+
+    .page-hero {
+        padding: 20px 22px;
+        margin-bottom: 16px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .10), transparent 260px), #ffffff;
+    }
+
+    .page-title {
+        font-size: clamp(1.25rem, 1.7vw, 1.7rem);
+        font-weight: 850;
+        color: var(--ad-dark);
+        letter-spacing: -.025em;
+        margin-bottom: 6px;
+    }
+
+    .page-subtitle {
+        color: var(--ad-muted);
+        font-size: .92rem;
+        font-weight: 550;
+        line-height: 1.55;
+        margin-bottom: 0;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .stat-card {
         border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-        background: #fff;
+        padding: 14px 15px;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        min-height: 92px;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, .09);
+    }
+
+        .stat-card::after {
+            content: "";
+            width: 90px;
+            height: 90px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .15);
+            position: absolute;
+            right: -36px;
+            top: -38px;
+        }
+
+    .stat-label {
+        font-size: .68rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        opacity: .92;
+        margin-bottom: 8px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-value {
+        font-size: 1.65rem;
+        font-weight: 850;
+        line-height: 1;
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-desc {
+        margin-top: 7px;
+        font-size: .72rem;
+        font-weight: 600;
+        opacity: .86;
+        position: relative;
+        z-index: 1;
+    }
+
+    .bg-blue {
+        background: linear-gradient(135deg, #2563eb, #60a5fa);
+    }
+
+    .bg-amber {
+        background: linear-gradient(135deg, #c76a00, #f59e0b);
+    }
+
+    .bg-green {
+        background: linear-gradient(135deg, #059669, #34d399);
+    }
+
+    .bg-red {
+        background: linear-gradient(135deg, #dc2626, #fb7185);
+    }
+
+    .bg-purple {
+        background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    }
+
+    .bg-slate {
+        background: linear-gradient(135deg, #475569, #94a3b8);
+    }
+
+    .filter-card {
+        padding: 14px;
+        margin-bottom: 16px;
+    }
+
+    .filter-tabs {
+        display: flex;
+        gap: 7px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: thin;
+    }
+
+        .filter-tabs .btn {
+            min-height: 38px;
+            border-radius: 999px;
+            font-size: .82rem;
+            font-weight: 750;
+            white-space: nowrap;
+            border: 1px solid var(--ad-border);
+            color: #475569;
+            background: #fff;
+            padding: 7px 13px;
+        }
+
+            .filter-tabs .btn.active {
+                color: #fff;
+                background: #0f172a;
+                border-color: #0f172a;
+            }
+
+            .filter-tabs .btn.dup-active {
+                color: #fff;
+                background: var(--ad-danger);
+                border-color: var(--ad-danger);
+            }
+
+    .search-input {
+        min-height: 40px;
+        border-radius: 999px;
+        border: 1px solid var(--ad-border);
+        font-size: .88rem;
+        font-weight: 600;
+        padding-left: 15px;
+        box-shadow: none !important;
+    }
+
+        .search-input:focus {
+            border-color: var(--ad-primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .08) !important;
+        }
+
+    .property-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .property-card {
+        padding: 14px;
+        transition: .2s ease;
+        border-left: 4px solid transparent;
+    }
+
+        .property-card:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--ad-shadow-hover);
+        }
+
+        .property-card.is-duplicate {
+            border-left-color: var(--ad-danger);
+            background: linear-gradient(90deg, rgba(254, 242, 242, .9), #ffffff 42%);
+        }
+
+    .property-main {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: start;
+    }
+
+    .property-image {
+        width: 112px;
+        height: 82px;
+        object-fit: cover;
+        border-radius: 14px;
+        border: 1px solid var(--ad-border);
+        flex-shrink: 0;
+        background: #f1f5f9;
+    }
+
+    .property-content {
+        min-width: 0;
+    }
+
+    .property-title {
+        color: var(--ad-dark);
+        font-size: clamp(1rem, 1.16vw, 1.22rem);
+        font-weight: 780;
+        letter-spacing: -.018em;
+        line-height: 1.32;
+        margin: 6px 0 8px;
+        max-width: 760px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .meta-line {
+        color: var(--ad-muted);
+        font-size: .8rem;
+        font-weight: 600;
+        line-height: 1.48;
+        margin-bottom: 3px;
+    }
+
+        .meta-line strong {
+            color: #475569;
+            font-weight: 750;
+        }
+
+    .price-text {
+        color: var(--ad-danger);
+        font-weight: 820;
+        font-size: .92rem;
+    }
+
+    .type-text {
+        color: #525f70;
+        font-size: .88rem;
+        font-weight: 600;
+    }
+
+    .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 4px;
     }
 
     .status-badge {
-        font-weight: 600;
-        padding: 0.4em 0.8em;
-        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 25px;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: .68rem;
+        font-weight: 800;
+        white-space: nowrap;
     }
 
-    .row-highlight-dup {
-        background-color: #fff5f5 !important;
-        border-left: 4px solid #ef4444;
+    .badge-approved {
+        background: #dcfce7;
+        color: #047857;
+        border: 1px solid #86efac;
+    }
+
+    .badge-pending {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    .badge-rejected {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+
+    .badge-sold {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .badge-rented {
+        background: #cffafe;
+        color: #0e7490;
+        border: 1px solid #67e8f9;
+    }
+
+    .badge-duplicate {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .badge-package {
+        background: #fff;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+    }
+
+    .duplicate-warning {
+        margin-top: 10px;
+        border-radius: 13px;
+        background: #fff1f2;
+        border: 1px solid #fecdd3;
+        color: #9f1239;
+        padding: 9px 11px;
+        font-size: .78rem;
+        font-weight: 650;
+        line-height: 1.5;
+        max-width: 900px;
+    }
+
+    .reject-warning {
+        margin-top: 10px;
+        border-radius: 13px;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        color: #475569;
+        padding: 9px 11px;
+        font-size: .78rem;
+        font-weight: 650;
+        line-height: 1.5;
+        max-width: 900px;
+    }
+
+    .action-row {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-start;
+        gap: 7px;
+        flex-wrap: wrap;
+        min-width: 250px;
     }
 
     .action-btn {
-        width: 32px;
-        height: 32px;
+        min-width: 38px;
+        height: 38px;
+        border-radius: 12px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
-        transition: all 0.2s;
+        gap: 6px;
+        border: 1px solid var(--ad-border);
+        background: #fff;
+        color: #334155;
+        font-size: .82rem;
+        font-weight: 750;
+        padding: 0 11px;
+        transition: .18s ease;
+        text-decoration: none;
     }
 
         .action-btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
+            text-decoration: none;
         }
 
-    .filter-tabs .btn {
-        border-radius: 10px;
-        font-weight: 600;
-        padding: 0.5rem 1.2rem;
-        margin-right: 0.5rem;
-        border: 1px solid #e2e8f0;
-        color: #64748b;
+    .btn-view {
+        color: #0e7490;
+        background: #ecfeff;
+        border-color: #a5f3fc;
     }
 
-        .filter-tabs .btn.active {
-            background-color: #1e293b;
-            color: #fff;
-            border-color: #1e293b;
+    .btn-approve {
+        color: #047857;
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+    }
+
+    .btn-reject {
+        color: #b91c1c;
+        background: #fef2f2;
+        border-color: #fecaca;
+    }
+
+    .btn-duplicate {
+        color: #fff;
+        background: var(--ad-danger);
+        border-color: var(--ad-danger);
+    }
+
+    .btn-clear-dup {
+        color: #92400e;
+        background: #fffbeb;
+        border-color: #fde68a;
+    }
+
+    .btn-delete {
+        color: #64748b;
+        background: #f8fafc;
+        border-color: #e2e8f0;
+    }
+
+    .empty-card {
+        text-align: center;
+        padding: 54px 20px;
+    }
+
+    .empty-icon {
+        width: 78px;
+        height: 78px;
+        border-radius: 26px;
+        background: #f1f5f9;
+        color: #94a3b8;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 15px;
+        font-size: 2.1rem;
+    }
+
+    .modal-content {
+        border-radius: 22px;
+    }
+
+    .modal-title {
+        font-weight: 850;
+    }
+
+    @@media (max-width: 1399.98px) {
+        .property-main {
+            grid-template-columns: 106px minmax(0, 1fr);
         }
 
-        .filter-tabs .btn:hover:not(.active) {
-            background-color: #f8fafc;
+        .action-row {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+            min-width: 0;
+            padding-top: 4px;
         }
+    }
+
+    @@media (max-width: 1199.98px) {
+        .stat-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .admin-page {
+            padding: 14px;
+        }
+
+        .page-hero {
+            padding: 17px;
+        }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+        }
+
+        .stat-card {
+            min-height: 86px;
+            padding: 13px;
+        }
+
+        .stat-value {
+            font-size: 1.45rem;
+        }
+
+        .property-main {
+            grid-template-columns: 1fr;
+        }
+
+        .property-image {
+            width: 100%;
+            height: 180px;
+        }
+
+        .property-title {
+            font-size: 1.05rem;
+            line-height: 1.35;
+            -webkit-line-clamp: 2;
+        }
+
+        .action-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .action-btn {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .stat-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .action-row {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-card {
+            padding: 12px;
+        }
+
+        .filter-tabs .btn {
+            font-size: .78rem;
+        }
+    }
 </style>
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <div>
-            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-shield-check text-primary me-2"></i>Quản lý Tin Đăng & Giao Dịch</h3>
-            <p class="text-muted small mb-0">Quản lý duyệt tin, cảnh báo trùng lặp và theo dõi số lượng tài sản giao dịch thành công.</p>
+<div class="admin-page">
+    <section class="page-hero">
+        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3">
+            <div>
+                <h1 class="page-title">
+                    <i class="bi bi-shield-check text-primary me-2"></i>
+                    Quản lý & kiểm duyệt tin đăng
+                </h1>
+
+                <p class="page-subtitle">
+                    Theo dõi tin chờ duyệt, cảnh báo tin trùng lặp, gửi thông báo yêu cầu người đăng sửa lại và xuất báo cáo dữ liệu.
+                </p>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="/Admin/Properties/ExportReport" class="btn btn-success fw-bold rounded-pill px-4">
+                    <i class="bi bi-file-earmark-excel me-1"></i>
+                    Xuất CSV
+                </a>
+            </div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="/Admin/Properties/ExportReport" class="btn btn-success fw-bold rounded-pill shadow-sm">
-                <i class="bi bi-file-earmark-excel me-1"></i> Xuất Báo cáo CSV
-            </a>
+    </section>
+
+    <section class="stat-grid">
+        <div class="stat-card bg-blue">
+            <div class="stat-label">Tổng tin</div>
+            <div class="stat-value">@totalCount</div>
+            <div class="stat-desc">Tất cả tin đang có</div>
         </div>
-    </div>
 
-    <div class="filter-tabs mb-4 overflow-auto white-space-nowrap pb-2">
-        <a href="/Admin/Properties/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "active shadow-sm" : "")">
-            <i class="bi bi-grid-fill me-1"></i> Tất cả
-        </a>
-        <a href="/Admin/Properties/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "active shadow-sm" : "")">
-            <i class="bi bi-hourglass-split me-1"></i> Chờ duyệt
-            @if (ViewBag.PendingCount > 0)
-            {
-                <span class="badge bg-danger ms-1 rounded-pill">@ViewBag.PendingCount</span>
-            }
-        </a>
-        <a href="/Admin/Properties/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "active shadow-sm" : "")">
-            <i class="bi bi-check-circle-fill text-success me-1"></i> Đang hiển thị
-        </a>
-        <a href="/Admin/Properties/Index?status=Sold" class="btn @(ViewBag.CurrentStatus == "Sold" ? "active shadow-sm" : "")">
-            <i class="bi bi-bag-check-fill text-primary me-1"></i> Đã Bán
-            @if (ViewBag.SoldCount > 0)
-            {
-                <span class="badge bg-primary text-white ms-1 rounded-pill">@ViewBag.SoldCount</span>
-            }
-        </a>
-        <a href="/Admin/Properties/Index?status=Rented" class="btn @(ViewBag.CurrentStatus == "Rented" ? "active shadow-sm" : "")">
-            <i class="bi bi-key-fill text-info me-1"></i> Đã Cho Thuê
-            @if (ViewBag.RentedCount > 0)
-            {
-                <span class="badge bg-info text-white ms-1 rounded-pill">@ViewBag.RentedCount</span>
-            }
-        </a>
-        <a href="/Admin/Properties/Index?status=Rejected" class="btn @(ViewBag.CurrentStatus == "Rejected" ? "active shadow-sm" : "")">
-            <i class="bi bi-x-circle-fill text-danger me-1"></i> Bị từ chối
-        </a>
-    </div>
+        <div class="stat-card bg-amber">
+            <div class="stat-label">Chờ duyệt</div>
+            <div class="stat-value">@pendingCount</div>
+            <div class="stat-desc">Cần kiểm tra</div>
+        </div>
 
-    <div class="admin-card overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light">
-                    <tr>
-                        <th class="ps-4 py-3 text-secondary text-uppercase" style="font-size: 0.8rem; letter-spacing: 0.5px;">Bất động sản</th>
-                        <th class="py-3 text-secondary text-uppercase" style="font-size: 0.8rem; letter-spacing: 0.5px;">Người đăng</th>
-                        <th class="py-3 text-secondary text-uppercase text-center" style="font-size: 0.8rem; letter-spacing: 0.5px;">Gói / Trạng thái</th>
-                        <th class="text-end pe-4 py-3 text-secondary text-uppercase" style="font-size: 0.8rem; letter-spacing: 0.5px;">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
-                    {
-                        <tr>
-                            <td colspan="4" class="text-center py-5">
-                                <img src="/images/empty-state.svg" width="120" class="opacity-50 mb-3" alt="Empty" onerror="this.style.display='none';">
-                                <h5 class="text-muted fw-bold">Không có dữ liệu</h5>
-                                <p class="text-muted small">Chưa có tin đăng nào ở trạng thái này.</p>
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var item in Model)
-                    {
-                        string rowClass = (item.Status == "Pending" && item.IsDuplicate) ? "row-highlight-dup" : "";
+        <div class="stat-card bg-red">
+            <div class="stat-label">Tin trùng</div>
+            <div class="stat-value">@duplicateCount</div>
+            <div class="stat-desc">Cần yêu cầu sửa</div>
+        </div>
 
-                        <tr class="@rowClass">
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-start gap-3">
-                                    <div class="position-relative">
-                                        <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 object-fit-cover shadow-sm" width="100" height="75" onerror="this.src='/images/no-image.jpg'" />
-                                        @if (item.IsAutoApproved)
-                                        {
-                                            <span class="position-absolute top-0 start-0 translate-middle p-1 bg-primary border border-light rounded-circle" title="Duyệt tự động">
-                                                <i class="bi bi-robot text-white" style="font-size: 0.7rem;"></i>
-                                            </span>
-                                        }
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-dark mb-1" style="max-width: 300px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="@item.Title">
-                                            @item.Title
-                                        </div>
-                                        <div class="small text-muted mb-1"><i class="bi bi-geo-alt text-danger me-1"></i>@item.Ward?.Area?.AreaName</div>
-                                        <div class="fw-bold text-danger" style="font-size: 0.95rem;">
-                                            @(item.Price.HasValue ? (item.Price >= 1000000000 ? (item.Price / 1000000000)?.ToString("0.##") + " Tỷ" : (item.Price / 1000000)?.ToString("0.##") + " Tr") : "Thỏa thuận")
-                                            <span class="text-muted fw-normal fs-6 ms-1">• @item.PropertyType?.TypeName</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="py-3">
-                                <div class="fw-bold text-dark mb-1">@item.User?.FullName</div>
-                                <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@item.User?.Phone</div>
-                                <div class="small text-muted mt-1"><i class="bi bi-calendar-plus me-1"></i>@item.CreatedAt.ToString("dd/MM/yyyy")</div>
-                            </td>
-                            <td class="py-3 text-center">
-                                <div class="mb-2">
-                                    @if (item.PostServicePackage?.PriorityLevel > 1)
-                                    {
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-star-fill me-1"></i>@item.PostServicePackage.PackageName</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-light text-secondary border">Tin thường</span>
-                                    }
-                                </div>
+        <div class="stat-card bg-green">
+            <div class="stat-label">Đang hiển thị</div>
+            <div class="stat-value">@approvedCount</div>
+            <div class="stat-desc">Đã phê duyệt</div>
+        </div>
+
+        <div class="stat-card bg-purple">
+            <div class="stat-label">Giao dịch</div>
+            <div class="stat-value">@(soldCount + rentedCount)</div>
+            <div class="stat-desc">@soldCount bán • @rentedCount thuê</div>
+        </div>
+
+        <div class="stat-card bg-slate">
+            <div class="stat-label">Bị từ chối</div>
+            <div class="stat-value">@rejectedCount</div>
+            <div class="stat-desc">Đã yêu cầu sửa</div>
+        </div>
+    </section>
+
+    <section class="filter-card">
+        <div class="row g-3 align-items-center">
+            <div class="col-xl-8">
+                <div class="filter-tabs">
+                    <a href="/Admin/Properties/Index" class="btn @(string.IsNullOrEmpty(currentStatus) && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-grid-fill me-1"></i>
+                        Tất cả
+                    </a>
+
+                    <a href="/Admin/Properties/Index?status=Pending" class="btn @(currentStatus == "Pending" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-hourglass-split me-1"></i>
+                        Chờ duyệt
+                        @if (pendingCount > 0)
+                        {
+                            <span class="badge bg-danger ms-1 rounded-pill">@pendingCount</span>
+                        }
+                    </a>
+
+                    <a href="/Admin/Properties/Index?duplicateOnly=true" class="btn @(duplicateOnly ? "dup-active" : "")">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Tin trùng
+                        @if (duplicateCount > 0)
+                        {
+                            <span class="badge bg-light text-danger ms-1 rounded-pill">@duplicateCount</span>
+                        }
+                    </a>
+
+                    <a href="/Admin/Properties/Index?status=Approved" class="btn @(currentStatus == "Approved" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-eye-fill me-1"></i>
+                        Đang hiển thị
+                    </a>
+
+                    <a href="/Admin/Properties/Index?status=Sold" class="btn @(currentStatus == "Sold" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-bag-check-fill me-1"></i>
+                        Đã bán
+                    </a>
+
+                    <a href="/Admin/Properties/Index?status=Rented" class="btn @(currentStatus == "Rented" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-key-fill me-1"></i>
+                        Đã cho thuê
+                    </a>
+
+                    <a href="/Admin/Properties/Index?status=Rejected" class="btn @(currentStatus == "Rejected" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-x-circle-fill me-1"></i>
+                        Bị từ chối
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <form method="get" action="/Admin/Properties/Index" class="d-flex gap-2">
+                    <input type="hidden" name="status" value="@currentStatus" />
+                    <input type="hidden" name="duplicateOnly" value="@duplicateOnly.ToString().ToLower()" />
+
+                    <input type="text"
+                           name="keyword"
+                           value="@keyword"
+                           class="form-control search-input"
+                           placeholder="Tìm tiêu đề, người đăng, số điện thoại..." />
+
+                    <button type="submit" class="btn btn-primary rounded-pill fw-bold px-4">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    @if (!Model.Any())
+    {
+        <section class="empty-card">
+            <div class="empty-icon">
+                <i class="bi bi-inbox"></i>
+            </div>
+
+            <h4 class="fw-bold text-dark mb-2">Không có dữ liệu</h4>
+            <p class="text-muted fw-semibold mb-0">Chưa có tin đăng nào phù hợp với bộ lọc hiện tại.</p>
+        </section>
+    }
+    else
+    {
+        <section class="property-list">
+            @foreach (var item in Model)
+            {
+                string image = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+                string cardClass = item.IsDuplicate ? "property-card is-duplicate" : "property-card";
+
+                string duplicateReason = string.IsNullOrWhiteSpace(item.DuplicateReason)
+                ? "Tin đăng có dấu hiệu trùng lặp với tin khác. Vui lòng kiểm tra và yêu cầu người đăng chỉnh sửa."
+                : item.DuplicateReason;
+
+                <article class="@cardClass">
+                    <div class="property-main">
+                        <div class="position-relative">
+                            <img src="@image"
+                                 class="property-image"
+                                 alt="@item.Title"
+                                 loading="lazy"
+                                 onerror="this.src='/images/no-image.jpg'" />
+
+                            @if (item.IsAutoApproved)
+                            {
+                                <span class="position-absolute top-0 start-0 translate-middle p-2 bg-primary border border-light rounded-circle" title="Tin được duyệt tự động">
+                                    <i class="bi bi-robot text-white small"></i>
+                                </span>
+                            }
+                        </div>
+
+                        <div class="property-content">
+                            <div class="badge-row">
+                                @if (item.IsDuplicate)
+                                {
+                                    <span class="status-badge badge-duplicate">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                        Trùng lặp
+                                    </span>
+                                }
 
                                 @if (item.Status == "Approved")
                                 {
-                                    <span class="status-badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-eye-fill me-1"></i> Đang hiển thị</span>
+                                    <span class="status-badge badge-approved">
+                                        <i class="bi bi-eye-fill"></i>
+                                        Đang hiển thị
+                                    </span>
                                 }
                                 else if (item.Status == "Pending")
                                 {
-                                    if (item.IsDuplicate)
-                                    {
-                                        <span class="status-badge bg-danger bg-opacity-10 text-danger border border-danger mb-1 d-inline-block" title="@item.DuplicateReason"><i class="bi bi-exclamation-triangle-fill me-1"></i> Trùng lặp</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="status-badge bg-warning bg-opacity-10 text-warning border border-warning"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
-                                    }
-                                }
-                                else if (item.Status == "Sold")
-                                {
-                                    <span class="status-badge bg-primary bg-opacity-10 text-primary border border-primary"><i class="bi bi-bag-check-fill me-1"></i> Đã Bán</span>
-                                    <div class="small text-muted mt-1">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
-                                }
-                                else if (item.Status == "Rented")
-                                {
-                                    <span class="status-badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-key-fill me-1"></i> Đã Cho Thuê</span>
-                                    <div class="small text-muted mt-1">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
+                                    <span class="status-badge badge-pending">
+                                        <i class="bi bi-hourglass-split"></i>
+                                        Chờ duyệt
+                                    </span>
                                 }
                                 else if (item.Status == "Rejected")
                                 {
-                                    <span class="status-badge bg-secondary bg-opacity-10 text-secondary border border-secondary mb-1 d-inline-block"><i class="bi bi-slash-circle me-1"></i> Bị từ chối</span>
+                                    <span class="status-badge badge-rejected">
+                                        <i class="bi bi-x-circle-fill"></i>
+                                        Bị từ chối
+                                    </span>
                                 }
-                            </td>
-                            <td class="text-end pe-4 py-3">
-                                <div class="d-flex justify-content-end gap-2">
+                                else if (item.Status == "Sold")
+                                {
+                                    <span class="status-badge badge-sold">
+                                        <i class="bi bi-bag-check-fill"></i>
+                                        Đã bán
+                                    </span>
+                                }
+                                else if (item.Status == "Rented")
+                                {
+                                    <span class="status-badge badge-rented">
+                                        <i class="bi bi-key-fill"></i>
+                                        Đã cho thuê
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge badge-rejected">
+                                        <i class="bi bi-info-circle-fill"></i>
+                                        @StatusText(item.Status)
+                                    </span>
+                                }
 
-                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="action-btn bg-info bg-opacity-10 text-info border border-info" title="Xem chi tiết">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
+                                @if (item.PostServicePackage != null)
+                                {
+                                    <span class="status-badge badge-package">
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        @item.PostServicePackage.PackageName
+                                    </span>
+                                }
+                            </div>
 
-                                    @if (item.Status == "Pending" || item.Status == "Rejected")
+                            <h2 class="property-title" title="@item.Title">
+                                @item.Title
+                            </h2>
+
+                            <div class="meta-line">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                                @SafeText(item.AddressDetail, "Chưa có địa chỉ") —
+                                @SafeText(item.Ward?.WardName, "Chưa có phường/xã"),
+                                @SafeText(item.Ward?.Area?.AreaName, "Chưa có khu vực")
+                            </div>
+
+                            <div class="meta-line">
+                                <i class="bi bi-person-circle text-primary me-1"></i>
+                                Người đăng:
+                                <strong>@SafeText(item.User?.FullName, "Không rõ")</strong>
+                                —
+                                <i class="bi bi-telephone ms-1 me-1"></i>
+                                @SafeText(item.User?.Phone, "Chưa có SĐT")
+                            </div>
+
+                            <div class="meta-line">
+                                <i class="bi bi-calendar-plus me-1"></i>
+                                Ngày đăng: @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                @if (item.SoldAt.HasValue)
+                                {
+                                    <span> — Giao dịch: @item.SoldAt.Value.ToString("dd/MM/yyyy")</span>
+                                }
+                            </div>
+
+                            <div class="mt-2">
+                                <span class="price-text">@FormatPrice(item.Price)</span>
+                                <span class="type-text ms-2">
+                                    • @SafeText(item.PropertyType?.TypeName, "Chưa có loại")
+                                    @if (item.AreaSize.HasValue)
                                     {
-                                        <form action="/Admin/Properties/UpdateStatus" method="post" class="d-inline">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id" value="@item.PropertyID" />
-                                            <button type="submit" name="newStatus" value="Approved" class="action-btn bg-success bg-opacity-10 text-success border border-success" title="Duyệt hiển thị">
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                        </form>
+                                        <span> • @item.AreaSize.Value.ToString("0.##") m²</span>
                                     }
+                                </span>
+                            </div>
 
-                                    @if (item.Status == "Pending" || item.Status == "Approved")
-                                    {
-                                        <button type="button" class="action-btn bg-danger bg-opacity-10 text-danger border border-danger" onclick="openRejectModal(@item.PropertyID, '@Html.Raw(item.Title.Replace("'", "\\'"))')" title="Từ chối">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    }
-
-                                    <button type="button" class="action-btn bg-light text-secondary border" onclick="confirmDelete(@item.PropertyID)" title="Xóa bỏ">
-                                        <i class="bi bi-trash3"></i>
-                                    </button>
-
-                                    <form id="deleteForm-@item.PropertyID" action="/Admin/Properties/Delete" method="post" class="d-none">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@item.PropertyID" />
-                                    </form>
-
+                            @if (item.IsDuplicate)
+                            {
+                                <div class="duplicate-warning">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                    <strong>Lý do nghi trùng:</strong> @duplicateReason
                                 </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(item.RejectionReason))
+                            {
+                                <div class="reject-warning">
+                                    <i class="bi bi-info-circle-fill me-1"></i>
+                                    <strong>Lý do từ chối:</strong> @item.RejectionReason
+                                </div>
+                            }
+                        </div>
+
+                        <div class="action-row">
+                            <a href="/Property/Details/@item.PropertyID"
+                               target="_blank"
+                               class="action-btn btn-view"
+                               title="Xem chi tiết">
+                                <i class="bi bi-eye-fill"></i>
+                                <span>Xem</span>
+                            </a>
+
+                            @if ((item.Status == "Pending" || item.Status == "Rejected") && !item.IsDuplicate)
+                            {
+                                <form action="/Admin/Properties/UpdateStatus" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+
+                                    <input type="hidden" name="id" value="@item.PropertyID" />
+                                    <input type="hidden" name="newStatus" value="Approved" />
+
+                                    <button type="submit" class="action-btn btn-approve" title="Duyệt hiển thị">
+                                        <i class="bi bi-check-lg"></i>
+                                        <span>Duyệt</span>
+                                    </button>
+                                </form>
+                            }
+
+                            @if (item.IsDuplicate)
+                            {
+                                <button type="button"
+                                        class="action-btn btn-duplicate"
+                                        data-id="@item.PropertyID"
+                                        data-title="@item.Title"
+                                        data-reason="@duplicateReason"
+                                        onclick="openDuplicateModal(this)"
+                                        title="Gửi thông báo yêu cầu sửa tin trùng">
+                                    <i class="bi bi-bell-fill"></i>
+                                    <span>Yêu cầu sửa</span>
+                                </button>
+
+                                <form action="/Admin/Properties/ClearDuplicateFlag" method="post" class="d-inline" onsubmit="return confirm('Bạn chắc chắn tin này không trùng và muốn bỏ cảnh báo?');">
+                                    @Html.AntiForgeryToken()
+
+                                    <input type="hidden" name="id" value="@item.PropertyID" />
+
+                                    <button type="submit" class="action-btn btn-clear-dup" title="Bỏ cảnh báo trùng">
+                                        <i class="bi bi-shield-check"></i>
+                                        <span>Bỏ cảnh báo</span>
+                                    </button>
+                                </form>
+                            }
+
+                            @if (item.Status == "Pending" || item.Status == "Approved")
+                            {
+                                <button type="button"
+                                        class="action-btn btn-reject"
+                                        data-id="@item.PropertyID"
+                                        data-title="@item.Title"
+                                        onclick="openRejectModal(this)"
+                                        title="Từ chối tin đăng">
+                                    <i class="bi bi-x-lg"></i>
+                                    <span>Từ chối</span>
+                                </button>
+                            }
+
+                            <button type="button"
+                                    class="action-btn btn-delete"
+                                    onclick="confirmDelete(@item.PropertyID)"
+                                    title="Xóa tin">
+                                <i class="bi bi-trash3-fill"></i>
+                                <span>Xóa</span>
+                            </button>
+
+                            <form id="deleteForm-@item.PropertyID" action="/Admin/Properties/Delete" method="post" class="d-none">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@item.PropertyID" />
+                            </form>
+                        </div>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+</div>
+
+<div class="modal fade" id="duplicateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg overflow-hidden">
+            <div class="modal-header bg-danger text-white border-0">
+                <div>
+                    <h5 class="modal-title mb-1">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Gửi cảnh báo tin đăng trùng lặp
+                    </h5>
+                    <div class="small opacity-75">Tin sẽ chuyển sang trạng thái bị từ chối để người đăng sửa lại.</div>
+                </div>
+
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <form action="/Admin/Properties/NotifyDuplicate" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="modal-body p-4">
+                    <input type="hidden" name="id" id="duplicatePropertyId" />
+
+                    <div class="alert alert-danger bg-opacity-10 border-danger border-opacity-25 small mb-3">
+                        <i class="bi bi-bell-fill me-1 text-danger"></i>
+                        Hệ thống sẽ gửi thông báo cho người đăng, yêu cầu họ chỉnh sửa nội dung để tin không còn trùng lặp.
+                    </div>
+
+                    <label class="form-label fw-bold text-secondary">Tin cần yêu cầu sửa</label>
+                    <div id="duplicatePropertyTitle" class="fw-bold text-primary p-3 rounded-4 bg-light border mb-3"></div>
+
+                    <label class="form-label fw-bold text-secondary">Nội dung thông báo / lý do trùng lặp <span class="text-danger">*</span></label>
+                    <textarea class="form-control rounded-4"
+                              name="reason"
+                              id="duplicateReason"
+                              rows="5"
+                              required></textarea>
+                </div>
+
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-white border fw-bold rounded-pill px-4" data-bs-dismiss="modal">
+                        Hủy
+                    </button>
+
+                    <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-send-fill me-1"></i>
+                        Gửi yêu cầu sửa tin
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+        <div class="modal-content border-0 shadow-lg overflow-hidden">
             <div class="modal-header bg-danger text-white border-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-shield-x me-2"></i>Từ Chối Tin Đăng</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">
+                    <i class="bi bi-shield-x me-2"></i>
+                    Từ chối tin đăng
+                </h5>
+
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
             <form action="/Admin/Properties/UpdateStatus" method="post">
                 @Html.AntiForgeryToken()
+
                 <div class="modal-body p-4">
                     <input type="hidden" name="id" id="rejectPropertyId" />
                     <input type="hidden" name="newStatus" value="Rejected" />
 
                     <div class="alert alert-warning bg-opacity-10 border-warning border-opacity-25 small mb-3">
                         <i class="bi bi-info-circle-fill me-1 text-warning"></i>
-                        Hệ thống sẽ <strong>tự động hoàn trả lượt đăng</strong> nếu đây là lần đầu tin bị từ chối.
+                        Hệ thống sẽ hoàn trả lượt đăng nếu đây là lần đầu tin bị từ chối.
                     </div>
 
-                    <p class="text-dark mb-2">Tin cần xử lý:</p>
-                    <p id="rejectPropertyTitle" class="fw-bold text-primary px-3 py-2 bg-light rounded-3 border"></p>
+                    <label class="form-label fw-bold text-secondary">Tin cần xử lý</label>
+                    <div id="rejectPropertyTitle" class="fw-bold text-primary p-3 rounded-4 bg-light border mb-3"></div>
 
-                    <div class="mb-3 mt-4">
-                        <label class="form-label fw-bold text-secondary">Lý do từ chối <span class="text-danger">*</span></label>
-                        <textarea class="form-control" name="reason" rows="3" placeholder="Nhập nguyên nhân vi phạm..." required></textarea>
-                    </div>
+                    <label class="form-label fw-bold text-secondary">Lý do từ chối <span class="text-danger">*</span></label>
+                    <textarea class="form-control rounded-4"
+                              name="reason"
+                              rows="4"
+                              placeholder="Nhập nguyên nhân cần người đăng chỉnh sửa..."
+                              required></textarea>
                 </div>
-                <div class="modal-footer border-top-0 bg-light">
-                    <button type="button" class="btn btn-white border fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm">Xác nhận Từ chối</button>
+
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-white border fw-bold rounded-pill px-4" data-bs-dismiss="modal">
+                        Hủy
+                    </button>
+
+                    <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm">
+                        Xác nhận từ chối
+                    </button>
                 </div>
             </form>
         </div>
@@ -282,36 +1067,79 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        function openRejectModal(id, title) {
+        function openDuplicateModal(button) {
+            const id = button.dataset.id || '';
+            const title = button.dataset.title || '';
+            const reason = button.dataset.reason || 'Tin đăng có dấu hiệu trùng lặp với tin đã đăng trước đó. Vui lòng chỉnh sửa tiêu đề, mô tả, địa chỉ, giá, hình ảnh hoặc thông tin chi tiết để tránh trùng lặp.';
+
+            document.getElementById('duplicatePropertyId').value = id;
+            document.getElementById('duplicatePropertyTitle').innerText = title;
+            document.getElementById('duplicateReason').value = reason;
+
+            new bootstrap.Modal(document.getElementById('duplicateModal')).show();
+        }
+
+        function openRejectModal(button) {
+            const id = button.dataset.id || '';
+            const title = button.dataset.title || '';
+
             document.getElementById('rejectPropertyId').value = id;
             document.getElementById('rejectPropertyTitle').innerText = title;
+
             new bootstrap.Modal(document.getElementById('rejectModal')).show();
         }
 
         function confirmDelete(id) {
             Swal.fire({
                 title: 'Xóa tin đăng?',
-                text: "Dữ liệu sẽ được chuyển vào thùng rác.",
+                text: 'Dữ liệu sẽ được chuyển vào thùng rác.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#94a3b8',
                 confirmButtonText: 'Xóa ngay',
                 cancelButtonText: 'Hủy bỏ',
-                customClass: { confirmButton: 'rounded-pill px-4', cancelButton: 'rounded-pill px-4' }
+                customClass: {
+                    confirmButton: 'rounded-pill px-4',
+                    cancelButton: 'rounded-pill px-4'
+                }
             }).then((result) => {
-                if (result.isConfirmed) { document.getElementById('deleteForm-' + id).submit(); }
-            })
+                if (result.isConfirmed) {
+                    document.getElementById('deleteForm-' + id).submit();
+                }
+            });
         }
 
         @if (TempData["Success"] != null)
         {
-                    <text>Swal.fire({ icon: 'success', title: 'Thành công', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false, toast: true, position: 'top-end' });</text>
+                <text>
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công',
+                        text: '@Html.Raw(TempData["Success"])',
+                        timer: 3200,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end'
+                    });
+                </text>
         }
+
         @if (TempData["Error"] != null)
         {
-                    <text>Swal.fire({ icon: 'error', title: 'Thất bại', text: '@Html.Raw(TempData["Error"])', timer: 4000, showConfirmButton: false, toast: true, position: 'top-end' });</text>
+                <text>
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Thất bại',
+                        text: '@Html.Raw(TempData["Error"])',
+                        timer: 4200,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end'
+                    });
+                </text>
         }
     </script>
 }

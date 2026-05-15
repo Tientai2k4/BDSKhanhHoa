@@ -2,10 +2,10 @@
 @using System.Globalization
 
 @{
-    var appointmentMode = (ViewBag.AppointmentMode as string ?? "Public").Trim();
-    bool isBusinessMode = appointmentMode.Equals("Business", StringComparison.OrdinalIgnoreCase);
+    var appointmentMode = (ViewBag.AppointmentMode as string ?? "CaNhan").Trim();
+    bool isBusinessMode = appointmentMode.Equals("DoanhNghiep", StringComparison.OrdinalIgnoreCase)
+                       || appointmentMode.Equals("Business", StringComparison.OrdinalIgnoreCase);
 
-    // Gắn đúng Layout dựa trên Mode
     Layout = isBusinessMode
         ? "~/Views/Shared/_BusinessLayout.cshtml"
         : "~/Views/Shared/_Layout.cshtml";
@@ -23,506 +23,869 @@
     int cancelledAppointments = ViewBag.CancelledAppointments ?? 0;
     int todayAppointments = ViewBag.TodayAppointments ?? 0;
 
-    string activeTab = ViewBag.ActiveTab as string ?? "all";
-    string statusFilter = ViewBag.StatusFilter as string ?? "All";
+    string activeTab = ViewBag.ActiveTab as string ?? "tat-ca";
+    string statusFilter = ViewBag.StatusFilter as string ?? "Tất cả";
     string keyword = ViewBag.Keyword as string ?? "";
-    string dateRange = ViewBag.DateRange as string ?? "all";
+    string dateRange = ViewBag.DateRange as string ?? "tat-ca";
+
+    string GetStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Chờ xác nhận";
+
+        return status.Trim() switch
+        {
+            "Pending" => "Chờ xác nhận",
+            "Confirmed" => "Đã xác nhận",
+            "Cancelled" => "Đã hủy",
+            "Completed" => "Đã hoàn tất",
+            "Rescheduled" => "Đang dời lịch",
+            "NoShow" => "Khách không đến",
+
+            "Chờ xác nhận" => "Chờ xác nhận",
+            "Đã xác nhận" => "Đã xác nhận",
+            "Đã hủy" => "Đã hủy",
+            "Đã hoàn tất" => "Đã hoàn tất",
+            "Đang dời lịch" => "Đang dời lịch",
+            "Khách không đến" => "Khách không đến",
+
+            _ => "Chờ xác nhận"
+        };
+    }
+
+    string GetStatusClass(string? status)
+    {
+        string text = GetStatusText(status);
+
+        return text switch
+        {
+            "Chờ xác nhận" => "trang-thai-cho",
+            "Đã xác nhận" => "trang-thai-xac-nhan",
+            "Đã hủy" => "trang-thai-huy",
+            "Đã hoàn tất" => "trang-thai-hoan-tat",
+            "Đang dời lịch" => "trang-thai-doi-lich",
+            "Khách không đến" => "trang-thai-huy",
+            _ => "trang-thai-cho"
+        };
+    }
+
+    string GetResultText(string? resultStatus)
+    {
+        if (string.IsNullOrWhiteSpace(resultStatus)) return "";
+
+        return resultStatus.Trim() switch
+        {
+            "Interested" => "Khách quan tâm",
+            "NotInterested" => "Khách không quan tâm",
+            "DepositPending" => "Chờ đặt cọc",
+            "FollowUp" => "Cần chăm sóc thêm",
+
+            "Khách quan tâm" => "Khách quan tâm",
+            "Khách không quan tâm" => "Khách không quan tâm",
+            "Chờ đặt cọc" => "Chờ đặt cọc",
+            "Cần chăm sóc thêm" => "Cần chăm sóc thêm",
+
+            _ => ""
+        };
+    }
 }
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
-    .apt-topbar, .apt-card, .apt-filter {
-        background: #fff;
-        border-radius: 20px;
-        box-shadow: 0 8px 30px rgba(15, 23, 42, .05);
-        border: 1px solid rgba(148,163,184,.15);
+    :root {
+        --lich-primary: #2563eb;
+        --lich-primary-dark: #1d4ed8;
+        --lich-success: #059669;
+        --lich-warning: #d97706;
+        --lich-danger: #dc2626;
+        --lich-muted: #64748b;
+        --lich-dark: #0f172a;
+        --lich-border: #e2e8f0;
+        --lich-soft: #f8fafc;
+        --lich-card: #ffffff;
     }
 
-    .apt-topbar {
-        padding: 22px 26px;
+    .lich-page {
+        padding: 24px 0 40px;
+    }
+
+    .lich-hero,
+    .lich-filter,
+    .lich-card-box {
+        background: var(--lich-card);
+        border: 1px solid rgba(148, 163, 184, .18);
+        box-shadow: 0 14px 40px rgba(15, 23, 42, .06);
+        border-radius: 24px;
+    }
+
+    .lich-hero {
+        padding: 26px;
         margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
     }
 
-    .apt-title {
-        font-size: 1.5rem;
-        font-weight: 800;
-        margin-bottom: 6px;
-        color: #0f172a;
+    .lich-title {
+        font-size: clamp(1.35rem, 2.4vw, 2rem);
+        font-weight: 900;
+        color: var(--lich-dark);
+        margin: 0 0 6px;
+        letter-spacing: -.03em;
     }
 
-    .apt-subtitle {
-        color: #64748b;
-        margin-bottom: 0;
-        font-size: 0.95rem;
+    .lich-subtitle {
+        color: var(--lich-muted);
+        margin: 0;
+        font-size: .98rem;
+        line-height: 1.6;
     }
 
-    .apt-chip {
+    .lich-quick {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .lich-chip {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 16px;
+        padding: 10px 15px;
         border-radius: 999px;
         background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        font-weight: 700;
+        border: 1px solid var(--lich-border);
         color: #334155;
-    }
-
-    .apt-stat {
-        border-radius: 20px;
-        padding: 24px;
-        color: #fff;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, .08);
-        position: relative;
-        overflow: hidden;
-        height: 100%;
-        transition: 0.3s;
-    }
-
-        .apt-stat:hover {
-            transform: translateY(-4px);
-        }
-
-    .bg-total {
-        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-    }
-
-    .bg-pending {
-        background: linear-gradient(135deg, #b45309, #f59e0b);
-    }
-
-    .bg-confirmed {
-        background: linear-gradient(135deg, #0f766e, #14b8a6);
-    }
-
-    .bg-completed {
-        background: linear-gradient(135deg, #047857, #10b981);
-    }
-
-    .bg-cancelled {
-        background: linear-gradient(135deg, #475569, #64748b);
-    }
-
-    .stat-label {
-        font-size: .85rem;
         font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        opacity: .9;
-        margin-bottom: 12px;
+        white-space: nowrap;
     }
 
-    .stat-value {
-        font-size: 2.8rem;
-        line-height: 1;
-        font-weight: 900;
-    }
-
-    .apt-filter {
-        padding: 24px 26px;
+    .lich-stats {
         margin-bottom: 24px;
     }
 
-    .apt-label {
-        font-size: .8rem;
+    .lich-stat {
+        height: 100%;
+        min-height: 132px;
+        border-radius: 24px;
+        padding: 22px;
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 16px 34px rgba(15, 23, 42, .10);
+    }
+
+        .lich-stat::after {
+            content: "";
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            right: -35px;
+            top: -35px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .16);
+        }
+
+    .lich-stat-label {
+        font-size: .78rem;
         text-transform: uppercase;
-        letter-spacing: .05em;
-        font-weight: 800;
+        letter-spacing: .08em;
+        font-weight: 900;
+        opacity: .92;
+        margin-bottom: 14px;
+    }
+
+    .lich-stat-value {
+        font-size: 2.6rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .nen-tong {
+        background: linear-gradient(135deg, #1d4ed8, #60a5fa);
+    }
+
+    .nen-cho {
+        background: linear-gradient(135deg, #b45309, #f59e0b);
+    }
+
+    .nen-xac-nhan {
+        background: linear-gradient(135deg, #0f766e, #2dd4bf);
+    }
+
+    .nen-hoan-tat {
+        background: linear-gradient(135deg, #047857, #34d399);
+    }
+
+    .nen-huy {
+        background: linear-gradient(135deg, #475569, #94a3b8);
+    }
+
+    .lich-filter {
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .lich-label {
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .06em;
+        text-transform: uppercase;
         color: #475569;
         margin-bottom: 8px;
     }
 
-    .apt-input {
-        border-radius: 12px;
-        min-height: 48px;
+    .lich-input {
+        min-height: 50px;
+        border-radius: 15px;
         border: 1px solid #dbe3ef;
         box-shadow: none !important;
-        font-weight: 600;
-        font-size: 0.95rem;
+        font-weight: 700;
+        color: #1e293b;
     }
 
-        .apt-input:focus {
-            border-color: #3b82f6;
+        .lich-input:focus {
+            border-color: var(--lich-primary);
         }
 
-    .btn-apt {
-        min-height: 48px;
-        border-radius: 12px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        border: none;
-        transition: 0.3s;
+    .btn-loc {
+        min-height: 50px;
+        border-radius: 15px;
+        border: 0;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--lich-primary), var(--lich-primary-dark));
+        color: #fff;
     }
 
-        .btn-apt:hover {
-            box-shadow: 0 6px 15px rgba(37, 99, 235, 0.3);
+    .lich-card-box {
+        overflow: hidden;
+    }
+
+    .lich-table {
+        margin-bottom: 0;
+    }
+
+        .lich-table thead th {
+            background: #f8fafc;
+            color: #475569;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 900;
+            padding: 18px;
+            border-bottom: 1px solid var(--lich-border);
+            white-space: nowrap;
         }
 
-    .table-apt thead th {
+        .lich-table tbody td {
+            padding: 18px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .lich-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+    .lich-time {
+        font-weight: 900;
+        color: var(--lich-primary);
+        font-size: 1rem;
+    }
+
+    .lich-source {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
         background: #f8fafc;
-        color: #475569;
-        font-size: .8rem;
+    }
+
+    .lich-source-label {
+        font-size: .76rem;
+        font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: .05em;
-        font-weight: 800;
-        padding: 20px;
-        white-space: nowrap;
-        border-bottom: 2px solid #e2e8f0;
+        color: #64748b;
+        margin-bottom: 4px;
     }
 
-    .table-apt tbody td {
-        padding: 20px;
-        vertical-align: middle;
-        border-bottom: 1px solid #f1f5f9;
+    .lich-source-name {
+        font-weight: 850;
+        color: #0f172a;
+        line-height: 1.45;
     }
 
-    .table-apt tbody tr:hover {
-        background-color: #f8fafc;
+    .lich-person {
+        font-size: 1.02rem;
+        color: var(--lich-dark);
+        font-weight: 900;
+        margin-bottom: 6px;
     }
 
-    .status-pill {
+    .lich-small {
+        color: #64748b;
+        font-size: .9rem;
+        line-height: 1.55;
+    }
+
+    .trang-thai {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
+        gap: 7px;
+        padding: 8px 14px;
         border-radius: 999px;
-        font-size: .8rem;
-        font-weight: 800;
+        font-size: .78rem;
+        font-weight: 950;
         text-transform: uppercase;
-        letter-spacing: .05em;
+        letter-spacing: .04em;
     }
 
-    .st-pending {
-        background: #fee2e2;
-        color: #b91c1c;
+    .trang-thai-cho {
+        background: #fff7ed;
+        color: #c2410c;
     }
 
-    .st-confirmed {
+    .trang-thai-xac-nhan {
         background: #dbeafe;
         color: #1d4ed8;
     }
 
-    .st-cancelled {
+    .trang-thai-doi-lich {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .trang-thai-hoan-tat {
+        background: #dcfce7;
+        color: #047857;
+    }
+
+    .trang-thai-huy {
         background: #f1f5f9;
         color: #64748b;
         text-decoration: line-through;
     }
 
-    .st-completed {
-        background: #dcfce7;
+    .vai-tro {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 900;
+        margin-left: 6px;
+    }
+
+    .vai-tro-den {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .vai-tro-di {
+        background: #f0fdf4;
         color: #047857;
     }
 
-    .st-rescheduled {
-        background: #fef3c7;
-        color: #b45309;
+    .lich-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #78350f;
+        font-size: .88rem;
+        font-weight: 700;
+        line-height: 1.55;
     }
 
-    .result-pill {
+    .ket-qua-pill {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 8px;
-        font-size: .8rem;
-        font-weight: 700;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        color: #334155;
-    }
-
-    .apt-person {
-        font-weight: 800;
-        color: #0f172a;
-        font-size: 1.05rem;
-    }
-
-    .apt-small {
-        color: #64748b;
-        font-size: .9rem;
-        margin-top: 4px;
-    }
-
-    .action-btn {
-        border-radius: 10px;
-        padding: 8px 16px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        transition: 0.2s;
-    }
-
-    .action-outline {
-        border-radius: 10px;
-        padding: 8px 16px;
-        font-weight: 700;
-        font-size: 0.9rem;
-        border: 1px solid #dbe3ef;
-        background: #fff;
-        color: #334155;
-        transition: 0.2s;
-    }
-
-        .action-outline:hover {
-            background: #f1f5f9;
-        }
-
-    .pagination .page-link {
-        border: 1px solid #dbe3ef;
-        color: #334155;
-        font-weight: 800;
+        gap: 7px;
+        padding: 7px 12px;
         border-radius: 12px;
-        width: 42px;
-        height: 42px;
+        background: #fff;
+        border: 1px solid var(--lich-border);
+        color: #334155;
+        font-size: .82rem;
+        font-weight: 850;
+    }
+
+    .nut-thao-tac {
+        border-radius: 13px;
+        font-weight: 850;
+        min-height: 42px;
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .lich-empty {
+        padding: 70px 24px;
+        text-align: center;
+        color: #64748b;
+    }
+
+    .lich-mobile-list {
+        display: none;
+    }
+
+    .lich-mobile-card {
+        background: #fff;
+        border-radius: 22px;
+        border: 1px solid rgba(148, 163, 184, .22);
+        padding: 18px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+        margin-bottom: 16px;
+    }
+
+    .mobile-line {
         display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        color: #475569;
+        font-size: .92rem;
+        line-height: 1.55;
+        margin-top: 9px;
+    }
+
+    .phan-trang .page-link {
+        border: 1px solid #dbe3ef;
+        color: #334155;
+        font-weight: 900;
+        border-radius: 14px;
+        width: 44px;
+        height: 44px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         margin: 0 4px;
     }
 
-    .pagination .page-item.active .page-link {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    .phan-trang .page-item.active .page-link {
+        background: linear-gradient(135deg, var(--lich-primary), var(--lich-primary-dark));
         color: #fff;
         border-color: transparent;
-        box-shadow: 0 4px 10px rgba(37,99,235,0.2);
+    }
+
+    .modal-content {
+        border-radius: 24px;
+        overflow: hidden;
+    }
+
+    @@media (max-width: 991.98px) {
+        .lich-hero {
+            padding: 22px;
+        }
+
+        .lich-quick {
+            width: 100%;
+        }
+
+        .lich-chip {
+            flex: 1 1 auto;
+            justify-content: center;
+        }
+
+        .lich-stat {
+            min-height: 112px;
+        }
+
+        .lich-stat-value {
+            font-size: 2.2rem;
+        }
+
+        .desktop-table-wrap {
+            display: none;
+        }
+
+        .lich-mobile-list {
+            display: block;
+            padding: 16px;
+            background: #f8fafc;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .lich-page {
+            padding-top: 14px;
+        }
+
+        .lich-hero,
+        .lich-filter {
+            border-radius: 20px;
+            padding: 18px;
+        }
+
+        .lich-title {
+            font-size: 1.35rem;
+        }
+
+        .lich-subtitle {
+            font-size: .9rem;
+        }
+
+        .lich-chip {
+            width: 100%;
+        }
+
+        .lich-stat {
+            border-radius: 20px;
+            padding: 18px;
+        }
+
+        .lich-mobile-list {
+            padding: 12px;
+        }
+
+        .lich-mobile-card {
+            border-radius: 20px;
+            padding: 16px;
+        }
+
+        .nut-thao-tac {
+            width: 100%;
+        }
     }
 </style>
 
-<div class="container py-4">
+<div class="container lich-page">
 
-    <!-- TOP BAR -->
-    <div class="apt-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div class="lich-hero">
         <div>
-            <div class="apt-title">@(isBusinessMode ? "Quản lý lịch hẹn Dự án" : "Lịch hẹn của tôi")</div>
-            <p class="apt-subtitle">Công cụ hỗ trợ thương lượng, xác nhận và cập nhật kết quả xem bất động sản.</p>
+            <h1 class="lich-title">@(isBusinessMode ? "Quản lý lịch hẹn dự án" : "Lịch hẹn của tôi")</h1>
+            <p class="lich-subtitle">
+                Theo dõi lịch hẹn, xác nhận khách xem nhà, đề xuất dời lịch và cập nhật kết quả sau buổi gặp.
+            </p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-            <span class="apt-chip"><i class="bi bi-calendar2-week text-primary"></i> @totalAppointments lịch hẹn</span>
-            <span class="apt-chip"><i class="bi bi-clock-history text-warning"></i> @todayAppointments hôm nay</span>
+
+        <div class="lich-quick">
+            <span class="lich-chip">
+                <i class="bi bi-calendar2-week text-primary"></i>
+                @totalAppointments lịch hẹn
+            </span>
+            <span class="lich-chip">
+                <i class="bi bi-clock-history text-warning"></i>
+                @todayAppointments hôm nay
+            </span>
         </div>
     </div>
 
-    <!-- CARDS THỐNG KÊ -->
-    <div class="row g-4 mb-4">
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-total"><div class="stat-label">Tổng lịch</div><div class="stat-value">@totalAppointments</div></div></div>
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-pending"><div class="stat-label">Chờ / Đang dời</div><div class="stat-value">@pendingAppointments</div></div></div>
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-confirmed"><div class="stat-label">Đã xác nhận</div><div class="stat-value">@confirmedAppointments</div></div></div>
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-completed"><div class="stat-label">Hoàn tất</div><div class="stat-value">@completedAppointments</div></div></div>
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-cancelled"><div class="stat-label">Đã hủy</div><div class="stat-value">@cancelledAppointments</div></div></div>
-        <div class="col-xl-2 col-lg-4 col-md-6"><div class="apt-stat bg-total"><div class="stat-label">Hôm nay</div><div class="stat-value">@todayAppointments</div></div></div>
+    <div class="row g-3 lich-stats">
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-tong">
+                <div class="lich-stat-label">Tổng lịch</div>
+                <div class="lich-stat-value">@totalAppointments</div>
+            </div>
+        </div>
+
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-cho">
+                <div class="lich-stat-label">Chờ xử lý</div>
+                <div class="lich-stat-value">@pendingAppointments</div>
+            </div>
+        </div>
+
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-xac-nhan">
+                <div class="lich-stat-label">Đã xác nhận</div>
+                <div class="lich-stat-value">@confirmedAppointments</div>
+            </div>
+        </div>
+
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-hoan-tat">
+                <div class="lich-stat-label">Hoàn tất</div>
+                <div class="lich-stat-value">@completedAppointments</div>
+            </div>
+        </div>
+
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-huy">
+                <div class="lich-stat-label">Đã hủy</div>
+                <div class="lich-stat-value">@cancelledAppointments</div>
+            </div>
+        </div>
+
+        <div class="col-xl-2 col-lg-4 col-md-6 col-6">
+            <div class="lich-stat nen-tong">
+                <div class="lich-stat-label">Hôm nay</div>
+                <div class="lich-stat-value">@todayAppointments</div>
+            </div>
+        </div>
     </div>
 
-    <!-- BỘ LỌC TÌM KIẾM -->
-    <div class="apt-filter">
+    <div class="lich-filter">
         <form method="get" asp-action="Index" asp-controller="Appointments" class="row g-3 align-items-end">
             <input type="hidden" name="mode" value="@appointmentMode" />
 
-            <div class="col-xl-2 col-lg-3">
-                <label class="form-label apt-label">Phân loại</label>
-                <select name="tab" class="form-select apt-input">
-                    <option value="all" selected="@(activeTab == "all")">Tất cả lịch</option>
-                    <option value="incoming" selected="@(activeTab == "incoming")">Khách hẹn mình (Lịch đến)</option>
-                    <option value="outgoing" selected="@(activeTab == "outgoing")">Mình hẹn khách (Lịch đi)</option>
+            <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label lich-label">Phân loại</label>
+                <select name="tab" class="form-select lich-input">
+                    <option value="tat-ca" selected="@(activeTab == "tat-ca" || activeTab == "all")">Tất cả lịch</option>
+                    <option value="lich-den" selected="@(activeTab == "lich-den" || activeTab == "incoming")">Khách hẹn mình</option>
+                    <option value="lich-di" selected="@(activeTab == "lich-di" || activeTab == "outgoing")">Mình đặt lịch</option>
+                    <option value="sap-toi" selected="@(activeTab == "sap-toi" || activeTab == "upcoming")">Sắp tới</option>
+                    <option value="hoan-tat" selected="@(activeTab == "hoan-tat" || activeTab == "completed")">Hoàn tất</option>
+                    <option value="da-huy" selected="@(activeTab == "da-huy" || activeTab == "cancelled")">Đã hủy</option>
                 </select>
             </div>
-            <div class="col-xl-2 col-lg-3">
-                <label class="form-label apt-label">Trạng thái</label>
-                <select name="statusFilter" class="form-select apt-input">
-                    <option value="All" selected="@(statusFilter == "All")">Tất cả</option>
-                    <option value="Pending" selected="@(statusFilter == "Pending")">Chờ xác nhận</option>
-                    <option value="Rescheduled" selected="@(statusFilter == "Rescheduled")">Đang dời lịch</option>
-                    <option value="Confirmed" selected="@(statusFilter == "Confirmed")">Đã xác nhận</option>
-                    <option value="Completed" selected="@(statusFilter == "Completed")">Hoàn tất</option>
-                    <option value="Cancelled" selected="@(statusFilter == "Cancelled")">Đã hủy</option>
+
+            <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label lich-label">Trạng thái</label>
+                <select name="statusFilter" class="form-select lich-input">
+                    <option value="Tất cả" selected="@(statusFilter == "Tất cả" || statusFilter == "All")">Tất cả</option>
+                    <option value="Chờ xác nhận" selected="@(statusFilter == "Chờ xác nhận" || statusFilter == "Pending")">Chờ xác nhận</option>
+                    <option value="Đang dời lịch" selected="@(statusFilter == "Đang dời lịch" || statusFilter == "Rescheduled")">Đang dời lịch</option>
+                    <option value="Đã xác nhận" selected="@(statusFilter == "Đã xác nhận" || statusFilter == "Confirmed")">Đã xác nhận</option>
+                    <option value="Đã hoàn tất" selected="@(statusFilter == "Đã hoàn tất" || statusFilter == "Completed")">Đã hoàn tất</option>
+                    <option value="Đã hủy" selected="@(statusFilter == "Đã hủy" || statusFilter == "Cancelled")">Đã hủy</option>
                 </select>
             </div>
-            <div class="col-xl-2 col-lg-3">
-                <label class="form-label apt-label">Thời gian</label>
-                <select name="dateRange" class="form-select apt-input">
-                    <option value="all" selected="@(dateRange == "all")">Toàn thời gian</option>
-                    <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
-                    <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
+
+            <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label lich-label">Thời gian</label>
+                <select name="dateRange" class="form-select lich-input">
+                    <option value="tat-ca" selected="@(dateRange == "tat-ca" || dateRange == "all")">Toàn thời gian</option>
+                    <option value="hom-nay" selected="@(dateRange == "hom-nay" || dateRange == "today")">Hôm nay</option>
+                    <option value="7-ngay" selected="@(dateRange == "7-ngay" || dateRange == "week")">7 ngày qua</option>
+                    <option value="30-ngay" selected="@(dateRange == "30-ngay" || dateRange == "month")">30 ngày qua</option>
                 </select>
             </div>
-            <div class="col-xl-5 col-lg-9">
-                <label class="form-label apt-label">Tìm kiếm từ khóa</label>
-                <input type="text" name="keyword" value="@keyword" class="form-control apt-input" placeholder="Tên khách, SĐT, tiêu đề dự án/BĐS, ghi chú..." />
+
+            <div class="col-xl-5 col-lg-9 col-md-12">
+                <label class="form-label lich-label">Từ khóa</label>
+                <input type="text"
+                       name="keyword"
+                       value="@keyword"
+                       class="form-control lich-input"
+                       placeholder="Nhập tên khách, số điện thoại, điểm hẹn, ghi chú, tiêu đề BĐS..." />
             </div>
-            <div class="col-xl-1 col-lg-3 d-grid">
-                <button type="submit" class="btn btn-apt text-white"><i class="bi bi-search"></i> Lọc</button>
+
+            <div class="col-xl-1 col-lg-3 col-md-12 d-grid">
+                <button type="submit" class="btn btn-loc">
+                    <i class="bi bi-search"></i>
+                    Lọc
+                </button>
             </div>
         </form>
     </div>
 
-    <!-- BẢNG DANH SÁCH LỊCH HẸN -->
-    <div class="apt-card mb-5">
-        <div class="table-responsive">
-            <table class="table table-apt align-middle mb-0">
+    <div class="lich-card-box mb-5">
+
+        <div class="desktop-table-wrap table-responsive">
+            <table class="table lich-table align-middle">
                 <thead>
                     <tr>
-                        <th style="width: 25%">Thời gian & Nguồn</th>
-                        <th style="width: 25%">Thông tin Khách & Điểm hẹn</th>
-                        <th style="width: 30%">Trạng thái & Thương lượng</th>
-                        <th style="width: 20%" class="text-center">Thao tác xử lý</th>
+                        <th style="width: 25%;">Thời gian & nguồn</th>
+                        <th style="width: 25%;">Khách hàng & điểm hẹn</th>
+                        <th style="width: 30%;">Trạng thái & ghi chú</th>
+                        <th style="width: 20%;" class="text-center">Thao tác</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     @if (Model != null && Model.Any())
                     {
                         foreach (var a in Model)
                         {
-                            var isSeller = a.SellerID == currentUserId;
-                            var isBuyer = a.BuyerID == currentUserId;
+                            bool isSeller = a.SellerID == currentUserId;
+                            bool isBuyer = a.BuyerID == currentUserId;
 
-                            var customerName = !string.IsNullOrWhiteSpace(a.CustomerName) ? a.CustomerName : (a.Buyer?.Username ?? "Khách ẩn danh");
-                            var sourceName = a.Property?.Title ?? a.Project?.ProjectName ?? a.Lead?.Project?.ProjectName ?? "Bất động sản";
+                            string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)
+                            ? a.CustomerName
+                            : (a.Buyer?.Username ?? "Khách chưa rõ tên");
 
-                            // DỊCH TIẾNG VIỆT CHO TRẠNG THÁI HIỂN THỊ
-                            string statusText = "Chờ xử lý";
-                            string statusClass = "st-pending";
-                            switch (a.Status)
-                            {
-                                case "Pending": statusText = "Chờ xác nhận"; statusClass = "st-pending"; break;
-                                case "Confirmed": statusText = "Đã xác nhận"; statusClass = "st-confirmed"; break;
-                                case "Rescheduled": statusText = "Đang dời lịch"; statusClass = "st-rescheduled"; break;
-                                case "Cancelled": statusText = "Đã hủy"; statusClass = "st-cancelled"; break;
-                                case "Completed": statusText = "Đã hoàn tất"; statusClass = "st-completed"; break;
-                            }
+                            string sourceName = a.Property?.Title
+                            ?? a.Project?.ProjectName
+                            ?? a.Lead?.Project?.ProjectName
+                            ?? "Bất động sản";
 
-                            // DỊCH TIẾNG VIỆT CHO KẾT QUẢ ĐI XEM
-                            string resultText = a.ResultStatus ?? "";
-                            switch (a.ResultStatus)
-                            {
-                                case "Interested": resultText = "Khách ưng ý / Quan tâm"; break;
-                                case "DepositPending": resultText = "Chờ chuyển cọc"; break;
-                                case "FollowUp": resultText = "Cần chăm sóc thêm"; break;
-                                case "NotInterested": resultText = "Khách không ưng"; break;
-                            }
+                            string statusText = GetStatusText(a.Status);
+                            string statusClass = GetStatusClass(a.Status);
+                            string resultText = GetResultText(a.ResultStatus);
 
                             <tr>
-                                <!-- 1. Thời gian & Nguồn -->
                                 <td>
-                                    <div class="apt-person text-primary">
-                                        <i class="bi bi-calendar-check me-1"></i> @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                    <div class="lich-time">
+                                        <i class="bi bi-calendar-check me-1"></i>
+                                        @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
                                     </div>
 
                                     @if (a.ProposedAppointmentDate.HasValue)
                                     {
-                                        <div class="text-danger small fw-bold mt-1 bg-danger bg-opacity-10 p-1 rounded-2 d-inline-block">
-                                            <i class="bi bi-arrow-right-circle"></i> Đề xuất mới: @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy")
+                                        <div class="mt-2 text-danger small fw-bold">
+                                            <i class="bi bi-arrow-right-circle"></i>
+                                            Giờ đề xuất mới:
+                                            @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
                                         </div>
                                     }
 
-                                    <div class="mt-2 p-2 rounded-3 bg-light border shadow-sm">
-                                        <div class="fw-bold" style="font-size: 0.8rem; color:#64748b;">Nguồn / Ngữ cảnh</div>
-                                        <div class="fw-bold text-dark mt-1" style="font-size: 0.95rem;">@sourceName</div>
+                                    <div class="lich-source">
+                                        <div class="lich-source-label">Nguồn lịch hẹn</div>
+                                        <div class="lich-source-name">@sourceName</div>
                                     </div>
                                 </td>
 
-                                <!-- 2. Thông tin khách -->
                                 <td>
-                                    <div class="apt-person">@customerName</div>
-                                    <div class="apt-small fw-bold"><i class="bi bi-telephone-fill text-success me-1"></i> @(string.IsNullOrWhiteSpace(a.CustomerPhone) ? "Chưa có SĐT" : a.CustomerPhone)</div>
-                                    <div class="apt-small mt-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @(string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa cung cấp điểm hẹn" : a.MeetingLocation)</div>
+                                    <div class="lich-person">@customerName</div>
+
+                                    <div class="lich-small">
+                                        <i class="bi bi-telephone-fill text-success me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(a.CustomerPhone) ? "Chưa có số điện thoại" : a.CustomerPhone)
+                                    </div>
+
+                                    <div class="lich-small mt-1">
+                                        <i class="bi bi-envelope-fill text-primary me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(a.CustomerEmail) ? "Chưa có email" : a.CustomerEmail)
+                                    </div>
+
+                                    <div class="lich-small mt-1">
+                                        <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa cung cấp điểm hẹn" : a.MeetingLocation)
+                                    </div>
+
                                     @if (!string.IsNullOrWhiteSpace(a.Note))
                                     {
-                                        <div class="mt-2 text-muted small fst-italic">" @a.Note "</div>
+                                        <div class="mt-2 text-muted small fst-italic">
+                                            “@a.Note”
+                                        </div>
                                     }
                                 </td>
 
-                                <!-- 3. Trạng thái & Ghi chú -->
                                 <td>
-                                    <div class="d-flex align-items-center gap-2 mb-2">
-                                        <!-- HIỂN THỊ TIẾNG VIỆT TẠI ĐÂY -->
-                                        <span class="status-pill @statusClass">@statusText</span>
+                                    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+                                        <span class="trang-thai @statusClass">
+                                            <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                                            @statusText
+                                        </span>
 
                                         @if (isSeller)
                                         {
-                                            <span class="badge bg-primary">Khách hẹn bạn</span>
+                                            <span class="vai-tro vai-tro-den">Khách hẹn bạn</span>
                                         }
+
                                         @if (isBuyer)
                                         {
-                                            <span class="badge bg-info text-dark">Bạn hẹn khách</span>
+                                            <span class="vai-tro vai-tro-di">Bạn đặt lịch</span>
                                         }
                                     </div>
 
                                     @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
                                     {
-                                        <div class="p-2 rounded-3 border bg-warning bg-opacity-10 small fw-bold text-dark mt-2">
-                                            <i class="bi bi-chat-left-dots-fill text-warning me-1"></i> Ghi chú: @a.NegotiationNote
+                                        <div class="lich-note">
+                                            <i class="bi bi-chat-left-dots-fill me-1"></i>
+                                            @a.NegotiationNote
                                         </div>
                                     }
 
-                                    @if (!string.IsNullOrWhiteSpace(a.ResultStatus))
+                                    @if (!string.IsNullOrWhiteSpace(resultText))
                                     {
-                                        <div class="mt-2 d-flex flex-wrap gap-2">
-                                            <span class="result-pill"><i class="bi bi-bookmark-check-fill text-success"></i> KQ: @resultText</span>
+                                        <div class="mt-2">
+                                            <span class="ket-qua-pill">
+                                                <i class="bi bi-bookmark-check-fill text-success"></i>
+                                                Kết quả: @resultText
+                                            </span>
+
                                             @if (!string.IsNullOrWhiteSpace(a.ResultNote))
                                             {
-                                                <div class="w-100 text-muted small mt-1">@a.ResultNote</div>
+                                                <div class="text-muted small mt-2">@a.ResultNote</div>
                                             }
                                         </div>
                                     }
                                 </td>
 
-                                <!-- 4. Thao tác -->
                                 <td class="text-center">
                                     <div class="d-flex flex-column gap-2 align-items-center">
 
-                                        @* ---- PHÂN QUYỀN CHO NGƯỜI BÁN (SELLER) ---- *@
                                         @if (isSeller)
                                         {
-                                            if (a.Status == "Pending")
+                                            if (statusText == "Chờ xác nhận")
                                             {
-                                                <button type="button" class="btn btn-success action-btn w-100" onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Đồng ý đón tiếp khách hàng vào khung giờ này?')">
-                                                    <i class="bi bi-check-circle-fill"></i> Chấp nhận
+                                                <button type="button"
+                                                        class="btn btn-success nut-thao-tac w-100"
+                                                        onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Bạn có chắc muốn xác nhận lịch hẹn này?')">
+                                                    <i class="bi bi-check-circle-fill"></i>
+                                                    Xác nhận
                                                 </button>
-                                                <button type="button" class="btn btn-warning action-btn text-dark w-100" onclick="openRescheduleModal(@a.AppointmentID)">
-                                                    <i class="bi bi-clock-history"></i> Dời lịch
+
+                                                <button type="button"
+                                                        class="btn btn-warning text-dark nut-thao-tac w-100"
+                                                        onclick="openRescheduleModal(@a.AppointmentID)">
+                                                    <i class="bi bi-clock-history"></i>
+                                                    Dời lịch
                                                 </button>
-                                                <button type="button" class="btn btn-danger action-btn w-100" onclick="openRejectModal(@a.AppointmentID, 'Từ chối lịch hẹn')">
-                                                    <i class="bi bi-x-circle-fill"></i> Từ chối
+
+                                                <button type="button"
+                                                        class="btn btn-danger nut-thao-tac w-100"
+                                                        onclick="openRejectModal(@a.AppointmentID, 'Từ chối lịch hẹn')">
+                                                    <i class="bi bi-x-circle-fill"></i>
+                                                    Từ chối
                                                 </button>
                                             }
-                                            else if (a.Status == "Confirmed")
+                                            else if (statusText == "Đã xác nhận")
                                             {
-                                                <button type="button" class="btn btn-primary action-btn w-100 shadow-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal" data-id="@a.AppointmentID">
-                                                    <i class="bi bi-clipboard-check"></i> Chốt Kết Quả
+                                                <button type="button"
+                                                        class="btn btn-primary nut-thao-tac w-100"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#feedbackModal"
+                                                        data-id="@a.AppointmentID">
+                                                    <i class="bi bi-clipboard-check"></i>
+                                                    Chốt kết quả
                                                 </button>
                                             }
-                                            else if (a.Status == "Rescheduled")
+                                            else if (statusText == "Đang dời lịch")
                                             {
-                                                <span class="text-muted small fw-bold"><i class="bi bi-hourglass-split"></i> Đang chờ khách xác nhận giờ mới</span>
+                                                <span class="text-muted small fw-bold">
+                                                    <i class="bi bi-hourglass-split"></i>
+                                                    Chờ khách xác nhận giờ mới
+                                                </span>
                                             }
                                         }
 
-                                        @* ---- PHÂN QUYỀN CHO NGƯỜI MUA (BUYER) ---- *@
                                         @if (isBuyer)
                                         {
-                                            if (a.Status == "Pending")
+                                            if (statusText == "Chờ xác nhận")
                                             {
-                                                <button type="button" class="btn btn-outline-danger action-outline w-100" onclick="openRejectModal(@a.AppointmentID, 'Hủy lịch đã đặt')">
-                                                    <i class="bi bi-trash-fill"></i> Hủy yêu cầu
+                                                <button type="button"
+                                                        class="btn btn-outline-danger nut-thao-tac w-100"
+                                                        onclick="openRejectModal(@a.AppointmentID, 'Hủy lịch đã đặt')">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                    Hủy yêu cầu
                                                 </button>
                                             }
-                                            else if (a.Status == "Rescheduled")
+                                            else if (statusText == "Đang dời lịch")
                                             {
-                                                <button type="button" class="btn btn-success action-btn w-100 shadow-sm" onclick="postAction('@Url.Action("BuyerAcceptReschedule", "Appointments")', @a.AppointmentID, 'Đồng ý với giờ dời lịch do người bán đề xuất?')">
-                                                    <i class="bi bi-check-circle-fill"></i> Đồng ý giờ mới
+                                                <button type="button"
+                                                        class="btn btn-success nut-thao-tac w-100"
+                                                        onclick="postAction('@Url.Action("BuyerAcceptReschedule", "Appointments")', @a.AppointmentID, 'Bạn đồng ý với giờ dời lịch do người bán đề xuất?')">
+                                                    <i class="bi bi-check-circle-fill"></i>
+                                                    Đồng ý giờ mới
                                                 </button>
-                                                <button type="button" class="btn btn-danger action-btn w-100" onclick="openRejectModal(@a.AppointmentID, 'Từ chối giờ dời lịch')">
-                                                    <i class="bi bi-x-circle-fill"></i> Không đồng ý & Hủy
+
+                                                <button type="button"
+                                                        class="btn btn-danger nut-thao-tac w-100"
+                                                        onclick="openRejectModal(@a.AppointmentID, 'Từ chối giờ dời lịch')">
+                                                    <i class="bi bi-x-circle-fill"></i>
+                                                    Không đồng ý
                                                 </button>
                                             }
-                                            else if (a.Status == "Confirmed")
+                                            else if (statusText == "Đã xác nhận")
                                             {
-                                                <span class="text-success small fw-bold"><i class="bi bi-shield-fill-check"></i> Đã được tiếp nhận</span>
+                                                <span class="text-success small fw-bold">
+                                                    <i class="bi bi-shield-fill-check"></i>
+                                                    Đã được xác nhận
+                                                </span>
                                             }
                                         }
 
-                                        @if (a.Status == "Completed" || a.Status == "Cancelled")
+                                        @if (statusText == "Đã hoàn tất" || statusText == "Đã hủy" || statusText == "Khách không đến")
                                         {
-                                            <span class="text-muted small fw-bold"><i class="bi bi-lock-fill"></i> Lịch đã đóng</span>
+                                            <span class="text-muted small fw-bold">
+                                                <i class="bi bi-lock-fill"></i>
+                                                Lịch đã đóng
+                                            </span>
                                         }
                                     </div>
                                 </td>
@@ -532,11 +895,11 @@
                     else
                     {
                         <tr>
-                            <td colspan="4" class="text-center py-5">
-                                <div class="py-5 text-muted">
+                            <td colspan="4">
+                                <div class="lich-empty">
                                     <i class="bi bi-calendar-x display-1 opacity-25 d-block mb-3"></i>
-                                    <h5 class="fw-bold">Chưa có dữ liệu lịch hẹn phù hợp</h5>
-                                    <div>Hãy thử tạo lịch mới hoặc thay đổi bộ lọc tìm kiếm.</div>
+                                    <h5 class="fw-bold">Chưa có lịch hẹn phù hợp</h5>
+                                    <div>Hãy thử đổi bộ lọc hoặc kiểm tra lại từ khóa tìm kiếm.</div>
                                 </div>
                             </td>
                         </tr>
@@ -545,23 +908,201 @@
             </table>
         </div>
 
-        <!-- Phân trang -->
+        <div class="lich-mobile-list">
+            @if (Model != null && Model.Any())
+            {
+                foreach (var a in Model)
+                {
+                    bool isSeller = a.SellerID == currentUserId;
+                    bool isBuyer = a.BuyerID == currentUserId;
+
+                    string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)
+                    ? a.CustomerName
+                    : (a.Buyer?.Username ?? "Khách chưa rõ tên");
+
+                    string sourceName = a.Property?.Title
+                    ?? a.Project?.ProjectName
+                    ?? a.Lead?.Project?.ProjectName
+                    ?? "Bất động sản";
+
+                    string statusText = GetStatusText(a.Status);
+                    string statusClass = GetStatusClass(a.Status);
+                    string resultText = GetResultText(a.ResultStatus);
+
+                    <div class="lich-mobile-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <div>
+                                <div class="lich-person mb-1">@customerName</div>
+                                <div class="lich-time">
+                                    <i class="bi bi-calendar-check me-1"></i>
+                                    @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                </div>
+                            </div>
+
+                            <span class="trang-thai @statusClass">
+                                @statusText
+                            </span>
+                        </div>
+
+                        <div class="mobile-line">
+                            <i class="bi bi-house-door text-primary"></i>
+                            <div>
+                                <strong>Nguồn:</strong>
+                                @sourceName
+                            </div>
+                        </div>
+
+                        <div class="mobile-line">
+                            <i class="bi bi-telephone-fill text-success"></i>
+                            <div>
+                                <strong>SĐT:</strong>
+                                @(string.IsNullOrWhiteSpace(a.CustomerPhone) ? "Chưa có" : a.CustomerPhone)
+                            </div>
+                        </div>
+
+                        <div class="mobile-line">
+                            <i class="bi bi-geo-alt-fill text-danger"></i>
+                            <div>
+                                <strong>Điểm hẹn:</strong>
+                                @(string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa cung cấp" : a.MeetingLocation)
+                            </div>
+                        </div>
+
+                        @if (a.ProposedAppointmentDate.HasValue)
+                        {
+                            <div class="lich-note">
+                                <i class="bi bi-arrow-right-circle"></i>
+                                Giờ đề xuất mới:
+                                @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
+                        {
+                            <div class="lich-note">
+                                <i class="bi bi-chat-left-dots-fill me-1"></i>
+                                @a.NegotiationNote
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(resultText))
+                        {
+                            <div class="mt-3">
+                                <span class="ket-qua-pill">
+                                    <i class="bi bi-bookmark-check-fill text-success"></i>
+                                    Kết quả: @resultText
+                                </span>
+                            </div>
+                        }
+
+                        <div class="d-grid gap-2 mt-3">
+                            @if (isSeller)
+                            {
+                                if (statusText == "Chờ xác nhận")
+                                {
+                                    <button type="button"
+                                            class="btn btn-success nut-thao-tac"
+                                            onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Bạn có chắc muốn xác nhận lịch hẹn này?')">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        Xác nhận
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-warning text-dark nut-thao-tac"
+                                            onclick="openRescheduleModal(@a.AppointmentID)">
+                                        <i class="bi bi-clock-history"></i>
+                                        Dời lịch
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-danger nut-thao-tac"
+                                            onclick="openRejectModal(@a.AppointmentID, 'Từ chối lịch hẹn')">
+                                        <i class="bi bi-x-circle-fill"></i>
+                                        Từ chối
+                                    </button>
+                                }
+                                else if (statusText == "Đã xác nhận")
+                                {
+                                    <button type="button"
+                                            class="btn btn-primary nut-thao-tac"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#feedbackModal"
+                                            data-id="@a.AppointmentID">
+                                        <i class="bi bi-clipboard-check"></i>
+                                        Chốt kết quả
+                                    </button>
+                                }
+                            }
+
+                            @if (isBuyer)
+                            {
+                                if (statusText == "Chờ xác nhận")
+                                {
+                                    <button type="button"
+                                            class="btn btn-outline-danger nut-thao-tac"
+                                            onclick="openRejectModal(@a.AppointmentID, 'Hủy lịch đã đặt')">
+                                        <i class="bi bi-trash-fill"></i>
+                                        Hủy yêu cầu
+                                    </button>
+                                }
+                                else if (statusText == "Đang dời lịch")
+                                {
+                                    <button type="button"
+                                            class="btn btn-success nut-thao-tac"
+                                            onclick="postAction('@Url.Action("BuyerAcceptReschedule", "Appointments")', @a.AppointmentID, 'Bạn đồng ý với giờ dời lịch do người bán đề xuất?')">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        Đồng ý giờ mới
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-danger nut-thao-tac"
+                                            onclick="openRejectModal(@a.AppointmentID, 'Từ chối giờ dời lịch')">
+                                        <i class="bi bi-x-circle-fill"></i>
+                                        Không đồng ý
+                                    </button>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="lich-empty">
+                    <i class="bi bi-calendar-x display-1 opacity-25 d-block mb-3"></i>
+                    <h5 class="fw-bold">Chưa có lịch hẹn phù hợp</h5>
+                    <div>Hãy thử đổi bộ lọc hoặc kiểm tra lại từ khóa tìm kiếm.</div>
+                </div>
+            }
+        </div>
+
         @if (totalPages > 1)
         {
             <div class="p-4 border-top">
                 <nav class="d-flex justify-content-center">
-                    <ul class="pagination mb-0 flex-wrap">
+                    <ul class="pagination phan-trang mb-0 flex-wrap justify-content-center">
                         <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                            <a class="page-link" href="@Url.Action("Index", new { page = currentPage - 1, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })"><i class="bi bi-chevron-left"></i></a>
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage - 1, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
                         </li>
+
                         @for (int i = 1; i <= totalPages; i++)
                         {
                             <li class="page-item @(currentPage == i ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("Index", new { page = i, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })">@i</a>
+                                <a class="page-link"
+                                   href="@Url.Action("Index", new { page = i, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })">
+                                    @i
+                                </a>
                             </li>
                         }
+
                         <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                            <a class="page-link" href="@Url.Action("Index", new { page = currentPage + 1, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })"><i class="bi bi-chevron-right"></i></a>
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage + 1, tab = activeTab, statusFilter = statusFilter, keyword = keyword, dateRange = dateRange, mode = appointmentMode })">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
                         </li>
                     </ul>
                 </nav>
@@ -570,102 +1111,165 @@
     </div>
 </div>
 
-<!-- ================= CÁC MODAL TƯƠNG TÁC (DÙNG CHUNG) ================= -->
-<!-- 1. Modal Từ chối / Hủy lịch hẹn -->
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
+        <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-danger text-white border-0">
-                <h5 class="modal-title fw-bold" id="rejectModalTitle"><i class="bi bi-x-octagon-fill me-2"></i>Từ chối lịch hẹn</h5>
+                <h5 class="modal-title fw-bold" id="rejectModalTitle">
+                    <i class="bi bi-x-octagon-fill me-2"></i>
+                    Từ chối lịch hẹn
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+
             <form id="frmReject" method="post">
                 <div class="modal-body p-4">
                     @Html.AntiForgeryToken()
+
                     <input type="hidden" name="id" id="rejectId" />
-                    <div class="mb-0">
-                        <label class="form-label fw-bold text-dark">Vui lòng nhập lý do hủy/từ chối <span class="text-danger">*</span></label>
-                        <textarea name="reason" id="rejectReason" class="form-control apt-input bg-light" rows="3" required placeholder="Ví dụ: Đã bán sản phẩm, bận công tác đột xuất, khách không tiện giờ này..."></textarea>
-                    </div>
+
+                    <label class="form-label fw-bold text-dark">
+                        Lý do hủy hoặc từ chối
+                        <span class="text-danger">*</span>
+                    </label>
+
+                    <textarea name="reason"
+                              id="rejectReason"
+                              class="form-control lich-input bg-light"
+                              rows="4"
+                              required
+                              placeholder="Ví dụ: Chủ nhà bận đột xuất, khách không phù hợp thời gian, sản phẩm đã giao dịch..."></textarea>
                 </div>
+
                 <div class="modal-footer border-0 p-4 pt-0">
-                    <button type="button" class="btn btn-light rounded-10 px-4 fw-bold border" data-bs-dismiss="modal">Đóng</button>
-                    <button type="submit" class="btn btn-danger rounded-10 px-4 fw-bold shadow-sm">Xác nhận Hủy/Từ chối</button>
+                    <button type="button" class="btn btn-light border rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                        Đóng
+                    </button>
+
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        Xác nhận hủy
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- 2. Modal Dời lịch (Dành cho Seller) -->
 <div class="modal fade" id="rescheduleModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
+        <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-warning text-dark border-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Đề xuất Dời lịch</h5>
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Đề xuất dời lịch
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+
             <form id="frmReschedule" asp-action="SellerReschedule" asp-controller="Appointments" method="post">
                 <div class="modal-body p-4">
                     @Html.AntiForgeryToken()
+
                     <input type="hidden" name="id" id="rescheduleId" />
-                    <div class="alert alert-info border-0 rounded-3 small fw-bold mb-4">
-                        <i class="bi bi-info-circle-fill me-1"></i>Hệ thống sẽ gửi thông báo và Email cho khách hàng để họ xác nhận lịch mới.
+
+                    <div class="alert alert-info border-0 rounded-4 small fw-bold mb-4">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Hệ thống sẽ gửi thông báo cho khách hàng để họ xác nhận giờ hẹn mới.
                     </div>
 
                     <div class="row g-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold text-dark">Ngày đề xuất mới <span class="text-danger">*</span></label>
-                            <input type="date" name="proposedDate" class="form-control apt-input" required />
+                            <label class="form-label fw-bold text-dark">
+                                Ngày mới
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" name="proposedDate" class="form-control lich-input" required />
                         </div>
+
                         <div class="col-6">
-                            <label class="form-label fw-bold text-dark">Giờ đề xuất mới <span class="text-danger">*</span></label>
-                            <input type="time" name="proposedTime" class="form-control apt-input" required />
+                            <label class="form-label fw-bold text-dark">
+                                Giờ mới
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="time" name="proposedTime" class="form-control lich-input" required />
                         </div>
+
                         <div class="col-12">
-                            <label class="form-label fw-bold text-dark">Lý do dời lịch <span class="text-danger">*</span></label>
-                            <textarea name="reason" class="form-control apt-input" rows="3" required placeholder="Mong khách thông cảm, do chủ nhà đi vắng nên đổi sang giờ này..."></textarea>
+                            <label class="form-label fw-bold text-dark">
+                                Lý do dời lịch
+                                <span class="text-danger">*</span>
+                            </label>
+                            <textarea name="reason"
+                                      class="form-control lich-input"
+                                      rows="4"
+                                      required
+                                      placeholder="Ví dụ: Chủ nhà bận công việc, đề xuất khách sang khung giờ khác..."></textarea>
                         </div>
                     </div>
                 </div>
+
                 <div class="modal-footer border-0 p-4 pt-0">
-                    <button type="button" class="btn btn-light rounded-10 px-4 fw-bold border" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-warning rounded-10 px-4 fw-bold text-dark shadow-sm">Gửi đề xuất cho khách</button>
+                    <button type="button" class="btn btn-light border rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                        Đóng
+                    </button>
+
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold text-dark">
+                        Gửi đề xuất
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- 3. Modal Cập nhật Kết quả -->
 <div class="modal fade" id="feedbackModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
+        <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-primary text-white border-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-clipboard-data-fill me-2"></i>Cập nhật kết quả đi xem</h5>
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-clipboard-data-fill me-2"></i>
+                    Cập nhật kết quả đi xem
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+
             <form id="frmFeedback" asp-action="UpdateOutcome" asp-controller="Appointments" method="post">
                 <div class="modal-body p-4">
                     @Html.AntiForgeryToken()
+
                     <input type="hidden" name="id" id="feedbackAppointmentId" />
+
                     <div class="mb-3">
-                        <label class="form-label fw-bold text-dark">Kết quả khách hàng <span class="text-danger">*</span></label>
-                        <select name="resultStatus" class="form-select apt-input bg-light" required>
-                            <option value="Interested">Khách ưng ý / Rất Quan tâm</option>
-                            <option value="DepositPending">Chờ chuyển cọc / Làm hợp đồng ngay</option>
-                            <option value="FollowUp">Cần chăm sóc, tư vấn thêm</option>
-                            <option value="NotInterested">Khách không ưng / Bỏ qua</option>
+                        <label class="form-label fw-bold text-dark">
+                            Kết quả khách hàng
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        <select name="resultStatus" class="form-select lich-input bg-light" required>
+                            <option value="Khách quan tâm">Khách quan tâm / ưng ý</option>
+                            <option value="Chờ đặt cọc">Chờ đặt cọc / làm hợp đồng</option>
+                            <option value="Cần chăm sóc thêm">Cần chăm sóc, tư vấn thêm</option>
+                            <option value="Khách không quan tâm">Khách không quan tâm / bỏ qua</option>
                         </select>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label fw-bold text-dark">Ghi chú thực tế (Feedback)</label>
-                        <textarea name="resultNote" class="form-control apt-input" rows="4" placeholder="Ví dụ: Khách chê hướng nhà, đang chờ xem căn 3PN khác, khách khen view đẹp..."></textarea>
+
+                    <div>
+                        <label class="form-label fw-bold text-dark">Ghi chú thực tế</label>
+                        <textarea name="resultNote"
+                                  class="form-control lich-input"
+                                  rows="4"
+                                  placeholder="Ví dụ: Khách thích vị trí nhưng cần thương lượng giá, khách muốn xem thêm căn khác..."></textarea>
                     </div>
                 </div>
+
                 <div class="modal-footer border-0 p-4 pt-0">
-                    <button type="button" class="btn btn-light border rounded-10 fw-bold px-4" data-bs-dismiss="modal">Đóng</button>
-                    <button type="submit" class="btn btn-primary rounded-10 fw-bold px-4 shadow-sm">Lưu kết quả & Hoàn Tất</button>
+                    <button type="button" class="btn btn-light border rounded-pill fw-bold px-4" data-bs-dismiss="modal">
+                        Đóng
+                    </button>
+
+                    <button type="submit" class="btn btn-primary rounded-pill fw-bold px-4">
+                        Lưu kết quả
+                    </button>
                 </div>
             </form>
         </div>
@@ -674,11 +1278,15 @@
 
 @section Scripts {
     <script>
-        // HÀM POST ACTION DÙNG CHUẨN AJAX FETCH (Ngăn mở ra trang JSON trắng)
-        function postAction(url, id, msg) {
+        function layTokenChongGiaMao() {
+            const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+            return tokenInput ? tokenInput.value : '';
+        }
+
+        function postAction(url, id, message) {
             Swal.fire({
-                title: 'Xác nhận Thao tác',
-                text: msg,
+                title: 'Xác nhận thao tác',
+                text: message,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#2563eb',
@@ -686,104 +1294,104 @@
                 confirmButtonText: 'Đồng ý',
                 cancelButtonText: 'Đóng'
             }).then((result) => {
-                if (result.isConfirmed) {
-                    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-                    const formData = new FormData();
-                    formData.append('id', id);
-                    formData.append('__RequestVerificationToken', token);
-
-                    Swal.fire({
-                        title: 'Đang xử lý...',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading(); }
-                    });
-
-                    fetch(url, {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Thành công!',
-                                text: data.message,
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                location.reload();
-                            });
-                        } else {
-                            Swal.fire('Lỗi', data.message, 'error');
-                        }
-                    })
-                    .catch(error => {
-                        Swal.fire('Lỗi', 'Không thể kết nối đến máy chủ.', 'error');
-                    });
+                if (!result.isConfirmed) {
+                    return;
                 }
+
+                const formData = new FormData();
+                formData.append('id', id);
+                formData.append('__RequestVerificationToken', layTokenChongGiaMao());
+
+                Swal.fire({
+                    title: 'Đang xử lý...',
+                    text: 'Vui lòng chờ trong giây lát.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                fetch(url, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công',
+                            text: data.message,
+                            timer: 1800,
+                            showConfirmButton: false
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('Không thành công', data.message, 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.', 'error');
+                });
             });
         }
 
-        // HÀM XỬ LÝ AJAX CHO CÁC FORM TRONG MODAL ĐỂ KHÔNG BỊ CHẠY RA TRANG JSON
         function handleModalFormAjax(formId) {
             const form = document.getElementById(formId);
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Ngăn trình duyệt tải lại trang
 
-                    const formData = new FormData(form);
-                    const btnSubmit = form.querySelector('button[type="submit"]');
-                    const originalText = btnSubmit.innerHTML;
-
-                    btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
-                    btnSubmit.disabled = true;
-
-                    fetch(form.action, {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Thành công!',
-                                text: data.message,
-                                confirmButtonColor: '#2563eb'
-                            }).then(() => {
-                                location.reload(); // Cập nhật lại giao diện sau khi thành công
-                            });
-                        } else {
-                            Swal.fire('Lỗi', data.message, 'error');
-                            btnSubmit.innerHTML = originalText;
-                            btnSubmit.disabled = false;
-                        }
-                    })
-                    .catch(error => {
-                        Swal.fire('Lỗi', 'Lỗi máy chủ, vui lòng thử lại sau.', 'error');
-                        btnSubmit.innerHTML = originalText;
-                        btnSubmit.disabled = false;
-                    });
-                });
+            if (!form) {
+                return;
             }
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                const formData = new FormData(form);
+                const submitButton = form.querySelector('button[type="submit"]');
+                const originalHtml = submitButton.innerHTML;
+
+                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
+                submitButton.disabled = true;
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công',
+                            text: data.message,
+                            confirmButtonColor: '#2563eb'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('Không thành công', data.message, 'error');
+                        submitButton.innerHTML = originalHtml;
+                        submitButton.disabled = false;
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Lỗi', 'Lỗi máy chủ, vui lòng thử lại sau.', 'error');
+                    submitButton.innerHTML = originalHtml;
+                    submitButton.disabled = false;
+                });
+            });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Khởi tạo chặn submit cho 3 form trong Modal
-            handleModalFormAjax('frmReject');
-            handleModalFormAjax('frmReschedule');
-            handleModalFormAjax('frmFeedback');
-        });
+        function openRejectModal(id, title = 'Từ chối lịch hẹn') {
+            document.getElementById('rejectModalTitle').innerHTML =
+                '<i class="bi bi-x-octagon-fill me-2"></i>' + title;
 
-        // Hàm mở Modal Từ chối / Hủy
-        function openRejectModal(id, title = "Từ chối lịch hẹn") {
-            document.getElementById('rejectModalTitle').innerHTML = '<i class="bi bi-x-octagon-fill me-2"></i>' + title;
             document.getElementById('rejectId').value = id;
+            document.getElementById('rejectReason').value = '';
 
-            // Đổi URL Action dựa theo người đang click (Khách hủy hay Chủ từ chối)
-            const isBuyerRejectingReschedule = title.includes("Từ chối giờ");
-            const isBuyerCancelling = title.includes("Hủy yêu cầu") || title.includes("Hủy lịch");
+            const isBuyerRejectingReschedule = title.includes('Từ chối giờ');
+            const isBuyerCancelling = title.includes('Hủy lịch') || title.includes('Hủy yêu cầu');
 
             if (isBuyerRejectingReschedule || isBuyerCancelling) {
                 document.getElementById('frmReject').action = '@Url.Action("BuyerRejectReschedule", "Appointments")';
@@ -791,21 +1399,32 @@
                 document.getElementById('frmReject').action = '@Url.Action("SellerReject", "Appointments")';
             }
 
-            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+            const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+            modal.show();
         }
 
-        // Hàm mở Modal Dời lịch
         function openRescheduleModal(id) {
             document.getElementById('rescheduleId').value = id;
-            new bootstrap.Modal(document.getElementById('rescheduleModal')).show();
+
+            const modal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
+            modal.show();
         }
 
-        // Truyền ID vào Modal Feedback
-        const feedbackModal = document.getElementById('feedbackModal');
-        feedbackModal?.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            const id = button.getAttribute('data-id');
-            document.getElementById('feedbackAppointmentId').value = id || '';
+        document.addEventListener('DOMContentLoaded', function () {
+            handleModalFormAjax('frmReject');
+            handleModalFormAjax('frmReschedule');
+            handleModalFormAjax('frmFeedback');
+
+            const feedbackModal = document.getElementById('feedbackModal');
+
+            if (feedbackModal) {
+                feedbackModal.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const id = button ? button.getAttribute('data-id') : '';
+
+                    document.getElementById('feedbackAppointmentId').value = id || '';
+                });
+            }
         });
     </script>
 }

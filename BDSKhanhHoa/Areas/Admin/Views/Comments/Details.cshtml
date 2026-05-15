@@ -1,118 +1,579 @@
 ﻿@model BDSKhanhHoa.Models.Comment
+
 @{
-    ViewData["Title"] = "Chi tiết Bình Luận";
+    ViewData["Title"] = "Chi tiết bình luận";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string avatar = string.IsNullOrWhiteSpace(Model.User?.Avatar)
+        ? "/images/avatars/default-user.png"
+        : Model.User.Avatar;
+
+    string fullName = !string.IsNullOrWhiteSpace(Model.User?.FullName)
+        ? Model.User.FullName
+        : (!string.IsNullOrWhiteSpace(Model.User?.Username) ? Model.User.Username : "Người dùng");
+
+    string propertyTitle = !string.IsNullOrWhiteSpace(Model.Property?.Title)
+        ? Model.Property.Title
+        : $"Tin bất động sản #{Model.PropertyID}";
 }
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold mb-0 text-primary">
-            <i class="bi bi-info-circle me-2"></i>Chi tiết Bình Luận #@Model.CommentID
-        </h4>
-        <a href="/Admin/Comments/Index" class="btn btn-outline-secondary rounded-pill">
-            <i class="bi bi-arrow-left me-1"></i> Quay lại
+<style>
+    :root {
+        --detail-bg: #f5f7fb;
+        --detail-card: #ffffff;
+        --detail-text: #0f172a;
+        --detail-muted: #64748b;
+        --detail-border: #e5e7eb;
+        --detail-primary: #2563eb;
+        --detail-success: #16a34a;
+        --detail-warning: #f59e0b;
+        --detail-danger: #dc2626;
+        --detail-radius: 22px;
+    }
+
+    .comment-detail-page {
+        background: radial-gradient(circle at 0% 0%, rgba(37,99,235,.08), transparent 28%), radial-gradient(circle at 100% 0%, rgba(124,58,237,.08), transparent 26%), linear-gradient(180deg, #f8fafc 0%, var(--detail-bg) 100%);
+        min-height: calc(100vh - 80px);
+        padding: 8px 0 32px;
+        color: var(--detail-text);
+    }
+
+    .detail-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+    }
+
+    .detail-title-wrap {
+        min-width: 0;
+    }
+
+    .detail-title {
+        font-size: clamp(1.25rem, 2.2vw, 1.85rem);
+        font-weight: 950;
+        letter-spacing: -.035em;
+        margin: 0;
+        color: var(--detail-text);
+    }
+
+    .detail-sub {
+        color: var(--detail-muted);
+        font-size: .86rem;
+        font-weight: 700;
+        margin-top: 4px;
+    }
+
+    .detail-btn {
+        border: 0;
+        min-height: 40px;
+        padding: 9px 14px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-size: .82rem;
+        font-weight: 900;
+        text-decoration: none;
+        transition: .18s ease;
+        white-space: nowrap;
+    }
+
+        .detail-btn:hover {
+            transform: translateY(-1px);
+        }
+
+    .btn-primary-soft {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .btn-danger-soft {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .btn-warning-soft {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .btn-dark-soft {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .detail-card {
+        background: var(--detail-card);
+        border: 1px solid var(--detail-border);
+        border-radius: var(--detail-radius);
+        box-shadow: 0 14px 38px rgba(15, 23, 42, .06);
+        overflow: hidden;
+    }
+
+    .detail-card-head {
+        padding: 18px;
+        border-bottom: 1px solid var(--detail-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .detail-card-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+        color: var(--detail-text);
+    }
+
+    .detail-card-sub {
+        color: var(--detail-muted);
+        font-size: .78rem;
+        font-weight: 700;
+        margin: 3px 0 0;
+    }
+
+    .detail-card-body {
+        padding: 20px;
+    }
+
+    .comment-author {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .comment-author-avatar {
+        width: 58px;
+        height: 58px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 3px solid #fff;
+        box-shadow: 0 12px 24px rgba(15,23,42,.12);
+        background: #f1f5f9;
+    }
+
+    .comment-author-name {
+        font-size: 1.05rem;
+        font-weight: 950;
+        margin: 0;
+        color: var(--detail-text);
+    }
+
+    .comment-author-meta {
+        margin-top: 4px;
+        color: var(--detail-muted);
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: .74rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-visible {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .status-hidden {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .comment-content-panel {
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border: 1px solid #e5e7eb;
+        border-radius: 20px;
+        padding: 18px;
+        color: #334155;
+        font-size: 1rem;
+        line-height: 1.75;
+        font-weight: 650;
+        white-space: pre-line;
+    }
+
+    .action-panel {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--detail-border);
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .reply-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .reply-item {
+        border: 1px solid #eef2f7;
+        border-radius: 18px;
+        padding: 14px;
+        background: #fff;
+    }
+
+    .reply-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .reply-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .reply-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        object-fit: cover;
+        background: #f1f5f9;
+    }
+
+    .reply-name {
+        font-weight: 950;
+        color: var(--detail-text);
+        font-size: .88rem;
+        line-height: 1.2;
+    }
+
+    .reply-time {
+        color: var(--detail-muted);
+        font-size: .74rem;
+        font-weight: 700;
+        margin-top: 2px;
+    }
+
+    .reply-content {
+        color: #334155;
+        line-height: 1.6;
+        font-weight: 650;
+        margin-bottom: 12px;
+        white-space: pre-line;
+    }
+
+    .property-image {
+        width: 100%;
+        height: 210px;
+        object-fit: cover;
+        background: #f1f5f9;
+    }
+
+    .property-body {
+        padding: 18px;
+    }
+
+    .property-title {
+        font-size: 1rem;
+        line-height: 1.45;
+        font-weight: 950;
+        color: var(--detail-text);
+        margin: 0 0 10px;
+    }
+
+    .property-price {
+        color: var(--detail-primary);
+        font-size: 1.2rem;
+        font-weight: 950;
+        margin-bottom: 8px;
+    }
+
+    .property-address {
+        color: var(--detail-muted);
+        font-size: .84rem;
+        font-weight: 700;
+        line-height: 1.5;
+        margin-bottom: 16px;
+    }
+
+    .sticky-side {
+        position: sticky;
+        top: 92px;
+    }
+
+    .empty-replies {
+        padding: 30px 18px;
+        text-align: center;
+        color: var(--detail-muted);
+    }
+
+        .empty-replies i {
+            font-size: 2rem;
+            color: #cbd5e1;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+    @@media (max-width: 991.98px) {
+        .sticky-side {
+            position: static;
+        }
+
+        .detail-card-body {
+            padding: 16px;
+        }
+
+        .detail-card-head {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .comment-author {
+            align-items: flex-start;
+        }
+
+        .action-panel .detail-btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="comment-detail-page">
+    <div class="detail-header">
+        <div class="detail-title-wrap">
+            <h1 class="detail-title">
+                <i class="bi bi-chat-square-text-fill text-primary me-2"></i>
+                Chi tiết bình luận #@Model.CommentID
+            </h1>
+            <div class="detail-sub">
+                Kiểm tra nội dung, trạng thái hiển thị, phản hồi và tin bất động sản liên quan.
+            </div>
+        </div>
+
+        <a href="/Admin/Comments/Index" class="detail-btn btn-dark-soft">
+            <i class="bi bi-arrow-left"></i>
+            Quay lại danh sách
         </a>
     </div>
 
-    <div class="row g-4">
-        <!-- Thông tin bình luận chính -->
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 mb-4" style="border-radius: 16px;">
-                <div class="card-header bg-white border-bottom pt-4 pb-3">
-                    <h5 class="fw-bold mb-0">Nội dung bình luận</h5>
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+            <div class="detail-card mb-3">
+                <div class="detail-card-head">
+                    <div>
+                        <h5 class="detail-card-title">
+                            <i class="bi bi-info-circle text-primary me-2"></i>
+                            Nội dung bình luận
+                        </h5>
+                        <p class="detail-card-sub">
+                            Được tạo lúc @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                        </p>
+                    </div>
+
+                    <span class="status-pill @(Model.IsHidden ? "status-hidden" : "status-visible") main-status-badge">
+                        <i class="bi @(Model.IsHidden ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                        @(Model.IsHidden ? "Đang ẩn" : "Đang hiển thị")
+                    </span>
                 </div>
-                <div class="card-body p-4">
-                    <div class="d-flex mb-4">
-                        <img src="@(Model.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-3 border shadow-sm" width="60" height="60" style="object-fit:cover;">
+
+                <div class="detail-card-body">
+                    <div class="comment-author">
+                        <img src="@avatar"
+                             class="comment-author-avatar"
+                             alt="@fullName"
+                             onerror="this.src='/images/avatars/default-user.png'" />
+
                         <div>
-                            <h5 class="fw-bold mb-1">@Model.User?.FullName</h5>
-                            <div class="text-muted small mb-2">
-                                <i class="bi bi-clock me-1"></i> Đăng lúc: @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            <h5 class="comment-author-name">@fullName</h5>
+                            <div class="comment-author-meta">
+                                <i class="bi bi-person-badge me-1"></i>
+                                UserID: @Model.UserID
+                                <span class="mx-2">·</span>
+                                <i class="bi bi-clock me-1"></i>
+                                @Model.TimeAgo
                             </div>
-                            <span class="badge @(Model.IsHidden ? "bg-danger" : "bg-success")">
-                                @(Model.IsHidden ? "Trạng thái: Bị Ẩn" : "Trạng thái: Hiển thị")
-                            </span>
                         </div>
                     </div>
 
-                    <div class="bg-light p-4 rounded-4 border">
-                        <p class="mb-0 fs-5" style="white-space: pre-line;">@Model.Content</p>
+                    <div class="comment-content-panel">
+                        @Model.Content
                     </div>
 
-                    <div class="mt-4 pt-3 border-top d-flex gap-2">
-                        <button class="btn btn-warning rounded-pill px-4 btn-toggle-admin" data-id="@Model.CommentID">
-                            <i class="bi @(Model.IsHidden ? "bi-eye" : "bi-eye-slash") me-1"></i>
-                            <span id="toggleText-@Model.CommentID">@(Model.IsHidden ? "Cho phép hiển thị" : "Ẩn bình luận này")</span>
+                    <div class="action-panel">
+                        <button type="button"
+                                class="detail-btn btn-warning-soft btn-toggle-admin"
+                                data-id="@Model.CommentID">
+                            <i class="bi @(Model.IsHidden ? "bi-eye" : "bi-eye-slash")"></i>
+                            <span id="toggleText-@Model.CommentID">
+                                @(Model.IsHidden ? "Cho phép hiển thị" : "Ẩn bình luận")
+                            </span>
                         </button>
-                        <button class="btn btn-danger rounded-pill px-4 btn-delete-admin" data-id="@Model.CommentID">
-                            <i class="bi bi-trash me-1"></i> Xóa vĩnh viễn
+
+                        <button type="button"
+                                class="detail-btn btn-danger-soft btn-delete-admin"
+                                data-id="@Model.CommentID">
+                            <i class="bi bi-trash"></i>
+                            Xóa bình luận
                         </button>
+
+                        <a href="/Property/Details/@Model.PropertyID"
+                           target="_blank"
+                           class="detail-btn btn-primary-soft">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                            Xem tin liên quan
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Danh sách câu trả lời (nếu có) -->
-            @if (Model.Replies != null && Model.Replies.Any())
-            {
-                <div class="card shadow-sm border-0" style="border-radius: 16px;">
-                    <div class="card-header bg-white border-bottom pt-4 pb-3">
-                        <h5 class="fw-bold mb-0">Các câu trả lời (@Model.Replies.Count)</h5>
+            <div class="detail-card">
+                <div class="detail-card-head">
+                    <div>
+                        <h5 class="detail-card-title">
+                            <i class="bi bi-reply-all-fill text-primary me-2"></i>
+                            Phản hồi bình luận
+                        </h5>
+                        <p class="detail-card-sub">
+                            Danh sách câu trả lời thuộc bình luận này.
+                        </p>
                     </div>
-                    <div class="card-body p-4">
-                        @foreach (var reply in Model.Replies.OrderBy(r => r.CreatedAt))
-                        {
-                            <!-- SỬA LỖI TẠI ĐÂY: Dùng reply.CommentID -->
-                            <div class="d-flex mb-4 pb-4 border-bottom" id="reply-row-@reply.CommentID">
-                                <img src="@(reply.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-3" width="45" height="45" style="object-fit:cover;">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <h6 class="fw-bold mb-0">@reply.User?.FullName</h6>
-                                        <small class="text-muted">@reply.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
-                                    </div>
-                                    <p class="mb-2">@reply.Content</p>
-                                    <!-- SỬA LỖI TẠI ĐÂY: Dùng reply.CommentID -->
-                                    <button class="btn btn-sm btn-outline-danger rounded-pill btn-delete-reply" data-id="@reply.CommentID">
-                                        <i class="bi bi-trash me-1"></i> Xóa phản hồi
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
 
-        <!-- Thông tin Bất Động Sản liên quan -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 position-sticky" style="top: 90px; border-radius: 16px;">
-                <div class="card-header bg-white border-bottom pt-4 pb-3">
-                    <h5 class="fw-bold mb-0"><i class="bi bi-house me-2"></i>Bất Động Sản Liên Quan</h5>
+                    <span class="status-pill status-visible">
+                        @(Model.Replies?.Count ?? 0) phản hồi
+                    </span>
                 </div>
-                <div class="card-body p-0">
-                    @if (Model.Property != null)
+
+                <div class="detail-card-body">
+                    @if (Model.Replies != null && Model.Replies.Any())
                     {
-                        <img src="@Model.Property.MainImage" class="img-fluid w-100" style="height: 200px; object-fit: cover;" onerror="this.src='/images/no-image.jpg'">
-                        <div class="p-4">
-                            <h6 class="fw-bold line-clamp-2 mb-2">@Model.Property.Title</h6>
-                            <div class="text-primary fw-bold fs-5 mb-2">
-                                @(Model.Property.Price.HasValue? Model.Property.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")
-                            </div>
-                            <p class="text-muted small mb-3">
-                                <i class="bi bi-geo-alt me-1"></i> @Model.Property.AddressDetail
-                            </p>
-                            <a href="/Property/Details/@Model.PropertyID" target="_blank" class="btn btn-outline-primary rounded-pill w-100 fw-bold">
-                                Xem chi tiết BĐS <i class="bi bi-box-arrow-up-right ms-1"></i>
-                            </a>
+                        <div class="reply-list">
+                            @foreach (var reply in Model.Replies.OrderBy(r => r.CreatedAt))
+                            {
+                                string replyAvatar = string.IsNullOrWhiteSpace(reply.User?.Avatar)
+                                ? "/images/avatars/default-user.png"
+                                : reply.User.Avatar;
+
+                                string replyName = !string.IsNullOrWhiteSpace(reply.User?.FullName)
+                                ? reply.User.FullName
+                                : (!string.IsNullOrWhiteSpace(reply.User?.Username) ? reply.User.Username : "Người dùng");
+
+                                <div class="reply-item" id="reply-row-@reply.CommentID">
+                                    <div class="reply-header">
+                                        <div class="reply-user">
+                                            <img src="@replyAvatar"
+                                                 class="reply-avatar"
+                                                 alt="@replyName"
+                                                 onerror="this.src='/images/avatars/default-user.png'" />
+
+                                            <div>
+                                                <div class="reply-name">@replyName</div>
+                                                <div class="reply-time">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    @reply.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <span class="status-pill @(reply.IsHidden ? "status-hidden" : "status-visible")">
+                                            @(reply.IsHidden ? "Ẩn" : "Hiện")
+                                        </span>
+                                    </div>
+
+                                    <div class="reply-content">@reply.Content</div>
+
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button"
+                                                class="detail-btn btn-warning-soft btn-toggle-reply"
+                                                data-id="@reply.CommentID">
+                                            <i class="bi bi-eye-slash"></i>
+                                            Ẩn/hiện
+                                        </button>
+
+                                        <button type="button"
+                                                class="detail-btn btn-danger-soft btn-delete-reply"
+                                                data-id="@reply.CommentID">
+                                            <i class="bi bi-trash"></i>
+                                            Xóa phản hồi
+                                        </button>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
                     else
                     {
-                        <div class="p-4 text-center text-muted">
-                            <i class="bi bi-exclamation-circle fs-1 mb-2 d-block"></i>
-                            Bất động sản này đã bị xóa khỏi hệ thống.
+                        <div class="empty-replies">
+                            <i class="bi bi-chat-left"></i>
+                            <div class="fw-bold">Chưa có phản hồi nào</div>
+                            <div class="small">Bình luận này hiện chưa có câu trả lời từ người dùng khác.</div>
                         </div>
                     }
                 </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="detail-card sticky-side">
+                <div class="detail-card-head">
+                    <div>
+                        <h5 class="detail-card-title">
+                            <i class="bi bi-house-door-fill text-primary me-2"></i>
+                            Bất động sản liên quan
+                        </h5>
+                        <p class="detail-card-sub">
+                            Tin mà người dùng đã bình luận.
+                        </p>
+                    </div>
+                </div>
+
+                @if (Model.Property != null)
+                {
+                    <img src="@(string.IsNullOrWhiteSpace(Model.Property.MainImage) ? "/images/no-image.jpg" : Model.Property.MainImage)"
+                         class="property-image"
+                         alt="@propertyTitle"
+                         onerror="this.src='/images/no-image.jpg'" />
+
+                    <div class="property-body">
+                        <h5 class="property-title">@propertyTitle</h5>
+
+                        <div class="property-price">
+                            @(Model.Property.Price.HasValue
+                                                    ? Model.Property.Price.Value.ToString("N0") + " VNĐ"
+                                                    : "Thỏa thuận")
+                                                               </div>
+
+                        <div class="property-address">
+                            <i class="bi bi-geo-alt-fill me-1"></i>
+                            @(string.IsNullOrWhiteSpace(Model.Property.AddressDetail)
+                                                    ? "Chưa cập nhật địa chỉ"
+                                                    : Model.Property.AddressDetail)
+                    </div>
+
+                        <a href="/Property/Details/@Model.PropertyID"
+                           target="_blank"
+                           class="detail-btn btn-primary-soft w-100">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                            Xem chi tiết bất động sản
+                        </a>
+                    </div>
+                                }
+                else
+                {
+                    <div class="empty-replies">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <div class="fw-bold">Tin không còn tồn tại</div>
+                        <div class="small">Bất động sản liên quan có thể đã bị xóa khỏi hệ thống.</div>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -120,80 +581,151 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         $(document).ready(function () {
-            // Xử lý Ẩn/Hiện bình luận chính
-            $('.btn-toggle-admin').click(function () {
-                var id = $(this).data('id');
-                var btn = $(this);
-                var textSpan = $('#toggleText-' + id);
+            $('.btn-toggle-admin').on('click', function () {
+                const id = $(this).data('id');
+                const button = $(this);
+                const textSpan = $('#toggleText-' + id);
 
-                $.post('/Admin/Comments/ToggleVisibility', { id: id }, function (res) {
-                    if (res.success) {
-                        if(res.isHidden) {
-                            textSpan.text("Cho phép hiển thị");
-                            btn.find('i').removeClass('bi-eye-slash').addClass('bi-eye');
-                            $('.badge').removeClass('bg-success').addClass('bg-danger').text('Trạng thái: Bị Ẩn');
+                $.post('/Admin/Comments/ToggleVisibility', { id: id })
+                    .done(function (response) {
+                        if (response.success) {
+                            if (response.isHidden) {
+                                textSpan.text('Cho phép hiển thị');
+                                button.find('i').removeClass('bi-eye-slash').addClass('bi-eye');
+                                $('.main-status-badge')
+                                    .removeClass('status-visible')
+                                    .addClass('status-hidden')
+                                    .html('<i class="bi bi-eye-slash-fill"></i> Đang ẩn');
+                            } else {
+                                textSpan.text('Ẩn bình luận');
+                                button.find('i').removeClass('bi-eye').addClass('bi-eye-slash');
+                                $('.main-status-badge')
+                                    .removeClass('status-hidden')
+                                    .addClass('status-visible')
+                                    .html('<i class="bi bi-eye-fill"></i> Đang hiển thị');
+                            }
+
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: response.message || 'Đã cập nhật',
+                                showConfirmButton: false,
+                                timer: 1400
+                            });
                         } else {
-                            textSpan.text("Ẩn bình luận này");
-                            btn.find('i').removeClass('bi-eye').addClass('bi-eye-slash');
-                            $('.badge').removeClass('bg-danger').addClass('bg-success').text('Trạng thái: Hiển thị');
+                            Swal.fire('Lỗi', response.message || 'Không thể cập nhật trạng thái.', 'error');
                         }
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cập nhật thành công', showConfirmButton: false, timer: 1500 });
-                    }
-                });
+                    })
+                    .fail(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    });
             });
 
-            // Xử lý Xóa toàn bộ bình luận chính (Gồm cả reply)
-            $('.btn-delete-admin').click(function () {
-                var id = $(this).data('id');
+            $('.btn-delete-admin').on('click', function () {
+                const id = $(this).data('id');
+
                 Swal.fire({
-                    title: 'Xóa vĩnh viễn?',
-                    text: "Không thể khôi phục dữ liệu này! Toàn bộ câu trả lời cũng sẽ bị xóa.",
+                    title: 'Xóa bình luận?',
+                    text: 'Bình luận chính và toàn bộ phản hồi liên quan sẽ bị xóa vĩnh viễn.',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Đồng ý xóa'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.post('/Admin/Comments/Delete', { id: id }, function (res) {
-                            if (res.success) {
+                    confirmButtonText: 'Xóa vĩnh viễn',
+                    cancelButtonText: 'Hủy',
+                    confirmButtonColor: '#dc2626'
+                }).then(function (result) {
+                    if (!result.isConfirmed) {
+                        return;
+                    }
+
+                    $.post('/Admin/Comments/Delete', { id: id })
+                        .done(function (response) {
+                            if (response.success) {
                                 Swal.fire({
                                     icon: 'success',
-                                    title: 'Đã xóa!',
-                                    text: 'Bình luận đã bị xóa khỏi hệ thống.',
-                                    timer: 1500,
+                                    title: 'Đã xóa',
+                                    text: response.message || 'Bình luận đã bị xóa khỏi hệ thống.',
+                                    timer: 1400,
                                     showConfirmButton: false
-                                }).then(() => {
+                                }).then(function () {
                                     window.location.href = '/Admin/Comments/Index';
                                 });
+                            } else {
+                                Swal.fire('Lỗi', response.message || 'Không thể xóa bình luận.', 'error');
                             }
+                        })
+                        .fail(function () {
+                            Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
                         });
-                    }
                 });
             });
 
-            // Xử lý xóa riêng lẻ từng câu trả lời (phản hồi)
-            $('.btn-delete-reply').click(function(){
-                var replyId = $(this).data('id');
+            $('.btn-toggle-reply').on('click', function () {
+                const id = $(this).data('id');
+
+                $.post('/Admin/Comments/ToggleVisibility', { id: id })
+                    .done(function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: response.message || 'Đã cập nhật phản hồi',
+                                showConfirmButton: false,
+                                timer: 1200
+                            }).then(function () {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Lỗi', response.message || 'Không thể cập nhật phản hồi.', 'error');
+                        }
+                    })
+                    .fail(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    });
+            });
+
+            $('.btn-delete-reply').on('click', function () {
+                const replyId = $(this).data('id');
+
                 Swal.fire({
-                    title: 'Xóa phản hồi này?',
-                    text: "Phản hồi sẽ bị xóa vĩnh viễn!",
+                    title: 'Xóa phản hồi?',
+                    text: 'Phản hồi này sẽ bị xóa vĩnh viễn.',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'Đồng ý xóa'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.post('/Admin/Comments/Delete', { id: replyId }, function (res) {
-                            if (res.success) {
-                                $('#reply-row-' + replyId).fadeOut(300, function() { $(this).remove(); });
-                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa phản hồi', showConfirmButton: false, timer: 1500 });
-                            } else {
-                                Swal.fire('Lỗi', res.message, 'error');
-                            }
-                        });
+                    confirmButtonText: 'Xóa',
+                    cancelButtonText: 'Hủy',
+                    confirmButtonColor: '#dc2626'
+                }).then(function (result) {
+                    if (!result.isConfirmed) {
+                        return;
                     }
+
+                    $.post('/Admin/Comments/Delete', { id: replyId })
+                        .done(function (response) {
+                            if (response.success) {
+                                $('#reply-row-' + replyId).fadeOut(250, function () {
+                                    $(this).remove();
+                                });
+
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: response.message || 'Đã xóa phản hồi',
+                                    showConfirmButton: false,
+                                    timer: 1400
+                                });
+                            } else {
+                                Swal.fire('Lỗi', response.message || 'Không thể xóa phản hồi.', 'error');
+                            }
+                        })
+                        .fail(function () {
+                            Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                        });
                 });
             });
         });

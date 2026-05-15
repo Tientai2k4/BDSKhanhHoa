@@ -11,6 +11,7 @@ namespace BDSKhanhHoa.Models
         public int UserID { get; set; }
 
         [Required(ErrorMessage = "Tên đăng nhập là bắt buộc")]
+        [StringLength(50, ErrorMessage = "Tên đăng nhập không được vượt quá 50 ký tự")]
         public string Username { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Mật khẩu là bắt buộc")]
@@ -19,14 +20,17 @@ namespace BDSKhanhHoa.Models
         public string Password { get; set; } = string.Empty;
 
         [NotMapped]
+        [Required(ErrorMessage = "Vui lòng xác nhận mật khẩu")]
         [DataType(DataType.Password)]
         [Compare("Password", ErrorMessage = "Mật khẩu xác nhận không khớp.")]
         public string ConfirmPassword { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email là bắt buộc")]
         [EmailAddress(ErrorMessage = "Email không đúng định dạng (VD: tenban@gmail.com)")]
+        [StringLength(100, ErrorMessage = "Email không được vượt quá 100 ký tự")]
         public string Email { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "Họ tên là bắt buộc")]
         [StringLength(100, ErrorMessage = "Họ tên không được vượt quá 100 ký tự")]
         public string? FullName { get; set; }
 
@@ -52,7 +56,7 @@ namespace BDSKhanhHoa.Models
         [StringLength(500)]
         public string? AdminNote { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Vui lòng chọn quyền hạn")]
         public int RoleID { get; set; }
 
         public bool IsActive { get; set; } = true;

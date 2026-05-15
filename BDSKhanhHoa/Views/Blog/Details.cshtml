@@ -1,265 +1,900 @@
 ﻿@model BDSKhanhHoa.Models.Blog
+@using System.Globalization
+
+@functions {
+    private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
+
+    private string GetSafeImage(string? image)
+    {
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            return "/images/no-image.jpg";
+        }
+
+        image = image.Trim();
+
+        if (image.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("/"))
+        {
+            return image;
+        }
+
+        return "/" + image.TrimStart('/');
+    }
+
+    private string GetSafeText(string? value, string fallback = "Đang cập nhật")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
+
+    private string FormatDate(DateTime date)
+    {
+        return date.ToString("dd/MM/yyyy", Vi);
+    }
+
+    private string FormatDateTime(DateTime date)
+    {
+        return date.ToString("dd/MM/yyyy HH:mm", Vi);
+    }
+
+    private string FormatNumber(int value)
+    {
+        return value.ToString("N0", Vi);
+    }
+}
+
 @{
     ViewData["Title"] = Model.Title;
     Layout = "~/Views/Shared/_Layout.cshtml";
-    var recentBlogs = ViewBag.RecentBlogs as IEnumerable<BDSKhanhHoa.Models.Blog>;
-    var categories = ViewBag.Categories as IEnumerable<string>;
+
+    var recentBlogs = ViewBag.RecentBlogs as IEnumerable<BDSKhanhHoa.Models.Blog> ?? new List<BDSKhanhHoa.Models.Blog>();
+    var categories = ViewBag.Categories as IEnumerable<string> ?? new List<string>();
+
+    string imageUrl = GetSafeImage(Model.ImageURL);
+    string categoryName = GetSafeText(Model.Category, "Tin tức");
+    string authorName = Model.User?.FullName ?? "Ban biên tập";
+    string summary = GetSafeText(Model.Summary, "");
+    string currentUrl = $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 <style>
-    body {
-        background-color: #f4f6f9;
+    @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
+    :root {
+        --article-bg: #f7f9fc;
+        --article-surface: #ffffff;
+        --article-soft: #f1f5f9;
+        --article-soft-blue: #eff6ff;
+        --article-border: #e2e8f0;
+        --article-border-strong: #cbd5e1;
+        --article-text: #0f172a;
+        --article-muted: #64748b;
+        --article-blue: #2563eb;
+        --article-sky: #0ea5e9;
+        --article-green: #16a34a;
+        --article-orange: #f97316;
+        --article-red: #ef4444;
+        --article-radius-sm: 14px;
+        --article-radius: 20px;
+        --article-radius-lg: 28px;
+        --article-shadow-sm: 0 8px 22px rgba(15, 23, 42, .05);
+        --article-shadow: 0 18px 45px rgba(15, 23, 42, .10);
+        --article-transition: all .24s cubic-bezier(.4, 0, .2, 1);
     }
 
-    .article-header {
-        margin-bottom: 30px;
+    body {
+        background: radial-gradient(circle at 8% 0%, rgba(37, 99, 235, .08), transparent 30%), radial-gradient(circle at 92% 4%, rgba(14, 165, 233, .08), transparent 28%), var(--article-bg);
+        color: var(--article-text);
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .fw-black {
+        font-weight: 900 !important;
+    }
+
+    .article-page {
+        min-height: 100vh;
+        padding: 26px 0 72px;
+    }
+
+    .article-shell {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .breadcrumb-2026 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-height: 48px;
+        padding: 10px 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.86);
+        border: 1px solid var(--article-border);
+        box-shadow: var(--article-shadow-sm);
+        color: var(--article-muted);
+        font-size: .84rem;
+        font-weight: 750;
+        margin-bottom: 22px;
+    }
+
+        .breadcrumb-2026 a {
+            color: var(--article-muted);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+            .breadcrumb-2026 a:hover {
+                color: var(--article-blue);
+            }
+
+    .breadcrumb-current {
+        color: var(--article-text);
+        max-width: 360px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .article-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 26px;
+        align-items: start;
+    }
+
+    .article-main {
+        min-width: 0;
+    }
+
+    .article-card {
+        background: #fff;
+        border: 1px solid var(--article-border);
+        border-radius: 30px;
+        box-shadow: var(--article-shadow-sm);
+        overflow: hidden;
+    }
+
+    .article-top {
+        padding: 30px 30px 22px;
+        background: radial-gradient(circle at top right, rgba(37,99,235,.08), transparent 34%), #fff;
+        border-bottom: 1px solid var(--article-border);
+    }
+
+    .article-category {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 0 13px;
+        border-radius: 999px;
+        color: var(--article-blue);
+        background: var(--article-soft-blue);
+        border: 1px solid #bfdbfe;
+        font-size: .76rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        margin-bottom: 16px;
     }
 
     .article-title {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #0f172a;
-        line-height: 1.4;
-        margin-bottom: 20px;
+        color: var(--article-text);
+        font-size: clamp(1.65rem, 3.6vw, 3rem);
+        line-height: 1.22;
+        letter-spacing: -.04em;
+        font-weight: 950;
+        margin: 0 0 18px;
     }
 
     .article-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 20px;
-        color: #64748b;
-        font-size: 0.95rem;
-        font-weight: 500;
-        border-bottom: 1px solid #e2e8f0;
-        padding-bottom: 20px;
+        gap: 9px;
+        color: var(--article-muted);
+        font-size: .86rem;
+        font-weight: 750;
+    }
+
+        .article-meta span {
+            min-height: 34px;
+            padding: 0 12px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--article-soft);
+            border: 1px solid var(--article-border);
+        }
+
+        .article-meta i {
+            color: var(--article-blue);
+        }
+
+    .article-body {
+        padding: 30px;
+    }
+
+    .article-sapo {
+        position: relative;
+        color: #1e293b;
+        background: linear-gradient(135deg, #eff6ff, #ffffff);
+        border: 1px solid #bfdbfe;
+        border-left: 5px solid var(--article-blue);
+        border-radius: 0 20px 20px 0;
+        padding: 18px 20px;
+        font-size: 1.08rem;
+        line-height: 1.75;
+        font-weight: 800;
+        margin-bottom: 26px;
+    }
+
+    .article-cover-wrap {
+        overflow: hidden;
+        border-radius: 24px;
+        background: var(--article-soft);
+        border: 1px solid var(--article-border);
+        margin-bottom: 28px;
+        box-shadow: var(--article-shadow-sm);
     }
 
     .article-cover {
         width: 100%;
-        height: 500px;
+        height: 460px;
         object-fit: cover;
-        border-radius: 16px;
-        margin-bottom: 30px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-    }
-
-    .article-sapo {
-        font-size: 1.2rem;
-        font-weight: 700;
-        color: #1e293b;
-        line-height: 1.8;
-        margin-bottom: 30px;
-        border-left: 4px solid #0061f2;
-        padding-left: 20px;
-        background: #f8fafc;
-        padding-top: 15px;
-        padding-bottom: 15px;
-        border-radius: 0 12px 12px 0;
+        object-position: center center;
+        display: block;
     }
 
     .article-content {
-        font-size: 1.1rem;
-        line-height: 1.9;
         color: #334155;
+        font-size: 1.02rem;
+        line-height: 1.92;
+        font-weight: 500;
     }
+
+        .article-content p {
+            margin-bottom: 1.25em;
+            text-align: justify;
+        }
+
+        .article-content h1,
+        .article-content h2,
+        .article-content h3,
+        .article-content h4 {
+            color: var(--article-text);
+            font-weight: 950;
+            line-height: 1.32;
+            letter-spacing: -.02em;
+            margin-top: 1.7em;
+            margin-bottom: .72em;
+        }
+
+        .article-content h2 {
+            font-size: 1.65rem;
+        }
+
+        .article-content h3 {
+            font-size: 1.35rem;
+        }
 
         .article-content img {
             max-width: 100%;
             height: auto;
-            border-radius: 12px;
-            margin: 25px 0;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: block;
+            border-radius: 22px;
+            margin: 26px auto;
+            box-shadow: var(--article-shadow-sm);
         }
 
-        .article-content h2, .article-content h3 {
-            font-weight: 800;
-            color: #0f172a;
-            margin-top: 40px;
-            margin-bottom: 15px;
+        .article-content blockquote {
+            border-left: 5px solid var(--article-blue);
+            background: var(--article-soft-blue);
+            border-radius: 0 18px 18px 0;
+            padding: 18px 20px;
+            color: #1e3a8a;
+            font-weight: 700;
+            margin: 24px 0;
         }
 
-    /* SIDEBAR */
+    .article-share {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 34px;
+        padding-top: 22px;
+        border-top: 1px solid var(--article-border);
+    }
+
+    .share-title {
+        color: var(--article-text);
+        font-weight: 900;
+    }
+
+    .share-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .share-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        text-decoration: none;
+        transition: var(--article-transition);
+    }
+
+        .share-btn:hover {
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+    .share-facebook {
+        background: #1877f2;
+    }
+
+    .share-copy {
+        background: #475569;
+    }
+
+    .sidebar {
+        min-width: 0;
+    }
+
+    .sidebar-sticky {
+        position: sticky;
+        top: 88px;
+    }
+
     .sidebar-widget {
         background: #fff;
-        border-radius: 16px;
-        padding: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-        border: 1px solid #edf2f7;
-        margin-bottom: 30px;
+        border: 1px solid var(--article-border);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: var(--article-shadow-sm);
+        margin-bottom: 18px;
     }
 
     .widget-title {
-        font-weight: 800;
-        font-size: 1.2rem;
-        color: #0f172a;
-        margin-bottom: 20px;
-        position: relative;
-        padding-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--article-text);
+        font-size: 1.02rem;
+        font-weight: 950;
+        margin-bottom: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--article-border);
     }
 
-        .widget-title::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
+        .widget-title i {
+            width: 36px;
+            height: 36px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, var(--article-blue), var(--article-sky));
+        }
+
+    .sidebar-search {
+        display: flex;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1.5px solid var(--article-border);
+        background: #fff;
+    }
+
+        .sidebar-search input {
+            flex: 1;
+            min-width: 0;
+            min-height: 48px;
+            border: none;
+            outline: none;
+            padding: 0 14px;
+            font-weight: 750;
+            color: var(--article-text);
+        }
+
+        .sidebar-search button {
             width: 50px;
-            height: 3px;
-            background: #0061f2;
-            border-radius: 5px;
+            border: none;
+            background: var(--article-blue);
+            color: #fff;
         }
 
     .cat-list {
         list-style: none;
         padding: 0;
         margin: 0;
+        display: grid;
+        gap: 8px;
     }
 
-        .cat-list li {
-            border-bottom: 1px dashed #e2e8f0;
-        }
-
-            .cat-list li:last-child {
-                border-bottom: none;
-            }
-
         .cat-list a {
-            display: block;
-            padding: 12px 0;
-            color: #475569;
+            min-height: 42px;
+            padding: 0 12px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: #334155;
+            background: var(--article-soft);
+            border: 1px solid var(--article-border);
             text-decoration: none;
-            font-weight: 600;
-            transition: 0.2s;
+            font-weight: 800;
+            transition: var(--article-transition);
         }
 
             .cat-list a:hover {
-                color: #0061f2;
-                padding-left: 5px;
+                color: var(--article-blue);
+                background: var(--article-soft-blue);
+                border-color: #bfdbfe;
+                transform: translateX(3px);
             }
 
-    .recent-post {
-        display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-        text-decoration: none;
+    .recent-list {
+        display: grid;
+        gap: 12px;
     }
 
-        .recent-post:last-child {
-            margin-bottom: 0;
+    .recent-post {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 12px;
+        padding: 10px;
+        border-radius: 18px;
+        background: #fff;
+        border: 1px solid var(--article-border);
+        text-decoration: none;
+        transition: var(--article-transition);
+    }
+
+        .recent-post:hover {
+            border-color: #bfdbfe;
+            box-shadow: var(--article-shadow-sm);
+            transform: translateY(-2px);
         }
 
         .recent-post img {
-            width: 90px;
-            height: 75px;
+            width: 92px;
+            height: 74px;
+            border-radius: 14px;
             object-fit: cover;
-            border-radius: 8px;
+            background: var(--article-soft);
         }
 
-    .recent-post-title {
-        font-weight: 700;
-        color: #1e293b;
-        font-size: 0.95rem;
-        line-height: 1.4;
+    .recent-title {
+        color: var(--article-text);
+        font-size: .86rem;
+        line-height: 1.42;
+        font-weight: 900;
+        margin: 0 0 6px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        transition: 0.2s;
+        transition: var(--article-transition);
     }
 
-    .recent-post:hover .recent-post-title {
-        color: #0061f2;
+    .recent-post:hover .recent-title {
+        color: var(--article-blue);
+    }
+
+    .recent-date {
+        color: var(--article-muted);
+        font-size: .75rem;
+        font-weight: 750;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .toast-copy {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        gap: 9px;
+        max-width: 340px;
+        padding: 13px 15px;
+        border-radius: 18px;
+        color: #fff;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        box-shadow: 0 18px 45px rgba(15,23,42,.22);
+        font-weight: 800;
+    }
+
+        .toast-copy.show {
+            display: flex;
+        }
+
+    @@media (max-width: 991.98px) {
+        .article-layout {
+            display: block;
+        }
+
+        .sidebar {
+            margin-top: 22px;
+        }
+
+        .sidebar-sticky {
+            position: static;
+        }
+
+        .article-cover {
+            height: 390px;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .article-page {
+            padding-top: 12px;
+        }
+
+        .article-shell {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .breadcrumb-2026 {
+            display: none;
+        }
+
+        .article-card {
+            border-radius: 22px;
+        }
+
+        .article-top {
+            padding: 20px 17px 18px;
+        }
+
+        .article-body {
+            padding: 17px;
+        }
+
+        .article-title {
+            font-size: 1.55rem;
+        }
+
+        .article-meta span {
+            min-height: 31px;
+            font-size: .76rem;
+            padding: 0 10px;
+        }
+
+        .article-sapo {
+            font-size: .96rem;
+            line-height: 1.7;
+            padding: 15px;
+            border-radius: 0 16px 16px 0;
+            margin-bottom: 18px;
+        }
+
+        .article-cover {
+            height: auto;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+        }
+
+        .article-cover-wrap {
+            border-radius: 18px;
+            margin-bottom: 20px;
+        }
+
+        .article-content {
+            font-size: .95rem;
+            line-height: 1.82;
+        }
+
+            .article-content p {
+                text-align: left;
+            }
+
+            .article-content h2 {
+                font-size: 1.28rem;
+            }
+
+            .article-content h3 {
+                font-size: 1.16rem;
+            }
+
+        .article-share {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .sidebar-widget {
+            border-radius: 20px;
+            padding: 17px;
+        }
+
+        .recent-post {
+            grid-template-columns: 86px minmax(0, 1fr);
+        }
+
+            .recent-post img {
+                width: 86px;
+                height: 68px;
+            }
+
+        .toast-copy {
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            max-width: none;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .article-title {
+            font-size: 1.35rem;
+        }
+
+        .article-category {
+            min-height: 31px;
+            font-size: .7rem;
+        }
+
+        .article-cover {
+            aspect-ratio: 1 / 1;
+        }
+
+        .share-btn {
+            width: 39px;
+            height: 39px;
+        }
     }
 </style>
 
-<div class="container my-5">
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb bg-white p-3 rounded-4 shadow-sm border fw-medium">
-            <li class="breadcrumb-item"><a href="/" class="text-decoration-none text-primary"><i class="bi bi-house-door-fill"></i> Trang chủ</a></li>
-            <li class="breadcrumb-item"><a href="/Blog/Index" class="text-decoration-none">Tin tức BĐS</a></li>
-            <li class="breadcrumb-item active text-dark text-truncate" style="max-width: 300px;">@Model.Title</li>
-        </ol>
-    </nav>
+<div class="article-page">
+    <div class="article-shell">
+        <nav class="breadcrumb-2026" aria-label="breadcrumb">
+            <a href="/">
+                <i class="bi bi-house-door-fill"></i>
+                Trang chủ
+            </a>
 
-    <div class="row g-5">
-        <div class="col-lg-8">
-            <div class="bg-white p-4 p-md-5 rounded-4 border shadow-sm">
-                <div class="article-header">
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill fw-bold mb-3">@Model.Category</span>
-                    <h1 class="article-title">@Model.Title</h1>
-                    <div class="article-meta">
-                        <span><i class="bi bi-person-circle text-primary me-1"></i> @(Model.User?.FullName ?? "Ban biên tập")</span>
-                        <span><i class="bi bi-calendar3 text-primary me-1"></i> @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
-                        <span><i class="bi bi-eye text-primary me-1"></i> @Model.Views lượt xem</span>
-                    </div>
-                </div>
+            <span>/</span>
 
-                @if (!string.IsNullOrEmpty(Model.Summary))
-                {
-                    <div class="article-sapo">@Model.Summary</div>
-                }
+            <a href="/Blog/Index">
+                Tin tức BĐS
+            </a>
 
-                @if (!string.IsNullOrEmpty(Model.ImageURL))
-                {
-                    <img src="@Model.ImageURL" class="article-cover" alt="@Model.Title" onerror="this.style.display='none'">
-                }
+            <span>/</span>
 
-                <div class="article-content">
-                    @Html.Raw(Model.Content)
-                </div>
+            <span class="breadcrumb-current">@Model.Title</span>
+        </nav>
 
-                <div class="d-flex justify-content-between align-items-center mt-5 pt-4 border-top">
-                    <div>
-                        <span class="fw-bold me-3 text-dark">Chia sẻ bài viết:</span>
-                        <button class="btn btn-primary rounded-circle me-1" style="width:40px; height:40px;" onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=@Context.Request.Scheme://@Context.Request.Host@Context.Request.Path')"><i class="bi bi-facebook"></i></button>
-                        <button class="btn btn-info text-white rounded-circle me-1" style="width:40px; height:40px;"><i class="bi bi-twitter"></i></button>
-                        <button class="btn btn-secondary rounded-circle" style="width:40px; height:40px;" onclick="navigator.clipboard.writeText(window.location.href); alert('Đã copy link bài viết!');"><i class="bi bi-link-45deg"></i></button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div class="article-layout">
+            <main class="article-main">
+                <article class="article-card">
+                    <header class="article-top">
+                        <span class="article-category">
+                            <i class="bi bi-tag-fill"></i>
+                            @categoryName
+                        </span>
 
-        <div class="col-lg-4">
-            <div class="sidebar-widget">
-                <h4 class="widget-title">Tìm kiếm</h4>
-                <form action="/Blog/Index" method="get">
-                    <div class="input-group">
-                        <input type="text" name="keyword" class="form-control bg-light border-0 py-2" placeholder="Nhập từ khóa...">
-                        <button type="submit" class="btn btn-primary px-3"><i class="bi bi-search"></i></button>
-                    </div>
-                </form>
-            </div>
+                        <h1 class="article-title">@Model.Title</h1>
 
-            @if (categories != null && categories.Any())
-            {
-                <div class="sidebar-widget">
-                    <h4 class="widget-title">Chuyên mục</h4>
-                    <ul class="cat-list">
-                        @foreach (var cat in categories)
+                        <div class="article-meta">
+                            <span>
+                                <i class="bi bi-person-circle"></i>
+                                @authorName
+                            </span>
+
+                            <span>
+                                <i class="bi bi-calendar3"></i>
+                                @FormatDateTime(Model.CreatedAt)
+                            </span>
+
+                            <span>
+                                <i class="bi bi-eye"></i>
+                                @FormatNumber(Model.Views) lượt xem
+                            </span>
+                        </div>
+                    </header>
+
+                    <div class="article-body">
+                        @if (!string.IsNullOrWhiteSpace(summary))
                         {
-                            <li><a href="/Blog/Index?category=@cat"><i class="bi bi-chevron-right small me-2 text-primary"></i> @cat</a></li>
+                            <div class="article-sapo">
+                                @summary
+                            </div>
                         }
-                    </ul>
-                </div>
-            }
 
-            @if (recentBlogs != null && recentBlogs.Any())
-            {
-                <div class="sidebar-widget sticky-top" style="top: 90px;">
-                    <h4 class="widget-title">Bài viết mới nhất</h4>
-                    <div class="recent-posts-wrapper">
-                        @foreach (var r in recentBlogs)
+                        @if (!string.IsNullOrWhiteSpace(Model.ImageURL))
                         {
-                            <a href="/Blog/Details/@r.BlogID" class="recent-post">
-                                <img src="@(string.IsNullOrEmpty(r.ImageURL) ? "/images/no-image.jpg" : r.ImageURL)" onerror="this.src='/images/no-image.jpg'">
-                                <div>
-                                    <h6 class="recent-post-title">@r.Title</h6>
-                                    <small class="text-muted"><i class="bi bi-calendar3"></i> @r.CreatedAt.ToString("dd/MM/yyyy")</small>
-                                </div>
-                            </a>
+                            <div class="article-cover-wrap">
+                                <img src="@imageUrl"
+                                     class="article-cover"
+                                     alt="@Model.Title"
+                                     loading="eager"
+                                     decoding="async"
+                                     fetchpriority="high"
+                                     draggable="false"
+                                     onerror="this.onerror=null;this.style.display='none';" />
+                            </div>
                         }
+
+                        <div class="article-content">
+                            @Html.Raw(Model.Content)
+                        </div>
+
+                        <div class="article-share">
+                            <div class="share-title">
+                                <i class="bi bi-share-fill text-primary me-1"></i>
+                                Chia sẻ bài viết
+                            </div>
+
+                            <div class="share-row">
+                                <button type="button"
+                                        class="share-btn share-facebook"
+                                        title="Chia sẻ Facebook"
+                                        onclick="shareFacebook()">
+                                    <i class="bi bi-facebook"></i>
+                                </button>
+
+                                <button type="button"
+                                        class="share-btn share-copy"
+                                        title="Sao chép liên kết"
+                                        onclick="copyArticleLink()">
+                                    <i class="bi bi-link-45deg"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
+                </article>
+            </main>
+
+            <aside class="sidebar">
+                <div class="sidebar-sticky">
+                    <section class="sidebar-widget">
+                        <h4 class="widget-title">
+                            <i class="bi bi-search"></i>
+                            Tìm kiếm
+                        </h4>
+
+                        <form action="/Blog/Index" method="get">
+                            <div class="sidebar-search">
+                                <input type="text"
+                                       name="keyword"
+                                       placeholder="Nhập từ khóa..." />
+
+                                <button type="submit" aria-label="Tìm kiếm">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    @if (categories.Any())
+                    {
+                        <section class="sidebar-widget">
+                            <h4 class="widget-title">
+                                <i class="bi bi-tags-fill"></i>
+                                Chuyên mục
+                            </h4>
+
+                            <ul class="cat-list">
+                                @foreach (var cat in categories)
+                                {
+                                    <li>
+                                        <a href="@Url.Action("Index", "Blog", new { category = cat })">
+                                            <span>@cat</span>
+                                            <i class="bi bi-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    }
+
+                    @if (recentBlogs.Any())
+                    {
+                        <section class="sidebar-widget">
+                            <h4 class="widget-title">
+                                <i class="bi bi-clock-history"></i>
+                                Bài viết mới nhất
+                            </h4>
+
+                            <div class="recent-list">
+                                @foreach (var r in recentBlogs)
+                                {
+                                    string recentImage = GetSafeImage(r.ImageURL);
+
+                                    <a href="/Blog/Details/@r.BlogID" class="recent-post">
+                                        <img src="@recentImage"
+                                             alt="@r.Title"
+                                             loading="lazy"
+                                             decoding="async"
+                                             draggable="false"
+                                             onerror="this.onerror=null;this.src='/images/no-image.jpg';" />
+
+                                        <div>
+                                            <h6 class="recent-title">@r.Title</h6>
+                                            <span class="recent-date">
+                                                <i class="bi bi-calendar3"></i>
+                                                @FormatDate(r.CreatedAt)
+                                            </span>
+                                        </div>
+                                    </a>
+                                }
+                            </div>
+                        </section>
+                    }
                 </div>
-            }
+            </aside>
         </div>
     </div>
 </div>
+
+<div id="copyToast" class="toast-copy">
+    <i class="bi bi-check-circle-fill"></i>
+    <span>Đã sao chép liên kết bài viết.</span>
+</div>
+
+@section Scripts {
+    <script>
+        const articleUrl = '@currentUrl';
+
+        function shareFacebook() {
+            const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(articleUrl);
+            window.open(shareUrl, '_blank', 'width=720,height=520');
+        }
+
+        function showCopyToast() {
+            const toast = document.getElementById('copyToast');
+
+            if (!toast) {
+                return;
+            }
+
+            toast.classList.add('show');
+
+            setTimeout(function () {
+                toast.classList.remove('show');
+            }, 2600);
+        }
+
+        async function copyArticleLink() {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(articleUrl);
+                } else {
+                    const tempInput = document.createElement('input');
+                    tempInput.value = articleUrl;
+                    tempInput.style.position = 'fixed';
+                    tempInput.style.left = '-9999px';
+                    document.body.appendChild(tempInput);
+                    tempInput.focus();
+                    tempInput.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tempInput);
+                }
+
+                showCopyToast();
+            } catch (error) {
+                alert('Không thể sao chép liên kết. Vui lòng copy trực tiếp trên thanh địa chỉ.');
+            }
+        }
+    </script>
+}

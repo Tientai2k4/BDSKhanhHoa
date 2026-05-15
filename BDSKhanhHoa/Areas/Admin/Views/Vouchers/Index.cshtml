@@ -27,11 +27,10 @@
                 <thead class="bg-light">
                     <tr>
                         <th>Mã CODE</th>
-                        <th>Chiết khấu</th>
-                        <th>Giảm tối đa</th>
-                        <th>Số lượng</th>
+                        <th>Chi tiết</th>
+                        <th>Đơn Tối Thiểu</th>
                         <th>Đã dùng</th>
-                        <th>Hạn sử dụng</th>
+                        <th>Thời hạn</th>
                         <th>Trạng thái</th>
                         <th>Khóa/Mở</th>
                     </tr>
@@ -40,19 +39,30 @@
                     @foreach (var item in Model)
                     {
                         var isExpired = item.ExpiryDate < DateTime.Now;
+                        var isWaiting = item.StartDate > DateTime.Now;
                         <tr>
-                            <td><span class="badge bg-dark fs-6 px-3 py-2 border border-secondary shadow-sm" style="letter-spacing: 1px;">@item.Code</span></td>
-                            <td><span class="text-danger fw-bold fs-5">@item.DiscountPercent.ToString("0.##")%</span></td>
-                            <td class="fw-bold text-success">@item.MaxDiscountAmount.ToString("N0") ₫</td>
-                            <td class="fw-bold">@item.Quantity</td>
-                            <td><span class="badge bg-info text-dark rounded-pill">@item.UsedCount / @item.Quantity</span></td>
                             <td>
-                                <span class="d-block fw-bold @(isExpired ? "text-danger" : "text-dark")">@item.ExpiryDate.ToString("dd/MM/yyyy")</span>
+                                <span class="badge bg-dark fs-6 px-3 py-2 border border-secondary shadow-sm" style="letter-spacing: 1px;">@item.Code</span>
+                            </td>
+                            <td>
+                                <span class="text-danger fw-bold fs-5">@item.DiscountPercent.ToString("0.##")%</span>
+                                <small class="d-block text-muted">Tối đa: @item.MaxDiscountAmount.ToString("N0") ₫</small>
+                            </td>
+                            <td><strong class="text-primary">@item.MinOrderAmount.ToString("N0") ₫</strong></td>
+                            <td><span class="badge bg-info text-dark rounded-pill fs-6">@item.UsedCount / @item.Quantity</span></td>
+                            <td>
+                                <small class="d-block text-muted">Từ: @item.StartDate.ToString("dd/MM/yyyy HH:mm")</small>
+                                <span class="d-block fw-bold @(isExpired ? "text-danger" : "text-dark")">Đến: @item.ExpiryDate.ToString("dd/MM/yyyy HH:mm")</span>
                             </td>
                             <td>
                                 @if (isExpired)
                                 {
                                     <span class="badge bg-danger-subtle text-danger px-2 py-1">Hết hạn</span>
+                                }
+                                else if (isWaiting)
+                                {
+
+                                    <span class="badge bg-warning-subtle text-warning px-2 py-1">Sắp diễn ra</span>
                                 }
                                 else if (item.IsActive && item.UsedCount < item.Quantity)
                                 {
@@ -82,42 +92,69 @@
 </div>
 
 <div class="modal fade" id="createVoucherModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header bg-success text-white rounded-top-4">
                 <h5 class="modal-title fw-bold"><i class="bi bi-ticket-detailed me-2"></i>Phát hành Voucher mới</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form asp-action="Create" method="post">
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted">Mã CODE (Viết hoa, không dấu)</label>
-                        <input type="text" name="Code" class="form-control form-control-lg text-uppercase fw-bold" required placeholder="VD: TET2026">
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-muted">% Giảm giá</label>
-                            <input type="number" name="DiscountPercent" class="form-control" required min="1" max="100" placeholder="VD: 20">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-muted">Giảm tối đa (VNĐ)</label>
-                            <input type="number" name="MaxDiscountAmount" class="form-control" required min="0" placeholder="VD: 500000">
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-muted">Số lượng phát hành</label>
-                            <input type="number" name="Quantity" class="form-control" required min="1" placeholder="VD: 100">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-muted">Ngày hết hạn</label>
-                            <input type="datetime-local" name="ExpiryDate" class="form-control" required>
+                <div class="modal-body p-4 bg-light">
+
+                    <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
+                        <h6 class="fw-bold text-success border-bottom pb-2 mb-3">Thông tin cơ bản</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted">Mã CODE (Viết hoa)</label>
+                                <input type="text" name="Code" class="form-control text-uppercase fw-bold" required placeholder="VD: SIEUSALE">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted">Số lượng phát hành</label>
+                                <input type="number" name="Quantity" class="form-control" required min="1" placeholder="VD: 100">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-muted">Mô tả hiển thị (Tùy chọn)</label>
+                                <input type="text" name="Description" class="form-control" placeholder="VD: Siêu ưu đãi giảm 50% cho ngày lễ">
+                            </div>
                         </div>
                     </div>
+
+                    <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
+                        <h6 class="fw-bold text-primary border-bottom pb-2 mb-3">Điều kiện áp dụng</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted">% Giảm giá</label>
+                                <input type="number" name="DiscountPercent" class="form-control text-danger fw-bold" required min="1" max="100" placeholder="VD: 20">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted">Giảm tối đa (VNĐ)</label>
+                                <input type="number" name="MaxDiscountAmount" class="form-control" required min="0" placeholder="VD: 500000">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-muted">Đơn tối thiểu (VNĐ)</label>
+                                <input type="number" name="MinOrderAmount" class="form-control" required min="0" placeholder="VD: 100000">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm rounded-3 p-3">
+                        <h6 class="fw-bold text-warning border-bottom pb-2 mb-3">Lịch trình chạy</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted">Bắt đầu từ</label>
+                                <input type="datetime-local" name="StartDate" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted">Hết hạn lúc</label>
+                                <input type="datetime-local" name="ExpiryDate" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
-                <div class="modal-footer bg-light rounded-bottom-4">
+                <div class="modal-footer bg-white rounded-bottom-4 border-top-0 pt-0">
                     <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-success fw-bold px-4">Tạo mã ngay</button>
+                    <button type="submit" class="btn btn-success btn-lg fw-bold px-5 shadow-sm">Tạo mã ngay</button>
                 </div>
             </form>
         </div>

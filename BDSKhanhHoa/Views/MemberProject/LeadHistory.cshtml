@@ -1,274 +1,492 @@
 ﻿@model BDSKhanhHoa.Models.ProjectLead
-@using System.Globalization
 
 @{
-    ViewData["Title"] = "Hồ sơ Khách hàng 360";
+    ViewData["Title"] = "Hồ sơ khách hàng 360";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
-    var historyAppointments = ViewBag.HistoryAppointments as List<BDSKhanhHoa.Models.Appointment> ?? new List<BDSKhanhHoa.Models.Appointment>();
+
+    var historyAppointments = ViewBag.HistoryAppointments as List<BDSKhanhHoa.Models.Appointment>
+        ?? new List<BDSKhanhHoa.Models.Appointment>();
 
     var noteLines = new List<string>();
+
     if (!string.IsNullOrWhiteSpace(Model.Note))
     {
-        noteLines = Model.Note.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+        noteLines = Model.Note
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+    }
+
+    string customerInitial = string.IsNullOrWhiteSpace(Model.Name)
+        ? "K"
+        : Model.Name.Substring(0, 1).ToUpper();
+}
+
+@functions {
+    public string GetLeadStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Khách mới";
+
+        return status.Trim() switch
+        {
+            "New" => "Khách mới",
+            "Contacted" => "Đang chăm sóc",
+            "Resolved" => "Đã chốt",
+            "Invalid" => "Không hợp lệ",
+            "Mới" => "Khách mới",
+            "Đã liên hệ" => "Đang chăm sóc",
+            "Đã chốt" => "Đã chốt",
+            "Không hợp lệ" => "Không hợp lệ",
+            _ => status.Trim()
+        };
+    }
+
+    public string GetAppointmentStatusText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Chờ xác nhận";
+
+        return status.Trim() switch
+        {
+            "Pending" => "Chờ xác nhận",
+            "Confirmed" => "Đã xác nhận",
+            "Completed" => "Đã hoàn tất",
+            "Cancelled" => "Đã hủy",
+            "Rescheduled" => "Đang dời lịch",
+            "NoShow" => "Khách không đến",
+            "Chờ xác nhận" => "Chờ xác nhận",
+            "Đã xác nhận" => "Đã xác nhận",
+            "Đã hoàn tất" => "Đã hoàn tất",
+            "Đã hủy" => "Đã hủy",
+            "Đang dời lịch" => "Đang dời lịch",
+            "Khách không đến" => "Khách không đến",
+            _ => status.Trim()
+        };
     }
 }
 
-<style>
-    .glass-card {
-        background: white;
-        border-radius: 20px;
-        border: 1px solid #e2e8f0;
-        padding: 30px;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
-    }
+@section Styles {
+    <style>
+        :root {
+            --his-primary: #2563eb;
+            --his-success: #059669;
+            --his-warning: #d97706;
+            --his-danger: #dc2626;
+            --his-dark: #0f172a;
+            --his-muted: #64748b;
+            --his-border: #e2e8f0;
+            --his-soft: #f8fafc;
+            --his-card: #ffffff;
+            --his-radius: 24px;
+            --his-shadow: 0 16px 38px rgba(15, 23, 42, .07);
+        }
 
-    .profile-header {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border-radius: 16px;
-        padding: 30px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 20px;
-    }
+        .his-top-actions {
+            margin-bottom: 18px;
+        }
 
-    .profile-avatar {
-        width: 100px;
-        height: 100px;
-        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
-        color: white;
-        border-radius: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 3rem;
-        font-weight: 900;
-        margin: 0 auto 15px auto;
-        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
-    }
+        .his-grid {
+            display: grid;
+            grid-template-columns: 370px minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
 
-    .info-label {
-        font-size: 0.75rem;
-        font-weight: 800;
-        color: #64748b;
-        text-transform: uppercase;
-        margin-bottom: 5px;
-        display: block;
-    }
+        .his-card,
+        .his-panel {
+            background: var(--his-card);
+            border: 1px solid rgba(148, 163, 184, .22);
+            border-radius: var(--his-radius);
+            box-shadow: var(--his-shadow);
+        }
 
-    .info-value {
-        font-weight: 600;
-        color: #0f172a;
-        font-size: 0.95rem;
-        background: #f8fafc;
-        padding: 10px 15px;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-    }
+        .his-card {
+            padding: 24px;
+            position: sticky;
+            top: 96px;
+        }
 
-    .timeline-container {
-        position: relative;
-        padding-left: 30px;
-    }
+        .his-profile-head {
+            border-radius: 22px;
+            background: linear-gradient(135deg, #eff6ff, #ffffff);
+            border: 1px solid #dbeafe;
+            padding: 22px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
 
-        .timeline-container::before {
-            content: '';
+        .his-avatar {
+            width: 92px;
+            height: 92px;
+            border-radius: 26px;
+            display: grid;
+            place-items: center;
+            margin: 0 auto 15px;
+            background: linear-gradient(135deg, var(--his-primary), #4f46e5);
+            color: #fff;
+            font-size: 2.8rem;
+            font-weight: 950;
+            box-shadow: 0 16px 28px rgba(37, 99, 235, .24);
+        }
+
+        .his-name {
+            font-size: 1.28rem;
+            font-weight: 950;
+            color: var(--his-dark);
+            margin-bottom: 8px;
+        }
+
+        .his-status {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 8px 13px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: .76rem;
+            font-weight: 950;
+            text-transform: uppercase;
+        }
+
+        .his-info-label {
+            font-size: .74rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: #64748b;
+            font-weight: 950;
+            margin-bottom: 8px;
+        }
+
+        .his-info-value {
+            border-radius: 16px;
+            background: #f8fafc;
+            border: 1px solid var(--his-border);
+            padding: 13px 14px;
+            color: #1e293b;
+            font-weight: 800;
+            line-height: 1.55;
+            word-break: break-word;
+        }
+
+        .his-info-block {
+            margin-bottom: 18px;
+        }
+
+        .his-panel {
+            padding: 24px;
+        }
+
+        .his-panel-title {
+            font-size: 1.25rem;
+            font-weight: 950;
+            color: var(--his-dark);
+            margin-bottom: 8px;
+        }
+
+        .his-panel-subtitle {
+            color: var(--his-muted);
+            font-weight: 650;
+            margin-bottom: 22px;
+        }
+
+        .his-timeline {
+            position: relative;
+            padding-left: 34px;
+        }
+
+            .his-timeline::before {
+                content: "";
+                position: absolute;
+                left: 12px;
+                top: 8px;
+                bottom: 8px;
+                width: 2px;
+                background: linear-gradient(to bottom, #93c5fd, #e2e8f0);
+            }
+
+        .his-item {
+            position: relative;
+            margin-bottom: 18px;
+        }
+
+        .his-dot {
             position: absolute;
-            left: 7px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #e2e8f0;
+            left: -34px;
+            top: 4px;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: .8rem;
+            border: 4px solid #eff6ff;
+            z-index: 1;
+            background: var(--his-primary);
         }
 
-    .timeline-item {
-        position: relative;
-        margin-bottom: 30px;
-    }
+            .his-dot.note {
+                background: var(--his-warning);
+                border-color: #fef3c7;
+            }
 
-    .timeline-icon {
-        position: absolute;
-        left: -30px;
-        top: 0;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: white;
-        border: 3px solid #4f46e5;
-        box-shadow: 0 0 0 4px white;
-    }
+            .his-dot.appointment {
+                background: #7c3aed;
+                border-color: #ede9fe;
+            }
 
-        .timeline-icon.start {
-            border-color: #10b981;
+            .his-dot.start {
+                background: var(--his-success);
+                border-color: #dcfce7;
+            }
+
+        .his-content {
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--his-border);
+            padding: 16px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
         }
 
-        .timeline-icon.note {
-            border-color: #f59e0b;
+        .his-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 5px 11px;
+            background: #eff6ff;
+            color: var(--his-primary);
+            font-size: .76rem;
+            font-weight: 900;
+            margin-bottom: 9px;
         }
 
-        .timeline-icon.appt {
-            border-color: #8b5cf6;
+        .his-title {
+            color: var(--his-dark);
+            font-weight: 950;
+            margin-bottom: 6px;
+            line-height: 1.45;
         }
 
-    .timeline-content {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 20px;
-        position: relative;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    }
-
-        .timeline-content::before {
-            content: '';
-            position: absolute;
-            left: -6px;
-            top: 15px;
-            width: 10px;
-            height: 10px;
-            background: white;
-            border-left: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-            transform: rotate(45deg);
+        .his-desc {
+            color: #475569;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            margin-bottom: 0;
         }
 
-    .timeline-date {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: #64748b;
-        margin-bottom: 8px;
-    }
-</style>
+        .his-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border-radius: 999px;
+            padding: 6px 11px;
+            font-size: .75rem;
+            font-weight: 900;
+            background: #f1f5f9;
+            color: #475569;
+        }
 
-<div class="container-fluid py-4 animate__animated animate__fadeIn">
-    <div class="mb-4">
-        <a href="@Url.Action("Index")" class="text-decoration-none fw-bold text-muted btn btn-light border rounded-pill px-4 py-2 shadow-sm">
-            <i class="bi bi-arrow-left-circle-fill text-primary me-2"></i> Quay lại Phễu khách hàng
+        .btn-his-light {
+            min-height: 44px;
+            border-radius: 14px;
+            background: #fff;
+            border: 1px solid var(--his-border);
+            color: var(--his-dark);
+            font-weight: 900;
+        }
+
+        @@media (max-width: 1199.98px) {
+            .his-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .his-card {
+                position: static;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .his-card,
+            .his-panel {
+                border-radius: 20px;
+                padding: 18px;
+            }
+
+            .btn-his-light {
+                width: 100%;
+            }
+
+            .his-timeline {
+                padding-left: 30px;
+            }
+
+            .his-dot {
+                left: -30px;
+            }
+        }
+    </style>
+}
+
+<div class="his-top-actions">
+    <a href="@Url.Action("Index", "MemberProject")" class="btn btn-his-light">
+        <i class="bi bi-arrow-left-circle-fill text-primary me-1"></i>
+        Quay lại phễu khách hàng
+    </a>
+</div>
+
+<div class="his-grid">
+    <aside class="his-card">
+        <div class="his-profile-head">
+            <div class="his-avatar">@customerInitial</div>
+
+            <h2 class="his-name">@Model.Name</h2>
+
+            <span class="his-status">
+                @GetLeadStatusText(Model.LeadStatus)
+            </span>
+        </div>
+
+        <div class="his-info-block">
+            <div class="his-info-label">Số điện thoại</div>
+
+            <div class="his-info-value d-flex align-items-center justify-content-between gap-2">
+                <span>@Model.Phone</span>
+
+                <a href="tel:@Model.Phone" class="btn btn-success rounded-circle flex-shrink-0" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                    <i class="bi bi-telephone-fill"></i>
+                </a>
+            </div>
+        </div>
+
+        <div class="his-info-block">
+            <div class="his-info-label">Email liên hệ</div>
+            <div class="his-info-value">
+                @(string.IsNullOrWhiteSpace(Model.Email) ? "Chưa cung cấp" : Model.Email)
+            </div>
+        </div>
+
+        <div class="his-info-block">
+            <div class="his-info-label">Dự án quan tâm</div>
+            <div class="his-info-value text-primary">
+                <i class="bi bi-building-fill me-1"></i>
+                @(Model.Project?.ProjectName ?? "Chưa xác định")
+            </div>
+        </div>
+
+        <div class="his-info-block">
+            <div class="his-info-label">Thời điểm tiếp nhận</div>
+            <div class="his-info-value">
+                @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+            </div>
+        </div>
+
+        <a href="@Url.Action("EditLead", "MemberProject", new { id = Model.LeadID })" class="btn btn-primary w-100 rounded-pill fw-bold py-2">
+            <i class="bi bi-pencil-square me-1"></i>
+            Cập nhật hồ sơ
         </a>
-    </div>
+    </aside>
 
-    <div class="row g-4">
-        <!-- Cột Trái -->
-        <div class="col-xl-4">
-            <div class="glass-card position-sticky" style="top: 100px;">
-                <div class="profile-header">
-                    <div class="profile-avatar">@Model.Name.Substring(0, 1).ToUpper()</div>
-                    <h4 class="fw-bolder text-dark mb-2">@Model.Name</h4>
-                    @if (Model.LeadStatus == "Invalid")
-                    {
-                        <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Hủy / Rác</span>
-                    }
-                    else if (Model.LeadStatus == "Resolved")
-                    {
+    <section class="his-panel">
+        <h1 class="his-panel-title">
+            <i class="bi bi-clock-history text-primary me-1"></i>
+            Lịch sử tương tác 360
+        </h1>
 
-                        <span class="badge bg-success px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Đã chốt</span>
-                    }
-                    else if (Model.LeadStatus == "Contacted")
-                    {
+        <p class="his-panel-subtitle">
+            Tổng hợp ghi chú chăm sóc, lịch hẹn thực địa và thông tin khách gửi ban đầu.
+        </p>
 
-                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="bi bi-headset me-1"></i>Đang chăm sóc</span>
-                    }
-                    else
-                    {
+        <div class="his-timeline">
+            @if (noteLines.Any())
+            {
+                foreach (var line in noteLines)
+                {
+                    <div class="his-item">
+                        <div class="his-dot note">
+                            <i class="bi bi-journal-check"></i>
+                        </div>
 
-                        <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="bi bi-exclamation-circle-fill me-1"></i>Khách Mới</span>
-                    }
-                </div>
+                        <div class="his-content">
+                            <div class="his-date" style="background:#fffbeb;color:#b45309;">
+                                <i class="bi bi-pencil-square"></i>
+                                Nhật ký CRM
+                            </div>
 
-                <div class="mb-4">
-                    <span class="info-label">Số điện thoại</span>
-                    <div class="info-value d-flex justify-content-between align-items-center">
-                        @Model.Phone
-                        <a href="tel:@Model.Phone" class="btn btn-sm btn-success rounded-circle"><i class="bi bi-telephone-fill"></i></a>
+                            <div class="his-title">Ghi chú chăm sóc khách hàng</div>
+
+                            <p class="his-desc">@line</p>
+                        </div>
                     </div>
+                }
+            }
+
+            @if (historyAppointments.Any())
+            {
+                foreach (var appt in historyAppointments.OrderByDescending(x => x.AppointmentDate))
+                {
+                    <div class="his-item">
+                        <div class="his-dot appointment">
+                            <i class="bi bi-calendar-check"></i>
+                        </div>
+
+                        <div class="his-content" style="background:#f5f3ff;border-color:#ddd6fe;">
+                            <div class="his-date" style="background:#ede9fe;color:#6d28d9;">
+                                <i class="bi bi-calendar-event-fill"></i>
+                                Tạo lúc @appt.CreatedAt.ToString("dd/MM/yyyy")
+                            </div>
+
+                            <div class="his-title">
+                                Lịch xem dự án: @appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")
+                            </div>
+
+                            <p class="his-desc">
+                                Nhân viên phụ trách:
+                                <strong>@(string.IsNullOrWhiteSpace(appt.AssignedStaffName) ? "Chưa phân công" : appt.AssignedStaffName)</strong>
+                            </p>
+
+                            @if (!string.IsNullOrWhiteSpace(appt.Note))
+                            {
+                                <p class="his-desc mt-2">
+                                    Ghi chú điều phối: @appt.Note
+                                </p>
+                            }
+
+                            <div class="mt-3">
+                                <span class="his-badge">
+                                    <i class="bi bi-info-circle-fill"></i>
+                                    @GetAppointmentStatusText(appt.Status)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+
+            <div class="his-item">
+                <div class="his-dot start">
+                    <i class="bi bi-flag-fill"></i>
                 </div>
-                <div class="mb-4">
-                    <span class="info-label">Email liên hệ</span>
-                    <div class="info-value">@(!string.IsNullOrEmpty(Model.Email) ? Model.Email : "Chưa cung cấp")</div>
-                </div>
-                <div class="mb-4">
-                    <span class="info-label">Dự án quan tâm</span>
-                    <div class="info-value text-primary"><i class="bi bi-building-fill me-2"></i>@Model.Project?.ProjectName</div>
+
+                <div class="his-content" style="background:#ecfdf5;border-color:#bbf7d0;">
+                    <div class="his-date" style="background:#dcfce7;color:#047857;">
+                        <i class="bi bi-globe"></i>
+                        Tiếp nhận từ website
+                    </div>
+
+                    <div class="his-title">
+                        Khách hàng gửi yêu cầu tư vấn
+                    </div>
+
+                    <p class="his-desc">
+                        Thời điểm: <strong>@Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</strong>
+                    </p>
+
+                    <div class="mt-3 p-3 bg-white rounded-4 border">
+                        “@(string.IsNullOrWhiteSpace(Model.Message) ? "Khách hàng gửi yêu cầu tư vấn nhưng không để lại lời nhắn chi tiết." : Model.Message)”
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- Cột Phải: Timeline -->
-        <div class="col-xl-8">
-            <div class="glass-card">
-                <h4 class="fw-bolder text-dark mb-4 border-bottom pb-3"><i class="bi bi-clock-history text-primary me-2"></i>Lịch sử Tương tác (Audit Trail)</h4>
-
-                <div class="timeline-container mt-4">
-
-                    <!-- GHI CHÚ CRM -->
-                    @foreach (var line in noteLines)
-                    {
-                        <div class="timeline-item">
-                            <div class="timeline-icon note"></div>
-                            <div class="timeline-content border-warning-subtle">
-                                <div class="timeline-date text-warning fw-bolder"><i class="bi bi-journal-check me-1"></i> Nhật ký CRM</div>
-                                <p class="mb-0 text-dark fw-medium">@line</p>
-                            </div>
-                        </div>
-                    }
-
-                    <!-- LỊCH SỬ ĐI XEM -->
-                    @foreach (var appt in historyAppointments)
-                    {
-                        <div class="timeline-item">
-                            <div class="timeline-icon appt"></div>
-                            <div class="timeline-content border-primary-subtle bg-primary bg-opacity-10">
-                                <div class="timeline-date text-primary fw-bolder"><i class="bi bi-calendar-event-fill me-1"></i> Điều phối thực địa (Ngày tạo: @appt.CreatedAt.ToString("dd/MM/yyyy"))</div>
-                                <h6 class="fw-bold text-dark">Lịch xem: @appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</h6>
-                                <p class="mb-1 text-secondary small"><i class="bi bi-person-badge-fill me-1"></i> Nhân viên: <strong>@appt.AssignedStaffName</strong></p>
-                                @if (!string.IsNullOrEmpty(appt.Note))
-                                {
-                                    <p class="mb-1 text-secondary small"><i class="bi bi-info-circle-fill me-1"></i> Chuẩn bị: @appt.Note</p>
-                                }
-                                <div class="mt-2">
-                                    Trạng thái hẹn:
-                                    @if (appt.Status == "Pending")
-                                    {
-                                        <span class="badge bg-warning text-dark">Đang chờ</span>
-                                    }
-                                    else if (appt.Status == "Completed")
-                                    {
-
-                                        <span class="badge bg-success">Đã hoàn thành</span>
-                                    }
-                                    else if (appt.Status == "Cancelled")
-                                    {
-
-                                        <span class="badge bg-danger">Khách hủy</span>
-                                    }
-                                    else
-                                    {
-
-                                        <span class="badge bg-secondary">@appt.Status</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    <!-- MỐC BẮT ĐẦU -->
-                    <div class="timeline-item">
-                        <div class="timeline-icon start"></div>
-                        <div class="timeline-content border-success-subtle bg-success bg-opacity-10">
-                            <div class="timeline-date text-success fw-bolder"><i class="bi bi-globe me-1"></i> Web Form (Tiếp nhận hệ thống)</div>
-                            <h6 class="fw-bold text-dark mb-2">Lúc: @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</h6>
-                            <div class="p-3 bg-white rounded-3 border border-success-subtle font-italic text-secondary shadow-sm">
-                                " @(string.IsNullOrEmpty(Model.Message) ? "Khách hàng gửi yêu cầu tư vấn nhưng không để lại lời nhắn." : Model.Message) "
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="timeline-item">
-                        <div class="timeline-icon bg-light border-secondary"></div>
-                        <div class="text-muted small fw-bold ms-2 pt-1">Hệ thống tạo Lead</div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    </div>
+    </section>
 </div>

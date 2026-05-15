@@ -1,0 +1,213 @@
+﻿@model BDSKhanhHoa.Models.User
+@{
+    ViewData["Title"] = "Hồ sơ người dùng: " + (Model.FullName ?? "Thành viên");
+    // Sử dụng layout chung dành cho khách truy cập
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var activeProperties = ViewBag.ActiveProperties as IEnumerable<BDSKhanhHoa.Models.Property>;
+    int trustScore = ViewBag.TrustScore ?? 0;
+}
+
+<style>
+    .public-profile-bg {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: 16px;
+        padding: 30px;
+    }
+
+    .public-avatar {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid #fff;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .contact-btn {
+        padding: 12px 20px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    /* Tùy chỉnh thẻ tin đăng đơn giản, to, rõ */
+    .prop-card-simple {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .prop-card-simple:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+        }
+
+    .prop-img-simple {
+        height: 200px;
+        width: 100%;
+        object-fit: cover;
+    }
+
+    .info-label {
+        color: #64748b;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .info-text {
+        font-size: 1.1rem;
+        color: #1e293b;
+        font-weight: 500;
+    }
+</style>
+
+<div class="container py-4 mt-3 animate__animated animate__fadeIn">
+    <div class="row g-4">
+        <!-- CỘT TRÁI: THÔNG TIN NGƯỜI DÙNG CHUNG -->
+        <div class="col-lg-4">
+            <div class="public-profile-bg text-center mb-4">
+                <img src="@(string.IsNullOrEmpty(Model.Avatar) ? "/images/avatars/default-user.png" : Model.Avatar)" class="public-avatar mb-3" alt="Avatar">
+
+                <h3 class="fw-bold mb-1">@(Model.FullName ?? "Thành viên ẩn danh")</h3>
+                <p class="text-muted mb-3"><i class="bi bi-person-badge"></i> Thành viên hệ thống</p>
+
+                <!-- Độ uy tín -->
+                <div class="bg-white p-3 rounded-3 shadow-sm mb-4 text-start">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="info-label mb-0"><i class="bi bi-shield-check text-success"></i> Điểm uy tín hồ sơ</span>
+                        <span class="fw-bold text-success">@trustScore%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: @trustScore%"></div>
+                    </div>
+                </div>
+
+                <!-- Nút liên hệ siêu to khổng lồ cho Mobile -->
+                <div class="d-flex flex-column gap-3">
+                    @if (!string.IsNullOrEmpty(Model.Phone))
+                    {
+                        <a href="tel:@Model.Phone" class="btn btn-success contact-btn shadow-sm">
+                            <i class="bi bi-telephone-fill"></i> Gọi ngay: @Model.Phone
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Zalo))
+                    {
+                        <a href="https://zalo.me/@Model.Zalo" target="_blank" class="btn btn-primary contact-btn shadow-sm" style="background-color: #0068ff; border-color: #0068ff;">
+                            <i class="bi bi-chat-dots-fill"></i> Nhắn tin Zalo
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Facebook))
+                    {
+                        <a href="@Model.Facebook" target="_blank" class="btn btn-outline-primary contact-btn bg-white">
+                            <i class="bi bi-facebook"></i> Trang Facebook
+                        </a>
+                    }
+                </div>
+            </div>
+
+            <!-- Box Thông tin chi tiết (Hiển thị thẳng, không dùng nút ẩn/mở) -->
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white py-3 border-bottom border-light">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-info-circle text-primary me-2"></i>Thông tin liên hệ</h5>
+                </div>
+                <div class="card-body p-4">
+                    @if (!string.IsNullOrEmpty(Model.Bio))
+                    {
+                        <div class="mb-4">
+                            <div class="info-label">Giới thiệu bản thân</div>
+                            <div class="info-text fst-italic">"@Model.Bio"</div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.Address))
+                    {
+                        <div class="mb-4">
+                            <div class="info-label">Khu vực hoạt động</div>
+                            <div class="info-text"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @Model.Address</div>
+                        </div>
+                    }
+
+                    <div>
+                        <div class="info-label">Tham gia từ</div>
+                        <div class="info-text">@(Model.CreatedAt.HasValue? Model.CreatedAt.Value.ToString("MM/yyyy") : "Chưa cập nhật")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT PHẢI: DANH SÁCH BẤT ĐỘNG SẢN ĐANG MỞ BÁN -->
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded-4 shadow-sm">
+                <h4 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-house-door-fill text-primary me-2"></i>Tin đang đăng
+                </h4>
+                <span class="badge bg-primary fs-6 rounded-pill px-3 py-2">Tổng số: @ViewBag.TotalActive tin</span>
+            </div>
+
+            @if (activeProperties != null && activeProperties.Any())
+            {
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+                    @foreach (var item in activeProperties)
+                    {
+                        <div class="col">
+                            <a href="/Bat-Dong-San/Chi-Tiet/@item.PropertyID" class="text-decoration-none">
+                                <div class="prop-card-simple">
+                                    <!-- SỬA LỖI 1: Thumbnail -> MainImage -->
+                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.png" : item.MainImage)" class="prop-img-simple" alt="@item.Title">
+
+                                    <div class="p-3 d-flex flex-column flex-grow-1">
+                                        <!-- Tiêu đề -->
+                                        <h6 class="fw-bold text-dark mb-2" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                            @item.Title
+                                        </h6>
+
+                                        <!-- Giá và Diện tích -->
+                                        <div class="d-flex justify-content-between align-items-center mb-2 mt-auto">
+                                            <!-- SỬA LỖI 3: Xử lý ToString cho decimal? (Nếu null thì in ra "Thỏa thuận") -->
+                                            <span class="fw-bold fs-5 text-danger">
+                                                @(item.Price.HasValue? item.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")
+                                            </span>
+
+                                            <!-- SỬA LỖI 2: Area -> AreaSize -->
+                                            <span class="text-muted fw-medium">
+                                                <i class="bi bi-arrows-fullscreen"></i> @(item.AreaSize.HasValue? item.AreaSize.Value.ToString("G29") : "0") m²
+                                            </span>
+                                        </div>
+
+                                        <hr class="my-2 opacity-10">
+
+                                        <!-- Địa chỉ -->
+                                        <div class="text-muted small text-truncate">
+                                            <i class="bi bi-geo-alt-fill text-secondary"></i>
+                                            @(item.Ward?.WardName), @(item.Ward?.Area?.AreaName)
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-center bg-white p-5 rounded-4 shadow-sm border border-light">
+                    <img src="/images/empty-box.png" alt="Không có dữ liệu" style="width: 120px; opacity: 0.5;" class="mb-3" onerror="this.src='https://cdn-icons-png.flaticon.com/512/7486/7486831.png'">
+                    <h5 class="text-muted">Người dùng này hiện chưa có tin đăng nào đang mở bán.</h5>
+                </div>
+            }
+        </div>
+    </div>
+</div>

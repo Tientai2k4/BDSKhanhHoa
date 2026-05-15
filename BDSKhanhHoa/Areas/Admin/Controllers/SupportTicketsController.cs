@@ -1,5 +1,6 @@
 ﻿using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,15 +9,17 @@ using System.Security.Claims;
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Authorize(Roles = "Admin")] // Chỉ Admin mới được quản lý
+    [Authorize(Roles = "Admin")]
     [Route("Admin/[controller]/[action]")]
     public class SupportTicketsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAuditLogService _auditLogService;
 
-        public SupportTicketsController(ApplicationDbContext context)
+        public SupportTicketsController(ApplicationDbContext context, IAuditLogService auditLogService)
         {
             _context = context;
+            _auditLogService = auditLogService;
         }
 
         private bool TryGetCurrentUserId(out int userId)
@@ -31,7 +34,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             if (!TryGetCurrentUserId(out _)) return Challenge();
 
-            // Lấy danh sách tên dự án để map ID -> Tên (dùng cho bảng tư vấn)
             var projectNames = await _context.Projects
                 .AsNoTracking()
                 .Select(p => new { p.ProjectID, p.ProjectName })
@@ -74,18 +76,16 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.Consultations = await consultationsQuery.OrderByDescending(x => x.CreatedAt).Take(50).ToListAsync();
             ViewBag.ProjectLeads = await leadsQuery.OrderByDescending(x => x.CreatedAt).Take(50).ToListAsync();
 
-            // TÁCH LÀM 2 DANH SÁCH: ĐANG CHỜ VÀ ĐÃ XỬ LÝ LỊCH SỬ
             ViewBag.PendingContacts = await contactMessagesQuery
                 .Where(x => x.Status != "Done" && x.Status != "Đã xử lý")
                 .OrderByDescending(x => x.CreatedAt).ToListAsync();
 
             ViewBag.ResolvedContacts = await contactMessagesQuery
                 .Where(x => x.Status == "Done" || x.Status == "Đã xử lý")
-                .OrderByDescending(x => x.UpdatedAt) // Sắp xếp theo ngày Update mới nhất
+                .OrderByDescending(x => x.UpdatedAt)
                 .Take(100)
                 .ToListAsync();
 
-            // THỐNG KÊ SỐ LẦN CHỈNH SỬA CỦA TỪNG DỰ ÁN DỰA TRÊN LỊCH SỬ ĐÃ XONG
             var projectEditCounts = await _context.ContactMessages
                 .Where(x => x.ProjectID != null && (x.Status == "Done" || x.Status == "Đã xử lý"))
                 .GroupBy(x => x.ProjectID.Value)
@@ -95,7 +95,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.ProjectEditCounts = projectEditCounts;
             ViewBag.ProjectNames = projectNames;
 
-            // Đếm số lượng hiển thị trên Badge
             ViewBag.ConsultationCount = await _context.Consultations.CountAsync(c => c.ProjectID != null);
             ViewBag.ContactMessageCount = await _context.ContactMessages.CountAsync(x => x.Status != "Done" && x.Status != "Đã xử lý");
             ViewBag.ProjectLeadCount = await _context.ProjectLeads.CountAsync();
@@ -117,6 +116,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 item.Status = status?.Trim();
                 _context.Consultations.Update(item);
                 await _context.SaveChangesAsync();
+
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Cập nhật yêu cầu tư vấn", "SupportTickets", $"ConsultID: {id} -> {status}", severity: "Info");
+
                 TempData["Success"] = "Cập nhật yêu cầu tư vấn thành công.";
             }
             return SafeRedirect(returnUrl);
@@ -132,6 +135,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 item.LeadStatus = status?.Trim();
                 _context.ProjectLeads.Update(item);
                 await _context.SaveChangesAsync();
+
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Cập nhật tiến độ Lead dự án", "SupportTickets", $"LeadID: {id} -> {status}", severity: "Info");
+
                 TempData["Success"] = "Cập nhật tiến độ Lead thành công.";
             }
             return SafeRedirect(returnUrl);
@@ -143,7 +150,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // HÀM XỬ LÝ KHÉP KÍN: ADMIN ĐÁNH DẤU HOÀN TẤT VÀ BÁO VỀ CHO CĐT
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ProcessSupportRequest(int id)
@@ -152,10 +158,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (ticket == null) return NotFound();
 
             ticket.Status = "Done";
-            ticket.UpdatedAt = DateTime.Now; // Cập nhật thời gian hoàn tất
+            ticket.UpdatedAt = DateTime.Now;
             _context.Update(ticket);
 
-            // Gửi thông báo lại cho CDT
             if (ticket.UserID.HasValue)
             {
                 _context.Notifications.Add(new Notification
@@ -169,6 +174,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            await _auditLogService.LogAsync(userId, "Xác nhận xử lý xong yêu cầu hỗ trợ", "SupportTickets", $"ContactID: {id}", severity: "Info");
+
             TempData["Success"] = "Đã xác nhận xử lý xong. Dữ liệu đã được lưu vào Lịch sử và thông báo đã được gửi đến Chủ đầu tư.";
             return RedirectToAction(nameof(Index), new { tab = "ho-tro" });
         }

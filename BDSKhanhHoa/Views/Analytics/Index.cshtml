@@ -1,218 +1,653 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+
 @{
     ViewData["Title"] = "Báo cáo hiệu suất";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
     int totalProjects = ViewBag.TotalProjects ?? 0;
+
     int totalLeads = ViewBag.TotalLeads ?? 0;
     int newLeads = ViewBag.NewLeads ?? 0;
     int contactedLeads = ViewBag.ContactedLeads ?? 0;
     int resolvedLeads = ViewBag.ResolvedLeads ?? 0;
+    int invalidLeads = ViewBag.InvalidLeads ?? 0;
+
     int totalAppointments = ViewBag.TotalAppointments ?? 0;
+    int pendingAppointments = ViewBag.PendingAppointments ?? 0;
     int confirmedAppointments = ViewBag.ConfirmedAppointments ?? 0;
     int completedAppointments = ViewBag.CompletedAppointments ?? 0;
-    int pendingAppointments = ViewBag.PendingAppointments ?? 0;
+    int cancelledAppointments = ViewBag.CancelledAppointments ?? 0;
+
     int totalViews = ViewBag.TotalViews ?? 0;
+
+    int totalSupportTickets = ViewBag.TotalSupportTickets ?? 0;
+    int openSupportTickets = ViewBag.OpenSupportTickets ?? 0;
+    int closedSupportTickets = ViewBag.ClosedSupportTickets ?? 0;
+
+    string businessName = ViewBag.BusinessName as string ?? "Doanh nghiệp đối tác";
 
     var leadMap = ViewBag.LeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var appointmentMap = ViewBag.AppointmentMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var viewMap = ViewBag.ViewMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var supportMap = ViewBag.SupportMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+
+    decimal leadConversionRate = totalLeads > 0
+        ? Math.Round((decimal)resolvedLeads * 100 / totalLeads, 1)
+        : 0;
+
+    decimal appointmentCompletionRate = totalAppointments > 0
+        ? Math.Round((decimal)completedAppointments * 100 / totalAppointments, 1)
+        : 0;
+
+    int totalInteractions = totalLeads + totalAppointments + totalSupportTickets;
 }
 
-<style>
-    .ana-topbar, .ana-card {
-        background: #fff;
-        border-radius: 24px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-        border: 1px solid rgba(148,163,184,.15);
-    }
+@section Styles {
+    <style>
+        :root {
+            --ana-primary: #2563eb;
+            --ana-primary-dark: #1d4ed8;
+            --ana-success: #059669;
+            --ana-warning: #d97706;
+            --ana-danger: #dc2626;
+            --ana-indigo: #4f46e5;
+            --ana-dark: #0f172a;
+            --ana-muted: #64748b;
+            --ana-border: #e2e8f0;
+            --ana-soft: #f8fafc;
+            --ana-card: #ffffff;
+            --ana-radius: 24px;
+            --ana-shadow: 0 16px 38px rgba(15, 23, 42, .07);
+        }
 
-    .ana-topbar {
-        padding: 22px 24px;
-        margin-bottom: 18px;
-    }
+        .ana-hero,
+        .ana-card,
+        .ana-table-card,
+        .ana-empty {
+            background: var(--ana-card);
+            border: 1px solid rgba(148, 163, 184, .20);
+            border-radius: var(--ana-radius);
+            box-shadow: var(--ana-shadow);
+        }
 
-    .ana-title {
-        font-size: 1.45rem;
-        font-weight: 800;
-        margin-bottom: 4px;
-    }
+        .ana-hero {
+            padding: 26px;
+            margin-bottom: 22px;
+            position: relative;
+            overflow: hidden;
+        }
 
-    .ana-subtitle {
-        color: #64748b;
-        margin-bottom: 0;
-    }
+            .ana-hero::after {
+                content: "";
+                position: absolute;
+                width: 280px;
+                height: 280px;
+                right: -120px;
+                top: -130px;
+                background: rgba(37, 99, 235, .08);
+                border-radius: 999px;
+            }
 
-    .ana-stat {
-        border-radius: 24px;
-        padding: 22px;
-        color: #fff;
-        min-height: 140px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-    }
+        .ana-title {
+            font-size: clamp(1.35rem, 2.4vw, 2rem);
+            font-weight: 950;
+            letter-spacing: -.04em;
+            color: var(--ana-dark);
+            margin-bottom: 8px;
+        }
 
-    .bg-blue {
-        background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-    }
+        .ana-subtitle {
+            color: var(--ana-muted);
+            font-weight: 650;
+            line-height: 1.6;
+            margin-bottom: 0;
+        }
 
-    .bg-amber {
-        background: linear-gradient(135deg, #b45309, #f59e0b);
-    }
+        .ana-business {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            font-weight: 900;
+            color: var(--ana-primary);
+        }
 
-    .bg-emerald {
-        background: linear-gradient(135deg, #047857, #10b981);
-    }
+        .ana-stat {
+            min-height: 152px;
+            border-radius: 24px;
+            padding: 22px;
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 32px rgba(15, 23, 42, .12);
+        }
 
-    .bg-indigo {
-        background: linear-gradient(135deg, #4338ca, #6366f1);
-    }
+            .ana-stat::after {
+                content: "";
+                position: absolute;
+                width: 120px;
+                height: 120px;
+                right: -36px;
+                top: -42px;
+                background: rgba(255, 255, 255, .17);
+                border-radius: 999px;
+            }
 
-    .ana-stat .stat-label {
-        font-size: .8rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        opacity: .9;
-        margin-bottom: 10px;
-    }
+        .ana-stat-label {
+            font-size: .77rem;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            opacity: .92;
+            margin-bottom: 12px;
+        }
 
-    .ana-stat .stat-value {
-        font-size: 3rem;
-        line-height: 1;
-        font-weight: 900;
-    }
+        .ana-stat-value {
+            font-size: 2.7rem;
+            line-height: 1;
+            font-weight: 950;
+            letter-spacing: -.05em;
+        }
 
-    .perf-table thead th {
-        background: #f8fafc;
-        color: #475569;
-        font-size: .76rem;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 900;
-        padding: 18px;
-        white-space: nowrap;
-    }
+        .ana-stat-note {
+            margin-top: 10px;
+            font-size: .83rem;
+            font-weight: 750;
+            opacity: .88;
+        }
 
-    .perf-table tbody td {
-        padding: 18px;
-        border-top: 1px solid #f1f5f9;
-        vertical-align: middle;
-    }
-</style>
+        .ana-blue {
+            background: linear-gradient(135deg, #1d4ed8, #60a5fa);
+        }
 
-<div class="ana-topbar d-flex flex-wrap justify-content-between align-items-center gap-3">
-    <div>
-        <div class="ana-title">Báo cáo hiệu suất</div>
-        <p class="ana-subtitle">Thống kê lead, lịch hẹn, lượt xem dự án bằng dữ liệu có sẵn trong hệ thống.</p>
+        .ana-amber {
+            background: linear-gradient(135deg, #b45309, #f59e0b);
+        }
+
+        .ana-indigo {
+            background: linear-gradient(135deg, #4338ca, #818cf8);
+        }
+
+        .ana-emerald {
+            background: linear-gradient(135deg, #047857, #34d399);
+        }
+
+        .ana-card {
+            padding: 22px;
+            height: 100%;
+        }
+
+        .ana-card-title {
+            font-weight: 950;
+            color: var(--ana-dark);
+            margin-bottom: 16px;
+        }
+
+        .ana-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 0;
+            border-bottom: 1px dashed var(--ana-border);
+        }
+
+            .ana-row:last-child {
+                border-bottom: 0;
+            }
+
+            .ana-row span {
+                color: #475569;
+                font-weight: 750;
+            }
+
+            .ana-row strong {
+                color: var(--ana-dark);
+                font-weight: 950;
+            }
+
+        .ana-progress {
+            height: 10px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #e2e8f0;
+        }
+
+            .ana-progress > div {
+                height: 100%;
+                border-radius: 999px;
+            }
+
+        .ana-progress-blue {
+            background: var(--ana-primary);
+        }
+
+        .ana-progress-green {
+            background: var(--ana-success);
+        }
+
+        .ana-progress-amber {
+            background: var(--ana-warning);
+        }
+
+        .ana-table-card {
+            overflow: hidden;
+        }
+
+        .ana-table-head {
+            padding: 22px 24px;
+            border-bottom: 1px solid var(--ana-border);
+            background: linear-gradient(135deg, #fff, #f8fafc);
+        }
+
+        .ana-table-title {
+            font-weight: 950;
+            color: var(--ana-dark);
+            margin-bottom: 5px;
+        }
+
+        .ana-table-sub {
+            color: var(--ana-muted);
+            font-size: .92rem;
+            font-weight: 650;
+        }
+
+        .ana-table thead th {
+            background: #f8fafc;
+            color: #475569;
+            font-size: .76rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            font-weight: 950;
+            padding: 17px 18px;
+            border-bottom: 1px solid var(--ana-border);
+            white-space: nowrap;
+        }
+
+        .ana-table tbody td {
+            padding: 18px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .ana-project-name {
+            font-weight: 950;
+            color: var(--ana-dark);
+            line-height: 1.4;
+        }
+
+        .ana-project-meta {
+            color: var(--ana-muted);
+            font-size: .86rem;
+            font-weight: 650;
+            margin-top: 4px;
+        }
+
+        .ana-number-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            height: 34px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: var(--ana-primary);
+            font-weight: 950;
+            padding: 0 12px;
+        }
+
+        .ana-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-size: .76rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .ana-status-green {
+            background: #dcfce7;
+            color: #047857;
+        }
+
+        .ana-status-gray {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .ana-mobile-list {
+            display: none;
+            padding: 16px;
+            background: #f8fafc;
+        }
+
+        .ana-mobile-card {
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, .22);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+        }
+
+        .ana-mobile-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .ana-mobile-box {
+            border-radius: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            text-align: center;
+        }
+
+            .ana-mobile-box strong {
+                display: block;
+                font-size: 1.1rem;
+                font-weight: 950;
+                color: var(--ana-dark);
+            }
+
+            .ana-mobile-box span {
+                font-size: .73rem;
+                color: var(--ana-muted);
+                font-weight: 850;
+                text-transform: uppercase;
+            }
+
+        .ana-empty {
+            padding: 60px 24px;
+            text-align: center;
+        }
+
+        @@media (max-width: 991.98px) {
+            .desktop-table-wrap {
+                display: none;
+            }
+
+            .ana-mobile-list {
+                display: block;
+            }
+
+            .ana-stat {
+                min-height: 130px;
+            }
+
+            .ana-stat-value {
+                font-size: 2.25rem;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .ana-hero,
+            .ana-card,
+            .ana-table-card {
+                border-radius: 20px;
+            }
+
+            .ana-hero,
+            .ana-card {
+                padding: 18px;
+            }
+
+            .ana-mobile-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+}
+
+<div class="ana-hero">
+    <div class="position-relative" style="z-index:1;">
+        <h1 class="ana-title">Báo cáo hiệu suất</h1>
+
+        <p class="ana-subtitle">
+            Theo dõi hiệu quả dự án được Admin gán: khách hàng tiềm năng, lịch hẹn, lượt xem và yêu cầu hỗ trợ.
+        </p>
+
+        <div class="ana-business">
+            <i class="bi bi-patch-check-fill"></i>
+            @businessName
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 g-xl-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat ana-blue">
+            <div class="ana-stat-label">Tổng dự án</div>
+            <div class="ana-stat-value">@totalProjects</div>
+            <div class="ana-stat-note">Dự án được Admin phân quyền</div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat ana-amber">
+            <div class="ana-stat-label">Khách tiềm năng</div>
+            <div class="ana-stat-value">@totalLeads</div>
+            <div class="ana-stat-note">@newLeads khách mới cần xử lý</div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat ana-indigo">
+            <div class="ana-stat-label">Lịch hẹn</div>
+            <div class="ana-stat-value">@totalAppointments</div>
+            <div class="ana-stat-note">@confirmedAppointments lịch đã xác nhận</div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
+        <div class="ana-stat ana-emerald">
+            <div class="ana-stat-label">Tổng lượt xem</div>
+            <div class="ana-stat-value">@totalViews</div>
+            <div class="ana-stat-note">Từ các tin/dự án liên quan</div>
+        </div>
     </div>
 </div>
 
 <div class="row g-4 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="ana-stat bg-blue">
-            <div class="stat-label">Tổng dự án</div>
-            <div class="stat-value">@totalProjects</div>
+    <div class="col-xl-4">
+        <div class="ana-card">
+            <h5 class="ana-card-title">
+                <i class="bi bi-funnel-fill text-primary me-1"></i>
+                Phễu khách hàng
+            </h5>
+
+            <div class="ana-row">
+                <span>Mới</span>
+                <strong>@newLeads</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã liên hệ</span>
+                <strong>@contactedLeads</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã chốt</span>
+                <strong>@resolvedLeads</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Không hợp lệ</span>
+                <strong>@invalidLeads</strong>
+            </div>
+
+            <div class="mt-3">
+                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
+                    <span>Tỷ lệ chốt lead</span>
+                    <span>@leadConversionRate%</span>
+                </div>
+
+                <div class="ana-progress">
+                    <div class="ana-progress-blue" style="width:@leadConversionRate%"></div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="ana-stat bg-amber">
-            <div class="stat-label">Tổng leads</div>
-            <div class="stat-value">@totalLeads</div>
+
+    <div class="col-xl-4">
+        <div class="ana-card">
+            <h5 class="ana-card-title">
+                <i class="bi bi-calendar2-check-fill text-success me-1"></i>
+                Lịch hẹn
+            </h5>
+
+            <div class="ana-row">
+                <span>Chờ xử lý</span>
+                <strong>@pendingAppointments</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã xác nhận</span>
+                <strong>@confirmedAppointments</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã hoàn tất</span>
+                <strong>@completedAppointments</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã hủy / không đến</span>
+                <strong>@cancelledAppointments</strong>
+            </div>
+
+            <div class="mt-3">
+                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
+                    <span>Tỷ lệ hoàn tất lịch hẹn</span>
+                    <span>@appointmentCompletionRate%</span>
+                </div>
+
+                <div class="ana-progress">
+                    <div class="ana-progress-green" style="width:@appointmentCompletionRate%"></div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="ana-stat bg-indigo">
-            <div class="stat-label">Tổng lịch hẹn</div>
-            <div class="stat-value">@totalAppointments</div>
-        </div>
-    </div>
-    <div class="col-xl-3 col-md-6">
-        <div class="ana-stat bg-emerald">
-            <div class="stat-label">Tổng lượt xem</div>
-            <div class="stat-value">@totalViews</div>
+
+    <div class="col-xl-4">
+        <div class="ana-card">
+            <h5 class="ana-card-title">
+                <i class="bi bi-headset text-warning me-1"></i>
+                Hỗ trợ & vận hành
+            </h5>
+
+            <div class="ana-row">
+                <span>Tổng yêu cầu hỗ trợ</span>
+                <strong>@totalSupportTickets</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đang chờ xử lý</span>
+                <strong>@openSupportTickets</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Đã xử lý</span>
+                <strong>@closedSupportTickets</strong>
+            </div>
+
+            <div class="ana-row">
+                <span>Tổng tương tác</span>
+                <strong>@totalInteractions</strong>
+            </div>
+
+            <div class="mt-3">
+                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
+                    <span>Mức độ hoạt động</span>
+                    <span>@totalInteractions lượt</span>
+                </div>
+
+                <div class="ana-progress">
+                    <div class="ana-progress-amber" style="width:@(totalInteractions > 0 ? 100 : 0)%"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-md-4">
-        <div class="ana-card p-4">
-            <h6 class="fw-bold mb-3">Phễu lead</h6>
-            <div class="d-flex justify-content-between mb-2">
-                <span>New</span><strong>@newLeads</strong>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Contacted</span><strong>@contactedLeads</strong>
-            </div>
-            <div class="d-flex justify-content-between">
-                <span>Resolved</span><strong>@resolvedLeads</strong>
-            </div>
+<div class="ana-table-card">
+    <div class="ana-table-head">
+        <h5 class="ana-table-title">Hiệu suất theo từng dự án</h5>
+        <div class="ana-table-sub">
+            So sánh số lead, lịch hẹn, lượt xem và yêu cầu hỗ trợ theo dự án được phân quyền.
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="ana-card p-4">
-            <h6 class="fw-bold mb-3">Lịch hẹn</h6>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Pending</span><strong>@pendingAppointments</strong>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Confirmed</span><strong>@confirmedAppointments</strong>
-            </div>
-            <div class="d-flex justify-content-between">
-                <span>Completed</span><strong>@completedAppointments</strong>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="ana-card p-4">
-            <h6 class="fw-bold mb-3">Ghi chú</h6>
-            <div class="text-muted">
-                Các chỉ số này đang lấy từ dữ liệu thực tế có sẵn trong hệ thống, không cần thêm bảng mới.
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="ana-card">
-    <div class="p-4 border-bottom">
-        <h5 class="fw-bold mb-1">Hiệu suất theo dự án</h5>
-        <div class="text-muted small">Số lead, lịch hẹn và lượt xem từng dự án.</div>
-    </div>
-
-    <div class="table-responsive">
-        <table class="table perf-table mb-0">
+    <div class="desktop-table-wrap table-responsive">
+        <table class="table ana-table mb-0 align-middle">
             <thead>
                 <tr>
                     <th>Dự án</th>
-                    <th>Lead</th>
-                    <th>Lịch hẹn</th>
-                    <th>Lượt xem</th>
+                    <th class="text-center">Lead</th>
+                    <th class="text-center">Lịch hẹn</th>
+                    <th class="text-center">Lượt xem</th>
+                    <th class="text-center">Hỗ trợ</th>
                     <th>Trạng thái</th>
+                    <th class="text-end">Thao tác</th>
                 </tr>
             </thead>
+
             <tbody>
                 @if (Model != null && Model.Any())
                 {
                     foreach (var item in Model)
                     {
-                        var leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
-                        var appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
-                        var viewCount = viewMap.ContainsKey(item.ProjectID) ? viewMap[item.ProjectID] : 0;
+                        int leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
+                        int appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
+                        int viewCount = viewMap.ContainsKey(item.ProjectID) ? viewMap[item.ProjectID] : 0;
+                        int supportCount = supportMap.ContainsKey(item.ProjectID) ? supportMap[item.ProjectID] : 0;
 
                         <tr>
                             <td>
-                                <div class="fw-bold">@item.ProjectName</div>
-                                <div class="text-muted small">@item.Ward?.WardName, @item.Area?.AreaName</div>
+                                <div class="ana-project-name">@item.ProjectName</div>
+                                <div class="ana-project-meta">
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                                    @(item.Ward?.WardName ?? "Chưa có phường/xã"), @(item.Area?.AreaName ?? "Chưa có khu vực")
+                                </div>
                             </td>
-                            <td>@leadCount</td>
-                            <td>@appointmentCount</td>
-                            <td>@viewCount</td>
+
+                            <td class="text-center">
+                                <span class="ana-number-pill">@leadCount</span>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="ana-number-pill">@appointmentCount</span>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="ana-number-pill">@viewCount</span>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="ana-number-pill">@supportCount</span>
+                            </td>
+
                             <td>
-                                <span class="badge @(item.ProjectStatus == "Đang mở bán" ? "bg-success" : "bg-secondary")">
-                                    @item.ProjectStatus
+                                <span class="ana-status @(item.ProjectStatus == "Đang mở bán" ? "ana-status-green" : "ana-status-gray")">
+                                    <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                                    @(string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Chưa cập nhật" : item.ProjectStatus)
                                 </span>
+                            </td>
+
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-2">
+                                    <a href="/MemberProject/Index?projectId=@item.ProjectID" class="btn btn-sm btn-outline-primary fw-bold rounded-pill">
+                                        CRM
+                                    </a>
+
+                                    <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-light border fw-bold rounded-pill">
+                                        Xem
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -220,12 +655,87 @@
                 else
                 {
                     <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <div class="text-muted">Chưa có dữ liệu dự án để thống kê.</div>
+                        <td colspan="7">
+                            <div class="ana-empty">
+                                <i class="bi bi-bar-chart display-1 text-muted opacity-25 d-block mb-3"></i>
+                                <h5 class="fw-black text-dark">Chưa có dữ liệu thống kê</h5>
+                                <div class="text-muted">Khi Admin gán dự án cho tài khoản này, báo cáo sẽ hiển thị tại đây.</div>
+                            </div>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
+    </div>
+
+    <div class="ana-mobile-list">
+        @if (Model != null && Model.Any())
+        {
+            foreach (var item in Model)
+            {
+                int leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
+                int appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
+                int viewCount = viewMap.ContainsKey(item.ProjectID) ? viewMap[item.ProjectID] : 0;
+                int supportCount = supportMap.ContainsKey(item.ProjectID) ? supportMap[item.ProjectID] : 0;
+
+                <div class="ana-mobile-card">
+                    <div class="d-flex justify-content-between gap-2">
+                        <div>
+                            <div class="ana-project-name">@item.ProjectName</div>
+
+                            <div class="ana-project-meta">
+                                @(item.Ward?.WardName ?? "Chưa có phường/xã"), @(item.Area?.AreaName ?? "Chưa có khu vực")
+                            </div>
+                        </div>
+
+                        <span class="ana-status @(item.ProjectStatus == "Đang mở bán" ? "ana-status-green" : "ana-status-gray")">
+                            @(string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Chưa cập nhật" : item.ProjectStatus)
+                        </span>
+                    </div>
+
+                    <div class="ana-mobile-grid">
+                        <div class="ana-mobile-box">
+                            <strong>@leadCount</strong>
+                            <span>Lead</span>
+                        </div>
+
+                        <div class="ana-mobile-box">
+                            <strong>@appointmentCount</strong>
+                            <span>Lịch hẹn</span>
+                        </div>
+
+                        <div class="ana-mobile-box">
+                            <strong>@viewCount</strong>
+                            <span>Lượt xem</span>
+                        </div>
+
+                        <div class="ana-mobile-box">
+                            <strong>@supportCount</strong>
+                            <span>Hỗ trợ</span>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="/MemberProject/Index?projectId=@item.ProjectID" class="btn btn-outline-primary fw-bold rounded-pill">
+                            <i class="bi bi-funnel-fill me-1"></i>
+                            Mở CRM
+                        </a>
+
+                        <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-light border fw-bold rounded-pill">
+                            <i class="bi bi-eye-fill me-1"></i>
+                            Xem dự án
+                        </a>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="ana-empty">
+                <i class="bi bi-bar-chart display-1 text-muted opacity-25 d-block mb-3"></i>
+                <h5 class="fw-black text-dark">Chưa có dữ liệu thống kê</h5>
+                <div class="text-muted">Khi Admin gán dự án cho tài khoản này, báo cáo sẽ hiển thị tại đây.</div>
+            </div>
+        }
     </div>
 </div>

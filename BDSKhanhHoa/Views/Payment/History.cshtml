@@ -2,63 +2,208 @@
 @{
     ViewData["Title"] = "Lịch sử giao dịch";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    // Gom nhóm các transaction theo OrderCode (BaseCode - chuỗi trước dấu _)
+    var groupedTransactions = Model.GroupBy(t => t.TransactionCode.Contains("_") ? t.TransactionCode.Split('_')[0] : t.TransactionCode)
+                                   .OrderByDescending(g => g.First().CreatedAt)
+                                   .ToList();
 }
 
-<div class="container my-5">
-    <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
-        <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom pb-4 mb-4">
-            <h3 class="fw-black text-dark mb-0"><i class="bi bi-receipt-cutoff text-primary me-2"></i> Lịch sử thanh toán</h3>
-            <a href="/Package/Buy" class="btn btn-dark rounded-pill fw-bold px-4 mt-3 mt-md-0 shadow-sm">Mua thêm gói VIP</a>
+<style>
+    .history-container {
+        background: #ffffff;
+        border-radius: 24px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+        padding: 40px;
+        margin-top: 40px;
+        margin-bottom: 60px;
+    }
+
+    .filter-card {
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 30px;
+    }
+
+    .order-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        transition: 0.3s;
+    }
+
+        .order-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.04);
+        }
+
+    .order-header {
+        background: #f8fafc;
+        padding: 20px 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .order-body {
+        padding: 0 25px 25px 25px;
+    }
+
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+        .item-row:last-child {
+            border-bottom: none;
+        }
+
+    .badge-modern {
+        padding: 8px 16px;
+        font-weight: bold;
+        border-radius: 50rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+    }
+
+    .badge-success {
+        background: #d1fae5;
+        color: #059669;
+        border: 1px solid #a7f3d0;
+    }
+
+    .badge-warning {
+        background: #fef3c7;
+        color: #d97706;
+        border: 1px solid #fde68a;
+    }
+</style>
+
+<div class="container">
+    <div class="history-container animate__animated animate__fadeIn">
+        <div class="d-flex flex-wrap justify-content-between align-items-end mb-4">
+            <div>
+                <h2 class="fw-black text-dark mb-2" style="letter-spacing: -1px;"><i class="bi bi-clock-history text-primary me-2"></i> Lịch sử đơn hàng</h2>
+                <p class="text-muted mb-0">Quản lý và theo dõi các gói dịch vụ bạn đã thanh toán</p>
+            </div>
+            <a href="/Package/Buy" class="btn btn-primary btn-lg rounded-pill fw-bold px-4 shadow-sm mt-3 mt-md-0"><i class="bi bi-plus-circle me-2"></i> Đăng ký thêm</a>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold rounded-start">Mã GD</th>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold">Dịch vụ</th>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold text-center">SL</th>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold text-end">Tổng Tiền</th>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold text-center">Trạng Thái</th>
-                        <th class="py-3 text-secondary text-uppercase small fw-bold text-end rounded-end pe-4">Thời Gian</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
-                    {
-                        <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="bi bi-folder-x display-3 d-block mb-3 text-black-50"></i>
-                                <h5 class="fw-bold">Chưa có giao dịch nào phát sinh.</h5>
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td class="fw-bold text-dark py-4"><span class="bg-light px-2 py-1 rounded text-secondary font-monospace small">@item.TransactionCode</span></td>
-                            <td class="py-4">
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill fs-6">
-                                    <i class="bi bi-box-seam me-1"></i> @item.Package?.PackageName
-                                </span>
-                            </td>
-                            <td class="text-center py-4 fw-bold fs-5 text-dark">x@(item.Quantity > 0 ? item.Quantity : 1)</td>
-                            <td class="text-end fw-bold text-danger fs-5 py-4">@item.Amount.ToString("N0") đ</td>
-                            <td class="text-center py-4">
-                                @if (item.Status == "Success")
+        <div class="filter-card">
+            <form method="get" action="/Payment/History" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label text-muted small fw-bold">Trạng thái</label>
+                    <select name="status" class="form-select form-select-lg border-0 shadow-sm rounded-3">
+                        <option value="All" selected="@(ViewBag.Status == "All")">Tất cả trạng thái</option>
+                        <option value="Success" selected="@(ViewBag.Status == "Success")">Thành công</option>
+                        <option value="Pending" selected="@(ViewBag.Status == "Pending")">Đang chờ</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted small fw-bold">Từ ngày</label>
+                    <input type="date" name="fromDate" value="@ViewBag.FromDate" class="form-control form-control-lg border-0 shadow-sm rounded-3" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted small fw-bold">Đến ngày</label>
+                    <input type="date" name="toDate" value="@ViewBag.ToDate" class="form-control form-control-lg border-0 shadow-sm rounded-3" />
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-dark btn-lg flex-grow-1 rounded-3 fw-bold"><i class="bi bi-funnel"></i> Lọc</button>
+                    <a href="/Payment/History" class="btn btn-light btn-lg rounded-3 border"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+
+        <div>
+            @if (!groupedTransactions.Any())
+            {
+                <div class="text-center py-5 bg-light rounded-4 border border-dashed">
+                    <i class="bi bi-receipt display-1 text-black-50 opacity-25 mb-3"></i>
+                    <h4 class="fw-bold text-dark">Không tìm thấy đơn hàng nào!</h4>
+                    <p class="text-muted">Chưa có giao dịch hoặc không khớp với bộ lọc của bạn.</p>
+                </div>
+            }
+            else
+            {
+                foreach (var group in groupedTransactions)
+                {
+                    var firstItem = group.First();
+                    var totalOrderAmount = group.Sum(x => x.Amount);
+                    var orderStatus = firstItem.Status;
+                    string orderCode = group.Key;
+
+                    <div class="order-card">
+                        <div class="order-header">
+                            <div>
+                                <span class="d-block text-muted small mb-1">Mã Đơn: <strong class="text-dark font-monospace fs-6">@orderCode</strong></span>
+                                <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i> @firstItem.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
+                                <span class="ms-3 text-muted small"><i class="bi bi-credit-card-2-front me-1"></i> @firstItem.PaymentMethod</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-4">
+                                <div class="text-end">
+                                    <span class="d-block text-muted small mb-1">Tổng tiền</span>
+                                    <strong class="text-danger fs-5 fw-black">@totalOrderAmount.ToString("N0") đ</strong>
+                                </div>
+                                <div>
+                                    @if (orderStatus == "Success" || orderStatus == "Completed")
+                                    {
+                                        <span class="badge-modern badge-success"><i class="bi bi-check-circle-fill"></i> Thành công</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-modern badge-warning"><div class="spinner-grow spinner-grow-sm me-1" role="status"></div> Đang chờ</span>
+                                    }
+                                </div>
+                                <button class="btn btn-sm btn-light border rounded-circle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_@orderCode" style="width: 35px; height: 35px;"><i class="bi bi-chevron-down"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="collapse show" id="collapse_@orderCode">
+                            <div class="order-body border-top mt-2 pt-2">
+                                <h6 class="fw-bold text-dark mt-3 mb-2 small text-uppercase">Chi tiết sản phẩm</h6>
+                                @foreach (var item in group)
                                 {
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-check2-circle me-1"></i>Thành công</span>
+                                    <div class="item-row">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 text-primary rounded-3 p-3 me-3"><i class="bi bi-box-seam fs-5"></i></div>
+                                            <div>
+                                                <h6 class="fw-bold text-dark mb-1">@item.Package?.PackageName</h6>
+                                                <span class="text-muted small">Mua @item.Quantity lượt hiển thị</span>
+                                            </div>
+                                        </div>
+                                        <strong class="text-dark">@item.Amount.ToString("N0") đ</strong>
+                                    </div>
                                 }
-                                else
-                                {
-                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 text-dark rounded-pill px-3 py-2"><i class="bi bi-hourglass-split me-1"></i>Đang chờ</span>
-                                }
-                            </td>
-                            <td class="text-end pe-4 text-muted small fw-medium py-4">@item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+
+                                <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <a href="/Payment/Invoice?baseCode=@orderCode" class="btn btn-outline-dark btn-sm fw-bold px-4 py-2 rounded-pill shadow-sm">
+                                        <i class="bi bi-printer me-1"></i> Xem hóa đơn
+                                    </a>
+
+                                    @if (orderStatus == "Pending" && firstItem.PaymentMethod == "BankTransfer")
+                                    {
+                                        <div class="text-end">
+                                            <a href="/Payment/TransferInfo?baseCode=@orderCode&amount=@totalOrderAmount" class="btn btn-primary btn-sm fw-bold py-2 rounded-pill px-4 shadow-sm">
+                                                <i class="bi bi-upload me-1"></i> Gửi biên lai lại
+                                            </a>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
         </div>
     </div>
 </div>

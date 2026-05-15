@@ -1,8 +1,8 @@
-﻿// File: Areas/Admin/Controllers/SystemNotificationsController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -13,31 +13,52 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
     public class SystemNotificationsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAuditLogService _auditLogService;
+        private readonly ILogger<SystemNotificationsController> _logger;
 
-        public SystemNotificationsController(ApplicationDbContext context)
+        private const int ROLE_ADMIN = 1;
+        private const int ROLE_STAFF = 2;
+        private const int ROLE_MEMBER = 3;
+
+        public SystemNotificationsController(
+            ApplicationDbContext context,
+            IAuditLogService auditLogService,
+            ILogger<SystemNotificationsController> logger)
         {
             _context = context;
+            _auditLogService = auditLogService;
+            _logger = logger;
         }
 
-        // ==========================================
-        // 1. GIAO DIỆN QUẢN TRỊ TRUNG TÂM PHÁT THÔNG BÁO
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            // Lấy danh sách các vai trò (Roles) để Admin có thể phát thông báo theo nhóm
-            ViewBag.Roles = await _context.Roles.AsNoTracking().ToListAsync();
+            bool isAdmin = User.IsInRole("Admin");
+            bool isStaff = User.IsInRole("Staff");
 
-            // Lấy thống kê nhanh để hiển thị trên Dashboard
-            ViewBag.TotalUsers = await _context.Users.CountAsync(u => u.IsDeleted == false);
+            var rolesQuery = _context.Roles.AsNoTracking();
+
+            if (isStaff && !isAdmin)
+            {
+                rolesQuery = rolesQuery.Where(r => r.RoleID == ROLE_MEMBER);
+            }
+
+            ViewBag.Roles = await rolesQuery.OrderBy(r => r.RoleID).ToListAsync();
+
+            ViewBag.IsAdmin = isAdmin;
+            ViewBag.IsStaff = isStaff;
+
+            ViewBag.TotalUsers = await _context.Users
+                .CountAsync(u => u.IsDeleted == false && u.IsActive == true);
+
+            ViewBag.TotalMembers = await _context.Users
+                .CountAsync(u => u.IsDeleted == false && u.IsActive == true && u.RoleID == ROLE_MEMBER);
+
             ViewBag.TotalSent = await _context.Notifications.CountAsync();
 
             return View();
         }
 
-        // ==========================================
-        // 2. API XỬ LÝ PHÁT THÔNG BÁO (BROADCAST ENGINE)
-        // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SendBroadcast(
@@ -49,138 +70,281 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             [FromForm] string? actionUrl,
             [FromForm] string? actionText)
         {
-            // 1. Kiểm tra tính hợp lệ cơ bản
-            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(content))
+            bool isAdmin = User.IsInRole("Admin");
+            bool isStaff = User.IsInRole("Staff") && !isAdmin;
+
+            if (!isAdmin && !isStaff)
             {
-                return Json(new { success = false, message = "Tiêu đề và nội dung thông báo không được để trống." });
+                return Json(new
+                {
+                    success = false,
+                    message = "Bạn không có quyền phát thông báo hệ thống."
+                });
+            }
+
+            title = title?.Trim() ?? "";
+            content = content?.Trim() ?? "";
+            targetType = targetType?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng nhập tiêu đề thông báo."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng nhập nội dung thông báo."
+                });
+            }
+
+            if (title.Length > 255)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Tiêu đề không được vượt quá 255 ký tự."
+                });
             }
 
             if (string.IsNullOrWhiteSpace(targetType))
             {
-                return Json(new { success = false, message = "Vui lòng chọn đối tượng nhận thông báo." });
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng chọn đối tượng nhận thông báo."
+                });
+            }
+
+            if (isStaff && targetType == "All")
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nhân viên không được phát thông báo toàn hệ thống. Vui lòng chọn nhóm Thành viên hoặc nhập ID khách hàng cụ thể."
+                });
             }
 
             List<int> recipientIds = new List<int>();
 
             try
             {
-                // 2. Phân luồng lấy danh sách ID người dùng nhận thông báo
                 switch (targetType)
                 {
                     case "All":
-                        // Lấy toàn bộ User đang hoạt động
+                        if (!isAdmin)
+                        {
+                            return Json(new
+                            {
+                                success = false,
+                                message = "Chỉ Admin mới được phát thông báo toàn hệ thống."
+                            });
+                        }
+
                         recipientIds = await _context.Users
-                            .Where(u => u.IsDeleted == false && u.IsActive == true)
+                            .Where(u =>
+                                u.IsDeleted == false &&
+                                u.IsActive == true)
                             .Select(u => u.UserID)
                             .ToListAsync();
                         break;
 
                     case "Role":
-                        // Lấy User theo một Role cụ thể (Ví dụ: Chỉ gửi cho Khách hàng, hoặc chỉ gửi cho Staff)
                         if (!targetRoleId.HasValue || targetRoleId.Value <= 0)
-                            return Json(new { success = false, message = "Vui lòng chọn một Nhóm người dùng hợp lệ." });
+                        {
+                            return Json(new
+                            {
+                                success = false,
+                                message = "Vui lòng chọn nhóm quyền nhận thông báo."
+                            });
+                        }
+
+                        if (isStaff && targetRoleId.Value != ROLE_MEMBER)
+                        {
+                            return Json(new
+                            {
+                                success = false,
+                                message = "Nhân viên chỉ được gửi thông báo cho nhóm Thành viên/khách hàng."
+                            });
+                        }
 
                         recipientIds = await _context.Users
-                            .Where(u => u.RoleID == targetRoleId.Value && u.IsDeleted == false && u.IsActive == true)
+                            .Where(u =>
+                                u.RoleID == targetRoleId.Value &&
+                                u.IsDeleted == false &&
+                                u.IsActive == true)
                             .Select(u => u.UserID)
                             .ToListAsync();
                         break;
 
                     case "Specific":
-                        // Lấy User theo danh sách ID nhập tay
                         if (string.IsNullOrWhiteSpace(targetUserIds))
-                            return Json(new { success = false, message = "Vui lòng nhập ít nhất một ID người dùng nhận." });
+                        {
+                            return Json(new
+                            {
+                                success = false,
+                                message = "Vui lòng nhập ít nhất một ID người dùng nhận thông báo."
+                            });
+                        }
 
-                        // Xử lý chuỗi ID nhập vào (lọc khoảng trắng, bỏ ký tự lỗi, loại bỏ trùng lặp)
-                        var rawIds = targetUserIds.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                                                  .Select(idStr => int.TryParse(idStr.Trim(), out int parsed) ? parsed : 0)
-                                                  .Where(id => id > 0)
-                                                  .Distinct()
-                                                  .ToList();
+                        var rawIds = targetUserIds
+                            .Split(new[] { ',', ';', ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(idStr => int.TryParse(idStr.Trim(), out int parsed) ? parsed : 0)
+                            .Where(id => id > 0)
+                            .Distinct()
+                            .ToList();
 
                         if (!rawIds.Any())
-                            return Json(new { success = false, message = "Định dạng ID không hợp lệ. Vui lòng nhập các số nguyên, cách nhau bởi dấu phẩy." });
+                        {
+                            return Json(new
+                            {
+                                success = false,
+                                message = "Danh sách ID người dùng không hợp lệ."
+                            });
+                        }
 
-                        // Đối chiếu với Database để chắc chắn ID đó tồn tại
-                        recipientIds = await _context.Users
-                            .Where(u => rawIds.Contains(u.UserID) && u.IsDeleted == false)
+                        var usersQuery = _context.Users
+                            .Where(u =>
+                                rawIds.Contains(u.UserID) &&
+                                u.IsDeleted == false &&
+                                u.IsActive == true);
+
+                        if (isStaff)
+                        {
+                            usersQuery = usersQuery.Where(u => u.RoleID == ROLE_MEMBER);
+                        }
+
+                        recipientIds = await usersQuery
                             .Select(u => u.UserID)
                             .ToListAsync();
 
                         if (!recipientIds.Any())
-                            return Json(new { success = false, message = "Không tìm thấy tài khoản hợp lệ nào khớp với các ID bạn vừa nhập." });
+                        {
+                            string msg = isStaff
+                                ? "Không tìm thấy tài khoản Thành viên hợp lệ. Staff không được gửi thông báo cho Admin hoặc Staff khác."
+                                : "Không tìm thấy tài khoản hợp lệ nào khớp với các ID đã nhập.";
+
+                            return Json(new
+                            {
+                                success = false,
+                                message = msg
+                            });
+                        }
                         break;
 
                     default:
-                        return Json(new { success = false, message = "Phương thức gửi không được hỗ trợ." });
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Phương thức gửi thông báo không hợp lệ."
+                        });
                 }
 
-                // 3. Tiến hành tạo hàng loạt bản ghi Notification
                 if (!recipientIds.Any())
                 {
-                    return Json(new { success = false, message = "Không có người dùng nào thỏa mãn điều kiện nhận thông báo." });
-                }
-
-                var notifications = new List<Notification>();
-                DateTime currentTime = DateTime.Now;
-
-                // Tối ưu hóa chuỗi ActionUrl (Bảo mật: Ép về relative path nếu cố tình nhập link ngoài rác)
-                if (!string.IsNullOrWhiteSpace(actionUrl) && !actionUrl.StartsWith("/"))
-                {
-                    actionUrl = "/" + actionUrl;
-                }
-
-                foreach (var uid in recipientIds)
-                {
-                    notifications.Add(new Notification
+                    return Json(new
                     {
-                        UserID = uid,
-                        Title = title.Trim(),
-                        Content = content.Trim(),
-                        ActionUrl = string.IsNullOrWhiteSpace(actionUrl) ? null : actionUrl.Trim(),
-                        ActionText = string.IsNullOrWhiteSpace(actionText) ? null : actionText.Trim(),
-                        IsRead = false,
-                        CreatedAt = currentTime
+                        success = false,
+                        message = "Không có người dùng nào thỏa mãn điều kiện nhận thông báo."
                     });
                 }
 
-                // Lưu vào CSDL
+                actionUrl = NormalizeActionUrl(actionUrl);
+                actionText = string.IsNullOrWhiteSpace(actionText) ? null : actionText.Trim();
+
+                if (string.IsNullOrWhiteSpace(actionUrl))
+                {
+                    actionText = null;
+                }
+
+                DateTime now = DateTime.Now;
+
+                var notifications = recipientIds.Select(uid => new Notification
+                {
+                    UserID = uid,
+                    Title = title,
+                    Content = content,
+                    ActionUrl = actionUrl,
+                    ActionText = actionText,
+                    IsRead = false,
+                    CreatedAt = now
+                }).ToList();
+
                 _context.Notifications.AddRange(notifications);
                 await _context.SaveChangesAsync();
 
-                // Ghi Log hệ thống cho hành động phát thông báo
-                var currentAdminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                _context.AuditLogs.Add(new AuditLog
-                {
-                    UserID = int.Parse(currentAdminId),
-                    Action = $"Phát thông báo Broadcast: '{title}'",
-                    Target = $"Users (Count: {notifications.Count})",
-                    CreatedAt = currentTime
-                });
-                await _context.SaveChangesAsync();
+                int actorId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int uid)
+                    ? uid
+                    : 0;
 
-                return Json(new { success = true, message = $"Chiến dịch thành công! Đã phát {notifications.Count} thông báo đến người dùng." });
+                string actorRole = isAdmin ? "Admin" : "Staff";
+                string targetSummary = BuildTargetSummary(targetType, targetRoleId, targetUserIds);
+
+                await _auditLogService.LogAsync(
+                    actorId,
+                    $"{actorRole} phát thông báo hệ thống: {title}",
+                    "SystemNotifications",
+                    $"Đối tượng: {targetSummary}; Số người nhận: {notifications.Count}",
+                    severity: "Info"
+                );
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"Đã phát thành công {notifications.Count} thông báo."
+                });
             }
             catch (Exception ex)
             {
-                // Bắt lỗi hệ thống để tránh crash server
-                return Json(new { success = false, message = "Lỗi máy chủ khi phát thông báo: " + ex.Message });
+                _logger.LogError(ex, "Lỗi phát thông báo hệ thống");
+
+                return Json(new
+                {
+                    success = false,
+                    message = "Lỗi máy chủ khi phát thông báo. Vui lòng thử lại sau."
+                });
             }
         }
 
-        // ==========================================
-        // 3. API CẤP SỐ LIỆU CHO QUẢ CHUÔNG (ADMIN BELL DASHBOARD)
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> GetAdminAlerts()
         {
             try
             {
-                var pendingProjects = await _context.Projects.CountAsync(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false);
-                var pendingProperties = await _context.Properties.CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
-                var newReports = await _context.PropertyReports.CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
+                bool isAdmin = User.IsInRole("Admin");
+                bool isStaff = User.IsInRole("Staff") && !isAdmin;
 
-                int totalAlerts = pendingProjects + pendingProperties + newReports;
+                int pendingProjects = 0;
+
+                if (isAdmin)
+                {
+                    pendingProjects = await _context.Projects
+                        .CountAsync(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false);
+                }
+
+                int pendingProperties = await _context.Properties
+                    .CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
+
+                int newReports = await _context.PropertyReports
+                    .CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
+
+                int pendingConsultations = await _context.Consultations
+                    .CountAsync(c => c.Status == "New");
+
+                int pendingContacts = await _context.ContactMessages
+                    .CountAsync(c => c.Status == "Pending" || c.Status == "Chưa xử lý");
+
+                int totalAlerts = pendingProjects
+                                + pendingProperties
+                                + newReports
+                                + pendingConsultations
+                                + pendingContacts;
 
                 return Json(new
                 {
@@ -188,13 +352,59 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     totalAlerts,
                     pendingProjects,
                     pendingProperties,
-                    newReports
+                    newReports,
+                    pendingConsultations,
+                    pendingContacts
                 });
             }
-            catch
+            catch (Exception ex)
             {
-                return Json(new { success = false });
+                _logger.LogError(ex, "Lỗi lấy cảnh báo hệ thống");
+
+                return Json(new
+                {
+                    success = false,
+                    message = "Không thể tải cảnh báo hệ thống."
+                });
             }
+        }
+
+        private string? NormalizeActionUrl(string? actionUrl)
+        {
+            if (string.IsNullOrWhiteSpace(actionUrl))
+                return null;
+
+            actionUrl = actionUrl.Trim();
+
+            if (actionUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                actionUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                actionUrl.StartsWith("//"))
+            {
+                return null;
+            }
+
+            if (!actionUrl.StartsWith("/"))
+            {
+                actionUrl = "/" + actionUrl;
+            }
+
+            if (actionUrl.Length > 500)
+            {
+                actionUrl = actionUrl.Substring(0, 500);
+            }
+
+            return actionUrl;
+        }
+
+        private string BuildTargetSummary(string targetType, int? targetRoleId, string? targetUserIds)
+        {
+            return targetType switch
+            {
+                "All" => "Toàn bộ hệ thống",
+                "Role" => $"Theo RoleID = {targetRoleId}",
+                "Specific" => $"Danh sách ID: {targetUserIds}",
+                _ => "Không xác định"
+            };
         }
     }
 }

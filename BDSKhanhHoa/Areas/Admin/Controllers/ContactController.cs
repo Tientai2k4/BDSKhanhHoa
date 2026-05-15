@@ -1,32 +1,31 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using BDSKhanhHoa.Data;
-using System.Threading.Tasks;
-using System.Linq;
+﻿using BDSKhanhHoa.Data;
+using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    [Authorize(Roles = "Admin, Staff")] // Phân quyền quản trị
-    [Route("Admin/[controller]")] // SỬA LỖI TẠI ĐÂY: Chỉ định nghĩa Route cha
+    [Authorize(Roles = "Admin, Staff")]
+    [Route("Admin/[controller]")]
     public class ContactController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAuditLogService _auditLogService; // Thêm Service Log
 
-        public ContactController(ApplicationDbContext context)
+        public ContactController(ApplicationDbContext context, IAuditLogService auditLogService)
         {
             _context = context;
+            _auditLogService = auditLogService;
         }
 
-        // ==========================================
-        // 1. DANH SÁCH & TÌM KIẾM LIÊN HỆ 
-        // ==========================================
-        [HttpGet("")]      // Cho phép truy cập bằng: /Admin/Contact
-        [HttpGet("Index")] // Cho phép truy cập bằng: /Admin/Contact/Index
+        [HttpGet("")]
+        [HttpGet("Index")]
         public async Task<IActionResult> Index(string? keyword, string? status)
         {
-            // BỘ LỌC THÉP: Chỉ lấy liên hệ công khai (Không có UserID và Không có ProjectID)
             var query = _context.ContactMessages
                 .AsNoTracking()
                 .Where(c => c.UserID == null && c.ProjectID == null)
@@ -54,13 +53,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(contacts);
         }
 
-        // ==========================================
-        // 2. XEM CHI TIẾT
-        // ==========================================
-        [HttpGet("Details/{id?}")] // Xử lý chuẩn cho URL: /Admin/Contact/Details/3
+        [HttpGet("Details/{id?}")]
         public async Task<IActionResult> Details(int id)
         {
-            // Chỉ tìm đúng trong nhóm khách vãng lai
             var contact = await _context.ContactMessages
                 .FirstOrDefaultAsync(c => c.ContactID == id && c.UserID == null && c.ProjectID == null);
 
@@ -69,10 +64,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(contact);
         }
 
-        // ==========================================
-        // 3. CẬP NHẬT TRẠNG THÁI
-        // ==========================================
-        [HttpPost("UpdateStatus")] // Xử lý cho Form submit tới: /Admin/Contact/UpdateStatus
+        [HttpPost("UpdateStatus")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(int id, string status)
         {
@@ -84,6 +76,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 contact.Status = status;
                 contact.UpdatedAt = System.DateTime.Now;
                 await _context.SaveChangesAsync();
+
+                // GHI LOG
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Cập nhật trạng thái liên hệ", "Contact", $"ContactID: {id} -> {status}", severity: "Info");
+
                 TempData["SuccessMsg"] = "Cập nhật trạng thái xử lý thành công!";
             }
             else
@@ -93,10 +90,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Details), new { id = id });
         }
 
-        // ==========================================
-        // 4. XÓA TIN NHẮN
-        // ==========================================
-        [HttpPost("Delete")] // Xử lý cho Form submit tới: /Admin/Contact/Delete
+        [HttpPost("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
@@ -107,6 +101,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             {
                 _context.ContactMessages.Remove(contact);
                 await _context.SaveChangesAsync();
+
+                // GHI LOG
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Xóa tin nhắn liên hệ", "Contact", $"ContactID: {id}", severity: "Warning");
+
                 TempData["SuccessMsg"] = "Đã xóa tin nhắn liên hệ khỏi hệ thống.";
             }
             return RedirectToAction(nameof(Index));

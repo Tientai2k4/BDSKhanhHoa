@@ -4,31 +4,31 @@
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container-fluid px-4 mt-4">
+<div class="container-fluid px-4 mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h4 class="fw-bold mb-0 text-dark"><i class="bi bi-flag-fill me-2 text-danger"></i>QUẢN LÝ BÁO CÁO VI PHẠM</h4>
     </div>
 
     <div class="card border-0 shadow-sm mb-4 rounded-4">
-        <div class="card-body">
+        <div class="card-body p-4">
             <form method="get" class="row g-3">
                 <div class="col-lg-6 col-md-12">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                         <input type="text" name="searchString" value="@ViewBag.SearchString"
-                               class="form-control border-start-0" placeholder="Tìm kiếm theo lý do hoặc tiêu đề tin...">
+                               class="form-control border-start-0 ps-0" placeholder="Tìm kiếm theo lý do hoặc tiêu đề tin...">
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-8">
                     <select name="status" class="form-select">
                         <option value="All" selected="@(ViewBag.CurrentStatus == "All" ? "selected" : null)">-- Tất cả báo cáo --</option>
                         <option value="Pending" selected="@(ViewBag.CurrentStatus == "Pending" ? "selected" : null)">Chờ xử lý (Mới)</option>
-                        <option value="Processed" selected="@(ViewBag.CurrentStatus == "Processed" ? "selected" : null)">Đã xử lý (Duyệt)</option>
+                        <option value="Processed" selected="@(ViewBag.CurrentStatus == "Processed" ? "selected" : null)">Đã xử lý (Ghi nhận vi phạm)</option>
                         <option value="Rejected" selected="@(ViewBag.CurrentStatus == "Rejected" ? "selected" : null)">Đã từ chối (Báo cáo sai)</option>
                     </select>
                 </div>
                 <div class="col-lg-2 col-md-4">
-                    <button type="submit" class="btn btn-dark w-100 fw-bold"><i class="bi bi-funnel me-1"></i> Lọc</button>
+                    <button type="submit" class="btn btn-dark w-100 fw-bold"><i class="bi bi-funnel me-1"></i> Lọc dữ liệu</button>
                 </div>
             </form>
         </div>
@@ -39,12 +39,12 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-light text-uppercase">
                     <tr>
-                        <th class="ps-4 py-3 text-muted small">Người báo cáo</th>
-                        <th class="text-muted small">Tin bị báo cáo</th>
-                        <th class="text-muted small">Lý do chính</th>
-                        <th class="text-muted small">Ngày gửi</th>
-                        <th class="text-muted small">Trạng thái</th>
-                        <th class="text-center pe-4 text-muted small">Xử lý</th>
+                        <th class="ps-4 py-3 text-muted small fw-bold">Người báo cáo</th>
+                        <th class="text-muted small fw-bold">Tin bị báo cáo</th>
+                        <th class="text-muted small fw-bold">Lý do chính</th>
+                        <th class="text-muted small fw-bold">Ngày gửi</th>
+                        <th class="text-muted small fw-bold">Trạng thái</th>
+                        <th class="text-center pe-4 text-muted small fw-bold">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -52,7 +52,7 @@
                     {
                         <tr>
                             <td class="ps-4 py-3">
-                                <div class="fw-bold">@(item.User?.FullName ?? "Ẩn danh")</div>
+                                <div class="fw-bold text-dark">@(item.User?.FullName ?? "Ẩn danh")</div>
                                 <div class="small text-muted">ID: #@item.ReportedBy</div>
                             </td>
                             <td style="max-width: 250px;">
@@ -61,18 +61,18 @@
                                     <a href="/Property/Details/@item.PropertyID" target="_blank" class="text-decoration-none fw-bold text-primary text-truncate d-block" title="@item.Property.Title">
                                         @item.Property.Title
                                     </a>
-                                    <span class="small text-muted"><i class="bi bi-hash"></i>@item.PropertyID</span>
+                                    <span class="small text-muted"><i class="bi bi-hash"></i>ID Tin: @item.PropertyID</span>
                                 }
                                 else
                                 {
-                                    <span class="text-danger small">Tin đã bị xóa khỏi DB</span>
+                                    <span class="text-danger small fw-bold"><i class="bi bi-trash-fill"></i> Tin đã bị xóa khỏi CSDL</span>
                                 }
                             </td>
                             <td>
-                                <span class="badge bg-danger-subtle text-danger">@item.Reason</span>
+                                <span class="badge bg-danger-subtle text-danger border border-danger border-opacity-25 px-2 py-1">@item.Reason</span>
                             </td>
                             <td>
-                                <div class="small">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
+                                <div class="small fw-medium text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
                                 <div class="small text-muted">@item.CreatedAt.ToString("HH:mm")</div>
                             </td>
                             <td>
@@ -90,8 +90,8 @@
                                 }
                             </td>
                             <td class="text-center pe-4">
-                                <a asp-action="Details" asp-route-id="@item.ReportID" class="btn btn-sm btn-primary rounded-pill shadow-sm px-3">
-                                    @(item.Status == "Pending" ? "Xử lý ngay" : "Xem lại")
+                                <a asp-action="Details" asp-route-id="@item.ReportID" class="btn btn-sm @(item.Status == "Pending" ? "btn-primary" : "btn-outline-secondary") rounded-pill shadow-sm px-3 fw-bold">
+                                    @(item.Status == "Pending" ? "Xử lý ngay" : "Xem hồ sơ")
                                 </a>
                             </td>
                         </tr>
@@ -100,8 +100,9 @@
                     {
                         <tr>
                             <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="bi bi-check-circle display-4 d-block mb-3 text-success opacity-50"></i>
-                                Tuyệt vời! Không có báo cáo vi phạm nào cần xử lý.
+                                <i class="bi bi-shield-check display-3 d-block mb-3 text-success opacity-50"></i>
+                                <h5 class="fw-bold">Hệ thống an toàn!</h5>
+                                <p class="mb-0">Không có báo cáo vi phạm nào khớp với bộ lọc hiện tại.</p>
                             </td>
                         </tr>
                     }

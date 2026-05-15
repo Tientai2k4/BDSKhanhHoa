@@ -1,236 +1,822 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.User>
+@using System.Text.Json
+
 @{
     ViewData["Title"] = "Quản lý thành viên";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
-    // Ép kiểu Role Dictionary
     var roleDict = ViewBag.RoleDictionary as Dictionary<int, string> ?? new Dictionary<int, string>();
     var rolesList = ViewBag.Roles as List<BDSKhanhHoa.Models.Role> ?? new List<BDSKhanhHoa.Models.Role>();
 
     int currentPage = ViewBag.CurrentPage ?? 1;
     int totalPages = ViewBag.TotalPages ?? 1;
+
+    string searchString = ViewBag.SearchString ?? "";
+    int? selectedRoleId = ViewBag.RoleId as int?;
+    string verifyStatus = ViewBag.VerifyStatus ?? "";
+
+    int totalUsers = ViewBag.TotalUsers ?? 0;
+    int activeUsers = ViewBag.ActiveUsers ?? 0;
+    int lockedUsers = ViewBag.LockedUsers ?? 0;
+    int unverifiedUsers = ViewBag.UnverifiedUsers ?? 0;
+    int trashCount = ViewBag.TrashCount ?? 0;
 }
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
-<div class="container-fluid px-4 mt-4 animate__animated animate__fadeIn">
+<style>
+    .users-page {
+        background: radial-gradient(circle at 5% 0%, rgba(37,99,235,.08), transparent 28%), radial-gradient(circle at 95% 0%, rgba(124,58,237,.08), transparent 28%), linear-gradient(180deg, #f8fafc 0%, #f4f7fb 100%);
+        min-height: calc(100vh - 80px);
+        padding: 18px 0 34px;
+    }
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded-4 shadow-sm border border-primary-subtle d-flex align-items-center gap-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-people-fill fs-5"></i></div>
-                <div><h4 class="mb-0 fw-bold">@ViewBag.TotalUsers</h4><small class="text-muted fw-medium">Tổng tài khoản</small></div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded-4 shadow-sm border border-success-subtle d-flex align-items-center gap-3">
-                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-person-check-fill fs-5"></i></div>
-                <div><h4 class="mb-0 fw-bold text-success">@ViewBag.ActiveUsers</h4><small class="text-muted fw-medium">Đang hoạt động</small></div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded-4 shadow-sm border border-warning-subtle d-flex align-items-center gap-3">
-                <div class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-person-fill-lock fs-5"></i></div>
-                <div><h4 class="mb-0 fw-bold text-warning">@ViewBag.LockedUsers</h4><small class="text-muted fw-medium">Đang bị khóa</small></div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="p-3 bg-white rounded-4 shadow-sm border border-danger-subtle d-flex align-items-center gap-3">
-                <div class="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;"><i class="bi bi-trash3-fill fs-5"></i></div>
-                <div><h4 class="mb-0 fw-bold text-danger">@ViewBag.TrashCount</h4><small class="text-muted fw-medium">Trong thùng rác</small></div>
-            </div>
-        </div>
-    </div>
+    .stat-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: 0 12px 34px rgba(15,23,42,.06);
+        height: 100%;
+        display: flex;
+        align-items: center;
+        gap: 13px;
+    }
 
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 bg-white p-3 rounded-4 shadow-sm border">
-        <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-person-lines-fill me-2 text-primary"></i>HỒ SƠ NGƯỜI DÙNG</h5>
-        <div class="d-flex gap-2">
-            <a asp-action="Trash" class="btn btn-light border shadow-sm px-4 fw-bold text-danger">
-                <i class="bi bi-trash3 me-1"></i> Thùng rác (@ViewBag.TrashCount)
-            </a>
-            <a href="@Url.Action("ExportCsv", new { searchString = ViewBag.SearchString, roleId = ViewBag.RoleId })" class="btn btn-success shadow-sm px-4 fw-bold">
-                <i class="bi bi-file-earmark-excel me-1"></i> Xuất dữ liệu
-            </a>
-            <a asp-action="Create" class="btn btn-primary shadow-sm px-4 fw-bold">
-                <i class="bi bi-person-plus me-1"></i> Cấp tài khoản mới
-            </a>
-        </div>
-    </div>
+    .stat-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 1.2rem;
+        flex: 0 0 auto;
+    }
 
-    <div class="card border-0 shadow-sm mb-4 rounded-4">
-        <div class="card-body">
-            <form method="get" class="row g-3 align-items-end">
-                <div class="col-lg-5 col-md-12">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Tìm kiếm hồ sơ</label>
-                    <div class="input-group shadow-sm rounded-3 overflow-hidden">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" name="searchString" value="@ViewBag.SearchString" class="form-control border-start-0" placeholder="Tên, Username, Email, SĐT...">
+    .stat-label {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .stat-value {
+        margin: 0;
+        font-weight: 950;
+        color: #0f172a;
+        line-height: 1.1;
+    }
+
+    .bg-blue {
+        background: linear-gradient(135deg, #38bdf8, #2563eb);
+    }
+
+    .bg-green {
+        background: linear-gradient(135deg, #34d399, #16a34a);
+    }
+
+    .bg-orange {
+        background: linear-gradient(135deg, #fbbf24, #f97316);
+    }
+
+    .bg-red {
+        background: linear-gradient(135deg, #fb7185, #dc2626);
+    }
+
+    .bg-purple {
+        background: linear-gradient(135deg, #c084fc, #7c3aed);
+    }
+
+    .panel-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 22px;
+        box-shadow: 0 14px 38px rgba(15,23,42,.06);
+    }
+
+    .page-head {
+        padding: 18px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .page-title {
+        margin: 0;
+        font-weight: 950;
+        color: #0f172a;
+        font-size: 1.08rem;
+    }
+
+    .page-subtitle {
+        margin: 4px 0 0;
+        color: #64748b;
+        font-size: .82rem;
+        font-weight: 650;
+    }
+
+    .toolbar-btn {
+        min-height: 40px;
+        border: 0;
+        border-radius: 14px;
+        padding: 9px 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: .82rem;
+        font-weight: 900;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .filter-card {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+        .filter-card .form-control,
+        .filter-card .form-select {
+            border-radius: 14px;
+            border-color: #e2e8f0;
+            min-height: 42px;
+            font-size: .84rem;
+            font-weight: 700;
+            box-shadow: none !important;
+        }
+
+    .filter-label {
+        font-size: .7rem;
+        font-weight: 900;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        margin-bottom: 5px;
+    }
+
+    .user-avatar {
+        width: 45px;
+        height: 45px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 8px 16px rgba(15,23,42,.12);
+        background: #f1f5f9;
+    }
+
+    .table-modern {
+        margin: 0;
+        font-size: .84rem;
+    }
+
+        .table-modern thead th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: .7rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 950;
+            padding: 14px;
+            border-bottom: 1px solid #e5e7eb;
+            white-space: nowrap;
+        }
+
+        .table-modern tbody td {
+            padding: 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-active {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .status-locked {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .status-unverified {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .role-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .action-group {
+        display: inline-flex;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        background: #fff;
+    }
+
+        .action-group .btn {
+            border: 0;
+            border-radius: 0;
+        }
+
+    .verify-note {
+        color: #b45309;
+        font-size: .72rem;
+        font-weight: 750;
+        margin-top: 5px;
+    }
+
+    .switch-disabled {
+        opacity: .55;
+        cursor: not-allowed !important;
+    }
+
+    @@media (max-width: 767.98px) {
+        .page-head {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .toolbar-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .table-modern {
+            min-width: 980px;
+        }
+    }
+</style>
+
+<div class="users-page animate__animated animate__fadeIn">
+    <div class="container-fluid px-4">
+        @if (TempData["Success"] != null || TempData["Warning"] != null || TempData["Error"] != null)
+        {
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    @if (TempData["Success"] != null)
+                    {
+                            <text>
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Success"]?.ToString())),
+                                    showConfirmButton: false,
+                                    timer: 3000,
+                                    timerProgressBar: true
+                                });
+                            </text>
+                    }
+
+                    @if (TempData["Warning"] != null)
+                    {
+                            <text>
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'warning',
+                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Warning"]?.ToString())),
+                                    showConfirmButton: false,
+                                    timer: 4000,
+                                    timerProgressBar: true
+                                });
+                            </text>
+                    }
+
+                    @if (TempData["Error"] != null)
+                    {
+                            <text>
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'error',
+                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Error"]?.ToString())),
+                                    showConfirmButton: false,
+                                    timer: 4000,
+                                    timerProgressBar: true
+                                });
+                            </text>
+                    }
+                });
+            </script>
+        }
+
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="stat-icon bg-blue">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <div>
+                        <h4 class="stat-value">@totalUsers.ToString("N0")</h4>
+                        <div class="stat-label">Tổng tài khoản</div>
                     </div>
                 </div>
-                <div class="col-lg-3 col-md-6">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Phân quyền</label>
-                    <select name="roleId" class="form-select shadow-sm">
-                        <option value="">-- Tất cả hệ thống --</option>
+            </div>
+
+            <div class="col-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="stat-icon bg-green">
+                        <i class="bi bi-person-check-fill"></i>
+                    </div>
+                    <div>
+                        <h4 class="stat-value text-success">@activeUsers.ToString("N0")</h4>
+                        <div class="stat-label">Đang hoạt động</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="stat-icon bg-orange">
+                        <i class="bi bi-envelope-exclamation-fill"></i>
+                    </div>
+                    <div>
+                        <h4 class="stat-value text-warning">@unverifiedUsers.ToString("N0")</h4>
+                        <div class="stat-label">Chưa xác thực OTP</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="stat-icon bg-red">
+                        <i class="bi bi-person-fill-lock"></i>
+                    </div>
+                    <div>
+                        <h4 class="stat-value text-danger">@lockedUsers.ToString("N0")</h4>
+                        <div class="stat-label">Bị khóa sau xác thực</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card mb-3">
+            <div class="page-head">
+                <div>
+                    <h5 class="page-title">
+                        <i class="bi bi-person-lines-fill text-primary me-2"></i>
+                        Hồ sơ người dùng
+                    </h5>
+                    <p class="page-subtitle">
+                        Tài khoản mới đăng ký sẽ hiển thị “Chưa xác thực OTP” và không thể mở khóa thủ công trước khi xác thực.
+                    </p>
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <a asp-action="Trash" class="toolbar-btn btn btn-light border text-danger">
+                        <i class="bi bi-trash3"></i>
+                        Thùng rác (@trashCount)
+                    </a>
+
+                    <a href="@Url.Action("ExportCsv", new { searchString = searchString, roleId = selectedRoleId })" class="toolbar-btn btn btn-success text-white">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        Xuất dữ liệu
+                    </a>
+
+                    <a asp-action="Create" class="toolbar-btn btn btn-primary text-white">
+                        <i class="bi bi-person-plus"></i>
+                        Cấp tài khoản mới
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card filter-card">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-12 col-lg-4">
+                    <div class="filter-label">Tìm kiếm hồ sơ</div>
+                    <input type="text"
+                           name="searchString"
+                           value="@searchString"
+                           class="form-control"
+                           placeholder="Tên, Username, Email, SĐT..." />
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="filter-label">Phân quyền</div>
+                    <select name="roleId" class="form-select">
+                        <option value="">-- Tất cả vai trò --</option>
                         @foreach (var role in rolesList)
                         {
-                            <option value="@role.RoleID" selected="@(ViewBag.RoleId == role.RoleID ? "selected" : null)">@role.RoleName</option>
+                            if (selectedRoleId == role.RoleID)
+                            {
+                                <option value="@role.RoleID" selected>@role.RoleName</option>
+                            }
+                            else
+                            {
+                                <option value="@role.RoleID">@role.RoleName</option>
+                            }
                         }
                     </select>
                 </div>
-                <div class="col-lg-4 col-md-6 d-flex gap-2">
-                    <button type="submit" class="btn btn-dark w-100 fw-bold shadow-sm"><i class="bi bi-funnel me-1"></i> Lọc dữ liệu</button>
-                    <a asp-action="Index" class="btn btn-light border fw-bold shadow-sm"><i class="bi bi-arrow-counterclockwise"></i></a>
+
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="filter-label">Trạng thái xác thực</div>
+                    <select name="verifyStatus" class="form-select">
+                        @if (string.IsNullOrWhiteSpace(verifyStatus))
+                        {
+                            <option value="" selected>-- Tất cả trạng thái --</option>
+                        }
+                        else
+                        {
+                            <option value="">-- Tất cả trạng thái --</option>
+                        }
+
+                        @if (verifyStatus == "verified")
+                        {
+                            <option value="verified" selected>Đã xác thực Email</option>
+                        }
+                        else
+                        {
+                            <option value="verified">Đã xác thực Email</option>
+                        }
+
+                        @if (verifyStatus == "unverified")
+                        {
+                            <option value="unverified" selected>Chưa xác thực OTP</option>
+                        }
+                        else
+                        {
+                            <option value="unverified">Chưa xác thực OTP</option>
+                        }
+
+                        @if (verifyStatus == "active")
+                        {
+                            <option value="active" selected>Đang hoạt động</option>
+                        }
+                        else
+                        {
+                            <option value="active">Đang hoạt động</option>
+                        }
+
+                        @if (verifyStatus == "locked")
+                        {
+                            <option value="locked" selected>Bị khóa sau xác thực</option>
+                        }
+                        else
+                        {
+                            <option value="locked">Bị khóa sau xác thực</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-dark w-100 fw-bold">
+                        <i class="bi bi-funnel me-1"></i>
+                        Lọc
+                    </button>
+
+                    <a asp-action="Index" class="btn btn-light border fw-bold">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
                 </div>
             </form>
         </div>
-    </div>
 
-    <div class="card border-0 shadow-sm overflow-hidden rounded-4 mb-4">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light text-uppercase">
-                    <tr>
-                        <th class="ps-4 py-3 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Thành viên</th>
-                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Thông tin liên hệ</th>
-                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Quyền hạn (Role)</th>
-                        <th class="text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Trạng thái</th>
-                        <th class="text-center pe-4 text-muted" style="font-size: 0.75rem; letter-spacing: 1px;">Xử lý</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model)
-                    {
-                        <tr id="user-row-@item.UserID">
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-center">
-                                    <img src="@(string.IsNullOrEmpty(item.Avatar) ? "/images/avatars/default.png" : item.Avatar)"
-                                         class="rounded-circle border me-3 shadow-sm" width="45" height="45" style="object-fit:cover;">
-                                    <div>
-                                        <div class="fw-bold text-dark fs-6">@(item.FullName ?? item.Username)</div>
-                                        <div class="small text-muted fw-bold">@@@item.Username</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="small text-dark fw-medium mb-1"><i class="bi bi-envelope text-primary me-1"></i> @item.Email</div>
-                                <div class="small text-muted"><i class="bi bi-telephone text-primary me-1"></i> @(item.Phone ?? "Chưa cập nhật SĐT")</div>
-                            </td>
-                            <td>
-                                @{
-                                    string roleStr = roleDict.ContainsKey(item.RoleID) ? roleDict[item.RoleID] : "Không xác định";
-                                    string badgeClass = roleStr.ToLower().Contains("admin") ? "bg-danger-subtle text-danger" :
-                                    roleStr.ToLower().Contains("staff") ? "bg-warning-subtle text-warning-emphasis" :
-                                    "bg-info-subtle text-info-emphasis";
-                                }
-                                <span class="badge @badgeClass px-3 py-2 rounded-pill fw-bold border shadow-sm">
-                                    <i class="bi bi-shield-fill-check me-1"></i> @roleStr.ToUpper()
-                                </span>
-                            </td>
-                            <td>
-                                <div class="form-check form-switch pt-1">
-                                    <input class="form-check-input fs-5 cursor-pointer shadow-sm" type="checkbox" role="switch"
-                                           id="switch-@item.UserID" @(item.IsActive ? "checked" : "")
-                                           onchange="toggleUserStatus(@item.UserID)">
-                                    <label class="form-check-label small ms-1 fw-bold mt-1" for="switch-@item.UserID" id="status-text-@item.UserID" style="color: @(item.IsActive ? "#10b981" : "#ef4444")">
-                                        @(item.IsActive ? "Đang mở" : "Bị khóa")
-                                    </label>
-                                </div>
-                            </td>
-                            <td class="text-center pe-4">
-                                <div class="btn-group shadow-sm border rounded-3 overflow-hidden bg-white">
-                                    <a asp-action="Details" asp-route-id="@item.UserID" class="btn btn-sm btn-light text-primary" title="Chi tiết nhật ký"><i class="bi bi-journal-text"></i></a>
-                                    <a asp-action="Edit" asp-route-id="@item.UserID" class="btn btn-sm btn-light border-start border-end text-warning" title="Chỉnh sửa"><i class="bi bi-pencil-square"></i></a>
-                                    <button type="button" class="btn btn-sm btn-light text-danger" onclick="confirmSoftDelete(@item.UserID)" title="Xóa hồ sơ"><i class="bi bi-trash3"></i></button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    @if (!Model.Any())
-                    {
+        <div class="panel-card overflow-hidden">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle table-modern">
+                    <thead>
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-muted">
-                                <i class="bi bi-people display-4 d-block mb-3 opacity-25"></i>
-                                <h6 class="fw-bold">Không có dữ liệu!</h6>
-                                <p class="small">Chưa có người dùng nào khớp với bộ lọc hiện tại.</p>
-                            </td>
+                            <th class="ps-4">Thành viên</th>
+                            <th>Thông tin liên hệ</th>
+                            <th>Quyền hạn</th>
+                            <th>Xác thực Email</th>
+                            <th>Trạng thái tài khoản</th>
+                            <th class="text-center pe-4">Xử lý</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                    </thead>
 
-        @if (totalPages > 1)
-        {
-            <div class="d-flex justify-content-center p-3 border-top bg-white">
-                <nav>
-                    <ul class="pagination mb-0">
-                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                            <a class="page-link shadow-sm rounded-start-3" href="?page=@(currentPage - 1)&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId"><i class="bi bi-chevron-left"></i></a>
-                        </li>
-                        @for (int i = 1; i <= totalPages; i++)
+                    <tbody>
+                        @foreach (var item in Model)
                         {
-                            <li class="page-item @(currentPage == i ? "active" : "")">
-                                <a class="page-link shadow-sm" href="?page=@i&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId">@i</a>
-                            </li>
+                            string avatar = string.IsNullOrWhiteSpace(item.Avatar)
+                            ? "/images/avatars/default-user.png"
+                            : item.Avatar;
+
+                            string displayName = !string.IsNullOrWhiteSpace(item.FullName)
+                            ? item.FullName
+                            : item.Username;
+
+                            string roleStr = roleDict.ContainsKey(item.RoleID)
+                            ? roleDict[item.RoleID]
+                            : "Không xác định";
+
+                            string badgeClass = roleStr.ToLower().Contains("admin")
+                            ? "bg-danger-subtle text-danger"
+                            : roleStr.ToLower().Contains("staff")
+                            ? "bg-warning-subtle text-warning-emphasis"
+                            : "bg-info-subtle text-info-emphasis";
+
+                            bool isVerified = item.IsEmailVerified == true;
+                            bool canToggle = isVerified;
+
+                            <tr id="user-row-@item.UserID">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <img src="@avatar"
+                                             class="user-avatar me-3"
+                                             alt="@displayName"
+                                             onerror="this.src='/images/avatars/default-user.png'" />
+
+                                        <div>
+                                            <div class="fw-bold text-dark">@displayName</div>
+                                            <div class="small text-muted fw-bold">@@@item.Username</div>
+                                            <div class="small text-muted">ID: @item.UserID</div>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <div class="small text-dark fw-medium mb-1">
+                                        <i class="bi bi-envelope text-primary me-1"></i>
+                                        @item.Email
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        <i class="bi bi-telephone text-primary me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(item.Phone) ? "Chưa cập nhật SĐT" : item.Phone)
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <span class="role-badge @badgeClass">
+                                        <i class="bi bi-shield-fill-check"></i>
+                                        @roleStr.ToUpper()
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @if (isVerified)
+                                    {
+                                        <span class="status-pill status-active">
+                                            <i class="bi bi-patch-check-fill"></i>
+                                            Đã xác thực
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill status-unverified">
+                                            <i class="bi bi-envelope-exclamation-fill"></i>
+                                            Chưa xác thực OTP
+                                        </span>
+
+                                        <div class="verify-note">
+                                            Chưa được phép mở khóa.
+                                        </div>
+                                    }
+                                </td>
+
+                                <td>
+                                    @if (!isVerified)
+                                    {
+                                        <span class="status-pill status-unverified">
+                                            <i class="bi bi-lock-fill"></i>
+                                            Khóa chờ OTP
+                                        </span>
+                                    }
+                                    else if (item.IsActive)
+                                    {
+                                        <span class="status-pill status-active">
+                                            <i class="bi bi-unlock-fill"></i>
+                                            Đang mở
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill status-locked">
+                                            <i class="bi bi-lock-fill"></i>
+                                            Bị khóa
+                                        </span>
+                                    }
+
+                                    <div class="form-check form-switch pt-2">
+                                        <input class="form-check-input fs-5 shadow-sm @(canToggle ? "" : "switch-disabled")"
+                                               type="checkbox"
+                                               role="switch"
+                                               id="switch-@item.UserID"
+                                               @(item.IsActive ? "checked" : "")
+                                               @(canToggle ? "" : "disabled")
+                                               onchange="toggleUserStatus(@item.UserID)" />
+
+                                        <label class="form-check-label small ms-1 fw-bold mt-1"
+                                               for="switch-@item.UserID"
+                                               id="status-text-@item.UserID"
+                                               style="color: @(item.IsActive && isVerified ? "#10b981" : "#ef4444")">
+                                            @if (!isVerified)
+                                            {
+                                                <text>Chờ OTP</text>
+                                            }
+                                            else
+                                            {
+                                                <text>@(item.IsActive ? "Đang mở" : "Bị khóa")</text>
+                                            }
+                                        </label>
+                                    </div>
+                                </td>
+
+                                <td class="text-center pe-4">
+                                    <div class="action-group">
+                                        <a asp-action="Details"
+                                           asp-route-id="@item.UserID"
+                                           class="btn btn-sm btn-light text-primary"
+                                           title="Chi tiết nhật ký">
+                                            <i class="bi bi-journal-text"></i>
+                                        </a>
+
+                                        <a asp-action="Edit"
+                                           asp-route-id="@item.UserID"
+                                           class="btn btn-sm btn-light text-warning border-start border-end"
+                                           title="Chỉnh sửa">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+
+                                        <button type="button"
+                                                class="btn btn-sm btn-light text-danger"
+                                                onclick="confirmSoftDelete(@item.UserID)"
+                                                title="Xóa hồ sơ">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
                         }
-                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                            <a class="page-link shadow-sm rounded-end-3" href="?page=@(currentPage + 1)&searchString=@ViewBag.SearchString&roleId=@ViewBag.RoleId"><i class="bi bi-chevron-right"></i></a>
-                        </li>
-                    </ul>
-                </nav>
+
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-5 text-muted">
+                                    <i class="bi bi-people display-4 d-block mb-3 opacity-25"></i>
+                                    <h6 class="fw-bold">Không có dữ liệu</h6>
+                                    <p class="small mb-0">Chưa có người dùng nào khớp với bộ lọc hiện tại.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
-        }
+
+            @if (totalPages > 1)
+            {
+                <div class="d-flex justify-content-center p-3 border-top bg-white">
+                    <nav>
+                        <ul class="pagination mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <a class="page-link"
+                                   href="@Url.Action("Index", new { page = currentPage - 1, searchString = searchString, roleId = selectedRoleId, verifyStatus = verifyStatus })">
+                                    <i class="bi bi-chevron-left"></i>
+                                </a>
+                            </li>
+
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(currentPage == i ? "active" : "")">
+                                    <a class="page-link"
+                                       href="@Url.Action("Index", new { page = i, searchString = searchString, roleId = selectedRoleId, verifyStatus = verifyStatus })">
+                                        @i
+                                    </a>
+                                </li>
+                            }
+
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <a class="page-link"
+                                   href="@Url.Action("Index", new { page = currentPage + 1, searchString = searchString, roleId = selectedRoleId, verifyStatus = verifyStatus })">
+                                    <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
     </div>
 </div>
 
 @section Scripts {
     <script>
-        @if (TempData["Success"] != null)
-        {
-            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</text>
-        }
-        @if (TempData["Error"] != null)
-        {
-            <text>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</text>
-        }
-
         function toggleUserStatus(id) {
-            $.post('/Admin/Users/ToggleStatus/' + id, function(res) {
-                if(res.success) {
-                    let label = $('#status-text-' + id);
-                    label.text(res.isActive ? "Đang mở" : "Bị khóa");
-                    label.css("color", res.isActive ? "#10b981" : "#ef4444");
-                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã cập nhật trạng thái!', showConfirmButton: false, timer: 2000 });
-                } else {
-                    Swal.fire('Lỗi bảo mật', res.message || 'Không thể thực hiện.', 'error');
-                    $('#switch-' + id).prop('checked', !$('#switch-' + id).prop('checked'));
-                }
-            });
+            const switchElement = document.getElementById('switch-' + id);
+            const statusText = document.getElementById('status-text-' + id);
+            const originalChecked = switchElement.checked;
+
+            fetch('/Admin/Users/ToggleStatus/' + id, {
+                method: 'POST'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        switchElement.checked = !originalChecked;
+
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Không thể mở khóa',
+                            text: data.message || 'Không thể cập nhật trạng thái tài khoản.',
+                            confirmButtonColor: '#f59e0b'
+                        });
+
+                        return;
+                    }
+
+                    if (data.isActive) {
+                        statusText.innerText = 'Đang mở';
+                        statusText.style.color = '#10b981';
+
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: data.message || 'Đã mở khóa tài khoản',
+                            showConfirmButton: false,
+                            timer: 1800
+                        });
+                    } else {
+                        statusText.innerText = 'Bị khóa';
+                        statusText.style.color = '#ef4444';
+
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'warning',
+                            title: data.message || 'Đã khóa tài khoản',
+                            showConfirmButton: false,
+                            timer: 1800
+                        });
+                    }
+
+                    setTimeout(function () {
+                        location.reload();
+                    }, 650);
+                })
+                .catch(() => {
+                    switchElement.checked = !originalChecked;
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi hệ thống',
+                        text: 'Không thể kết nối đến máy chủ.',
+                        confirmButtonColor: '#dc2626'
+                    });
+                });
         }
 
         function confirmSoftDelete(id) {
             Swal.fire({
-                title: 'Khóa và Đưa vào thùng rác?',
-                text: "Tài khoản sẽ bị vô hiệu hóa hoàn toàn khỏi hệ thống.",
+                title: 'Đưa vào thùng rác?',
+                text: 'Tài khoản này sẽ bị khóa và chuyển vào thùng rác.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#ef4444',
+                confirmButtonColor: '#dc2626',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: '<i class="bi bi-trash"></i> Xóa tài khoản',
-                cancelButtonText: 'Hủy thao tác'
+                confirmButtonText: 'Đồng ý xóa',
+                cancelButtonText: 'Hủy'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    $.post('/Admin/Users/SoftDelete/' + id, function(res) {
-                        if(res.success) {
-                            $('#user-row-' + id).fadeOut(400, function() { $(this).remove(); });
-                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã chuyển vào thùng rác!', showConfirmButton: false, timer: 2000 });
-                        } else {
-                            Swal.fire('Lỗi hệ thống', res.message || 'Không thể xóa.', 'error');
-                        }
-                    });
+                    fetch('/Admin/Users/SoftDelete/' + id, {
+                        method: 'POST'
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Đã chuyển vào thùng rác',
+                                    timer: 1200,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire('Không thành công', data.message || 'Không thể xóa tài khoản.', 'error');
+                            }
+                        })
+                        .catch(() => {
+                            Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                        });
                 }
-            })
+            });
         }
     </script>
 }

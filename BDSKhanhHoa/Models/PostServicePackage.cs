@@ -9,32 +9,33 @@ namespace BDSKhanhHoa.Models
         [Key]
         public int PackageID { get; set; }
 
-        [Required(ErrorMessage = "Vui lòng chọn loại gói.")]
+        [Required(ErrorMessage = "Vui lòng chọn phân loại gói.")]
         [Display(Name = "Phân loại gói")]
         [StringLength(50)]
-        public string PackageType { get; set; } // Kim Cương, Vàng, Bạc, Đồng, Tin Thường
+        public string PackageType { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Vui lòng nhập tên hiển thị cho gói.")]
-        [StringLength(100, ErrorMessage = "Tên gói không được vượt quá 100 ký tự")]
-        [Display(Name = "Tên hiển thị của gói")]
-        public string PackageName { get; set; }
+        [Required(ErrorMessage = "Vui lòng nhập tên hiển thị của gói.")]
+        [StringLength(100, ErrorMessage = "Tên gói không được vượt quá 100 ký tự.")]
+        [Display(Name = "Tên hiển thị")]
+        public string PackageName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Vui lòng nhập giá gói.")]
-        [Range(0, double.MaxValue, ErrorMessage = "Giá gói không hợp lệ")]
-        [Display(Name = "Giá tiền (VNĐ)")]
+        [Range(0, double.MaxValue, ErrorMessage = "Giá gói không hợp lệ.")]
+        [Display(Name = "Giá tiền")]
         public decimal Price { get; set; }
 
-        [Required(ErrorMessage = "Vui lòng nhập số ngày hiển thị.")]
-        [Range(1, 365, ErrorMessage = "Thời hạn từ 1 đến 365 ngày")]
-        [Display(Name = "Thời gian hiển thị (Ngày)")]
+        [Required(ErrorMessage = "Vui lòng nhập thời hạn sử dụng.")]
+        [Range(0, 3650, ErrorMessage = "Thời hạn không hợp lệ. Tin thường dùng 0 ngày, gói VIP phải lớn hơn 0 ngày.")]
+        [Display(Name = "Thời hạn sử dụng")]
         public int DurationDays { get; set; }
 
-        [Required(ErrorMessage = "Vui lòng nhập mức độ ưu tiên.")]
-        [Display(Name = "Mức độ ưu tiên")]
-        public int PriorityLevel { get; set; } // Số càng cao, tin càng nằm trên Top
+        [Required]
+        [Range(1, 999, ErrorMessage = "Hạng hiển thị không hợp lệ.")]
+        [Display(Name = "Hạng hiển thị")]
+        public int PriorityLevel { get; set; }
 
-        [Display(Name = "Mô tả chi tiết")]
-        [StringLength(500)]
+        [Display(Name = "Mô tả đặc quyền")]
+        [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
         public string? Description { get; set; }
     }
 }

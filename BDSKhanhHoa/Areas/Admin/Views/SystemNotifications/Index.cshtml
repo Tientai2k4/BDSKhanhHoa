@@ -1,8 +1,12 @@
-﻿<!-- File: Areas/Admin/Views/SystemNotifications/Index.cshtml -->
-@{
+﻿@{
     ViewData["Title"] = "Trung tâm Phát thông báo";
+
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
     var roles = ViewBag.Roles as List<BDSKhanhHoa.Models.Role> ?? new List<BDSKhanhHoa.Models.Role>();
+
+    bool isAdmin = ViewBag.IsAdmin == true;
+    bool isStaff = ViewBag.IsStaff == true;
 }
 
 <style>
@@ -11,7 +15,7 @@
         backdrop-filter: blur(16px);
         border: 1px solid rgba(226, 232, 240, 0.8);
         border-radius: 24px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.04);
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
     }
 
     .form-control, .form-select {
@@ -20,7 +24,7 @@
         padding: 14px 18px;
         font-size: 0.95rem;
         background: #f8fafc;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.25s ease;
         color: #0f172a;
     }
 
@@ -30,7 +34,6 @@
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
         }
 
-    /* Bố cục chọn đối tượng nhận thông minh */
     .target-selection {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -60,14 +63,15 @@
         border-radius: 16px;
         cursor: pointer;
         transition: all 0.25s ease;
-        font-weight: 700;
+        font-weight: 800;
         color: #64748b;
         text-align: center;
         height: 100%;
+        min-height: 138px;
     }
 
         .target-radio label i {
-            font-size: 1.8rem;
+            font-size: 1.85rem;
             transition: transform 0.25s ease;
         }
 
@@ -75,21 +79,24 @@
         background: #eff6ff;
         border-color: #3b82f6;
         color: #1d4ed8;
-        box-shadow: 0 8px 20px rgba(59,130,246,0.15);
+        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.15);
     }
 
         .target-radio input[type="radio"]:checked + label i {
-            transform: scale(1.15);
+            transform: scale(1.12);
         }
 
-    /* Hiệu ứng hộp Preview */
+    .target-radio.disabled-target label {
+        opacity: .55;
+        cursor: not-allowed;
+        background: #f8fafc;
+    }
+
     .preview-wrapper {
         background: radial-gradient(circle at top right, #e0e7ff 0%, #f1f5f9 100%);
         border-radius: 24px;
-        padding: 40px;
+        padding: 34px;
         height: 100%;
-        display: flex;
-        flex-direction: column;
         position: sticky;
         top: 24px;
     }
@@ -98,24 +105,12 @@
         background: #fff;
         border-radius: 20px;
         padding: 24px;
-        box-shadow: 0 20px 50px rgba(15,23,42,0.1);
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
         border-left: 5px solid #3b82f6;
         position: relative;
         overflow: hidden;
     }
 
-        .mock-noti-device::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-
-    /* Utilities */
     .section-title-icon {
         width: 32px;
         height: 32px;
@@ -128,149 +123,329 @@
         font-size: 1.1rem;
         margin-right: 10px;
     }
+
+    .fw-black {
+        font-weight: 900;
+    }
+
+    .role-note {
+        border-radius: 16px;
+        padding: 14px 16px;
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        color: #475569;
+        font-size: .9rem;
+        line-height: 1.6;
+    }
+
+    .permission-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-weight: 800;
+        font-size: .82rem;
+    }
+
+    .permission-admin {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .permission-staff {
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+    }
 </style>
 
 <div class="container-fluid px-4 py-4 animate__animated animate__fadeIn">
-    <!-- Header Page -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
-            <h3 class="fw-black text-dark mb-1"><i class="bi bi-broadcast text-primary me-2"></i>Trung Tâm Phát Thông Báo</h3>
-            <p class="text-muted small mb-0">Hệ thống điều hướng thông tin (Broadcast Engine) tới người dùng Real-time.</p>
+            <h3 class="fw-black text-dark mb-1">
+                <i class="bi bi-broadcast text-primary me-2"></i>
+                Trung Tâm Phát Thông Báo
+            </h3>
+            <p class="text-muted small mb-0">
+                Phát thông báo vào bảng Notifications để người dùng xem trong chuông thông báo của hệ thống.
+            </p>
         </div>
-        <div class="d-flex gap-3 text-end">
+
+        <div class="d-flex gap-2 flex-wrap justify-content-end">
+            @if (isAdmin)
+            {
+                <span class="permission-badge permission-admin">
+                    <i class="bi bi-shield-check"></i>
+                    Admin toàn quyền
+                </span>
+            }
+            else
+            {
+                <span class="permission-badge permission-staff">
+                    <i class="bi bi-person-badge"></i>
+                    Staff chỉ gửi khách hàng
+                </span>
+            }
+
             <div class="bg-white px-4 py-2 rounded-pill shadow-sm border">
-                <span class="text-muted small fw-bold">Tổng User Hợp Lệ:</span>
+                <span class="text-muted small fw-bold">User hợp lệ:</span>
                 <span class="text-primary fw-black ms-2 fs-5">@ViewBag.TotalUsers</span>
+            </div>
+
+            <div class="bg-white px-4 py-2 rounded-pill shadow-sm border">
+                <span class="text-muted small fw-bold">Thành viên:</span>
+                <span class="text-success fw-black ms-2 fs-5">@ViewBag.TotalMembers</span>
             </div>
         </div>
     </div>
 
+    <div class="role-note mb-4">
+        @if (isAdmin)
+        {
+            <div>
+                <i class="bi bi-info-circle text-primary me-1"></i>
+                <strong>Quyền Admin:</strong> được gửi thông báo toàn hệ thống, gửi theo nhóm quyền hoặc gửi cho ID người dùng cụ thể.
+            </div>
+        }
+        else
+        {
+            <div>
+                <i class="bi bi-info-circle text-success me-1"></i>
+                <strong>Quyền Staff:</strong> chỉ được gửi thông báo chăm sóc khách hàng cho nhóm Thành viên. Hệ thống sẽ tự động chặn gửi tới Admin hoặc Staff khác.
+            </div>
+        }
+    </div>
+
     <div class="row g-4">
-        <!-- FORM CONTROL PANEL -->
         <div class="col-xl-7 col-lg-6">
             <div class="glass-card p-4 p-md-5">
                 <form id="frmSendNoti">
                     @Html.AntiForgeryToken()
 
-                    <!-- BƯỚC 1: ĐỐI TƯỢNG -->
                     <div class="d-flex align-items-center mb-3">
                         <div class="section-title-icon"><i class="bi bi-1-circle"></i></div>
-                        <h5 class="fw-bold m-0 text-dark">Phân vùng đối tượng nhận</h5>
+                        <h5 class="fw-bold m-0 text-dark">Chọn đối tượng nhận</h5>
                     </div>
 
                     <div class="target-selection">
+                        @if (isAdmin)
+                        {
+                            <div class="target-radio">
+                                <input type="radio" name="targetType" id="tgtAll" value="All" checked onchange="handleTargetChange('All')">
+                                <label for="tgtAll">
+                                    <i class="bi bi-globe-americas"></i>
+                                    Toàn bộ hệ thống
+                                    <span class="badge bg-secondary opacity-75 mt-1">Admin, Staff, Member</span>
+                                </label>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="target-radio disabled-target">
+                                <input type="radio" id="tgtAllDisabled" disabled>
+                                <label for="tgtAllDisabled" title="Staff không được gửi toàn hệ thống">
+                                    <i class="bi bi-lock-fill"></i>
+                                    Toàn bộ hệ thống
+                                    <span class="badge bg-secondary opacity-75 mt-1">Chỉ Admin</span>
+                                </label>
+                            </div>
+                        }
+
                         <div class="target-radio">
-                            <input type="radio" name="targetType" id="tgtAll" value="All" checked onchange="handleTargetChange('All')">
-                            <label for="tgtAll">
-                                <i class="bi bi-globe-americas"></i>
-                                Toàn bộ Hệ thống
-                                <span class="badge bg-secondary opacity-50 mt-1">Gửi tất cả User</span>
-                            </label>
-                        </div>
-                        <div class="target-radio">
-                            <input type="radio" name="targetType" id="tgtRole" value="Role" onchange="handleTargetChange('Role')">
+                            <input type="radio"
+                                   name="targetType"
+                                   id="tgtRole"
+                                   value="Role"
+                                   @(isStaff ? "checked" : "")
+                                   onchange="handleTargetChange('Role')">
                             <label for="tgtRole">
                                 <i class="bi bi-diagram-3-fill"></i>
-                                Theo Phân Quyền
-                                <span class="badge bg-secondary opacity-50 mt-1">Lọc theo Role</span>
+                                Theo nhóm quyền
+                                <span class="badge bg-secondary opacity-75 mt-1">
+                                    @(isAdmin ? "Chọn Role" : "Chỉ Member")
+                                </span>
                             </label>
                         </div>
+
                         <div class="target-radio">
                             <input type="radio" name="targetType" id="tgtSpecific" value="Specific" onchange="handleTargetChange('Specific')">
                             <label for="tgtSpecific">
                                 <i class="bi bi-person-lines-fill"></i>
                                 Cá nhân cụ thể
-                                <span class="badge bg-secondary opacity-50 mt-1">Nhập ID chỉ định</span>
+                                <span class="badge bg-secondary opacity-75 mt-1">Nhập ID User</span>
                             </label>
                         </div>
                     </div>
 
-                    <!-- Dynamic Input: Role -->
                     <div id="roleInputBox" class="mb-4 animate__animated animate__fadeIn" style="display:none;">
-                        <label class="fw-bold text-dark mb-2">Chọn nhóm quyền (Role) <span class="text-danger">*</span></label>
-                        <select name="targetRoleId" class="form-select">
+                        <label class="fw-bold text-dark mb-2">
+                            Chọn nhóm quyền nhận thông báo <span class="text-danger">*</span>
+                        </label>
+
+                        <select name="targetRoleId" id="targetRoleId" class="form-select">
                             <option value="">-- Chọn nhóm quyền --</option>
                             @foreach (var role in roles)
                             {
                                 <option value="@role.RoleID">@role.RoleName (@role.Description)</option>
                             }
                         </select>
+
+                        @if (isStaff)
+                        {
+                            <small class="text-success mt-2 d-block">
+                                <i class="bi bi-shield-check me-1"></i>
+                                Staff chỉ thấy và chỉ được chọn nhóm Thành viên/Member.
+                            </small>
+                        }
                     </div>
 
-                    <!-- Dynamic Input: Specific IDs -->
                     <div id="specificUserInputBox" class="mb-4 animate__animated animate__fadeIn" style="display:none;">
-                        <label class="fw-bold text-dark mb-2">Nhập ID người dùng <span class="text-muted fw-normal">(Phân cách bởi dấu phẩy)</span> <span class="text-danger">*</span></label>
-                        <input type="text" name="targetUserIds" class="form-control fw-bold text-primary" placeholder="Ví dụ: 1, 15, 203...">
-                        <small class="text-muted mt-1 d-block"><i class="bi bi-info-circle me-1"></i>Hệ thống sẽ tự động lọc các ID không hợp lệ hoặc bị trùng.</small>
+                        <label class="fw-bold text-dark mb-2">
+                            Nhập ID người dùng <span class="text-muted fw-normal">(phân cách bởi dấu phẩy)</span>
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        <input type="text"
+                               name="targetUserIds"
+                               id="targetUserIds"
+                               class="form-control fw-bold text-primary"
+                               placeholder="Ví dụ: 3, 15, 203">
+
+                        <small class="text-muted mt-2 d-block">
+                            <i class="bi bi-info-circle me-1"></i>
+                            @if (isAdmin)
+                            {
+                                <span>Admin có thể gửi cho mọi tài khoản hợp lệ.</span>
+                            }
+                            else
+                            {
+                                <span>Staff nhập ID khách hàng. Nếu nhập ID Admin/Staff, hệ thống sẽ tự lọc bỏ.</span>
+                            }
+                        </small>
                     </div>
 
-                    <!-- BƯỚC 2: NỘI DUNG -->
                     <div class="d-flex align-items-center mb-3 mt-5">
                         <div class="section-title-icon"><i class="bi bi-2-circle"></i></div>
-                        <h5 class="fw-bold m-0 text-dark">Nội dung thông điệp</h5>
+                        <h5 class="fw-bold m-0 text-dark">Nội dung thông báo</h5>
                     </div>
 
                     <div class="mb-4">
-                        <label class="fw-bold text-dark mb-2">Tiêu đề thông báo <span class="text-danger">*</span></label>
-                        <input type="text" name="title" id="inpTitle" class="form-control fw-bold" placeholder="Nhập tiêu đề ngắn gọn, súc tích..." required oninput="updatePreview()">
+                        <label class="fw-bold text-dark mb-2">
+                            Tiêu đề thông báo <span class="text-danger">*</span>
+                        </label>
+                        <input type="text"
+                               name="title"
+                               id="inpTitle"
+                               class="form-control fw-bold"
+                               maxlength="255"
+                               placeholder="VD: Tin đăng của bạn đã được duyệt"
+                               required
+                               oninput="updatePreview()">
                     </div>
 
                     <div class="mb-4">
-                        <label class="fw-bold text-dark mb-2">Nội dung chi tiết <span class="text-danger">*</span></label>
-                        <textarea name="content" id="inpContent" class="form-control" rows="5" placeholder="Viết nội dung thông điệp gửi tới người dùng. Hỗ trợ xuống dòng bình thường." required oninput="updatePreview()"></textarea>
+                        <label class="fw-bold text-dark mb-2">
+                            Nội dung chi tiết <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="content"
+                                  id="inpContent"
+                                  class="form-control"
+                                  rows="5"
+                                  placeholder="Nhập nội dung thông báo gửi tới người dùng..."
+                                  required
+                                  oninput="updatePreview()"></textarea>
                     </div>
 
                     <div class="row g-3 mb-5">
                         <div class="col-md-6">
-                            <label class="fw-bold text-dark mb-2">URL Điều hướng <span class="text-muted fw-normal">(Tùy chọn)</span></label>
-                            <input type="text" name="actionUrl" id="inpUrl" class="form-control" placeholder="VD: /Property/Details/10" oninput="updatePreview()">
+                            <label class="fw-bold text-dark mb-2">
+                                URL điều hướng <span class="text-muted fw-normal">(tùy chọn)</span>
+                            </label>
+                            <input type="text"
+                                   name="actionUrl"
+                                   id="inpUrl"
+                                   class="form-control"
+                                   placeholder="VD: /Property/MyAds"
+                                   oninput="updatePreview()">
+                            <small class="text-muted d-block mt-1">
+                                Chỉ nên nhập link nội bộ bắt đầu bằng dấu /
+                            </small>
                         </div>
+
                         <div class="col-md-6">
-                            <label class="fw-bold text-dark mb-2">Tên nút hành động</label>
-                            <input type="text" name="actionText" id="inpBtnText" class="form-control" placeholder="VD: Xem ngay" oninput="updatePreview()">
+                            <label class="fw-bold text-dark mb-2">
+                                Tên nút hành động
+                            </label>
+                            <input type="text"
+                                   name="actionText"
+                                   id="inpBtnText"
+                                   class="form-control"
+                                   maxlength="100"
+                                   placeholder="VD: Xem ngay"
+                                   oninput="updatePreview()">
                         </div>
                     </div>
 
-                    <!-- SUBMIT -->
-                    <button type="button" id="btnSubmitSend" class="btn btn-primary btn-lg w-100 fw-black rounded-pill shadow px-4 py-3 d-flex align-items-center justify-content-center gap-2" style="font-size: 1.1rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); border:none;">
-                        <i class="bi bi-send-fill fs-4"></i> Phát Sóng Thông Báo Lập Tức
+                    <button type="button"
+                            id="btnSubmitSend"
+                            class="btn btn-primary btn-lg w-100 fw-black rounded-pill shadow px-4 py-3 d-flex align-items-center justify-content-center gap-2"
+                            style="font-size: 1.05rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); border:none;">
+                        <i class="bi bi-send-fill fs-4"></i>
+                        Phát thông báo
                     </button>
                 </form>
             </div>
         </div>
 
-        <!-- PREVIEW PANEL -->
         <div class="col-xl-5 col-lg-6">
             <div class="preview-wrapper">
-                <div class="text-center mb-5">
+                <div class="text-center mb-4">
                     <span class="badge bg-white text-primary border border-primary border-opacity-25 rounded-pill px-4 py-2 fs-6 shadow-sm">
-                        <i class="bi bi-phone-vibrate me-2"></i> Client Live Preview
+                        <i class="bi bi-phone-vibrate me-2"></i>
+                        Xem trước thông báo
                     </span>
-                    <p class="text-muted small mt-3 fw-medium">Mô phỏng giao diện người dùng nhận được trên thiết bị thực tế.</p>
+                    <p class="text-muted small mt-3 fw-medium mb-0">
+                        Đây là mô phỏng nội dung người dùng sẽ thấy trong hộp thông báo.
+                    </p>
                 </div>
 
                 <div class="mock-noti-device">
                     <div class="d-flex align-items-start gap-3 mb-3">
-                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width:50px; height:50px; flex-shrink:0;">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm"
+                             style="width:50px; height:50px; flex-shrink:0;">
                             <i class="bi bi-bell-fill fs-4"></i>
                         </div>
+
                         <div class="w-100">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <h6 class="fw-black mb-0 text-dark" id="prevTitle" style="font-size:1.1rem;">Tiêu đề thông báo...</h6>
+                            <h6 class="fw-black mb-1 text-dark" id="prevTitle" style="font-size:1.08rem;">
+                                Tiêu đề thông báo...
+                            </h6>
+                            <div class="small text-muted fw-bold">
+                                <i class="bi bi-clock me-1"></i>
+                                Vừa xong
                             </div>
-                            <div class="small text-muted fw-bold"><i class="bi bi-clock me-1"></i> Vừa xong</div>
                         </div>
                     </div>
 
-                    <div class="text-secondary mb-4" id="prevContent" style="white-space: pre-wrap; line-height: 1.6; font-size: 0.95rem;">
-                        Nội dung thông điệp chi tiết sẽ hiển thị ở đây khi bạn bắt đầu gõ vào form bên trái...
+                    <div class="text-secondary mb-4"
+                         id="prevContent"
+                         style="white-space: pre-wrap; line-height: 1.6; font-size: 0.95rem;">
+                        Nội dung thông báo sẽ hiển thị ở đây khi bạn nhập vào form.
                     </div>
 
                     <div id="prevActionBox" style="display:none; border-top: 1px dashed #e2e8f0; padding-top: 16px;">
-                        <button class="btn btn-dark btn-sm rounded-12 fw-bold px-4 py-2 pointer-events-none shadow-sm d-flex align-items-center gap-2">
-                            <span id="prevBtnText">Hành động</span> <i class="bi bi-arrow-right-short fs-5"></i>
+                        <button class="btn btn-dark btn-sm rounded-pill fw-bold px-4 py-2 pointer-events-none shadow-sm d-flex align-items-center gap-2">
+                            <span id="prevBtnText">Xem chi tiết</span>
+                            <i class="bi bi-arrow-right-short fs-5"></i>
                         </button>
                     </div>
+                </div>
+
+                <div class="mt-4 small text-muted">
+                    <i class="bi bi-database-check me-1"></i>
+                    Thông báo sau khi gửi sẽ được lưu vào bảng <strong>Notifications</strong>, không gửi email và không tạo bảng mới.
                 </div>
             </div>
         </div>
@@ -279,31 +454,47 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        // Xử lý chuyển đổi Input form theo đối tượng nhận
+        const isStaff = @isStaff.ToString().ToLower();
+
+        $(document).ready(function () {
+            const checkedType = document.querySelector('input[name="targetType"]:checked')?.value || 'All';
+            handleTargetChange(checkedType);
+            updatePreview();
+        });
+
         function handleTargetChange(type) {
             const roleBox = $('#roleInputBox');
             const specificBox = $('#specificUserInputBox');
 
             if (type === 'All') {
-                roleBox.slideUp(250);
-                specificBox.slideUp(250);
-                roleBox.find('select').val('');
-                specificBox.find('input').val('');
+                roleBox.slideUp(200);
+                specificBox.slideUp(200);
+                $('#targetRoleId').val('');
+                $('#targetUserIds').val('');
             }
-            else if (type === 'Role') {
-                specificBox.slideUp(250);
-                specificBox.find('input').val('');
-                roleBox.slideDown(250);
+
+            if (type === 'Role') {
+                specificBox.slideUp(200);
+                $('#targetUserIds').val('');
+                roleBox.slideDown(200);
+
+                if (isStaff) {
+                    const memberOption = $('#targetRoleId option[value="3"]');
+                    if (memberOption.length) {
+                        $('#targetRoleId').val('3');
+                    }
+                }
             }
-            else if (type === 'Specific') {
-                roleBox.slideUp(250);
-                roleBox.find('select').val('');
-                specificBox.slideDown(250);
+
+            if (type === 'Specific') {
+                roleBox.slideUp(200);
+                $('#targetRoleId').val('');
+                specificBox.slideDown(200);
             }
         }
 
-        // Realtime cập nhật khung Preview
         function updatePreview() {
             const title = document.getElementById('inpTitle').value;
             const content = document.getElementById('inpContent').value;
@@ -311,10 +502,11 @@
             const btnText = document.getElementById('inpBtnText').value;
 
             document.getElementById('prevTitle').innerText = title || "Tiêu đề thông báo...";
-            document.getElementById('prevContent').innerText = content || "Nội dung thông điệp chi tiết sẽ hiển thị ở đây khi bạn bắt đầu gõ vào form bên trái...";
+            document.getElementById('prevContent').innerText = content || "Nội dung thông báo sẽ hiển thị ở đây khi bạn nhập vào form.";
 
             const actionBox = document.getElementById('prevActionBox');
-            if (url || btnText) {
+
+            if (url.trim() !== '') {
                 actionBox.style.display = "block";
                 document.getElementById('prevBtnText').innerText = btnText || "Xem chi tiết";
             } else {
@@ -322,25 +514,49 @@
             }
         }
 
-        // Xử lý Submit API qua AJAX
-        document.getElementById('btnSubmitSend').addEventListener('click', function() {
+        document.getElementById('btnSubmitSend').addEventListener('click', function () {
             const form = document.getElementById('frmSendNoti');
 
-            // Validate thủ công trước khi đẩy
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
 
-            // Confirm trước khi gửi để tránh bấm nhầm All
-            const targetType = document.querySelector('input[name="targetType"]:checked').value;
+            const targetType = document.querySelector('input[name="targetType"]:checked')?.value;
+
+            if (!targetType) {
+                Swal.fire('Thiếu thông tin', 'Vui lòng chọn đối tượng nhận thông báo.', 'warning');
+                return;
+            }
+
+            if (targetType === 'Role' && !document.getElementById('targetRoleId').value) {
+                Swal.fire('Thiếu nhóm quyền', 'Vui lòng chọn nhóm quyền nhận thông báo.', 'warning');
+                return;
+            }
+
+            if (targetType === 'Specific' && !document.getElementById('targetUserIds').value.trim()) {
+                Swal.fire('Thiếu ID người nhận', 'Vui lòng nhập ít nhất một ID người dùng.', 'warning');
+                return;
+            }
+
             let targetMsg = "toàn bộ hệ thống";
-            if (targetType === "Role") targetMsg = "nhóm quyền đã chọn";
-            if (targetType === "Specific") targetMsg = "các ID cá nhân được chỉ định";
+
+            if (targetType === "Role") {
+                const selectedText = $('#targetRoleId option:selected').text();
+                targetMsg = `nhóm quyền: <b>${selectedText}</b>`;
+            }
+
+            if (targetType === "Specific") {
+                targetMsg = "các ID người dùng được chỉ định";
+            }
+
+            if (isStaff && targetType === "Specific") {
+                targetMsg = "các ID khách hàng hợp lệ. ID Admin/Staff sẽ bị hệ thống lọc bỏ";
+            }
 
             Swal.fire({
-                title: 'XÁC NHẬN PHÁT SÓNG',
-                html: `Hệ thống sẽ gửi thông báo này tới <b>${targetMsg}</b>.<br/>Bạn không thể thu hồi sau khi đã phát.`,
+                title: 'Xác nhận phát thông báo',
+                html: `Thông báo sẽ được gửi tới <b>${targetMsg}</b>.<br>Sau khi phát, người nhận sẽ thấy trong chuông thông báo.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#2563eb',
@@ -356,7 +572,8 @@
 
         function processSend(form, btn) {
             const originalHtml = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang nạp và phát luồng...';
+
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang phát thông báo...';
             btn.disabled = true;
 
             const fd = new FormData(form);
@@ -370,20 +587,29 @@
                 if (data.success) {
                     Swal.fire({
                         icon: 'success',
-                        title: 'Đã hoàn tất!',
+                        title: 'Thành công',
                         text: data.message,
                         confirmButtonColor: '#10b981'
                     }).then(() => {
-                        // Reset Form và UI
                         form.reset();
-                        handleTargetChange('All');
+
+                        if (isStaff) {
+                            document.getElementById('tgtRole').checked = true;
+                            handleTargetChange('Role');
+                        } else {
+                            document.getElementById('tgtAll').checked = true;
+                            handleTargetChange('All');
+                        }
+
                         updatePreview();
                     });
                 } else {
-                    Swal.fire('Lỗi phát sinh', data.message, 'error');
+                    Swal.fire('Không thể phát thông báo', data.message, 'error');
                 }
             })
-            .catch(() => Swal.fire('Lỗi mạng', 'Mất kết nối tới máy chủ API Broadcast.', 'error'))
+            .catch(() => {
+                Swal.fire('Lỗi mạng', 'Không thể kết nối tới máy chủ phát thông báo.', 'error');
+            })
             .finally(() => {
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;

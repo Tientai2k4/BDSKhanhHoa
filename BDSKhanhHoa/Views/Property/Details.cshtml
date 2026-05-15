@@ -1,5 +1,77 @@
 ﻿@model BDSKhanhHoa.Models.Property
 @using System.Security.Claims
+@using System.Globalization
+
+@functions {
+    private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
+
+    private string FormatPrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0) return "Thỏa thuận";
+
+        var value = price.Value;
+
+        if (value >= 1_000_000_000M)
+            return (value / 1_000_000_000M).ToString("0.##", Vi) + " tỷ";
+
+        if (value >= 1_000_000M)
+            return (value / 1_000_000M).ToString("0.##", Vi) + " triệu";
+
+        return value.ToString("N0", Vi) + " đ";
+    }
+
+    private string FormatArea(decimal? area)
+    {
+        if (!area.HasValue || area.Value <= 0) return "Đang cập nhật";
+        return area.Value.ToString("0.##", Vi) + " m²";
+    }
+
+    private string FormatShortDate(DateTime? date)
+    {
+        if (!date.HasValue) return "Đang cập nhật";
+        return date.Value.ToString("dd/MM/yyyy", Vi);
+    }
+
+    private string FormatDateTime(DateTime? date)
+    {
+        if (!date.HasValue) return "Đang cập nhật";
+        return date.Value.ToString("dd/MM/yyyy HH:mm", Vi);
+    }
+
+    private string GetSafeImage(string? image)
+    {
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            return "/images/no-image.jpg";
+        }
+
+        image = image.Trim();
+
+        if (image.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("/"))
+        {
+            return image;
+        }
+
+        return "/" + image.TrimStart('/');
+    }
+
+    private string FormatMiniPrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0) return "Thỏa thuận";
+
+        var value = price.Value;
+
+        if (value >= 1_000_000_000M)
+            return (value / 1_000_000_000M).ToString("0.##", Vi) + " tỷ";
+
+        if (value >= 1_000_000M)
+            return (value / 1_000_000M).ToString("0.##", Vi) + " tr";
+
+        return value.ToString("N0", Vi) + " đ";
+    }
+}
 
 @{
     ViewData["Title"] = Model.Title;
@@ -8,1721 +80,2116 @@
     var similarProps = ViewBag.SimilarProperties as IEnumerable<BDSKhanhHoa.Models.Property> ?? new List<BDSKhanhHoa.Models.Property>();
     var userProps = ViewBag.UserProperties as IEnumerable<BDSKhanhHoa.Models.Property> ?? new List<BDSKhanhHoa.Models.Property>();
     var comments = ViewBag.Comments as IEnumerable<BDSKhanhHoa.Models.Comment> ?? new List<BDSKhanhHoa.Models.Comment>();
-    var features = ViewBag.Features as List<BDSKhanhHoa.Models.PropertyFeature>;
+    var features = ViewBag.Features as List<BDSKhanhHoa.Models.PropertyFeature> ?? new List<BDSKhanhHoa.Models.PropertyFeature>();
     var propertyImages = ViewBag.PropertyImages as IEnumerable<BDSKhanhHoa.Models.PropertyImage> ?? new List<BDSKhanhHoa.Models.PropertyImage>();
 
-    var bed = features?.FirstOrDefault(f => f.FeatureName == "Phòng ngủ")?.FeatureValue;
-    var bath = features?.FirstOrDefault(f => f.FeatureName == "Phòng vệ sinh")?.FeatureValue;
-    var direction = features?.FirstOrDefault(f => f.FeatureName == "Hướng nhà")?.FeatureValue;
-    var legal = features?.FirstOrDefault(f => f.FeatureName == "Pháp lý")?.FeatureValue;
-    var amenities = features?.FirstOrDefault(f => f.FeatureName == "Tiện ích")?.FeatureValue;
+    var bed = features.FirstOrDefault(f => f.FeatureName == "Phòng ngủ")?.FeatureValue;
+    var bath = features.FirstOrDefault(f => f.FeatureName == "Phòng vệ sinh")?.FeatureValue;
+    var direction = features.FirstOrDefault(f => f.FeatureName == "Hướng nhà")?.FeatureValue;
+    var legal = features.FirstOrDefault(f => f.FeatureName == "Pháp lý")?.FeatureValue;
+    var amenities = features.FirstOrDefault(f => f.FeatureName == "Tiện ích")?.FeatureValue;
 
     var isRent = Model.PropertyType?.ParentID == 2 || Model.TypeID == 2;
-    var isAuthenticated = User.Identity.IsAuthenticated;
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
 
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
-    bool isOwner = (currentUserId > 0 && currentUserId == Model.UserID);
+    bool isOwner = currentUserId > 0 && currentUserId == Model.UserID;
     bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
 
-    // LẤY THÔNG TIN USER TỪ VIEWBAG ĐỂ ĐIỀN TỰ ĐỘNG VÀO FORM
     var currentUserInfo = ViewBag.CurrentUserInfo as BDSKhanhHoa.Models.User;
-    string autoName = currentUserInfo?.FullName ?? (isAuthenticated ? User.Identity.Name : "");
+    string autoName = currentUserInfo?.FullName ?? (isAuthenticated ? (User.Identity?.Name ?? "") : "");
     string autoPhone = currentUserInfo?.Phone ?? "";
     string autoEmail = currentUserInfo?.Email ?? "";
 
-    var totalImages = propertyImages.Count() + (string.IsNullOrEmpty(Model.MainImage) ? 0 : 1);
 
-    string zaloLink = !string.IsNullOrEmpty(Model.User?.Zalo)
-        ? (Model.User.Zalo.StartsWith("0") || Model.User.Zalo.StartsWith("+84") ? "https://zalo.me/" + Model.User.Zalo : Model.User.Zalo) : "";
-    string fbLink = !string.IsNullOrEmpty(Model.User?.Facebook)
-        ? (Model.User.Facebook.StartsWith("http") ? Model.User.Facebook : "https://facebook.com/" + Model.User.Facebook) : "";
+    string zaloLink = !string.IsNullOrWhiteSpace(Model.User?.Zalo)
+        ? (Model.User.Zalo.StartsWith("0") || Model.User.Zalo.StartsWith("+84") ? "https://zalo.me/" + Model.User.Zalo : Model.User.Zalo)
+        : "";
 
-    string fullAddress = $"{(Model.AddressDetail != null ? Model.AddressDetail + ", " : "")}{Model.Ward?.WardName}, {Model.Ward?.Area?.AreaName}, Khánh Hòa";
+    string fbLink = !string.IsNullOrWhiteSpace(Model.User?.Facebook)
+        ? (Model.User.Facebook.StartsWith("http") ? Model.User.Facebook : "https://facebook.com/" + Model.User.Facebook)
+        : "";
+
+    string fullAddress = $"{(!string.IsNullOrWhiteSpace(Model.AddressDetail) ? Model.AddressDetail + ", " : "")}{Model.Ward?.WardName}, {Model.Ward?.Area?.AreaName}, Khánh Hòa";
     string mapQuery = Uri.EscapeDataString(fullAddress ?? "");
 
-    // Format price helper inline
-    string priceDisplay = Model.Price.HasValue
-        ? (Model.Price.Value >= 1_000_000_000
-            ? (Model.Price.Value / 1_000_000_000M).ToString("0.##") + " Tỷ"
-            : (Model.Price.Value / 1_000_000M).ToString("0.##") + " Triệu")
-        : "Thỏa thuận";
+    string priceDisplay = FormatPrice(Model.Price);
+    string areaDisplay = FormatArea(Model.AreaSize);
 
-    string pricePerM2 = (Model.Price.HasValue && Model.AreaSize.HasValue && Model.AreaSize.Value > 0)
-        ? ((Model.Price.Value / (decimal)Model.AreaSize.Value / 1_000_000M).ToString("0.##") + " Tr/m²")
+    string pricePerM2 = Model.Price.HasValue && Model.AreaSize.HasValue && Model.AreaSize.Value > 0
+        ? ((Model.Price.Value / (decimal)Model.AreaSize.Value / 1_000_000M).ToString("0.##", Vi) + " tr/m²")
         : "";
+
+    var parentComments = comments.Where(c => c.ParentID == null || c.ParentID == 0)
+                                 .OrderByDescending(c => c.CreatedAt)
+                                 .ToList();
+
+    var galleryImages = new List<string>();
+
+    if (!string.IsNullOrWhiteSpace(Model.MainImage))
+    {
+        galleryImages.Add(GetSafeImage(Model.MainImage));
+    }
+
+    galleryImages.AddRange(
+        propertyImages
+            .Select(x => GetSafeImage(x.ImageURL))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+    );
+
+    galleryImages = galleryImages
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    if (!galleryImages.Any())
+    {
+        galleryImages.Add("/images/no-image.jpg");
+    }
+
+    string mainImage = galleryImages.FirstOrDefault() ?? "/images/no-image.jpg";
+    var totalImages = galleryImages.Count;
 }
 
-@* ─────────────────────────────────────────────────────────── *@
-@* CSS                                                         *@
-@* ─────────────────────────────────────────────────────────── *@
+<meta name="chatbot-property-title" content="@Model.Title" />
+<meta name="chatbot-context" content="Khách hàng đang trực tiếp xem BĐS có ID: @Model.PropertyID. Tiêu đề: '@Model.Title'. Loại hình: @(isRent ? "Cho thuê" : "Bán") - @Model.PropertyType?.TypeName. Giá: @priceDisplay. Diện tích: @Model.AreaSize m2. Vị trí: @fullAddress. Phòng ngủ: @(bed ?? "0"). Phòng tắm: @(bath ?? "0"). Pháp lý: @(legal ?? "Chưa cập nhật"). Tiện ích: @(amenities ?? "Không có"). Mô tả từ chủ nhà: @Model.Description." />
+
 <style>
-    /* ── Variables ───────────────────────────────────────────────── */
     :root {
-        --p1: #1a56db;
-        --p2: #1242a8;
-        --pl: #ebf2ff;
-        --acc: #e81c2e;
-        --grn: #16a34a;
-        --bg: #f0f4fa;
-        --sur: #ffffff;
-        --bor: #e4e8f0;
-        --tx: #0f172a;
-        --mu: #64748b;
-        --r8: 8px;
-        --r12: 12px;
-        --r16: 16px;
-        --r20: 20px;
-        --sh1: 0 2px 12px rgba(15,23,42,.07);
-        --sh2: 0 8px 32px rgba(15,23,42,.10);
-        --sh3: 0 20px 60px rgba(15,23,42,.13);
-        --tr: all .2s cubic-bezier(.4,0,.2,1);
+        --pd-primary: #1a56db;
+        --pd-primary-dark: #123f9f;
+        --pd-primary-soft: #eaf2ff;
+        --pd-danger: #e11d48;
+        --pd-success: #16a34a;
+        --pd-warning: #f59e0b;
+        --pd-info: #0284c7;
+        --pd-bg: #f3f6fb;
+        --pd-card: #ffffff;
+        --pd-border: #e2e8f0;
+        --pd-text: #0f172a;
+        --pd-muted: #64748b;
+        --pd-soft: #f8fafc;
+        --pd-radius-sm: 12px;
+        --pd-radius: 18px;
+        --pd-radius-lg: 24px;
+        --pd-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+        --pd-shadow-soft: 0 4px 16px rgba(15, 23, 42, .06);
+        --pd-transition: all .22s ease;
     }
 
-    /* ── Base ────────────────────────────────────────────────────── */
     body {
-        background: var(--bg);
+        background: var(--pd-bg);
     }
 
-    /* ── Breadcrumb ──────────────────────────────────────────────── */
-    .bc-wrap {
-        background: var(--sur);
-        border-bottom: 1px solid var(--bor);
-        padding: 12px 0;
+    .pd-page {
+        color: var(--pd-text);
     }
 
-    .bc-inner {
+    .pd-breadcrumb {
+        background: #fff;
+        border-bottom: 1px solid var(--pd-border);
+    }
+
+    .pd-breadcrumb-inner {
+        min-height: 46px;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 7px;
         flex-wrap: wrap;
+        color: var(--pd-muted);
         font-size: .84rem;
-        color: var(--mu);
+        font-weight: 650;
     }
 
-        .bc-inner a {
-            color: var(--mu);
+        .pd-breadcrumb-inner a {
+            color: var(--pd-muted);
             text-decoration: none;
-            transition: var(--tr);
         }
 
-            .bc-inner a:hover {
-                color: var(--p1);
+            .pd-breadcrumb-inner a:hover {
+                color: var(--pd-primary);
             }
 
-        .bc-inner .sep {
-            opacity: .4;
-        }
+    .pd-breadcrumb-sep {
+        opacity: .45;
+    }
 
-        .bc-inner .cur {
-            color: var(--tx);
-            font-weight: 600;
-        }
-
-    /* ── Status Badge ────────────────────────────────────────────── */
-    .status-bar {
-        background: linear-gradient(90deg,#fffbeb,#fff7d6);
-        border-left: 4px solid #f59e0b;
-        padding: 10px 18px;
-        border-radius: 0 var(--r8) var(--r8) 0;
-        font-size: .88rem;
+    .pd-status-alert {
+        border-radius: var(--pd-radius);
+        border: 1px solid #fde68a;
+        background: linear-gradient(135deg, #fffbeb, #fff7ed);
         color: #92400e;
+        padding: 14px 16px;
+        font-size: .9rem;
+        font-weight: 700;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .pd-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 22px;
+        align-items: start;
+    }
+
+    .pd-card {
+        background: var(--pd-card);
+        border: 1px solid var(--pd-border);
+        border-radius: var(--pd-radius-lg);
+        box-shadow: var(--pd-shadow-soft);
+        overflow: hidden;
         margin-bottom: 18px;
     }
 
-    /* ── Gallery ─────────────────────────────────────────────────── */
-    .gallery-wrap {
-        position: relative;
-        border-radius: var(--r20);
-        overflow: hidden;
-        background: #000;
-        box-shadow: var(--sh2);
+    .pd-card-body {
+        padding: 22px;
     }
 
-    .hero-img {
-        width: 100%;
-        height: 500px;
-        object-fit: cover;
-        cursor: zoom-in;
-        transition: transform .4s ease;
-        display: block;
+    .pd-section-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--pd-border);
+        font-size: 1.08rem;
+        font-weight: 900;
+        color: var(--pd-text);
     }
 
-        .hero-img:hover {
-            transform: scale(1.015);
+        .pd-section-title i {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--pd-primary-soft);
+            color: var(--pd-primary);
+            flex-shrink: 0;
         }
 
-    .gallery-overlay {
+    .pd-gallery {
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--pd-radius-lg);
+        background: #020617;
+        box-shadow: var(--pd-shadow);
+        border: 1px solid rgba(226, 232, 240, .8);
+    }
+
+    .pd-hero-img {
+        width: 100%;
+        height: min(68vh, 620px);
+        min-height: 420px;
+        object-fit: contain;
+        object-position: center center;
+        display: block;
+        cursor: zoom-in;
+        background: #020617;
+        image-rendering: auto;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+
+    .pd-gallery-gradient {
         position: absolute;
         inset: 0;
-        background: linear-gradient(to top, rgba(0,0,0,.55) 0%, transparent 50%);
+        background: linear-gradient( to bottom, rgba(15, 23, 42, .42), transparent 24%, transparent 68%, rgba(15, 23, 42, .55) );
         pointer-events: none;
     }
 
-    .gallery-top-badges {
+    .pd-gallery-badges {
         position: absolute;
-        top: 16px;
         left: 16px;
+        top: 16px;
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
-        z-index: 3;
+        z-index: 2;
     }
 
-    .badge-vip {
-        background: linear-gradient(135deg,#f59e0b,#ef4444);
-        color: #fff;
-        font-weight: 800;
+    .pd-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
         font-size: .78rem;
-        padding: 5px 14px;
-        border-radius: 20px;
-        letter-spacing: .04em;
-        box-shadow: 0 2px 8px rgba(0,0,0,.25);
-        text-transform: uppercase;
-    }
-
-    .badge-type {
-        background: rgba(26,86,219,.92);
+        font-weight: 900;
         color: #fff;
-        font-weight: 700;
-        font-size: .78rem;
-        padding: 5px 14px;
-        border-radius: 20px;
-        backdrop-filter: blur(6px);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, .25);
+        backdrop-filter: blur(8px);
     }
 
-    .gallery-photo-btn {
+    .pd-badge-type {
+        background: rgba(26, 86, 219, .92);
+    }
+
+    .pd-badge-vip {
+        background: linear-gradient(135deg, #f59e0b, #ef4444);
+    }
+
+    .pd-photo-count {
         position: absolute;
-        bottom: 18px;
-        right: 18px;
-        background: rgba(255,255,255,.15);
-        backdrop-filter: blur(10px);
-        border: 1.5px solid rgba(255,255,255,.4);
+        right: 16px;
+        bottom: 16px;
+        z-index: 2;
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, .38);
+        background: rgba(15, 23, 42, .48);
         color: #fff;
-        padding: 9px 20px;
-        border-radius: var(--r12);
-        font-weight: 700;
-        font-size: .88rem;
-        cursor: pointer;
-        z-index: 3;
-        transition: var(--tr);
-        display: flex;
+        backdrop-filter: blur(12px);
+        display: inline-flex;
         align-items: center;
         gap: 8px;
+        font-weight: 850;
+        font-size: .88rem;
+        cursor: pointer;
     }
 
-        .gallery-photo-btn:hover {
-            background: rgba(255,255,255,.28);
+    .pd-thumbs {
+        display: flex;
+        gap: 9px;
+        margin: 10px 0 18px;
+        overflow-x: auto;
+        padding: 2px 2px 9px;
+        scrollbar-width: thin;
+    }
+
+    .pd-thumb {
+        width: 96px;
+        height: 72px;
+        flex: 0 0 auto;
+        object-fit: cover;
+        object-position: center center;
+        border-radius: 13px;
+        border: 2px solid transparent;
+        opacity: .72;
+        cursor: pointer;
+        transition: var(--pd-transition);
+        background: #020617;
+    }
+
+        .pd-thumb:hover,
+        .pd-thumb.active {
+            opacity: 1;
+            border-color: var(--pd-primary);
+            box-shadow: 0 0 0 3px rgba(26, 86, 219, .14);
         }
 
-    .thumb-row {
+    .pd-title {
+        font-size: clamp(1.35rem, 2.2vw, 2rem);
+        font-weight: 950;
+        line-height: 1.25;
+        letter-spacing: -.02em;
+        color: var(--pd-text);
+        margin: 0;
+    }
+
+    .pd-address {
         display: flex;
         gap: 8px;
-        margin-top: 10px;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        scrollbar-width: thin;
-        scrollbar-color: var(--bor) transparent;
-    }
-
-    .thumb-item {
-        flex-shrink: 0;
-        width: 82px;
-        height: 64px;
-        border-radius: var(--r8);
-        object-fit: cover;
-        cursor: pointer;
-        border: 2.5px solid transparent;
-        transition: var(--tr);
-        opacity: .75;
-    }
-
-        .thumb-item:hover, .thumb-item.active {
-            border-color: var(--p1);
-            opacity: 1;
-            box-shadow: 0 0 0 3px rgba(26,86,219,.18);
-        }
-
-    /* ── Main Info Card ──────────────────────────────────────────── */
-    .info-card {
-        background: var(--sur);
-        border-radius: var(--r20);
-        padding: 28px 32px;
-        box-shadow: var(--sh1);
-        border: 1px solid var(--bor);
-        margin-bottom: 20px;
-    }
-
-    .prop-title {
-        font-size: 1.55rem;
-        font-weight: 800;
-        color: var(--tx);
-        line-height: 1.35;
-        margin-bottom: 8px;
-    }
-
-    .prop-address {
-        display: flex;
         align-items: flex-start;
-        gap: 6px;
-        color: var(--mu);
-        font-size: .93rem;
-        margin-bottom: 20px;
+        margin-top: 10px;
+        color: var(--pd-muted);
+        font-size: .94rem;
+        line-height: 1.55;
+        font-weight: 650;
     }
 
-        .prop-address i {
-            color: var(--acc);
+        .pd-address i {
+            color: var(--pd-danger);
             margin-top: 2px;
             flex-shrink: 0;
         }
 
-    .price-area-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 1px;
-        background: var(--bor);
-        border-radius: var(--r12);
-        overflow: hidden;
-        border: 1px solid var(--bor);
-    }
-
-    .pa-cell {
-        background: var(--sur);
-        padding: 18px 22px;
-        text-align: center;
-    }
-
-    .pa-label {
-        font-size: .75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-        color: var(--mu);
-        margin-bottom: 6px;
-    }
-
-    .pa-val-price {
-        font-size: 1.9rem;
-        font-weight: 900;
-        color: var(--acc);
-        line-height: 1;
-    }
-
-    .pa-val {
-        font-size: 1.45rem;
-        font-weight: 800;
-        color: var(--tx);
-        line-height: 1;
-    }
-
-    .pa-unit {
-        font-size: .82rem;
-        color: var(--mu);
-        margin-top: 4px;
-    }
-
-    /* ── Quick Stat Pills ────────────────────────────────────────── */
-    .quick-stats {
+    .pd-title-row {
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 20px;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: flex-start;
     }
 
-    .qs-pill {
-        display: flex;
+    .pd-edit-btn {
+        border: 1px solid var(--pd-border);
+        background: #fff;
+        color: var(--pd-text);
+        min-height: 36px;
+        padding: 0 13px;
+        border-radius: 999px;
+        font-weight: 850;
+        text-decoration: none;
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
-        background: var(--bg);
-        border: 1px solid var(--bor);
-        border-radius: 30px;
-        padding: 8px 16px;
-        font-size: .87rem;
-        font-weight: 600;
-        color: var(--tx);
+        gap: 7px;
+        white-space: nowrap;
     }
 
-        .qs-pill i {
-            color: var(--p1);
-            font-size: 1rem;
+        .pd-edit-btn:hover {
+            background: var(--pd-primary-soft);
+            border-color: #bfdbfe;
+            color: var(--pd-primary);
         }
 
-    /* ── Section Card ────────────────────────────────────────────── */
-    .sec-card {
-        background: var(--sur);
-        border-radius: var(--r20);
-        padding: 28px 32px;
-        box-shadow: var(--sh1);
-        border: 1px solid var(--bor);
-        margin-bottom: 20px;
+    .pd-price-grid {
+        display: grid;
+        grid-template-columns: 1.15fr .85fr .9fr;
+        border: 1px solid var(--pd-border);
+        border-radius: var(--pd-radius);
+        overflow: hidden;
+        margin-top: 20px;
+        background: var(--pd-border);
+        gap: 1px;
     }
 
-    .sec-title {
+    .pd-price-cell {
+        background: #fff;
+        padding: 18px 16px;
+        min-width: 0;
+    }
+
+    .pd-price-label {
+        color: var(--pd-muted);
+        font-size: .75rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        margin-bottom: 7px;
+    }
+
+    .pd-price-main {
+        color: var(--pd-danger);
+        font-size: clamp(1.45rem, 3vw, 2.15rem);
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .pd-price-value {
+        color: var(--pd-text);
+        font-size: 1.25rem;
+        line-height: 1.1;
+        font-weight: 950;
+    }
+
+    .pd-price-unit {
+        color: var(--pd-muted);
+        font-size: .82rem;
+        font-weight: 700;
+        margin-top: 5px;
+    }
+
+    .pd-quick-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 16px;
+    }
+
+    .pd-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--pd-soft);
+        border: 1px solid var(--pd-border);
+        color: #334155;
+        font-size: .84rem;
+        font-weight: 800;
+    }
+
+        .pd-pill i {
+            color: var(--pd-primary);
+        }
+
+    .pd-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        border: 1px solid var(--pd-border);
+        border-radius: var(--pd-radius);
+        overflow: hidden;
+    }
+
+    .pd-detail-item {
+        min-height: 56px;
+        padding: 13px 15px;
         display: flex;
         align-items: center;
-        gap: 10px;
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: var(--tx);
-        margin-bottom: 22px;
-        padding-bottom: 14px;
-        border-bottom: 2px solid var(--bg);
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--pd-border);
     }
 
-        .sec-title i {
-            width: 36px;
-            height: 36px;
-            background: var(--pl);
-            border-radius: var(--r8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--p1);
-            font-size: 1.1rem;
+        .pd-detail-item:nth-child(odd) {
+            border-right: 1px solid var(--pd-border);
+        }
+
+    .pd-detail-key {
+        color: var(--pd-muted);
+        font-weight: 750;
+        font-size: .86rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+        .pd-detail-key i {
+            color: var(--pd-primary);
             flex-shrink: 0;
         }
 
-    /* ── Detail Grid ─────────────────────────────────────────────── */
-    .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0;
-    }
-
-    .dg-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 13px 16px;
-        border-bottom: 1px solid var(--bg);
-        transition: var(--tr);
-    }
-
-        .dg-row:hover {
-            background: #fafbff;
-        }
-
-        .dg-row:nth-child(odd) {
-            border-right: 1px solid var(--bg);
-        }
-
-    .dg-key {
-        font-size: .87rem;
-        color: var(--mu);
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 7px;
-    }
-
-        .dg-key i {
-            color: var(--p1);
-            font-size: .95rem;
-        }
-
-    .dg-val {
-        font-size: .9rem;
-        font-weight: 700;
-        color: var(--tx);
+    .pd-detail-val {
+        color: var(--pd-text);
+        font-weight: 900;
+        font-size: .88rem;
         text-align: right;
         max-width: 55%;
     }
 
-        .dg-val.highlight {
-            color: var(--p1);
+        .pd-detail-val.green {
+            color: var(--pd-success);
         }
 
-        .dg-val.green {
-            color: var(--grn);
-        }
-
-    /* ── Description ─────────────────────────────────────────────── */
-    .desc-body {
-        line-height: 1.85;
-        font-size: 1rem;
+    .pd-desc {
         color: #334155;
+        line-height: 1.85;
+        font-size: .98rem;
         white-space: pre-wrap;
     }
 
-    .read-more-btn {
-        display: none;
-        margin-top: 14px;
-        font-size: .88rem;
-        font-weight: 700;
-        color: var(--p1);
-        background: var(--pl);
-        border: none;
-        border-radius: 20px;
-        padding: 7px 20px;
-        cursor: pointer;
-        transition: var(--tr);
-    }
-
-        .read-more-btn:hover {
-            background: #d6e4ff;
-        }
-
-    .desc-collapsed {
-        max-height: 200px;
+    .pd-desc-collapsed {
+        max-height: 230px;
         overflow: hidden;
         position: relative;
     }
 
-        .desc-collapsed::after {
-            content: '';
+        .pd-desc-collapsed::after {
+            content: "";
             position: absolute;
-            bottom: 0;
             left: 0;
             right: 0;
-            height: 60px;
-            background: linear-gradient(transparent, var(--sur));
+            bottom: 0;
+            height: 72px;
+            background: linear-gradient(transparent, #fff);
         }
 
-    /* ── Amenity Pills ───────────────────────────────────────────── */
-    .amenity-grid {
+    .pd-readmore {
+        display: none;
+        margin-top: 14px;
+        border: none;
+        border-radius: 999px;
+        background: var(--pd-primary-soft);
+        color: var(--pd-primary);
+        min-height: 38px;
+        padding: 0 16px;
+        font-weight: 850;
+    }
+
+        .pd-readmore:hover {
+            background: #dbeafe;
+        }
+
+    .pd-amenities {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
     }
 
-    .am-pill {
-        display: flex;
+    .pd-amenity {
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
-        background: linear-gradient(135deg,#f0fdf4,#dcfce7);
+        gap: 7px;
+        padding: 9px 13px;
+        border-radius: 999px;
+        background: #f0fdf4;
         border: 1px solid #bbf7d0;
         color: #166534;
-        padding: 9px 18px;
-        border-radius: 30px;
-        font-size: .88rem;
-        font-weight: 600;
-        transition: var(--tr);
+        font-size: .86rem;
+        font-weight: 800;
     }
 
-        .am-pill:hover {
-            background: linear-gradient(135deg,#dcfce7,#bbf7d0);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(22,163,74,.15);
-        }
-
-        .am-pill i {
-            font-size: 1rem;
-        }
-
-    /* ── Warning Box ─────────────────────────────────────────────── */
-    .warn-box {
-        display: flex;
-        gap: 14px;
-        background: #fffbeb;
+    .pd-warning {
+        border-radius: var(--pd-radius-lg);
         border: 1px solid #fde68a;
-        border-left: 5px solid #f59e0b;
-        border-radius: var(--r12);
-        padding: 18px 22px;
-        margin-bottom: 20px;
+        border-left: 5px solid var(--pd-warning);
+        background: linear-gradient(135deg, #fffbeb, #fff7ed);
+        color: #78350f;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
     }
 
-        .warn-box i {
-            color: #f59e0b;
-            font-size: 1.4rem;
+        .pd-warning > i {
+            font-size: 1.55rem;
+            color: var(--pd-warning);
             flex-shrink: 0;
             margin-top: 2px;
         }
 
-        .warn-box ul {
+        .pd-warning h6 {
+            font-size: .95rem;
+            font-weight: 950;
+            margin-bottom: 8px;
+            color: #92400e;
+        }
+
+        .pd-warning ul {
             margin: 0;
             padding-left: 18px;
-            font-size: .88rem;
-            color: #78350f;
             line-height: 1.75;
+            font-size: .88rem;
+            font-weight: 650;
         }
 
-        .warn-box h6 {
-            font-weight: 800;
-            color: #92400e;
-            margin-bottom: 8px;
-            font-size: .95rem;
-        }
-
-    /* ── Map ─────────────────────────────────────────────────────── */
-    .map-wrap {
-        border-radius: var(--r12);
+    .pd-map {
+        border-radius: var(--pd-radius);
         overflow: hidden;
-        border: 1px solid var(--bor);
+        border: 1px solid var(--pd-border);
+        background: var(--pd-soft);
     }
 
-    /* ── Comments ────────────────────────────────────────────────── */
-    .comment-item {
-        display: flex;
-        gap: 14px;
-        padding: 18px 0;
-        border-bottom: 1px solid var(--bg);
-    }
-
-        .comment-item:last-child {
-            border-bottom: none;
+        .pd-map iframe {
+            width: 100%;
+            height: 360px;
+            border: 0;
+            display: block;
         }
 
-    .c-avatar {
-        width: 46px;
-        height: 46px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
-        border: 2px solid var(--bor);
-    }
-
-    .c-bubble {
-        flex: 1;
-        background: var(--bg);
-        border-radius: 4px var(--r12) var(--r12) var(--r12);
-        padding: 14px 18px;
-        border: 1px solid var(--bor);
-    }
-
-    .c-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-    }
-
-    .c-name {
-        font-weight: 700;
-        color: var(--tx);
-        font-size: .9rem;
-    }
-
-    .c-time {
-        font-size: .78rem;
-        color: var(--mu);
-    }
-
-    .c-text {
-        color: #475569;
-        font-size: .9rem;
-        line-height: 1.65;
-        white-space: pre-wrap;
-        margin: 0;
-    }
-
-    /* ── Right Sidebar ───────────────────────────────────────────── */
-    .contact-sticky {
+    .pd-contact-sticky {
         position: sticky;
-        top: 90px;
+        top: 86px;
     }
 
-    .contact-card {
-        background: var(--sur);
-        border-radius: var(--r20);
-        box-shadow: var(--sh2);
-        border: 1px solid var(--bor);
+    .pd-contact-card {
         overflow: hidden;
-        margin-bottom: 20px;
     }
 
-    .contact-header {
-        background: linear-gradient(135deg, var(--p1) 0%, #1e40af 100%);
-        padding: 22px 24px 18px;
-        text-align: center;
+    .pd-contact-head {
         position: relative;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, .20), transparent 34%), linear-gradient(135deg, #1d4ed8, #0ea5e9);
+        color: #fff;
+        padding: 22px 20px 30px;
+        text-align: center;
     }
 
-        .contact-header::after {
-            content: '';
+        .pd-contact-head::after {
+            content: "";
             position: absolute;
-            bottom: -1px;
             left: 0;
             right: 0;
+            bottom: -1px;
             height: 20px;
-            background: var(--sur);
+            background: #fff;
             border-radius: 20px 20px 0 0;
         }
 
-    .c-avatar-wrap {
+    .pd-seller-avatar-wrap {
         position: relative;
         display: inline-block;
         margin-bottom: 10px;
     }
 
-    .c-avatar-lg {
+    .pd-seller-avatar {
         width: 82px;
         height: 82px;
         border-radius: 50%;
         object-fit: cover;
-        border: 4px solid rgba(255,255,255,.4);
+        border: 4px solid rgba(255, 255, 255, .48);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .18);
     }
 
-    .c-online-dot {
+    .pd-online-dot {
         position: absolute;
-        bottom: 4px;
-        right: 4px;
+        right: 6px;
+        bottom: 6px;
         width: 14px;
         height: 14px;
-        background: #22c55e;
-        border: 2.5px solid #fff;
         border-radius: 50%;
+        background: #22c55e;
+        border: 3px solid #fff;
     }
 
-    .c-seller-name {
-        font-size: 1.05rem;
-        font-weight: 800;
+    .pd-seller-name {
         color: #fff;
-        margin-bottom: 2px;
+        text-decoration: none;
+        display: block;
+        font-size: 1.08rem;
+        font-weight: 950;
+        line-height: 1.3;
     }
 
-    .c-seller-role {
-        font-size: .78rem;
-        color: rgba(255,255,255,.75);
-        background: rgba(255,255,255,.15);
-        padding: 3px 12px;
-        border-radius: 20px;
-        display: inline-block;
-        margin-bottom: 4px;
+    .pd-seller-role {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 25px;
+        margin-top: 6px;
+        padding: 0 11px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .16);
+        color: rgba(255, 255, 255, .86);
+        font-size: .76rem;
+        font-weight: 850;
     }
 
-    .contact-body {
-        padding: 20px 22px 22px;
+    .pd-contact-body {
+        padding: 20px;
     }
 
-    .phone-reveal-box {
-        background: linear-gradient(135deg, #15803d, #16a34a);
-        border-radius: var(--r12);
-        overflow: hidden;
+    .pd-phone-box {
         display: flex;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 16px rgba(22,163,74,.25);
-        transition: var(--tr);
+        overflow: hidden;
+        border-radius: var(--pd-radius);
+        background: linear-gradient(135deg, #15803d, #16a34a);
+        box-shadow: 0 8px 20px rgba(22, 163, 74, .22);
+        margin-bottom: 12px;
     }
 
-        .phone-reveal-box:hover {
-            box-shadow: 0 6px 22px rgba(22,163,74,.35);
-        }
-
-    .btn-reveal {
+    .pd-phone-reveal {
         flex: 1;
-        background: transparent;
+        min-height: 48px;
         border: none;
+        background: transparent;
         color: #fff;
-        font-weight: 800;
-        font-size: 1rem;
-        padding: 13px 16px;
+        padding: 0 14px;
+        font-size: .98rem;
+        font-weight: 950;
         text-align: left;
-        cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 9px;
     }
 
-    .btn-copy-ph {
-        background: rgba(255,255,255,.18);
+    .pd-phone-copy {
+        width: 48px;
         border: none;
+        background: rgba(255, 255, 255, .18);
         color: #fff;
-        padding: 13px 18px;
-        cursor: pointer;
-        transition: var(--tr);
         display: none;
     }
 
-        .btn-copy-ph:hover {
-            background: rgba(255,255,255,.32);
-        }
-
-    .btn-zalo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        background: #0068FF;
-        color: #fff;
-        font-weight: 700;
-        font-size: .9rem;
-        padding: 11px 0;
-        border-radius: var(--r12);
-        text-decoration: none;
-        transition: var(--tr);
-        border: none;
-        width: 100%;
+    .pd-social-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        margin-bottom: 12px;
     }
 
-        .btn-zalo:hover {
-            background: #0054cc;
-            color: #fff;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,104,255,.3);
+        .pd-social-row.one {
+            grid-template-columns: 1fr;
         }
 
-    .btn-fb {
-        display: flex;
+    .pd-social-btn {
+        min-height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        background: #1877F2;
+        gap: 7px;
         color: #fff;
-        font-weight: 700;
-        font-size: .9rem;
-        padding: 11px 0;
-        border-radius: var(--r12);
         text-decoration: none;
-        transition: var(--tr);
-        border: none;
-        width: 100%;
+        font-weight: 900;
+        transition: var(--pd-transition);
     }
 
-        .btn-fb:hover {
-            background: #145dbf;
+        .pd-social-btn:hover {
             color: #fff;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(24,119,242,.3);
+            transform: translateY(-1px);
         }
 
-    .action-btns {
+    .pd-zalo {
+        background: #0068ff;
+    }
+
+    .pd-facebook {
+        background: #1877f2;
+    }
+
+    .pd-action-stack {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 9px;
     }
 
-    .action-btn {
-        display: flex;
+    .pd-main-action {
+        min-height: 46px;
+        border: none;
+        border-radius: 14px;
+        color: #fff;
+        font-weight: 950;
+        text-decoration: none;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 9px;
-        font-weight: 700;
-        font-size: .9rem;
-        padding: 12px 0;
-        border-radius: var(--r12);
-        border: none;
-        cursor: pointer;
-        transition: var(--tr);
-        text-decoration: none;
+        transition: var(--pd-transition);
+    }
+
+        .pd-main-action:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+    .pd-action-consult {
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    }
+
+    .pd-action-chat {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
+
+    .pd-action-appt {
+        background: linear-gradient(135deg, #16a34a, #15803d);
+    }
+
+    .pd-pending-box {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        border-radius: var(--pd-radius);
+        padding: 14px;
+        font-weight: 750;
         text-align: center;
+        font-size: .86rem;
     }
 
-        .action-btn:hover {
-            transform: translateY(-2px);
-        }
-
-    .ab-consult {
-        background: linear-gradient(135deg,#0ea5e9,#0284c7);
-        color: #fff;
-        box-shadow: 0 4px 14px rgba(14,165,233,.25);
-    }
-
-        .ab-consult:hover {
-            box-shadow: 0 6px 20px rgba(14,165,233,.38);
-            color: #fff;
-        }
-
-    .ab-chat {
-        background: var(--p1);
-        color: #fff;
-        box-shadow: 0 4px 14px rgba(26,86,219,.25);
-    }
-
-        .ab-chat:hover {
-            background: var(--p2);
-            box-shadow: 0 6px 20px rgba(26,86,219,.38);
-            color: #fff;
-        }
-
-    .ab-appt {
-        background: linear-gradient(135deg,#16a34a,#15803d);
-        color: #fff;
-        box-shadow: 0 4px 14px rgba(22,163,74,.25);
-    }
-
-        .ab-appt:hover {
-            box-shadow: 0 6px 20px rgba(22,163,74,.38);
-            color: #fff;
-        }
-
-    /* ── Utility buttons row ─────────────────────────────────────── */
-    .util-row {
+    .pd-util-row {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: repeat(3, 1fr);
         gap: 8px;
-        margin-top: 16px;
+        margin-top: 13px;
     }
 
-    .util-btn {
+    .pd-util-btn {
+        min-height: 62px;
+        border-radius: 14px;
+        border: 1px solid var(--pd-border);
+        background: #fff;
+        color: var(--pd-muted);
+        font-size: .78rem;
+        font-weight: 850;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 5px;
-        padding: 10px 6px;
-        border-radius: var(--r8);
-        border: 1.5px solid var(--bor);
-        background: var(--sur);
-        font-size: .78rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: var(--tr);
+        transition: var(--pd-transition);
     }
 
-        .util-btn i {
-            font-size: 1.15rem;
+        .pd-util-btn i {
+            font-size: 1.1rem;
         }
 
-        .util-btn:hover {
-            background: var(--bg);
-            border-color: var(--p1);
+        .pd-util-btn:hover {
+            background: var(--pd-soft);
+            border-color: #bfdbfe;
+            color: var(--pd-primary);
         }
 
-        .util-btn.saved {
-            background: #fef2f2;
-            border-color: #fca5a5;
-            color: var(--acc);
+        .pd-util-btn.saved {
+            background: #fff1f2;
+            border-color: #fda4af;
+            color: var(--pd-danger);
         }
 
-            .util-btn.saved i {
-                color: var(--acc);
-            }
-
-    /* ── Locked overlay ──────────────────────────────────────────── */
-    .locked-wrap {
+    .pd-login-lock {
         position: relative;
-        border-radius: var(--r12);
+        border-radius: var(--pd-radius);
         overflow: hidden;
-        margin-bottom: 14px;
+        margin-bottom: 12px;
     }
 
-    .locked-blur {
+    .pd-login-blur {
         filter: blur(6px);
         opacity: .45;
         pointer-events: none;
         user-select: none;
     }
 
-    .locked-overlay {
+    .pd-login-overlay {
         position: absolute;
         inset: 0;
+        background: rgba(255, 255, 255, .72);
+        backdrop-filter: blur(2px);
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        background: rgba(255,255,255,.55);
-        backdrop-filter: blur(2px);
-    }
-
-        .locked-overlay i {
-            font-size: 1.6rem;
-            color: var(--tx);
-        }
-
-        .locked-overlay p {
-            font-size: .82rem;
-            font-weight: 700;
-            color: var(--tx);
-            margin: 0;
-        }
-
-    /* ── Mini property card ──────────────────────────────────────── */
-    .mini-prop {
-        display: flex;
-        gap: 12px;
+        text-align: center;
         padding: 12px;
-        border-radius: var(--r12);
-        border: 1px solid var(--bor);
-        background: var(--sur);
-        text-decoration: none;
-        transition: var(--tr);
-        align-items: flex-start;
+        font-weight: 850;
     }
 
-        .mini-prop:hover {
-            box-shadow: var(--sh1);
-            border-color: var(--p1);
-            transform: translateX(3px);
+    .pd-mini-list {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+    }
+
+    .pd-mini-card {
+        display: flex;
+        gap: 11px;
+        padding: 10px;
+        border: 1px solid var(--pd-border);
+        border-radius: 14px;
+        background: #fff;
+        text-decoration: none;
+        transition: var(--pd-transition);
+    }
+
+        .pd-mini-card:hover {
+            border-color: #bfdbfe;
+            box-shadow: var(--pd-shadow-soft);
+            transform: translateY(-1px);
         }
 
-    .mini-prop-img {
-        width: 80px;
-        height: 64px;
-        border-radius: var(--r8);
+    .pd-mini-img {
+        width: 84px;
+        height: 68px;
+        border-radius: 12px;
         object-fit: cover;
         flex-shrink: 0;
+        background: var(--pd-soft);
     }
 
-    .mini-prop-info {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .mini-prop-title {
-        font-size: .85rem;
-        font-weight: 700;
-        color: var(--tx);
-        margin-bottom: 4px;
+    .pd-mini-title {
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-    }
-
-    .mini-prop-price {
-        color: var(--acc);
-        font-weight: 800;
-        font-size: .9rem;
-    }
-
-    .mini-prop-meta {
-        font-size: .75rem;
-        color: var(--mu);
-        margin-top: 3px;
-    }
-
-    /* ── Seller's other listings card ────────────────────────────── */
-    .seller-listing-card {
-        display: block;
-        border-radius: var(--r12);
-        overflow: hidden;
-        border: 1px solid var(--bor);
-        text-decoration: none;
-        transition: var(--tr);
-        background: var(--sur);
-    }
-
-        .seller-listing-card:hover {
-            box-shadow: var(--sh2);
-            transform: translateY(-3px);
-            border-color: var(--p1);
-        }
-
-        .seller-listing-card img {
-            width: 100%;
-            height: 120px;
-            object-fit: cover;
-            display: block;
-        }
-
-    .slc-body {
-        padding: 10px 12px 12px;
-    }
-
-    .slc-title {
-        font-size: .83rem;
-        font-weight: 700;
-        color: var(--tx);
+        color: var(--pd-text);
+        font-size: .84rem;
+        line-height: 1.35;
+        font-weight: 850;
         margin-bottom: 4px;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
     }
 
-    .slc-price {
-        color: var(--acc);
-        font-weight: 800;
+    .pd-mini-price {
+        color: var(--pd-danger);
+        font-weight: 950;
         font-size: .88rem;
     }
 
-    /* ── Empty State ─────────────────────────────────────────────── */
-    .empty-state {
-        text-align: center;
-        padding: 36px 20px;
-        color: var(--mu);
-        background: var(--bg);
-        border-radius: var(--r12);
-        border: 1px dashed var(--bor);
+    .pd-mini-meta {
+        color: var(--pd-muted);
+        font-size: .73rem;
+        font-weight: 700;
+        margin-top: 3px;
     }
 
-        .empty-state i {
-            font-size: 2.5rem;
-            opacity: .35;
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .empty-state p {
-            margin: 0;
-            font-size: .9rem;
-        }
-
-    /* ── Progress Bar for stats ──────────────────────────────────── */
-    .stat-bar-row {
-        margin-bottom: 12px;
+    .pd-comment-form {
+        display: flex;
+        gap: 12px;
+        padding-bottom: 16px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--pd-border);
     }
 
-    .stat-bar-label {
+    .pd-avatar {
+        width: 44px;
+        height: 44px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 2px solid var(--pd-border);
+        flex-shrink: 0;
+    }
+
+    .pd-comment-thread {
+        padding-bottom: 16px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--pd-border);
+    }
+
+        .pd-comment-thread:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+    .pd-comment-item,
+    .pd-reply-item {
+        display: flex;
+        gap: 12px;
+    }
+
+    .pd-comment-bubble {
+        flex: 1;
+        min-width: 0;
+        background: var(--pd-soft);
+        border: 1px solid var(--pd-border);
+        border-radius: 4px 16px 16px 16px;
+        padding: 13px 15px;
+    }
+
+    .pd-comment-head {
         display: flex;
         justify-content: space-between;
-        font-size: .83rem;
-        font-weight: 600;
-        color: var(--mu);
-        margin-bottom: 5px;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 7px;
     }
 
-    .stat-bar-track {
-        background: var(--bg);
-        height: 7px;
-        border-radius: 99px;
-        overflow: hidden;
+    .pd-comment-name {
+        color: var(--pd-text);
+        font-weight: 900;
+        font-size: .9rem;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
     }
 
-    .stat-bar-fill {
-        height: 100%;
-        border-radius: 99px;
-        background: linear-gradient(90deg, var(--p1), #60a5fa);
-        transition: width .8s ease;
+    .pd-comment-time {
+        color: var(--pd-muted);
+        font-size: .74rem;
+        font-weight: 750;
+        white-space: nowrap;
     }
 
-    /* ── Modal improvements ──────────────────────────────────────── */
+    .pd-comment-text {
+        color: #475569;
+        line-height: 1.65;
+        font-size: .9rem;
+        white-space: pre-wrap;
+        margin: 0;
+    }
+
+    .pd-owner-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--pd-primary);
+        color: #fff;
+        font-size: .68rem;
+        font-weight: 900;
+    }
+
+    .pd-reply-toggle {
+        margin-top: 9px;
+        border: none;
+        padding: 0;
+        background: transparent;
+        color: var(--pd-primary);
+        font-size: .82rem;
+        font-weight: 850;
+    }
+
+    .pd-reply-form {
+        display: none;
+        margin: 10px 0 0 56px;
+        padding: 12px;
+        border: 1px dashed var(--pd-border);
+        border-radius: 14px;
+        background: #fff;
+    }
+
+        .pd-reply-form.active {
+            display: block;
+        }
+
+    .pd-replies {
+        margin: 12px 0 0 56px;
+        padding-left: 18px;
+        border-left: 2px solid var(--pd-border);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .pd-reply-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        border: 2px solid #bfdbfe;
+    }
+
+    .pd-reply-bubble {
+        flex: 1;
+        min-width: 0;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 14px;
+        padding: 11px 13px;
+    }
+
+    .pd-empty {
+        text-align: center;
+        border: 1px dashed var(--pd-border);
+        background: var(--pd-soft);
+        border-radius: 16px;
+        padding: 28px 16px;
+        color: var(--pd-muted);
+        font-weight: 700;
+    }
+
+        .pd-empty i {
+            display: block;
+            font-size: 2rem;
+            opacity: .45;
+            margin-bottom: 8px;
+        }
+
     .modal-content {
         border: none;
-        border-radius: var(--r20);
-        box-shadow: var(--sh3);
+        border-radius: 22px;
         overflow: hidden;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
     }
 
     .modal-header {
         border-bottom: none;
-        padding: 22px 26px 14px;
-    }
-
-    .modal-body {
-        padding: 6px 26px 10px;
     }
 
     .modal-footer {
-        border-top: 1px solid var(--bg);
-        padding: 14px 26px 22px;
+        border-top: 1px solid var(--pd-border);
     }
 
-    .form-control, .form-select {
-        border: 1.5px solid var(--bor);
-        border-radius: var(--r8);
-        padding: 10px 14px;
-        font-size: .9rem;
-        transition: var(--tr);
-        background: var(--bg);
+    .form-control,
+    .form-select {
+        border: 1.5px solid var(--pd-border);
+        border-radius: 12px;
+        background: var(--pd-soft);
+        padding: 10px 13px;
+        font-size: .92rem;
+        font-weight: 650;
+        box-shadow: none;
     }
 
-        .form-control:focus, .form-select:focus {
-            border-color: var(--p1);
-            box-shadow: 0 0 0 4px rgba(26,86,219,.1);
-            background: var(--sur);
+        .form-control:focus,
+        .form-select:focus {
+            background: #fff;
+            border-color: var(--pd-primary);
+            box-shadow: 0 0 0 .22rem rgba(26, 86, 219, .10);
         }
 
     .form-label {
-        font-weight: 700;
-        font-size: .87rem;
-        color: var(--tx);
-        margin-bottom: 6px;
+        color: var(--pd-text);
+        font-weight: 850;
+        font-size: .86rem;
     }
 
-    /* ── Fullscreen image modal ──────────────────────────────────── */
-    #galleryModal .modal-dialog {
-        max-width: 95vw;
+    .pd-mobile-contact-bar {
+        display: none;
     }
 
-    #galleryModal .modal-content {
-        background: #000;
-        border-radius: var(--r12);
-    }
-
-    #galleryModal .modal-body {
-        padding: 6px;
-    }
-
-    #galleryDisplayImg {
-        max-height: 88vh;
-        max-width: 100%;
-        object-fit: contain;
-        border-radius: var(--r8);
-        display: block;
-        margin: auto;
-    }
-
-    /* ── Loading spinner inside btn ──────────────────────────────── */
-    .btn-loading {
-        pointer-events: none;
-        opacity: .7;
-    }
-
-    /* ── Responsive tweaks ───────────────────────────────────────── */
-    @@media (max-width: 768px) {
-        .hero-img {
-            height: 280px;
+    @@media (max-width: 1199.98px) {
+        .pd-layout {
+            grid-template-columns: minmax(0, 1fr) 330px;
+            gap: 18px;
         }
 
-        .prop-title {
-            font-size: 1.25rem;
+   
+    }
+
+    @@media (max-width: 991.98px) {
+        .pd-layout {
+            display: block;
         }
 
-        .price-area-row {
+        .pd-contact-sticky {
+            position: static;
+        }
+
+       
+    }
+
+    @@media (max-width: 767.98px) {
+        .pd-breadcrumb {
+            display: none;
+        }
+
+        .pd-page .container {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+    
+
+        .pd-gallery,
+        .pd-card,
+        .pd-warning {
+            border-radius: 16px;
+        }
+
+        .pd-card-body {
+            padding: 16px;
+        }
+
+        .pd-title-row {
+            display: block;
+        }
+
+        .pd-edit-btn {
+            margin-top: 10px;
+        }
+
+        .pd-address {
+            font-size: .86rem;
+        }
+
+        .pd-price-grid {
             grid-template-columns: 1fr 1fr;
         }
 
-        .pa-cell:last-child {
-            grid-column: 1/-1;
+        .pd-price-cell:first-child {
+            grid-column: 1 / -1;
         }
 
-        .detail-grid {
+        .pd-price-cell {
+            padding: 14px;
+        }
+
+        .pd-detail-grid {
             grid-template-columns: 1fr;
         }
 
-        .dg-row:nth-child(odd) {
-            border-right: none;
+        .pd-detail-item {
+            border-right: none !important;
         }
 
-        .sec-card, .info-card {
-            padding: 20px 16px;
+        .pd-detail-val {
+            max-width: 52%;
+        }
+
+        .pd-section-title {
+            font-size: 1rem;
+        }
+
+        .pd-map iframe {
+            height: 300px;
+        }
+
+        .pd-comment-form {
+            gap: 9px;
+        }
+
+            .pd-comment-form .pd-avatar {
+                display: none;
+            }
+
+        .pd-comment-head {
+            display: block;
+        }
+
+        .pd-comment-time {
+            display: block;
+            margin-top: 3px;
+        }
+
+        .pd-replies,
+        .pd-reply-form {
+            margin-left: 20px;
+        }
+
+        .pd-warning {
+            padding: 15px;
+        }
+
+            .pd-warning ul {
+                padding-left: 16px;
+            }
+
+        .pd-mobile-contact-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1040;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(255, 255, 255, .94);
+            border-top: 1px solid var(--pd-border);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 -10px 30px rgba(15, 23, 42, .12);
+        }
+
+            .pd-mobile-contact-bar .pd-main-action {
+                min-height: 44px;
+                border-radius: 14px;
+                font-size: .86rem;
+            }
+
+        body {
+            padding-bottom: 72px;
         }
     }
 
-    /* ── Smooth fade-in animation for page elements ──────────────── */
-    @@keyframes fadeUp {
-        from {
-            opacity: 0;
-            transform: translateY(18px);
+    @@media (max-width: 575.98px) {
+        .pd-page .container {
+            margin-top: 10px !important;
         }
 
-        to {
-            opacity: 1;
-            transform: translateY(0);
+      
+
+        .pd-gallery-badges {
+            left: 10px;
+            top: 10px;
+        }
+
+        .pd-photo-count {
+            right: 10px;
+            bottom: 10px;
+            min-height: 34px;
+            font-size: .78rem;
+        }
+
+        .pd-thumb {
+            width: 76px;
+            height: 58px;
+        }
+
+        .pd-title {
+            font-size: 1.22rem;
+        }
+
+        .pd-price-main {
+            font-size: 1.55rem;
+        }
+
+        .pd-price-value {
+            font-size: 1.05rem;
+        }
+
+        .pd-quick-list {
+            gap: 7px;
+        }
+
+        .pd-pill,
+        .pd-amenity {
+            font-size: .78rem;
+            padding: 7px 10px;
+        }
+
+        .pd-detail-item {
+            padding: 12px;
+        }
+
+        .pd-detail-key,
+        .pd-detail-val {
+            font-size: .8rem;
+        }
+
+        .pd-contact-body {
+            padding: 16px;
+        }
+
+        .pd-util-row {
+            gap: 7px;
+        }
+
+        .pd-util-btn {
+            min-height: 56px;
+            font-size: .72rem;
+        }
+
+        .modal-dialog {
+            margin: 10px;
         }
     }
 
-    .fade-up {
-        animation: fadeUp .5s ease forwards;
+    @@media (max-width: 1199.98px) {
+        .pd-hero-img {
+            height: min(64vh, 560px);
+            min-height: 390px;
+        }
     }
 
-    .fade-up-1 {
-        animation-delay: .05s;
-        opacity: 0;
+    @@media (max-width: 991.98px) {
+        .pd-hero-img {
+            height: min(58vh, 500px);
+            min-height: 360px;
+        }
     }
 
-    .fade-up-2 {
-        animation-delay: .12s;
-        opacity: 0;
+    @@media (max-width: 767.98px) {
+        .pd-hero-img {
+            height: auto;
+            min-height: unset;
+            max-height: none;
+            aspect-ratio: 4 / 3;
+            object-fit: contain;
+        }
+
+        .pd-gallery {
+            border-radius: 16px;
+        }
+
+        .pd-thumbs {
+            gap: 7px;
+            margin-bottom: 14px;
+        }
+
+        .pd-thumb {
+            width: 82px;
+            height: 62px;
+            border-radius: 11px;
+        }
     }
 
-    .fade-up-3 {
-        animation-delay: .20s;
-        opacity: 0;
-    }
+    @@media (max-width: 575.98px) {
+        .pd-hero-img {
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+            background: #020617;
+        }
 
-    .fade-up-4 {
-        animation-delay: .28s;
-        opacity: 0;
+        .pd-gallery-badges {
+            left: 10px;
+            top: 10px;
+        }
+
+        .pd-photo-count {
+            right: 10px;
+            bottom: 10px;
+            min-height: 34px;
+            font-size: .78rem;
+        }
+
+        .pd-thumb {
+            width: 76px;
+            height: 58px;
+        }
     }
 </style>
 
-@* ─────────────────────────────────────────────────────────── *@
-@* BREADCRUMB                                                  *@
-@* ─────────────────────────────────────────────────────────── *@
-<div class="bc-wrap">
+<div class="pd-breadcrumb">
     <div class="container">
-        <div class="bc-inner">
-            <a href="/"><i class="bi bi-house-door-fill"></i> Trang chủ</a>
-            <span class="sep">›</span>
-            <a href="/BatDongSan/@(isRent ? "NhaDatChoThue" : "NhaDatBan")">@(isRent ? "Cho thuê" : "Nhà đất bán")</a>
-            <span class="sep">›</span>
+        <div class="pd-breadcrumb-inner">
+            <a href="/"><i class="bi bi-house-door-fill me-1"></i>Trang chủ</a>
+            <span class="pd-breadcrumb-sep">›</span>
+            <a href="/BatDongSan/@(isRent ? "NhaDatChoThue" : "NhaDatBan")">@(isRent ? "Nhà đất cho thuê" : "Nhà đất bán")</a>
+            <span class="pd-breadcrumb-sep">›</span>
             <a href="#">@Model.PropertyType?.TypeName</a>
-            <span class="sep">›</span>
+            <span class="pd-breadcrumb-sep">›</span>
             <a href="#">@Model.Ward?.Area?.AreaName</a>
-            <span class="sep">›</span>
-            <span class="cur">@Model.Ward?.WardName</span>
+            <span class="pd-breadcrumb-sep">›</span>
+            <span>@Model.Ward?.WardName</span>
         </div>
     </div>
 </div>
 
-<div class="container my-4">
-
-    @* Status warning for non-approved *@
-    @if (Model.Status == "Pending" && (isAdminOrStaff || isOwner))
-    {
-        <div class="status-bar fade-up fade-up-1">
-            <i class="bi bi-hourglass-split me-2"></i>
-            <strong>Tin đăng đang chờ kiểm duyệt.</strong> Bài đăng chỉ hiển thị với bạn và Admin cho đến khi được phê duyệt.
-        </div>
-    }
-
-    <div class="row g-4">
-        @* ═══════════════════════════════ LEFT COLUMN ═══════════════════════════════ *@
-        <div class="col-lg-8">
-
-            @* ── GALLERY ── *@
-            <div class="gallery-wrap fade-up fade-up-1 mb-3">
-                <div class="gallery-top-badges">
-                    @if (Model.PackageID != null && Model.PostServicePackage?.PriorityLevel > 1)
-                    {
-                        <span class="badge-vip"><i class="bi bi-star-fill me-1"></i>VIP @Model.PostServicePackage.PackageName</span>
-                    }
-                    <span class="badge-type">@(isRent ? "Cho thuê" : "Bán")</span>
+<div class="pd-page">
+    <div class="container my-4">
+        @if (Model.Status == "Pending" && (isAdminOrStaff || isOwner))
+        {
+            <div class="pd-status-alert">
+                <i class="bi bi-hourglass-split"></i>
+                <div>
+                    <strong>Tin đăng đang chờ kiểm duyệt.</strong>
+                    Bài đăng chỉ hiển thị với bạn và Admin cho đến khi được phê duyệt.
                 </div>
-
-                <img id="heroImg"
-                     src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
-                     class="hero-img"
-                     alt="@Model.Title"
-                     onerror="this.src='/images/no-image.jpg'"
-                     data-bs-toggle="modal" data-bs-target="#galleryModal" />
-
-                <div class="gallery-overlay"></div>
-
-                <button class="gallery-photo-btn" data-bs-toggle="modal" data-bs-target="#galleryModal">
-                    <i class="bi bi-images"></i> @totalImages ảnh
-                </button>
             </div>
+        }
 
-            @if (propertyImages.Any())
-            {
-                <div class="thumb-row mb-3">
-                    <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
-                         class="thumb-item active"
-                         onclick="switchImg(this)"
-                         onerror="this.src='/images/no-image.jpg'" />
-                    @foreach (var img in propertyImages)
-                    {
-                        <img src="@img.ImageURL" class="thumb-item" onclick="switchImg(this)" onerror="this.src='/images/no-image.jpg'" />
-                    }
-                </div>
-            }
-
-            @* ── TITLE + PRICE CARD ── *@
-            <div class="info-card fade-up fade-up-2">
-                <div class="d-flex justify-content-between align-items-start mb-1 gap-3 flex-wrap">
-                    <h1 class="prop-title flex-1">@Model.Title</h1>
-                    <div class="d-flex gap-2 flex-shrink-0 align-items-start">
-                        @if (isOwner)
+        <div class="pd-layout">
+            <main>
+                <div class="pd-gallery mb-2">
+                    <div class="pd-gallery-badges">
+                        @if (Model.PackageID != null && Model.PostServicePackage != null && Model.PostServicePackage.PackageType != "Tin Thường")
                         {
-                            <a href="/Property/Edit/@Model.PropertyID" class="btn btn-sm btn-outline-secondary rounded-pill fw-bold">
-                                <i class="bi bi-pencil me-1"></i>Sửa tin
-                            </a>
-                        }
-                    </div>
-                </div>
-                <div class="prop-address">
-                    <i class="bi bi-geo-alt-fill"></i>
-                    <span>@fullAddress</span>
-                </div>
-
-                <div class="price-area-row">
-                    <div class="pa-cell">
-                        <div class="pa-label">Mức giá</div>
-                        <div class="pa-val-price">@priceDisplay</div>
-                        @if (isRent)
-                        {
-                            <div class="pa-unit">/ tháng</div>
-                        }
-                    </div>
-                    <div class="pa-cell">
-                        <div class="pa-label">Diện tích</div>
-                        <div class="pa-val">@Model.AreaSize m²</div>
-                    </div>
-                    <div class="pa-cell">
-                        <div class="pa-label">Đơn giá</div>
-                        <div class="pa-val" style="font-size:1.1rem;">@(string.IsNullOrEmpty(pricePerM2) ? "—" : pricePerM2)</div>
-                    </div>
-                </div>
-
-                @* Quick stats pills *@
-                <div class="quick-stats">
-                    @if (!string.IsNullOrEmpty(bed))
-                    {
-                        <span class="qs-pill"><i class="bi bi-door-closed"></i> @bed phòng ngủ</span>
-                    }
-                    @if (!string.IsNullOrEmpty(bath))
-                    {
-                        <span class="qs-pill"><i class="bi bi-droplet"></i> @bath phòng tắm</span>
-                    }
-                    @if (!string.IsNullOrEmpty(direction))
-                    {
-                        <span class="qs-pill"><i class="bi bi-compass"></i> Hướng @direction</span>
-                    }
-                    @if (!string.IsNullOrEmpty(legal))
-                    {
-                        <span class="qs-pill"><i class="bi bi-patch-check"></i> @legal</span>
-                    }
-                    <span class="qs-pill"><i class="bi bi-eye"></i> @Model.Views lượt xem</span>
-                    <span class="qs-pill"><i class="bi bi-calendar3"></i> Đăng @Model.CreatedAt.ToString("dd/MM/yyyy")</span>
-                </div>
-            </div>
-
-            @* ── DETAIL TABLE ── *@
-            <div class="sec-card fade-up fade-up-3">
-                <div class="sec-title"><i class="bi bi-list-ul"></i> Thông tin chi tiết</div>
-                <div class="detail-grid">
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-hash"></i>Mã tin</span>
-                        <span class="dg-val highlight">#@Model.PropertyID</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-geo-alt"></i>Khu vực</span>
-                        <span class="dg-val">@Model.Ward?.Area?.AreaName</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-pin-map"></i>Phường/Xã</span>
-                        <span class="dg-val">@Model.Ward?.WardName</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-buildings"></i>Dự án</span>
-                        <span class="dg-val">@(Model.Project?.ProjectName ?? "Không có")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-tag"></i>Loại hình</span>
-                        <span class="dg-val">@Model.PropertyType?.TypeName</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-arrow-left-right"></i>Giao dịch</span>
-                        <span class="dg-val">@(isRent ? "Cho thuê" : "Mua bán")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-door-closed"></i>Phòng ngủ</span>
-                        <span class="dg-val">@(bed ?? "N/A")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-droplet"></i>Phòng tắm</span>
-                        <span class="dg-val">@(bath ?? "N/A")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-compass"></i>Hướng nhà</span>
-                        <span class="dg-val">@(direction ?? "N/A")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-arrows-expand"></i>Chiều ngang</span>
-                        <span class="dg-val">@(Model.Width.HasValue? Model.Width.Value.ToString("0.##") + " m" : "N/A")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-arrows-collapse"></i>Chiều dài</span>
-                        <span class="dg-val">@(Model.Length.HasValue? Model.Length.Value.ToString("0.##") + " m" : "N/A")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-patch-check"></i>Pháp lý</span>
-                        <span class="dg-val green">@(legal ?? "Đang cập nhật")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-calendar-plus"></i>Ngày đăng</span>
-                        <span class="dg-val">@Model.CreatedAt.ToString("dd/MM/yyyy")</span>
-                    </div>
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-arrow-clockwise"></i>Cập nhật</span>
-                        <span class="dg-val green">
-                            @(Model.UpdatedAt.HasValue? Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm") : Model.CreatedAt.ToString("dd/MM/yyyy"))
-                        </span>
-                    </div>
-                    @if (Model.VipExpiryDate.HasValue)
-                    {
-                        <div class="dg-row">
-                            <span class="dg-key"><i class="bi bi-clock-history"></i>Hết hạn VIP</span>
-                            <span class="dg-val">@Model.VipExpiryDate.Value.ToString("dd/MM/yyyy")</span>
-                        </div>
-                    }
-                    <div class="dg-row">
-                        <span class="dg-key"><i class="bi bi-eye"></i>Lượt xem</span>
-                        <span class="dg-val">@Model.Views lượt</span>
-                    </div>
-                </div>
-            </div>
-
-            @* ── DESCRIPTION ── *@
-            <div class="sec-card fade-up fade-up-3">
-                <div class="sec-title"><i class="bi bi-file-text"></i> Mô tả bất động sản</div>
-                <div id="descBody" class="desc-body desc-collapsed">@Model.Description</div>
-                <button id="readMoreBtn" class="read-more-btn" onclick="expandDesc()">
-                    <i class="bi bi-chevron-down me-1"></i> Xem thêm nội dung
-                </button>
-            </div>
-
-            @* ── AMENITIES ── *@
-            @if (!string.IsNullOrEmpty(amenities))
-            {
-                <div class="sec-card fade-up fade-up-3">
-                    <div class="sec-title"><i class="bi bi-stars"></i> Tiện ích nổi bật</div>
-                    <div class="amenity-grid">
-                        @foreach (var am in amenities.Split(','))
-                        {
-                            <span class="am-pill">
-                                <i class="bi bi-check-circle-fill"></i>@am.Trim()
+                            <span class="pd-badge pd-badge-vip">
+                                <i class="bi bi-star-fill"></i>
+                                VIP @Model.PostServicePackage.PackageType
                             </span>
                         }
+
+                        <span class="pd-badge pd-badge-type">
+                            <i class="bi bi-tag-fill"></i>
+                            @(isRent ? "Cho thuê" : "Bán")
+                        </span>
                     </div>
-                </div>
-            }
 
-            @* ── SAFETY WARNING ── *@
-            <div class="warn-box fade-up fade-up-3">
-                <i class="bi bi-shield-exclamation"></i>
-                <div>
-                    <h6><i class="bi bi-exclamation-triangle-fill me-1"></i> Lưu ý an toàn giao dịch</h6>
-                    <ul>
-                        <li>Không chuyển khoản khi chưa gặp mặt trực tiếp và xác minh giấy tờ pháp lý bản gốc.</li>
-                        <li>Luôn yêu cầu xem sổ đỏ/sổ hồng gốc và công chứng hợp đồng tại văn phòng công chứng.</li>
-                        <li>Cẩn thận với các trường hợp yêu cầu đặt cọc trước khi ký hợp đồng chính thức.</li>
-                        <li>Hệ thống không chịu trách nhiệm với các nội dung do người dùng tự đăng tải.</li>
-                        <li>Phát hiện tin giả / lừa đảo? <a href="#" data-bs-toggle="modal" data-bs-target="#reportModal" class="fw-bold text-danger">Báo cáo ngay tại đây</a>.</li>
-                    </ul>
-                </div>
-            </div>
+                    <img id="heroImg"
+                         src="@GetSafeImage(mainImage)"
+                         data-full="@GetSafeImage(mainImage)"
+                         class="pd-hero-img"
+                         alt="@Model.Title"
+                         loading="eager"
+                         decoding="async"
+                         fetchpriority="high"
+                         draggable="false"
+                         onerror="this.onerror=null;this.src='/images/no-image.jpg';this.dataset.full='/images/no-image.jpg';"
+                         data-bs-toggle="modal"
+                         data-bs-target="#galleryModal" />
 
-            @* ── MAP ── *@
-            <div class="sec-card fade-up fade-up-4">
-                <div class="sec-title"><i class="bi bi-map"></i> Vị trí trên bản đồ</div>
-                <div class="map-wrap">
-                    <iframe width="100%" height="360" style="border:0;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
-                            src="https://maps.google.com/maps?q=@mapQuery&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
-                </div>
-            </div>
+                    <div class="pd-gallery-gradient"></div>
 
-          
-
-            @* ── COMMENTS ── *@
-            <div class="sec-card fade-up fade-up-4">
-                <div class="sec-title">
-                    <i class="bi bi-chat-text"></i>
-                    Bình luận & Đánh giá
-                    <span class="badge bg-primary rounded-pill ms-1" style="font-size:.75rem;">@comments.Count()</span>
+                    <button type="button" class="pd-photo-count" data-bs-toggle="modal" data-bs-target="#galleryModal">
+                        <i class="bi bi-images"></i>
+                        @totalImages ảnh
+                    </button>
                 </div>
 
-                @if (isAuthenticated)
+                @if (galleryImages.Count > 1)
                 {
-                    <div class="d-flex gap-3 mb-4">
-                        <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
-                             class="c-avatar" style="width:46px;height:46px;" />
-                        <div class="flex-grow-1">
-                            <textarea id="commentContent" class="form-control" rows="3"
-                                  placeholder="Chia sẻ nhận xét của bạn về bất động sản này..."></textarea>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Bình luận sẽ hiển thị sau khi Admin duyệt.</small>
-                                <button id="btnComment" type="button" class="btn btn-primary rounded-pill px-4 fw-bold" style="font-size:.88rem;">
-                                    <i class="bi bi-send-fill me-1"></i>Gửi
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="empty-state mb-4">
-                        <i class="bi bi-lock"></i>
-                        <p>Vui lòng <a href="/Account/Login" class="fw-bold text-primary">đăng nhập</a> để tham gia bình luận.</p>
+                    <div class="pd-thumbs">
+                        @for (int i = 0; i < galleryImages.Count; i++)
+                        {
+                            var imgUrl = GetSafeImage(galleryImages[i]);
+
+                            <img src="@imgUrl"
+                                 data-full="@imgUrl"
+                                 class="pd-thumb @(i == 0 ? "active" : "")"
+                                 onclick="switchImg(this)"
+                                 loading="lazy"
+                                 decoding="async"
+                                 draggable="false"
+                                 onerror="this.onerror=null;this.src='/images/no-image.jpg';this.dataset.full='/images/no-image.jpg';"
+                                 alt="Ảnh bất động sản @(i + 1)" />
+                        }
                     </div>
                 }
 
-                @if (comments.Any())
-                {
-                    @foreach (var c in comments)
-                    {
-                        <div class="comment-item">
-                            <img src="@(c.User?.Avatar ?? "/images/avatars/default-user.png")" class="c-avatar" />
-                            <div class="c-bubble">
-                                <div class="c-header">
-                                    <span class="c-name">@c.User?.FullName</span>
-                                    <span class="c-time"><i class="bi bi-clock me-1"></i>@c.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+   
+
+                <section class="pd-card">
+                    <div class="pd-card-body">
+                        <div class="pd-title-row">
+                            <div>
+                                <h1 class="pd-title">@Model.Title</h1>
+                                <div class="pd-address">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                    <span>@fullAddress</span>
                                 </div>
-                                <p class="c-text">@c.Content</p>
+                            </div>
+
+                            @if (isOwner)
+                            {
+                                <a href="/Property/Edit/@Model.PropertyID" class="pd-edit-btn">
+                                    <i class="bi bi-pencil-square"></i>
+                                    Sửa tin
+                                </a>
+                            }
+                        </div>
+
+                        <div class="pd-price-grid">
+                            <div class="pd-price-cell">
+                                <div class="pd-price-label">Mức giá</div>
+                                <div class="pd-price-main">@priceDisplay</div>
+                                @if (isRent)
+                                {
+                                    <div class="pd-price-unit">/ tháng</div>
+                                }
+                            </div>
+
+                            <div class="pd-price-cell">
+                                <div class="pd-price-label">Diện tích</div>
+                                <div class="pd-price-value">@areaDisplay</div>
+                            </div>
+
+                            <div class="pd-price-cell">
+                                <div class="pd-price-label">Đơn giá</div>
+                                <div class="pd-price-value" style="font-size:1.05rem;">
+                                    @(string.IsNullOrWhiteSpace(pricePerM2) ? "—" : pricePerM2)
+                                </div>
                             </div>
                         </div>
-                    }
-                }
-                else
-                {
-                    <div class="empty-state">
-                        <i class="bi bi-chat-square-dots"></i>
-                        <p>Chưa có bình luận nào. Hãy là người đầu tiên!</p>
+
+                        <div class="pd-quick-list">
+                            @if (!string.IsNullOrWhiteSpace(bed))
+                            {
+                                <span class="pd-pill"><i class="bi bi-door-closed"></i>@bed phòng ngủ</span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(bath))
+                            {
+                                <span class="pd-pill"><i class="bi bi-droplet"></i>@bath phòng tắm</span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(direction))
+                            {
+                                <span class="pd-pill"><i class="bi bi-compass"></i>Hướng @direction</span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(legal))
+                            {
+                                <span class="pd-pill"><i class="bi bi-patch-check"></i>@legal</span>
+                            }
+
+                            <span class="pd-pill"><i class="bi bi-eye"></i>@Model.Views lượt xem</span>
+                            <span class="pd-pill"><i class="bi bi-calendar3"></i>Đăng @Model.CreatedAt.ToString("dd/MM/yyyy")</span>
+                        </div>
                     </div>
-                }
-            </div>
+                </section>
 
-        </div>@* /col-lg-8 *@
+                <section class="pd-card">
+                    <div class="pd-card-body">
+                        <div class="pd-section-title">
+                            <i class="bi bi-list-ul"></i>
+                            Thông tin chi tiết
+                        </div>
 
-        @* ═══════════════════════════════ RIGHT SIDEBAR ═══════════════════════════ *@
-        <div class="col-lg-4">
-            <div class="contact-sticky">
-
-                @* ── CONTACT CARD ── *@
-                <div class="contact-card fade-up fade-up-2">
-                    <div class="contact-header">
-                        <a href="/Nguoi-Dang-Tin/@Model.UserID" title="Xem hồ sơ người đăng">
-                            <div class="c-avatar-wrap">
-                                <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
-                                     class="c-avatar-lg" alt="Avatar" />
-                                <span class="c-online-dot"></span>
+                        <div class="pd-detail-grid">
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-hash"></i>Mã tin</span>
+                                <span class="pd-detail-val">#@Model.PropertyID</span>
                             </div>
-                        </a>
-                        <div class="mt-2">
-                            <a href="/Nguoi-Dang-Tin/@Model.UserID" class="c-seller-name text-decoration-none" title="Xem hồ sơ người đăng">
-                                @(Model.User?.FullName ?? "Người dùng ẩn danh")
-                            </a>
-                        </div>                        <span class="c-seller-role">Người đăng tin</span>
-                    </div>
 
-                    <div class="contact-body">
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-geo-alt"></i>Khu vực</span>
+                                <span class="pd-detail-val">@Model.Ward?.Area?.AreaName</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-pin-map"></i>Phường/Xã</span>
+                                <span class="pd-detail-val">@Model.Ward?.WardName</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-buildings"></i>Dự án</span>
+                                <span class="pd-detail-val">@(Model.Project?.ProjectName ?? "Không có")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-tag"></i>Loại hình</span>
+                                <span class="pd-detail-val">@(Model.PropertyType?.TypeName ?? "Đang cập nhật")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-arrow-left-right"></i>Giao dịch</span>
+                                <span class="pd-detail-val">@(isRent ? "Cho thuê" : "Mua bán")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-door-closed"></i>Phòng ngủ</span>
+                                <span class="pd-detail-val">@(bed ?? "N/A")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-droplet"></i>Phòng tắm</span>
+                                <span class="pd-detail-val">@(bath ?? "N/A")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-compass"></i>Hướng nhà</span>
+                                <span class="pd-detail-val">@(direction ?? "N/A")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-arrows-expand"></i>Chiều ngang</span>
+                                <span class="pd-detail-val">@(Model.Width.HasValue? Model.Width.Value.ToString("0.##", Vi) + " m" : "N/A")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-arrows-collapse"></i>Chiều dài</span>
+                                <span class="pd-detail-val">@(Model.Length.HasValue? Model.Length.Value.ToString("0.##", Vi) + " m" : "N/A")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-patch-check"></i>Pháp lý</span>
+                                <span class="pd-detail-val green">@(legal ?? "Đang cập nhật")</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-calendar-plus"></i>Ngày đăng</span>
+                                <span class="pd-detail-val">@FormatShortDate(Model.CreatedAt)</span>
+                            </div>
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-arrow-clockwise"></i>Cập nhật</span>
+                                <span class="pd-detail-val green">@(Model.UpdatedAt.HasValue? FormatDateTime(Model.UpdatedAt) : FormatShortDate(Model.CreatedAt))</span>
+                            </div>
+
+                            @if (Model.VipExpiryDate.HasValue)
+                            {
+                                <div class="pd-detail-item">
+                                    <span class="pd-detail-key"><i class="bi bi-clock-history"></i>Hết hạn VIP</span>
+                                    <span class="pd-detail-val">@FormatShortDate(Model.VipExpiryDate)</span>
+                                </div>
+                            }
+
+                            <div class="pd-detail-item">
+                                <span class="pd-detail-key"><i class="bi bi-eye"></i>Lượt xem</span>
+                                <span class="pd-detail-val">@Model.Views lượt</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pd-card">
+                    <div class="pd-card-body">
+                        <div class="pd-section-title">
+                            <i class="bi bi-file-text"></i>
+                            Mô tả bất động sản
+                        </div>
+
+                        <div id="descBody" class="pd-desc pd-desc-collapsed">@Model.Description</div>
+
+                        <button id="readMoreBtn" type="button" class="pd-readmore" onclick="expandDesc()">
+                            <i class="bi bi-chevron-down me-1"></i>
+                            Xem thêm nội dung
+                        </button>
+                    </div>
+                </section>
+
+                @if (!string.IsNullOrWhiteSpace(amenities))
+                {
+                    <section class="pd-card">
+                        <div class="pd-card-body">
+                            <div class="pd-section-title">
+                                <i class="bi bi-stars"></i>
+                                Tiện ích nổi bật
+                            </div>
+
+                            <div class="pd-amenities">
+                                @foreach (var am in amenities.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    <span class="pd-amenity">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        @am.Trim()
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                }
+
+                <div class="pd-warning">
+                    <i class="bi bi-shield-exclamation"></i>
+                    <div>
+                        <h6>Lưu ý an toàn giao dịch</h6>
+                        <ul>
+                            <li>Không chuyển khoản khi chưa gặp mặt trực tiếp và xác minh giấy tờ pháp lý bản gốc.</li>
+                            <li>Luôn yêu cầu xem sổ đỏ/sổ hồng gốc và công chứng hợp đồng tại văn phòng công chứng.</li>
+                            <li>Cẩn thận với các trường hợp yêu cầu đặt cọc trước khi ký hợp đồng chính thức.</li>
+                            <li>Hệ thống không chịu trách nhiệm với các nội dung do người dùng tự đăng tải.</li>
+                            <li>Phát hiện tin giả / lừa đảo? <a href="#" data-bs-toggle="modal" data-bs-target="#reportModal" class="fw-bold text-danger">Báo cáo ngay tại đây</a>.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <section class="pd-card">
+                    <div class="pd-card-body">
+                        <div class="pd-section-title">
+                            <i class="bi bi-map"></i>
+                            Vị trí trên bản đồ
+                        </div>
+
+                        <div class="pd-map">
+                            <iframe loading="lazy"
+                                    allowfullscreen
+                                    referrerpolicy="no-referrer-when-downgrade"
+                                    src="https://maps.google.com/maps?q=@mapQuery&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pd-card">
+                    <div class="pd-card-body">
+                        <div class="pd-section-title">
+                            <i class="bi bi-chat-text"></i>
+                            Bình luận & Hỏi đáp
+                            <span class="badge bg-primary rounded-pill ms-1">@comments.Count()</span>
+                        </div>
 
                         @if (isAuthenticated)
                         {
-                            @* Phone reveal *@
-                            <div class="phone-reveal-box" id="phoneBox">
-                                <button class="btn-reveal" id="btnReveal">
-                                    <i class="bi bi-telephone-fill"></i>
-                                    <span id="phoneText">
-                                        @(!string.IsNullOrEmpty(Model.User?.Phone)
-                                                                            ? Model.User.Phone.Substring(0, Math.Min(4, Model.User.Phone.Length)) + " *** *** – Bấm để hiện"
-                                                                            : "Chưa cập nhật SĐT")
-                                </span>
-                            </button>
-                            <button class="btn-copy-ph" id="btnCopyPh" title="Sao chép">
-                                <i class="bi bi-copy"></i>
-                            </button>
-                        </div>
+                            <div class="pd-comment-form">
+                                <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
+                                     class="pd-avatar"
+                                     alt="Avatar" />
 
-                            @* Social *@
-                            <div class="row g-2 mb-3">
-                            @if (!string.IsNullOrEmpty(zaloLink))
-                                {
-                                    <div class="@(!string.IsNullOrEmpty(fbLink) ? "col-6" : "col-12")">
-                                        <a href="@zaloLink" target="_blank" class="btn-zalo">
-                                            <i class="bi bi-chat-dots-fill"></i> Zalo
-                                        </a>
+                                <div class="flex-grow-1">
+                                    <textarea id="commentContent"
+                                          class="form-control"
+                                          rows="3"
+                                          placeholder="Bạn có thắc mắc gì về bất động sản này? Hãy đặt câu hỏi..."></textarea>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-2 gap-2 flex-wrap">
+                                        <small class="text-muted fw-semibold">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            Bình luận sẽ hiển thị sau khi Admin duyệt.
+                                        </small>
+
+                                        <button id="btnComment" type="button" class="btn btn-primary rounded-pill px-4 fw-bold">
+                                            <i class="bi bi-send-fill me-1"></i>
+                                            Gửi câu hỏi
+                                        </button>
                                     </div>
-                                }
-                                @if (!string.IsNullOrEmpty(fbLink))
-                                {
-                                    <div class="@(!string.IsNullOrEmpty(zaloLink) ? "col-6" : "col-12")">
-                                        <a href="@fbLink" target="_blank" class="btn-fb">
-                                            <i class="bi bi-facebook"></i> Facebook
-                                        </a>
-                                    </div>
-                                }
+                                </div>
                             </div>
                         }
                         else
                         {
-                            @* Locked blur *@
-                            <div class="locked-wrap mb-3">
-                                <div class="locked-blur">
-                                    <div class="phone-reveal-box" style="margin-bottom:10px;">
-                                        <button class="btn-reveal w-100">
-                                            <i class="bi bi-telephone-fill"></i> 0987 *** ***
-                                        </button>
-                                    </div>
-                                    <div class="d-flex gap-2">
-                                        <button class="btn-zalo w-50">Zalo</button>
-                                        <button class="btn-fb w-50">Facebook</button>
-                                    </div>
-                                </div>
-                                <div class="locked-overlay">
-                                    <i class="bi bi-lock-fill"></i>
-                                    <p>Đăng nhập để xem liên hệ</p>
-                                    <a href="/Account/Login" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm">Đăng nhập ngay</a>
-                                </div>
+                            <div class="pd-empty mb-3">
+                                <i class="bi bi-lock"></i>
+                                Vui lòng <a href="/Account/Login" class="fw-bold text-primary">đăng nhập</a> để tham gia bình luận.
                             </div>
                         }
 
-                        @* Action buttons - KIỂM TRA TRẠNG THÁI *@
-                        <div class="action-btns">
-                            @if (Model.Status == "Pending")
+                        @if (parentComments.Any())
+                        {
+                            foreach (var c in parentComments)
                             {
-                                <div class="alert alert-warning small text-center mb-0 rounded-3">
-                                    <i class="bi bi-lock-fill mb-1 fs-4 d-block text-warning"></i>
-                                    Tin đăng đang chờ duyệt. Các chức năng liên hệ tạm thời bị khóa.
+                                var replies = comments.Where(r => r.ParentID == c.CommentID)
+                                .OrderBy(r => r.CreatedAt)
+                                .ToList();
+
+                                <div class="pd-comment-thread">
+                                    <div class="pd-comment-item">
+                                        <img src="@(c.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                             class="pd-avatar"
+                                             alt="Avatar" />
+
+                                        <div class="pd-comment-bubble">
+                                            <div class="pd-comment-head">
+                                                <span class="pd-comment-name">
+                                                    @(c.User?.FullName ?? "Người dùng")
+                                                    @if (c.UserID == Model.UserID)
+                                                    {
+                                                        <span class="pd-owner-badge">
+                                                            <i class="bi bi-check-circle-fill"></i>
+                                                            Người đăng
+                                                        </span>
+                                                    }
+                                                </span>
+
+                                                <span class="pd-comment-time">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    @c.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                                </span>
+                                            </div>
+
+                                            <p class="pd-comment-text">@c.Content</p>
+
+                                            @if (isOwner || isAdminOrStaff)
+                                            {
+                                                <button type="button" class="pd-reply-toggle" onclick="toggleReplyForm(@c.CommentID)">
+                                                    <i class="bi bi-reply-fill me-1"></i>
+                                                    Trả lời câu hỏi này
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    @if (isOwner || isAdminOrStaff)
+                                    {
+                                        <div class="pd-reply-form" id="replyForm_@c.CommentID">
+                                            <textarea id="replyContent_@c.CommentID"
+                                          class="form-control mb-2"
+                                          rows="2"
+                                          placeholder="Nhập câu trả lời của bạn..."></textarea>
+
+                                            <div class="text-end">
+                                                <button type="button" class="btn btn-sm btn-light rounded-pill me-1 fw-bold" onclick="toggleReplyForm(@c.CommentID)">
+                                                    Hủy
+                                                </button>
+
+                                                <button type="button" class="btn btn-sm btn-primary rounded-pill fw-bold px-3" onclick="submitReply(@c.CommentID)">
+                                                    <i class="bi bi-send-fill me-1"></i>
+                                                    Đăng trả lời
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (replies.Any())
+                                    {
+                                        <div class="pd-replies">
+                                            @foreach (var r in replies)
+                                            {
+                                                bool isReplyFromOwner = r.UserID == Model.UserID;
+
+                                                <div class="pd-reply-item">
+                                                    <img src="@(r.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                                         class="pd-reply-avatar"
+                                                         alt="Avatar" />
+
+                                                    <div class="pd-reply-bubble" style="@(!isReplyFromOwner ? "background:#f8fafc;border-color:#e2e8f0;" : "")">
+                                                        <div class="pd-comment-head">
+                                                            <span class="pd-comment-name">
+                                                                @(r.User?.FullName ?? "Người dùng")
+                                                                @if (isReplyFromOwner)
+                                                                {
+                                                                    <span class="pd-owner-badge">
+                                                                        <i class="bi bi-check-circle-fill"></i>
+                                                                        Người đăng
+                                                                    </span>
+                                                                }
+                                                            </span>
+
+                                                            <span class="pd-comment-time">@r.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                                                        </div>
+
+                                                        <p class="pd-comment-text">@r.Content</p>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
                                 </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="pd-empty">
+                                <i class="bi bi-chat-square-dots"></i>
+                                Chưa có câu hỏi hay bình luận nào. Hãy là người đầu tiên!
+                            </div>
+                        }
+                    </div>
+                </section>
+            </main>
+
+            <aside>
+                <div class="pd-contact-sticky">
+                    <section class="pd-card pd-contact-card">
+                        <div class="pd-contact-head">
+                            <a href="/Nguoi-Dang-Tin/@Model.UserID" title="Xem hồ sơ người đăng">
+                                <span class="pd-seller-avatar-wrap">
+                                    <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                         class="pd-seller-avatar"
+                                         alt="Avatar người đăng" />
+                                    <span class="pd-online-dot"></span>
+                                </span>
+                            </a>
+
+                            <a href="/Nguoi-Dang-Tin/@Model.UserID" class="pd-seller-name">
+                                @(Model.User?.FullName ?? "Người dùng ẩn danh")
+                            </a>
+
+                            <span class="pd-seller-role">
+                                <i class="bi bi-person-check-fill me-1"></i>
+                                Người đăng tin
+                            </span>
+                        </div>
+
+                        <div class="pd-contact-body">
+                            @if (isAuthenticated)
+                            {
+                                <div class="pd-phone-box" id="phoneBox">
+                                    <button type="button" class="pd-phone-reveal" id="btnReveal">
+                                        <i class="bi bi-telephone-fill"></i>
+                                        <span id="phoneText">
+                                            @(!string.IsNullOrWhiteSpace(Model.User?.Phone)
+                                                                                    ? Model.User.Phone.Substring(0, Math.Min(4, Model.User.Phone.Length)) + " *** *** – Bấm để hiện"
+                                                                                    : "Chưa cập nhật SĐT")
+                                    </span>
+                                </button>
+
+                                    <button type="button" class="pd-phone-copy" id="btnCopyPh" title="Sao chép">
+                                        <i class="bi bi-copy"></i>
+                                    </button>
+                                </div>
+
+                            @if (!string.IsNullOrWhiteSpace(zaloLink) || !string.IsNullOrWhiteSpace(fbLink))
+                                {
+                                    <div class="pd-social-row @((!string.IsNullOrWhiteSpace(zaloLink) && !string.IsNullOrWhiteSpace(fbLink)) ? "" : "one")">
+                                        @if (!string.IsNullOrWhiteSpace(zaloLink))
+                                        {
+                                            <a href="@zaloLink" target="_blank" class="pd-social-btn pd-zalo">
+                                                <i class="bi bi-chat-dots-fill"></i>
+                                                Zalo
+                                            </a>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(fbLink))
+                                        {
+                                            <a href="@fbLink" target="_blank" class="pd-social-btn pd-facebook">
+                                                <i class="bi bi-facebook"></i>
+                                                Facebook
+                                            </a>
+                                        }
+                                    </div>
+                                }
                             }
                             else
                             {
-                                <button type="button" class="action-btn ab-consult"
-                                        data-bs-toggle="modal" data-bs-target="#consultationModal">
-                                    <i class="bi bi-headset fs-5"></i> Yêu cầu tư vấn miễn phí
-                                </button>
+                                <div class="pd-login-lock">
+                                    <div class="pd-login-blur">
+                                        <div class="pd-phone-box mb-2">
+                                            <button type="button" class="pd-phone-reveal w-100">
+                                                <i class="bi bi-telephone-fill"></i>
+                                                0987 *** ***
+                                            </button>
+                                        </div>
 
-                                @if (!isOwner)
-                                {
-                                    <button type="button" class="action-btn ab-chat"
-                                            data-bs-toggle="modal" data-bs-target="#internalChatModal">
-                                        <i class="bi bi-chat-dots-fill fs-5"></i> Chat trực tiếp ngay
-                                    </button>
-
-                                    <button type="button" class="action-btn ab-appt"
-                                            data-bs-toggle="modal" data-bs-target="#appointmentModal">
-                                        <i class="bi bi-calendar-check-fill fs-5"></i> Đặt lịch xem nhà
-                                    </button>
-                                }
-                            }
-                        </div>
-
-                        @* Utility buttons *@
-                        <div class="util-row">
-                            <button class="util-btn @(ViewBag.IsFavorited ? "saved" : "")"
-                                    id="btnFav" data-id="@Model.PropertyID">
-                                <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
-                                   id="iconFav"
-                                   style="color:@(ViewBag.IsFavorited ? "var(--acc)" : "var(--mu)")"></i>
-                                <span id="textFav">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
-                            </button>
-                            <button class="util-btn"
-                                    onclick="navigator.clipboard.writeText(window.location.href).then(()=>showToast('Đã copy link!','success'))">
-                                <i class="bi bi-share" style="color:var(--p1);"></i>
-                                <span>Chia sẻ</span>
-                            </button>
-                            <button class="util-btn" data-bs-toggle="modal" data-bs-target="#reportModal">
-                                <i class="bi bi-flag" style="color:var(--mu);"></i>
-                                <span>Báo cáo</span>
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-
-                @* ── SIMILAR PROPERTIES ── *@
-                @if (similarProps.Any())
-                {
-                    <div class="sec-card fade-up fade-up-3" style="padding:22px 20px;">
-                        <div class="sec-title" style="font-size:1rem; margin-bottom:14px;"><i class="bi bi-grid-3x3-gap"></i>Bất động sản tương tự</div>
-                        <div class="d-flex flex-column gap-2">
-                            @foreach (var p in similarProps)
-                            {
-                                string simPrice = p.Price.HasValue
-                                ? (p.Price >= 1_000_000_000 ? (p.Price / 1_000_000_000M)?.ToString("0.##") + " Tỷ" : (p.Price / 1_000_000M)?.ToString("0.##") + " Tr")
-                                : "Thỏa thuận";
-                                <a href="/Property/Details/@p.PropertyID" class="mini-prop">
-                                    <img src="@(string.IsNullOrEmpty(p.MainImage) ? "/images/no-image.jpg" : p.MainImage)"
-                                         class="mini-prop-img" onerror="this.src='/images/no-image.jpg'" />
-                                    <div class="mini-prop-info">
-                                        <div class="mini-prop-title">@p.Title</div>
-                                        <div class="mini-prop-price">@simPrice</div>
-                                        <div class="mini-prop-meta">
-                                            <i class="bi bi-geo-alt me-1"></i>@p.Ward?.WardName
-                                            &nbsp;·&nbsp;
-                                            <i class="bi bi-calendar3 me-1"></i>@p.CreatedAt.ToString("dd/MM/yy")
+                                        <div class="pd-social-row">
+                                            <button type="button" class="pd-social-btn pd-zalo">Zalo</button>
+                                            <button type="button" class="pd-social-btn pd-facebook">Facebook</button>
                                         </div>
                                     </div>
-                                </a>
+
+                                    <div class="pd-login-overlay">
+                                        <i class="bi bi-lock-fill fs-4"></i>
+                                        <span>Đăng nhập để xem liên hệ</span>
+                                        <a href="/Account/Login" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
+                                            Đăng nhập ngay
+                                        </a>
+                                    </div>
+                                </div>
                             }
+
+                            <div class="pd-action-stack">
+                                @if (Model.Status == "Pending")
+                                {
+                                    <div class="pd-pending-box">
+                                        <i class="bi bi-lock-fill d-block fs-4 mb-1"></i>
+                                        Tin đăng đang chờ duyệt. Các chức năng liên hệ tạm thời bị khóa.
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="pd-main-action pd-action-consult"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#consultationModal">
+                                        <i class="bi bi-headset fs-5"></i>
+                                        Yêu cầu tư vấn miễn phí
+                                    </button>
+
+                                    @if (!isOwner)
+                                    {
+                                        <a href="/UserMessage/Index?receiverId=@Model.UserID&propertyId=@Model.PropertyID"
+                                           class="pd-main-action pd-action-chat">
+                                            <i class="bi bi-chat-dots-fill fs-5"></i>
+                                            Chat trực tiếp ngay
+                                        </a>
+
+                                        <button type="button"
+                                                class="pd-main-action pd-action-appt"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#appointmentModal">
+                                            <i class="bi bi-calendar-check-fill fs-5"></i>
+                                            Đặt lịch xem nhà
+                                        </button>
+                                    }
+                                }
+                            </div>
+
+                            <div class="pd-util-row">
+                                <button type="button"
+                                        class="pd-util-btn @(ViewBag.IsFavorited ? "saved" : "")"
+                                        id="btnFav"
+                                        data-id="@Model.PropertyID">
+                                    <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
+                                       id="iconFav"
+                                       style="color:@(ViewBag.IsFavorited ? "var(--pd-danger)" : "var(--pd-muted)")"></i>
+                                    <span id="textFav">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
+                                </button>
+
+                                <button type="button" class="pd-util-btn" onclick="copyCurrentLink()">
+                                    <i class="bi bi-share" style="color:var(--pd-primary);"></i>
+                                    <span>Chia sẻ</span>
+                                </button>
+
+                                <button type="button" class="pd-util-btn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                    <i class="bi bi-flag"></i>
+                                    <span>Báo cáo</span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                }
+                    </section>
 
-            </div>
-        </div>@* /col-lg-4 *@
-    </div>@* /row *@
-</div>@* /container *@
+                    @if (similarProps.Any())
+                    {
+                        <section class="pd-card">
+                            <div class="pd-card-body">
+                                <div class="pd-section-title" style="font-size:1rem;margin-bottom:14px;">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                    Bất động sản tương tự
+                                </div>
 
+                                <div class="pd-mini-list">
+                                    @foreach (var p in similarProps)
+                                    {
+                                        <a href="/Property/Details/@p.PropertyID" class="pd-mini-card">
+                                            <img src="@GetSafeImage(p.MainImage)"
+                                                 class="pd-mini-img"
+                                                 alt="@p.Title"
+                                                 loading="lazy"
+                                                 decoding="async"
+                                                 draggable="false"
+                                                 onerror="this.onerror=null;this.src='/images/no-image.jpg'" />
 
-@* ═══════════════════════════ MODALS ════════════════════════════ *@
+                                            <div class="min-w-0">
+                                                <div class="pd-mini-title">@p.Title</div>
+                                                <div class="pd-mini-price">@FormatMiniPrice(p.Price)</div>
+                                                <div class="pd-mini-meta">
+                                                    <i class="bi bi-geo-alt me-1"></i>@p.Ward?.WardName
+                                                    ·
+                                                    <i class="bi bi-calendar3 me-1"></i>@p.CreatedAt.ToString("dd/MM/yy")
+                                                </div>
+                                            </div>
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        </section>
+                    }
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
 
-@* ── Gallery Fullscreen Modal ── *@
+@if (Model.Status != "Pending" && !isOwner)
+{
+    <div class="pd-mobile-contact-bar">
+        <button type="button" class="pd-main-action pd-action-consult" data-bs-toggle="modal" data-bs-target="#consultationModal">
+            <i class="bi bi-headset"></i>
+            Tư vấn
+        </button>
+
+        <button type="button" class="pd-main-action pd-action-appt" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+            <i class="bi bi-calendar-check-fill"></i>
+            Xem nhà
+        </button>
+    </div>
+}
+
 <div class="modal fade" id="galleryModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-dark border-0 py-2 px-3">
-                <span class="text-white fw-bold small">@Model.Title</span>
+        <div class="modal-content bg-dark">
+            <div class="modal-header bg-dark py-2 px-3">
+                <span class="text-white fw-bold small text-truncate">@Model.Title</span>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body text-center p-2" style="background:#111;">
-                <img id="galleryDisplayImg"
-                     src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
-                     id="galleryDisplayImg" style="max-height:85vh;max-width:100%;object-fit:contain;border-radius:8px;" />
 
-                @if (propertyImages.Any())
+            <div class="modal-body text-center p-2" style="background:#020617;">
+                <img id="galleryDisplayImg"
+                     src="@GetSafeImage(mainImage)"
+                     data-full="@GetSafeImage(mainImage)"
+                     style="width:100%;max-width:100%;height:auto;max-height:85vh;object-fit:contain;border-radius:10px;background:#020617;display:block;margin:0 auto;"
+                     loading="eager"
+                     decoding="async"
+                     draggable="false"
+                     onerror="this.onerror=null;this.src='/images/no-image.jpg';this.dataset.full='/images/no-image.jpg';"
+                     alt="@Model.Title" />
+
+                @if (galleryImages.Count > 1)
                 {
-                    <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 4px 4px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
-                        <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
-                             style="height:56px;width:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.7;border:2px solid transparent;"
-                             onclick="switchGallery(this)" />
-                        @foreach (var gi in propertyImages)
+                    <div class="d-flex gap-2 overflow-auto justify-content-center flex-wrap mt-3 pb-1">
+                        @for (int i = 0; i < galleryImages.Count; i++)
                         {
-                            <img src="@gi.ImageURL"
-                                 style="height:56px;width:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.7;border:2px solid transparent;"
-                                 onclick="switchGallery(this)" />
+                            var gi = GetSafeImage(galleryImages[i]);
+
+                            <img src="@gi"
+                                 data-full="@gi"
+                                 style="height:62px;width:82px;object-fit:cover;object-position:center;border-radius:9px;cursor:pointer;opacity:.78;border:2px solid transparent;background:#020617;"
+                                 onclick="switchGallery(this)"
+                                 loading="lazy"
+                                 decoding="async"
+                                 draggable="false"
+                                 onerror="this.onerror=null;this.src='/images/no-image.jpg';this.dataset.full='/images/no-image.jpg';"
+                                 alt="Ảnh chi tiết @(i + 1)" />
                         }
                     </div>
                 }
@@ -1730,362 +2197,540 @@
         </div>
     </div>
 </div>
-
-@* ── Internal Chat Modal ── *@
-<div class="modal fade" id="internalChatModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header" style="background:var(--p1);color:#fff;">
-                <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill me-2"></i>Nhắn tin trực tiếp</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body pt-4">
-                <a href="/Nguoi-Dang-Tin/@Model.UserID" class="text-decoration-none d-flex align-items-center gap-3 p-3 mb-4 rounded-3"
-                   style="background:var(--bg); border:1px solid var(--bor); transition: var(--tr);"
-                   onmouseover="this.style.borderColor='var(--p1)'" onmouseout="this.style.borderColor='var(--bor)'">
-
-                    <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
-                         width="55" height="55" class="rounded-circle border shadow-sm" style="object-fit:cover;">
-
-                    <div>
-                        <div class="fw-bold text-dark" style="font-size:1rem;">@(Model.User?.FullName ?? "Ẩn danh")</div>
-                        <div style="font-size:.8rem; color:var(--mu);">
-                            Xem hồ sơ uy tín <i class="bi bi-arrow-right-short"></i>
-                        </div>
-                    </div>
-                </a>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Nội dung tin nhắn <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="chatContent" rows="4"
-                              style="background:#fff;"
-                              placeholder="Ví dụ: Bất động sản này còn không ạ? Tôi muốn hỏi thêm về giá chốt..." required></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnSendChat" class="btn btn-primary rounded-pill fw-bold px-4 shadow-sm">
-                    <i class="bi bi-send-fill me-1"></i>Gửi tin nhắn
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── Report Modal ── *@
 <div class="modal fade" id="reportModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header" style="background:#fef2f2;">
-                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-flag-fill me-2"></i>Báo cáo vi phạm</h5>
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-flag-fill me-2"></i>
+                    Báo cáo vi phạm
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+
             <div class="modal-body pt-4">
                 <p class="text-muted small mb-4">Chọn lý do báo cáo. Chúng tôi sẽ xem xét và xử lý trong vòng 24 giờ.</p>
+
                 <div class="mb-3">
                     <label class="form-label">Lý do vi phạm <span class="text-danger">*</span></label>
+
                     @foreach (var reason in new[] { "Tin giả, lừa đảo tiền cọc", "Đã bán/cho thuê rồi", "Giá hoặc diện tích sai thực tế", "Hình ảnh giả / không đúng bất động sản", "Lý do khác" })
                     {
                         <div class="form-check mb-2">
-                            <input class="form-check-input" type="radio" name="repReason" value="@reason" id="rep_@reason.GetHashCode()" @(reason == "Tin giả, lừa đảo tiền cọc" ? "checked" : "")>
-                            <label class="form-check-label" for="rep_@reason.GetHashCode()">@reason</label>
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="repReason"
+                                   value="@reason"
+                                   id="rep_@reason.GetHashCode()"
+                                   @(reason == "Tin giả, lừa đảo tiền cọc" ? "checked" : "") />
+                            <label class="form-check-label fw-semibold" for="rep_@reason.GetHashCode()">@reason</label>
                         </div>
                     }
                 </div>
+
                 <div class="mb-3">
-                    <label class="form-label">Mô tả thêm (không bắt buộc)</label>
+                    <label class="form-label">Mô tả thêm</label>
                     <textarea class="form-control" id="repDesc" rows="3" placeholder="Mô tả chi tiết hơn về vấn đề..."></textarea>
                 </div>
             </div>
+
             <div class="modal-footer">
                 <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnReport" class="btn btn-danger rounded-pill fw-bold px-4 shadow-sm">
-                    <i class="bi bi-send-fill me-1"></i>Gửi báo cáo
+                <button type="button" id="btnReport" class="btn btn-danger rounded-pill fw-bold px-4">
+                    <i class="bi bi-send-fill me-1"></i>
+                    Gửi báo cáo
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-@* ── Appointment Modal CÓ SỬA LẠI VALUE TỰ ĐIỀN THÔNG TIN ── *@
 <div class="modal fade" id="appointmentModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;">
-                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill me-2"></i>Đặt lịch xem nhà</h5>
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#16a34a,#15803d);">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-calendar-check-fill me-2"></i>
+                    Đặt lịch xem nhà
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+
             <div class="modal-body pt-4">
                 <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp trực tiếp để tham quan bất động sản này.</p>
+
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label fw-bold">Họ và tên người đi xem <span class="text-danger">*</span></label>
+                        <label class="form-label">Họ và tên người đi xem <span class="text-danger">*</span></label>
                         <input type="text" id="apptName" class="form-control" placeholder="Nhập họ tên..." value="@autoName" required />
                     </div>
+
                     <div class="col-12">
-                        <label class="form-label fw-bold">Số điện thoại liên hệ <span class="text-danger">*</span></label>
-                        <input type="tel" id="apptPhone" class="form-control" placeholder="Ví dụ: 0987654321" value="@autoPhone" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);" required />
+                        <label class="form-label">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                        <input type="tel"
+                               id="apptPhone"
+                               class="form-control"
+                               placeholder="Ví dụ: 0987654321"
+                               value="@autoPhone"
+                               maxlength="10"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
+                               required />
                     </div>
+
                     <div class="col-12">
-                        <label class="form-label fw-bold">Địa điểm hẹn <span class="text-danger">*</span></label>
+                        <label class="form-label">Địa điểm hẹn <span class="text-danger">*</span></label>
                         <input type="text" id="apptLocation" class="form-control" placeholder="Ví dụ: Tại BĐS hoặc quán cafe..." required />
                     </div>
+
                     <div class="col-12">
-                        <label class="form-label fw-bold">Thời gian hẹn <span class="text-danger">*</span></label>
+                        <label class="form-label">Thời gian hẹn <span class="text-danger">*</span></label>
                         <input type="datetime-local" id="apptDate" class="form-control" required />
                     </div>
+
                     <div class="col-12">
-                        <label class="form-label fw-bold">Ghi chú thêm</label>
-                        <textarea class="form-control" id="apptNote" rows="3"
+                        <label class="form-label">Ghi chú thêm</label>
+                        <textarea class="form-control"
+                                  id="apptNote"
+                                  rows="3"
                                   placeholder="Ví dụ: Tôi rảnh chiều các ngày trong tuần, gọi trước 30 phút..."></textarea>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer border-top-0 pt-0">
+
+            <div class="modal-footer">
                 <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnAppt" class="btn fw-bold rounded-pill px-4 shadow-sm"
-                        style="background:var(--grn);color:#fff;">
-                    <i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch
+                <button type="button" id="btnAppt" class="btn rounded-pill fw-bold px-4 text-white" style="background:var(--pd-success);">
+                    <i class="bi bi-send-check me-1"></i>
+                    Xác nhận đặt lịch
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-@* ── Consultation Modal CÓ SỬA LẠI VALUE TỰ ĐIỀN THÔNG TIN ── *@
 <div class="modal fade" id="consultationModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;">
-                <h5 class="modal-title fw-bold"><i class="bi bi-headset me-2"></i>Yêu cầu tư vấn miễn phí</h5>
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-headset me-2"></i>
+                    Yêu cầu tư vấn miễn phí
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+
             <div class="modal-body pt-4">
-                <p class="text-muted small mb-4">Để lại thông tin, chuyên viên sẽ gọi lại tư vấn trong vòng 15 phút.</p>
+                <p class="text-muted small mb-4">Để lại thông tin, chuyên viên sẽ gọi lại tư vấn trong thời gian sớm nhất.</p>
+
                 <div class="row g-3">
                     <div class="col-12">
                         <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
                         <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" value="@autoName" required />
                     </div>
+
                     <div class="col-12">
                         <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" id="csPhone" class="form-control" placeholder="Ví dụ: 0987654321" value="@autoPhone" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);" required />
+                        <input type="tel"
+                               id="csPhone"
+                               class="form-control"
+                               placeholder="Ví dụ: 0987654321"
+                               value="@autoPhone"
+                               maxlength="10"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
+                               required />
                     </div>
+
                     <div class="col-12">
-                        <label class="form-label">Email (tùy chọn)</label>
+                        <label class="form-label">Email</label>
                         <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" value="@autoEmail" />
                     </div>
+
                     <div class="col-12">
                         <label class="form-label">Lời nhắn</label>
-                        <textarea id="csNote" class="form-control" rows="3"
+                        <textarea id="csNote"
+                                  class="form-control"
+                                  rows="3"
                                   placeholder="Ví dụ: Tôi muốn hỏi về giá chốt, pháp lý và tiến độ..."></textarea>
                     </div>
                 </div>
             </div>
+
             <div class="modal-footer">
                 <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnConsult" class="btn fw-bold rounded-pill px-4 shadow-sm"
-                        style="background:#0ea5e9;color:#fff;">
-                    <i class="bi bi-send-fill me-1"></i>Gửi yêu cầu
+                <button type="button" id="btnConsult" class="btn rounded-pill fw-bold px-4 text-white" style="background:#0ea5e9;">
+                    <i class="bi bi-send-fill me-1"></i>
+                    Gửi yêu cầu
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-
-@* ═══════════════════════════ SCRIPTS ══════════════════════════ *@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        // ── Toast helper ────────────────────────────────────────────────
         function showToast(msg, icon = 'success') {
-            Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 3000, timerProgressBar: true });
-        }
-
-        // ── Expand description ──────────────────────────────────────────
-        (function(){
-            const body = document.getElementById('descBody');
-            const btn  = document.getElementById('readMoreBtn');
-            if (body && body.scrollHeight > 210) btn.style.display = 'inline-flex';
-        })();
-        function expandDesc() {
-            const body = document.getElementById('descBody');
-            const btn  = document.getElementById('readMoreBtn');
-            body.classList.remove('desc-collapsed');
-            btn.style.display = 'none';
-        }
-
-        // ── Gallery thumb switch ────────────────────────────────────────
-        function switchImg(el) {
-            document.getElementById('heroImg').src = el.src;
-            document.getElementById('galleryDisplayImg').src = el.src;
-            document.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
-            el.classList.add('active');
-        }
-        function switchGallery(el) {
-            document.getElementById('galleryDisplayImg').src = el.src;
-            document.getElementById('heroImg').src = el.src;
-        }
-
-        // ── Phone reveal ────────────────────────────────────────────────
-        const btnReveal = document.getElementById('btnReveal');
-        const btnCopyPh = document.getElementById('btnCopyPh');
-        const fullPhone = '@(Model.User?.Phone ?? "")';
-        if (btnReveal) {
-            btnReveal.addEventListener('click', function() {
-                if (!fullPhone) { showToast('Người dùng chưa cập nhật số điện thoại', 'info'); return; }
-                document.getElementById('phoneText').innerText = fullPhone;
-                btnCopyPh.style.display = 'block';
-                this.style.cursor = 'default';
-            });
-            btnCopyPh.addEventListener('click', function() {
-                navigator.clipboard.writeText(fullPhone).then(() => {
-                    this.innerHTML = '<i class="bi bi-check2-all"></i>';
-                    setTimeout(() => { this.innerHTML = '<i class="bi bi-copy"></i>'; }, 2000);
-                });
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: icon,
+                title: msg,
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
             });
         }
 
-        // ── Generic AJAX POST helper ────────────────────────────────────
-        async function ajaxPost(url, fd, btn, loadingLabel, originalHtml, modalId) {
-            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingLabel}`;
-            btn.disabled = true;
-            try {
-                const res  = await fetch(url, { method: 'POST', body: fd });
-                const data = await res.json();
-                if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'Thành công!', text: data.message, confirmButtonColor: 'var(--p1)' });
-                    if (modalId) bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
-                    return true;
-                } else {
-                    if (data.message?.includes('đăng nhập')) {
-                        if (modalId) bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
-                        Swal.fire({ icon: 'warning', title: 'Yêu cầu đăng nhập', text: data.message, confirmButtonColor: 'var(--p1)' })
-                            .then(() => window.location.href = '/Account/Login');
-                    } else {
-                        Swal.fire({ icon: 'info', title: 'Thông báo', text: data.message, confirmButtonColor: 'var(--p1)' });
-                    }
-                    return false;
-                }
-            } catch (e) {
-                Swal.fire({ icon: 'error', title: 'Lỗi mạng', text: 'Mất kết nối tới máy chủ. Vui lòng thử lại.', confirmButtonColor: 'var(--p1)' });
-                return false;
-            } finally {
-                btn.innerHTML = originalHtml;
-                btn.disabled  = false;
+        function copyCurrentLink() {
+            navigator.clipboard.writeText(window.location.href)
+                .then(() => showToast('Đã copy link!', 'success'))
+                .catch(() => showToast('Không thể copy link. Vui lòng thử lại.', 'error'));
+        }
+
+        function toggleReplyForm(commentId) {
+            const formBox = document.getElementById('replyForm_' + commentId);
+            if (!formBox) return;
+
+            if (formBox.classList.contains('active')) {
+                formBox.classList.remove('active');
+            } else {
+                document.querySelectorAll('.pd-reply-form').forEach(box => box.classList.remove('active'));
+                formBox.classList.add('active');
+                document.getElementById('replyContent_' + commentId)?.focus();
             }
         }
 
-        // ── Favorite ────────────────────────────────────────────────────
-        document.getElementById('btnFav')?.addEventListener('click', async function() {
+        async function submitReply(parentId) {
+            const input = document.getElementById('replyContent_' + parentId);
+            const content = input?.value.trim();
+
+            if (!content) {
+                Swal.fire('Lỗi', 'Vui lòng nhập nội dung trả lời!', 'warning');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('propertyId', '@Model.PropertyID');
+            fd.append('parentId', parentId);
+            fd.append('content', content);
+
             try {
-                const res  = await fetch('/Favorite/ToggleFavorite', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                const res = await fetch('/Property/SubmitReply', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Đã trả lời!',
+                        text: data.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    Swal.fire('Thông báo', data.message, 'info');
+                }
+            } catch (e) {
+                Swal.fire('Lỗi mạng', 'Không thể gửi trả lời. Vui lòng thử lại.', 'error');
+            }
+        }
+
+        (function initDescription() {
+            const body = document.getElementById('descBody');
+            const btn = document.getElementById('readMoreBtn');
+
+            if (body && btn && body.scrollHeight > 240) {
+                btn.style.display = 'inline-flex';
+            }
+        })();
+
+        function expandDesc() {
+            const body = document.getElementById('descBody');
+            const btn = document.getElementById('readMoreBtn');
+
+            body?.classList.remove('pd-desc-collapsed');
+            if (btn) btn.style.display = 'none';
+        }
+        function getFullImageUrl(el) {
+            if (!el) return '/images/no-image.jpg';
+            return el.dataset.full || el.getAttribute('src') || '/images/no-image.jpg';
+        }
+
+        function setMainImage(url) {
+            const hero = document.getElementById('heroImg');
+            const modalImg = document.getElementById('galleryDisplayImg');
+
+            if (!url || url.trim() === '') {
+                url = '/images/no-image.jpg';
+            }
+
+            if (hero) {
+                hero.src = url;
+                hero.dataset.full = url;
+            }
+
+            if (modalImg) {
+                modalImg.src = url;
+                modalImg.dataset.full = url;
+            }
+        }
+
+        function switchImg(el) {
+            const fullUrl = getFullImageUrl(el);
+
+            setMainImage(fullUrl);
+
+            document.querySelectorAll('.pd-thumb').forEach(t => t.classList.remove('active'));
+            if (el) el.classList.add('active');
+        }
+
+        function switchGallery(el) {
+            const fullUrl = getFullImageUrl(el);
+
+            setMainImage(fullUrl);
+
+            document.querySelectorAll('.pd-thumb').forEach(t => {
+                const thumbUrl = getFullImageUrl(t);
+                t.classList.toggle('active', thumbUrl === fullUrl);
+            });
+        }
+
+        const btnReveal = document.getElementById('btnReveal');
+        const btnCopyPh = document.getElementById('btnCopyPh');
+        const fullPhone = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.User?.Phone ?? ""));
+
+        if (btnReveal) {
+            btnReveal.addEventListener('click', function () {
+                if (!fullPhone) {
+                    showToast('Người dùng chưa cập nhật số điện thoại', 'info');
+                    return;
+                }
+
+                document.getElementById('phoneText').innerText = fullPhone;
+
+                if (btnCopyPh) {
+                    btnCopyPh.style.display = 'block';
+                }
+
+                this.style.cursor = 'default';
+            });
+        }
+
+        if (btnCopyPh) {
+            btnCopyPh.addEventListener('click', function () {
+                if (!fullPhone) return;
+
+                navigator.clipboard.writeText(fullPhone).then(() => {
+                    this.innerHTML = '<i class="bi bi-check2-all"></i>';
+                    setTimeout(() => {
+                        this.innerHTML = '<i class="bi bi-copy"></i>';
+                    }, 1800);
+                });
+            });
+        }
+
+        async function ajaxPost(url, fd, btn, loadingLabel, originalHtml, modalId) {
+            if (!btn) return false;
+
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingLabel}`;
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    body: fd
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Thành công!',
+                        text: data.message,
+                        confirmButtonColor: 'var(--pd-primary)'
+                    });
+
+                    if (modalId) {
+                        bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
+                    }
+
+                    return true;
+                }
+
+                if (data.message?.includes('đăng nhập')) {
+                    if (modalId) {
+                        bootstrap.Modal.getInstance(document.getElementById(modalId))?.hide();
+                    }
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Yêu cầu đăng nhập',
+                        text: data.message,
+                        confirmButtonColor: 'var(--pd-primary)'
+                    }).then(() => window.location.href = '/Account/Login');
+
+                    return false;
+                }
+
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Thông báo',
+                    text: data.message,
+                    confirmButtonColor: 'var(--pd-primary)'
+                });
+
+                return false;
+            } catch (e) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi mạng',
+                    text: 'Mất kết nối tới máy chủ. Vui lòng thử lại.',
+                    confirmButtonColor: 'var(--pd-primary)'
+                });
+
+                return false;
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('btnFav')?.addEventListener('click', async function () {
+            try {
+                const res = await fetch('/Favorite/ToggleFavorite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(@Model.PropertyID)
                 });
+
                 const data = await res.json();
+
                 if (data.success) {
                     const icon = document.getElementById('iconFav');
                     const text = document.getElementById('textFav');
+
                     showToast(data.message);
+
                     if (data.isSaved) {
                         this.classList.add('saved');
-                        icon.className = 'bi bi-heart-fill'; icon.style.color = 'var(--acc)';
+                        icon.className = 'bi bi-heart-fill';
+                        icon.style.color = 'var(--pd-danger)';
                         text.innerText = 'Đã lưu';
                     } else {
                         this.classList.remove('saved');
-                        icon.className = 'bi bi-heart'; icon.style.color = 'var(--mu)';
+                        icon.className = 'bi bi-heart';
+                        icon.style.color = 'var(--pd-muted)';
                         text.innerText = 'Lưu tin';
                     }
                 } else {
-                    Swal.fire({ icon: 'warning', title: 'Yêu cầu đăng nhập', text: data.message, confirmButtonColor: 'var(--p1)' })
-                        .then(() => window.location.href = '/Account/Login');
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Yêu cầu đăng nhập',
+                        text: data.message,
+                        confirmButtonColor: 'var(--pd-primary)'
+                    }).then(() => window.location.href = '/Account/Login');
                 }
-            } catch(e) { console.error(e); }
+            } catch (e) {
+                Swal.fire('Lỗi', 'Không thể cập nhật lưu tin. Vui lòng thử lại.', 'error');
+            }
         });
 
-        // ── Report ──────────────────────────────────────────────────────
-        document.getElementById('btnReport')?.addEventListener('click', async function() {
+        document.getElementById('btnReport')?.addEventListener('click', async function () {
             const fd = new FormData();
+
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('reason', document.querySelector('input[name="repReason"]:checked')?.value ?? '');
             fd.append('description', document.getElementById('repDesc').value);
+
             if (await ajaxPost('/Property/SubmitReport', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi báo cáo', 'reportModal')) {
                 document.getElementById('repDesc').value = '';
             }
         });
 
-        // ── Appointment ─────────────────────────────────────────────────
-        document.getElementById('btnAppt')?.addEventListener('click', async function() {
+        document.getElementById('btnAppt')?.addEventListener('click', async function () {
             const name = document.getElementById('apptName').value.trim();
             const phone = document.getElementById('apptPhone').value.trim();
             const loc = document.getElementById('apptLocation').value.trim();
-            const d = document.getElementById('apptDate').value;
+            const date = document.getElementById('apptDate').value;
 
-            if (!name || !phone || !loc) { Swal.fire('Lỗi', 'Vui lòng nhập đầy đủ Họ tên, Số điện thoại và Địa điểm hẹn!', 'warning'); return; }
+            if (!name || !phone || !loc) {
+                Swal.fire('Lỗi', 'Vui lòng nhập đầy đủ họ tên, số điện thoại và địa điểm hẹn!', 'warning');
+                return;
+            }
+
             const phoneRegex = /^[0-9]{10}$/;
-            if (!phoneRegex.test(phone)) { Swal.fire('Lỗi', 'Số điện thoại không hợp lệ (phải đủ 10 chữ số)!', 'warning'); return; }
-            if (!d) { Swal.fire('Lỗi', 'Vui lòng chọn ngày & giờ hẹn!', 'warning'); return; }
+            if (!phoneRegex.test(phone)) {
+                Swal.fire('Lỗi', 'Số điện thoại không hợp lệ. Vui lòng nhập đủ 10 chữ số!', 'warning');
+                return;
+            }
+
+            if (!date) {
+                Swal.fire('Lỗi', 'Vui lòng chọn ngày và giờ hẹn!', 'warning');
+                return;
+            }
 
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('customerName', name);
             fd.append('customerPhone', phone);
             fd.append('meetingLocation', loc);
-            fd.append('appointmentDate', d);
+            fd.append('appointmentDate', date);
             fd.append('note', document.getElementById('apptNote').value);
 
             if (await ajaxPost('/Property/BookAppointment', fd, this, 'Đang đặt lịch...', '<i class="bi bi-send-check me-1"></i>Xác nhận đặt lịch', 'appointmentModal')) {
-                // Xóa nội dung nhưng giữ lại Tên, SDT cho lần gửi sau
                 document.getElementById('apptLocation').value = '';
                 document.getElementById('apptDate').value = '';
                 document.getElementById('apptNote').value = '';
             }
         });
 
-        // ── Consultation ────────────────────────────────────────────────
-        document.getElementById('btnConsult')?.addEventListener('click', async function() {
-            const name  = document.getElementById('csName').value.trim();
+        document.getElementById('btnConsult')?.addEventListener('click', async function () {
+            const name = document.getElementById('csName').value.trim();
             const phone = document.getElementById('csPhone').value.trim();
 
-            if (!name || !phone) { Swal.fire('Thiếu thông tin', 'Họ tên và số điện thoại là bắt buộc!', 'warning'); return; }
+            if (!name || !phone) {
+                Swal.fire('Thiếu thông tin', 'Họ tên và số điện thoại là bắt buộc!', 'warning');
+                return;
+            }
+
             const phoneRegex = /^[0-9]{10}$/;
-            if (!phoneRegex.test(phone)) { Swal.fire('Lỗi', 'Số điện thoại không hợp lệ (phải đủ 10 chữ số)!', 'warning'); return; }
+            if (!phoneRegex.test(phone)) {
+                Swal.fire('Lỗi', 'Số điện thoại không hợp lệ. Vui lòng nhập đủ 10 chữ số!', 'warning');
+                return;
+            }
 
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('fullName', name);
             fd.append('phone', phone);
             fd.append('email', document.getElementById('csEmail').value);
-            fd.append('note',  document.getElementById('csNote').value);
+            fd.append('note', document.getElementById('csNote').value);
 
             if (await ajaxPost('/Property/SubmitConsultation', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi yêu cầu', 'consultationModal')) {
                 document.getElementById('csNote').value = '';
             }
         });
 
-        // ── Internal Chat ───────────────────────────────────────────────
-        document.getElementById('btnSendChat')?.addEventListener('click', async function() {
-            const content = document.getElementById('chatContent').value.trim();
-            if (!content) { Swal.fire('Lỗi', 'Vui lòng nhập nội dung tin nhắn!', 'warning'); return; }
-            const fd = new FormData();
-            fd.append('receiverId',      '@Model.UserID');
-            fd.append('propertyId',      '@Model.PropertyID');
-            fd.append('messageContent',  content);
-            if (await ajaxPost('/Property/SendMessage', fd, this, 'Đang gửi...', '<i class="bi bi-send-fill me-1"></i>Gửi tin nhắn', 'internalChatModal')) {
-                document.getElementById('chatContent').value = '';
-            }
-        });
-
-        // ── Comment ─────────────────────────────────────────────────────
-        document.getElementById('btnComment')?.addEventListener('click', async function() {
+        document.getElementById('btnComment')?.addEventListener('click', async function () {
             const content = document.getElementById('commentContent').value.trim();
-            if (!content) { Swal.fire('Lỗi', 'Vui lòng nhập nội dung bình luận!', 'warning'); return; }
+
+            if (!content) {
+                Swal.fire('Lỗi', 'Vui lòng nhập nội dung bình luận!', 'warning');
+                return;
+            }
+
             const fd = new FormData();
             fd.append('propertyId', '@Model.PropertyID');
             fd.append('content', content);
-            if (await ajaxPost('/Property/SubmitComment', fd, this, 'Đang đăng...', '<i class="bi bi-send-fill me-1"></i>Gửi', null)) {
+
+            if (await ajaxPost('/Property/SubmitComment', fd, this, 'Đang đăng...', '<i class="bi bi-send-fill me-1"></i>Gửi câu hỏi', null)) {
                 document.getElementById('commentContent').value = '';
                 showToast('Bình luận đã gửi, chờ Admin duyệt!');
             }

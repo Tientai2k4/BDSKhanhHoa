@@ -2,7 +2,9 @@
 using Microsoft.EntityFrameworkCore;
 using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using System.IO;
+using System.Security.Claims;
 
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
@@ -11,11 +13,13 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly IAuditLogService _auditLogService; // Thêm Service Log
 
-        public BannersController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment)
+        public BannersController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment, IAuditLogService auditLogService)
         {
             _context = context;
             _hostEnvironment = hostEnvironment;
+            _auditLogService = auditLogService;
         }
 
         public async Task<IActionResult> Index()
@@ -45,6 +49,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
                 _context.Add(banner);
                 await _context.SaveChangesAsync();
+
+                // GHI LOG
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Thêm Banner mới", "Banners", $"BannerID: {banner.BannerID}", severity: "Info");
 
                 TempData["Success"] = "Thêm banner mới thành công!";
                 return RedirectToAction(nameof(Index));
@@ -95,6 +103,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     _context.Update(banner);
                     await _context.SaveChangesAsync();
 
+                    // GHI LOG
+                    int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                    await _auditLogService.LogAsync(userId, "Cập nhật Banner", "Banners", $"BannerID: {banner.BannerID}", severity: "Info");
+
                     TempData["Success"] = "Cập nhật banner thành công!";
                 }
                 catch (DbUpdateConcurrencyException)
@@ -120,6 +132,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 }
                 _context.Banners.Remove(banner);
                 await _context.SaveChangesAsync();
+
+                // GHI LOG
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Xóa Banner", "Banners", $"BannerID: {id}", severity: "Warning");
+
                 TempData["Success"] = "Đã xóa banner thành công!";
             }
             return RedirectToAction(nameof(Index));

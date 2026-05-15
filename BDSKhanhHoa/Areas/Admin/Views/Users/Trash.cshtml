@@ -70,7 +70,6 @@
         </div>
     </div>
 </div>
-
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
@@ -79,27 +78,49 @@
                 if(res.success) {
                     Swal.fire({
                         icon: 'success', title: 'Thành công', text: 'Tài khoản đã được khôi phục!', timer: 1500, showConfirmButton: false
-                    }).then(() => { $('#row-' + id).fadeOut(); location.reload(); });
+                    }).then(() => {
+                        $('#row-' + id).fadeOut();
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Lỗi', res.message || 'Không thể khôi phục tài khoản.', 'error');
                 }
             });
         }
+
         function deleteForever(id) {
             Swal.fire({
                 title: 'Xóa vĩnh viễn?',
-                text: "CẢNH BÁO: Dữ liệu này sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu. Không thể hoàn tác!",
+                text: "CẢNH BÁO: Hành động này sẽ xóa người dùng và toàn bộ dữ liệu phụ thuộc (Tin đăng, Hồ sơ...). Không thể hoàn tác!",
                 icon: 'error',
                 showCancelButton: true,
                 confirmButtonColor: '#dc3545',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Xóa Vĩnh Viễn',
+                confirmButtonText: '<i class="bi bi-trash3-fill me-1"></i> Xóa Vĩnh Viễn',
                 cancelButtonText: 'Hủy'
             }).then((result) => {
                 if (result.isConfirmed) {
+
+                    // Thêm hiệu ứng loading khi đang xóa lượng dữ liệu lớn
+                    Swal.fire({
+                        title: 'Đang xử lý...',
+                        text: 'Hệ thống đang quét và dọn dẹp các dữ liệu liên quan.',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    // Gọi API xóa
                     $.post('/Admin/Users/DeleteForever/' + id, function(res) {
                         if(res.success) {
-                            $('#row-' + id).fadeOut(400, function() { $(this).remove(); });
-                            Swal.fire('Đã xóa', 'Dữ liệu đã biến mất vĩnh viễn.', 'success');
+                            Swal.fire('Thành công', res.message, 'success').then(() => {
+                                $('#row-' + id).fadeOut(400, function() { $(this).remove(); });
+                            });
+                        } else {
+                            // Hiển thị lỗi nghiệp vụ do Backend chặn lại
+                            Swal.fire('Không thể xóa', res.message, 'warning');
                         }
+                    }).fail(function() {
+                        Swal.fire('Lỗi mạng', 'Không thể kết nối đến máy chủ.', 'error');
                     });
                 }
             });

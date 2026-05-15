@@ -1,314 +1,1542 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
+@using BDSKhanhHoa.Models
+@using System.Globalization
+
+@functions {
+    private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
+
+    private string FormatPrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0) return "Thỏa thuận";
+
+        var value = price.Value;
+
+        if (value >= 1_000_000_000M)
+            return (value / 1_000_000_000M).ToString("0.##", Vi) + " tỷ";
+
+        if (value >= 1_000_000M)
+            return (value / 1_000_000M).ToString("0.##", Vi) + " triệu";
+
+        return value.ToString("N0", Vi) + " đ";
+    }
+
+    private string FormatArea(decimal? area)
+    {
+        if (!area.HasValue || area.Value <= 0) return "Chưa cập nhật";
+        return area.Value.ToString("0.##", Vi) + " m²";
+    }
+
+    private string FormatDate(DateTime? date, string fallback = "Chưa cập nhật")
+    {
+        if (!date.HasValue) return fallback;
+        return date.Value.ToString("dd/MM/yyyy HH:mm", Vi);
+    }
+
+    private string FormatShortDate(DateTime? date, string fallback = "Chưa cập nhật")
+    {
+        if (!date.HasValue) return fallback;
+        return date.Value.ToString("dd/MM/yyyy", Vi);
+    }
+
+    private string FormatNumber(int? value)
+    {
+        return (value ?? 0).ToString("N0", Vi);
+    }
+
+    private string GetStatusText(string? status)
+    {
+        return (status ?? "").Trim() switch
+        {
+            "Approved" => "Đang hiển thị",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Bị từ chối",
+            "Sold" => "Đã bán",
+            "Rented" => "Đã cho thuê",
+            _ => "Chưa xác định"
+        };
+    }
+
+    private string GetStatusIcon(string? status)
+    {
+        return (status ?? "").Trim() switch
+        {
+            "Approved" => "bi bi-eye-fill",
+            "Pending" => "bi bi-hourglass-split",
+            "Rejected" => "bi bi-x-circle-fill",
+            "Sold" => "bi bi-bag-check-fill",
+            "Rented" => "bi bi-key-fill",
+            _ => "bi bi-question-circle-fill"
+        };
+    }
+
+    private string GetStatusClass(string? status)
+    {
+        return (status ?? "").Trim() switch
+        {
+            "Approved" => "status-approved",
+            "Pending" => "status-pending",
+            "Rejected" => "status-rejected",
+            "Sold" => "status-sold",
+            "Rented" => "status-rented",
+            _ => "status-unknown"
+        };
+    }
+
+    private string GetPackageClass(string? packageName, string? packageType)
+    {
+        var text = $"{packageName} {packageType}".ToLowerInvariant();
+
+        if (text.Contains("kim cương") || text.Contains("diamond")) return "pkg-diamond";
+        if (text.Contains("vàng") || text.Contains("gold")) return "pkg-gold";
+        if (text.Contains("bạc") || text.Contains("silver")) return "pkg-silver";
+        if (text.Contains("thường") || text.Contains("free") || text.Contains("miễn phí")) return "pkg-normal";
+
+        return "pkg-normal";
+    }
+
+    private string GetPackageIcon(string? packageName, string? packageType)
+    {
+        var text = $"{packageName} {packageType}".ToLowerInvariant();
+
+        if (text.Contains("kim cương") || text.Contains("diamond")) return "bi bi-gem";
+        if (text.Contains("vàng") || text.Contains("gold")) return "bi bi-stars";
+        if (text.Contains("bạc") || text.Contains("silver")) return "bi bi-award-fill";
+
+        return "bi bi-tag-fill";
+    }
+
+    private bool IsSaleProperty(Property item)
+    {
+        var typeName = item.PropertyType?.TypeName ?? "";
+        return item.PropertyType?.ParentID == 1
+               || item.TypeID == 1
+               || typeName.Contains("Bán", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsRentProperty(Property item)
+    {
+        var typeName = item.PropertyType?.TypeName ?? "";
+        return item.PropertyType?.ParentID == 2
+               || item.TypeID == 2
+               || typeName.Contains("Thuê", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetTransactionTypeLabel(Property item)
+    {
+        if (IsSaleProperty(item)) return "Bán";
+        if (IsRentProperty(item)) return "Cho thuê";
+        return "Tin đăng";
+    }
+
+    private string GetTransactionTypeClass(Property item)
+    {
+        if (IsSaleProperty(item)) return "deal-sale";
+        if (IsRentProperty(item)) return "deal-rent";
+        return "deal-normal";
+    }
+}
+
 @{
     ViewData["Title"] = "Quản lý tin đăng của tôi";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    var ads = (Model ?? Enumerable.Empty<Property>()).ToList();
+
+    int totalAds = ads.Count;
+    int approvedCount = ads.Count(x => x.Status == "Approved");
+    int pendingCount = ads.Count(x => x.Status == "Pending");
+    int rejectedCount = ads.Count(x => x.Status == "Rejected");
+    int soldCount = ads.Count(x => x.Status == "Sold");
+    int rentedCount = ads.Count(x => x.Status == "Rented");
+    int vipActiveCount = ads.Count(x => x.VipExpiryDate.HasValue && x.VipExpiryDate.Value >= DateTime.Now);
 }
 
 <style>
-    /* Bảng màu Gradient cho các gói VIP */
-    .badge-diamond {
-        background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
-        color: white;
+    :root {
+        --myads-primary: #2563eb;
+        --myads-primary-dark: #1d4ed8;
+        --myads-success: #16a34a;
+        --myads-warning: #f59e0b;
+        --myads-danger: #ef4444;
+        --myads-info: #0284c7;
+        --myads-purple: #7c3aed;
+        --myads-text: #0f172a;
+        --myads-muted: #64748b;
+        --myads-border: #e2e8f0;
+        --myads-bg: #f8fafc;
+        --myads-card: #ffffff;
+        --myads-radius: 16px;
+        --myads-radius-sm: 12px;
+        --myads-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+        --myads-shadow-hover: 0 14px 32px rgba(15, 23, 42, .10);
+        --myads-transition: all .2s ease;
+    }
+
+    .myads-page {
+        color: var(--myads-text);
+    }
+
+    .myads-topbar {
+        background: #fff;
+        border: 1px solid var(--myads-border);
+        border-radius: var(--myads-radius);
+        box-shadow: var(--myads-shadow);
+        padding: 16px 18px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .myads-title-wrap {
+        min-width: 0;
+    }
+
+    .myads-page-title {
+        font-size: 1.28rem;
+        font-weight: 900;
+        color: var(--myads-text);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        line-height: 1.25;
+    }
+
+        .myads-page-title i {
+            color: var(--myads-primary);
+        }
+
+    .myads-page-subtitle {
+        margin: 4px 0 0;
+        color: var(--myads-muted);
+        font-size: .86rem;
+        font-weight: 600;
+    }
+
+    .myads-create-btn {
+        min-height: 40px;
+        padding: 0 16px;
         border: none;
-    }
-
-    .badge-gold {
-        background: linear-gradient(135deg, #F6D365 0%, #FDA085 100%);
-        color: white;
-        border: none;
-    }
-
-    .badge-silver {
-        background: linear-gradient(135deg, #e2e2e2 0%, #9ca3af 100%);
-        color: #1f2937;
-        border: none;
-    }
-
-    .badge-normal {
-        background: #f8fafc;
-        color: #64748b;
-        border: 1px solid #cbd5e1;
-    }
-
-    /* CSS Tối ưu hiển thị Mobile (Biến Table thành Card trên màn hình nhỏ) */
-    @@media (max-width: 767.98px) {
-        .mobile-card-table thead {
-            display: none;
-        }
-
-        .mobile-card-table tbody tr {
-            display: block;
-            margin-bottom: 1.2rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 1.2rem;
-            background: #fff;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.04);
-        }
-
-        .mobile-card-table tbody td {
-            display: block;
-            border: none;
-            padding: 0.5rem 0;
-            text-align: left !important;
-        }
-
-            .mobile-card-table tbody td:not(:last-child) {
-                border-bottom: 1px dashed #f1f5f9;
-            }
-
-        .mobile-action-bar {
-            margin-top: 0.5rem;
-            padding-top: 0.8rem;
-            border-top: 1px solid #f1f5f9 !important;
-            justify-content: flex-start !important;
-        }
-
-        .property-img-mobile {
-            width: 80px !important;
-            height: 80px !important;
-            border-radius: 12px !important;
-        }
-    }
-
-    /* Hiệu ứng nút bấm & Ảnh */
-    .btn-action-icon {
-        width: 36px;
-        height: 36px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+        color: #fff;
+        font-weight: 800;
+        text-decoration: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 10px;
-        transition: all 0.2s ease-in-out;
+        gap: 8px;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, .24);
+        transition: var(--myads-transition);
+        white-space: nowrap;
     }
 
-        .btn-action-icon:hover {
-            transform: translateY(-2px);
+        .myads-create-btn:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(37, 99, 235, .30);
         }
 
-    .property-thumb {
-        width: 120px;
-        height: 90px;
+    .myads-filterbar {
+        background: #fff;
+        border: 1px solid var(--myads-border);
+        border-radius: var(--myads-radius);
+        box-shadow: var(--myads-shadow);
+        padding: 12px;
+        margin-bottom: 14px;
+        display: grid;
+        grid-template-columns: auto 1fr 210px auto;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .myads-count-pill {
+        height: 40px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        border: 1px solid var(--myads-border);
+        color: #475569;
+        padding: 0 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: .84rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .myads-search {
+        position: relative;
+    }
+
+        .myads-search i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            pointer-events: none;
+        }
+
+        .myads-search input {
+            height: 40px;
+            border-radius: 999px;
+            border: 1px solid var(--myads-border);
+            padding-left: 40px;
+            padding-right: 14px;
+            font-weight: 700;
+            font-size: .9rem;
+            color: var(--myads-text);
+            box-shadow: none;
+            background: #fff;
+        }
+
+            .myads-search input:focus,
+            .myads-select:focus {
+                border-color: rgba(37, 99, 235, .55);
+                box-shadow: 0 0 0 .2rem rgba(37, 99, 235, .10);
+            }
+
+    .myads-select {
+        height: 40px;
+        border-radius: 999px;
+        border: 1px solid var(--myads-border);
+        font-weight: 800;
+        font-size: .9rem;
+        color: var(--myads-text);
+        padding-left: 14px;
+        background-color: #fff;
+        box-shadow: none;
+    }
+
+    .myads-reset-btn {
+        height: 40px;
+        border-radius: 999px;
+        border: 1px solid var(--myads-border);
+        background: #fff;
+        color: #475569;
+        padding: 0 14px;
+        font-size: .88rem;
+        font-weight: 800;
+        transition: var(--myads-transition);
+        white-space: nowrap;
+    }
+
+        .myads-reset-btn:hover {
+            border-color: var(--myads-primary);
+            color: var(--myads-primary);
+            background: #eff6ff;
+        }
+
+    .myads-quick-stats {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+
+    .quick-stat {
+        border: 1px solid var(--myads-border);
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 7px 11px;
+        font-size: .78rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, .04);
+    }
+
+        .quick-stat strong {
+            color: var(--myads-text);
+        }
+
+        .quick-stat.success i {
+            color: var(--myads-success);
+        }
+
+        .quick-stat.warning i {
+            color: var(--myads-warning);
+        }
+
+        .quick-stat.danger i {
+            color: var(--myads-danger);
+        }
+
+        .quick-stat.purple i {
+            color: var(--myads-purple);
+        }
+
+    .myads-table-card {
+        background: #fff;
+        border: 1px solid var(--myads-border);
+        border-radius: var(--myads-radius);
+        box-shadow: var(--myads-shadow);
+        overflow: hidden;
+    }
+
+    .myads-table-wrap {
+        background: #f8fafc;
+        padding: 10px;
+    }
+
+    .myads-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0 10px;
+    }
+
+        .myads-table thead th {
+            border: 0;
+            padding: 0 12px 2px;
+            color: #64748b;
+            font-size: .74rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            white-space: nowrap;
+        }
+
+        .myads-table tbody tr {
+            transition: var(--myads-transition);
+        }
+
+            .myads-table tbody tr:hover {
+                transform: translateY(-1px);
+            }
+
+        .myads-table tbody td {
+            background: #fff;
+            border-top: 1px solid var(--myads-border);
+            border-bottom: 1px solid var(--myads-border);
+            padding: 13px 12px;
+            vertical-align: middle;
+        }
+
+            .myads-table tbody td:first-child {
+                border-left: 1px solid var(--myads-border);
+                border-top-left-radius: 14px;
+                border-bottom-left-radius: 14px;
+            }
+
+            .myads-table tbody td:last-child {
+                border-right: 1px solid var(--myads-border);
+                border-top-right-radius: 14px;
+                border-bottom-right-radius: 14px;
+            }
+
+    .myads-prop {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .myads-thumb-wrap {
+        position: relative;
+        width: 108px;
+        height: 78px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #e2e8f0;
+        text-decoration: none;
+    }
+
+    .myads-thumb {
+        width: 100%;
+        height: 100%;
         object-fit: cover;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        display: block;
+    }
+
+    .myads-deal-badge {
+        position: absolute;
+        left: 7px;
+        top: 7px;
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: #fff;
+        font-size: .65rem;
+        font-weight: 900;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, .18);
+    }
+
+    .deal-sale {
+        background: linear-gradient(135deg, #ef4444, #f97316);
+    }
+
+    .deal-rent {
+        background: linear-gradient(135deg, #0284c7, #2563eb);
+    }
+
+    .deal-normal {
+        background: linear-gradient(135deg, #64748b, #334155);
+    }
+
+    .myads-prop-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .myads-code-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 5px;
+    }
+
+    .myads-code,
+    .myads-auto-badge,
+    .myads-duplicate-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: .7rem;
+        font-weight: 850;
+        line-height: 1.2;
+    }
+
+    .myads-code {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+    }
+
+    .myads-auto-badge {
+        background: #dcfce7;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+    }
+
+    .myads-duplicate-badge {
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        color: #92400e;
+    }
+
+    .myads-prop-title {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        color: var(--myads-text);
+        text-decoration: none;
+        font-size: .96rem;
+        line-height: 1.35;
+        font-weight: 900;
+    }
+
+        .myads-prop-title:hover {
+            color: var(--myads-primary);
+        }
+
+    .myads-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 7px;
+        color: var(--myads-muted);
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+        .myads-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+    .myads-alert {
+        margin-top: 8px;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: .78rem;
+        line-height: 1.45;
+        font-weight: 700;
+    }
+
+    .myads-alert-danger {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .myads-alert-warning {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+    }
+
+    .myads-package-box {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 7px;
+    }
+
+    .myads-package {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: .76rem;
+        font-weight: 900;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .pkg-diamond {
+        color: #fff;
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
+    }
+
+    .pkg-gold {
+        color: #fff;
+        background: linear-gradient(135deg, #f59e0b, #ef4444);
+    }
+
+    .pkg-silver {
+        color: #1f2937;
+        background: linear-gradient(135deg, #f8fafc, #94a3b8);
+        border: 1px solid #cbd5e1;
+    }
+
+    .pkg-normal {
+        color: #475569;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+    }
+
+    .myads-type-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #eff6ff;
+        border: 1px solid #dbeafe;
+        color: #1d4ed8;
+        font-size: .74rem;
+        font-weight: 850;
+    }
+
+    .myads-price {
+        font-size: 1.02rem;
+        color: #dc2626;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .myads-area {
+        margin-top: 3px;
+        color: var(--myads-muted);
+        font-size: .75rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .myads-vip-expiry {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .72rem;
+        font-weight: 850;
+    }
+
+    .myads-status-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .myads-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 7px 11px;
+        font-size: .76rem;
+        font-weight: 900;
+        white-space: nowrap;
+        border: 1px solid transparent;
+    }
+
+    .status-approved {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+    }
+
+    .status-pending {
+        background: #fef3c7;
+        color: #92400e;
+        border-color: #fde68a;
+    }
+
+    .status-rejected {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fecaca;
+    }
+
+    .status-sold {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-color: #bfdbfe;
+    }
+
+    .status-rented {
+        background: #e0f2fe;
+        color: #0369a1;
+        border-color: #bae6fd;
+    }
+
+    .status-unknown {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #e2e8f0;
+    }
+
+    .myads-status-note {
+        font-size: .72rem;
+        color: var(--myads-muted);
+        font-weight: 750;
+        text-align: center;
+        line-height: 1.35;
+    }
+
+    .myads-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .myads-action-btn {
+        min-height: 34px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 9px;
+        font-size: .78rem;
+        font-weight: 850;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: var(--myads-transition);
+        cursor: pointer;
+        white-space: nowrap;
+        background: #fff;
+    }
+
+        .myads-action-btn:hover {
+            transform: translateY(-1px);
+        }
+
+    .btn-view {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-color: #bfdbfe;
+    }
+
+        .btn-view:hover {
+            color: #1e40af;
+            background: #dbeafe;
+        }
+
+    .btn-edit {
+        background: #f5f3ff;
+        color: #6d28d9;
+        border-color: #ddd6fe;
+    }
+
+        .btn-edit:hover {
+            color: #5b21b6;
+            background: #ede9fe;
+        }
+
+    .btn-sold {
+        background: #ecfdf5;
+        color: #15803d;
+        border-color: #bbf7d0;
+    }
+
+        .btn-sold:hover {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+    .btn-rented {
+        background: #e0f2fe;
+        color: #0369a1;
+        border-color: #bae6fd;
+    }
+
+        .btn-rented:hover {
+            color: #075985;
+            background: #bae6fd;
+        }
+
+    .btn-delete {
+        background: #fff;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+        .btn-delete:hover {
+            color: #991b1b;
+            background: #fef2f2;
+        }
+
+    .myads-empty {
+        padding: 44px 18px;
+        text-align: center;
+        background: #fff;
+        border-radius: 14px;
+        border: 1px dashed #cbd5e1;
+    }
+
+    .myads-empty-icon {
+        width: 66px;
+        height: 66px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eff6ff;
+        color: var(--myads-primary);
+        font-size: 2rem;
+        margin-bottom: 14px;
+    }
+
+    .myads-empty h5 {
+        font-weight: 900;
+        margin-bottom: 6px;
+        color: var(--myads-text);
+    }
+
+    .myads-empty p {
+        color: var(--myads-muted);
+        margin-bottom: 16px;
+        font-weight: 600;
+    }
+
+    .myads-empty .btn {
+        border-radius: 999px;
+        font-weight: 850;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .myads-filterbar {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .myads-count-pill,
+        .myads-reset-btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .myads-table thead {
+            display: none;
+        }
+
+        .myads-table,
+        .myads-table tbody,
+        .myads-table tr,
+        .myads-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .myads-table {
+            border-spacing: 0;
+        }
+
+            .myads-table tbody tr {
+                background: #fff;
+                border: 1px solid var(--myads-border);
+                border-radius: 16px;
+                padding: 12px;
+                margin-bottom: 12px;
+                box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+            }
+
+                .myads-table tbody tr:hover {
+                    transform: none;
+                }
+
+            .myads-table tbody td {
+                border: 0 !important;
+                padding: 10px 0;
+                background: transparent;
+                border-radius: 0 !important;
+            }
+
+                .myads-table tbody td:not(:last-child) {
+                    border-bottom: 1px dashed #e2e8f0 !important;
+                }
+
+                .myads-table tbody td::before {
+                    content: attr(data-label);
+                    display: block;
+                    margin-bottom: 7px;
+                    color: #94a3b8;
+                    font-size: .7rem;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: .05em;
+                }
+
+                .myads-table tbody td.myads-main-cell::before {
+                    display: none;
+                }
+
+        .myads-status-wrap {
+            align-items: flex-start;
+        }
+
+        .myads-status-note {
+            text-align: left;
+        }
+
+        .myads-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .myads-topbar {
+            padding: 13px;
+            border-radius: 14px;
+        }
+
+        .myads-page-title {
+            font-size: 1.08rem;
+        }
+
+        .myads-page-subtitle {
+            font-size: .78rem;
+        }
+
+        .myads-create-btn {
+            width: 100%;
+            min-height: 38px;
+        }
+
+        .myads-filterbar {
+            grid-template-columns: 1fr;
+            padding: 10px;
+            border-radius: 14px;
+        }
+
+        .myads-quick-stats {
+            gap: 6px;
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+
+            .myads-quick-stats::-webkit-scrollbar {
+                display: none;
+            }
+
+        .quick-stat {
+            flex: 0 0 auto;
+            font-size: .72rem;
+            padding: 6px 9px;
+        }
+
+        .myads-table-wrap {
+            padding: 8px;
+        }
+
+        .myads-prop {
+            gap: 10px;
+        }
+
+        .myads-thumb-wrap {
+            width: 86px;
+            height: 86px;
+        }
+
+        .myads-prop-title {
+            font-size: .9rem;
+            -webkit-line-clamp: 3;
+        }
+
+        .myads-meta {
+            font-size: .7rem;
+            gap: 6px;
+        }
+
+        .myads-code,
+        .myads-auto-badge,
+        .myads-duplicate-badge {
+            font-size: .66rem;
+            padding: 3px 7px;
+        }
+
+        .myads-package-box {
+            gap: 6px;
+        }
+
+        .myads-action-btn {
+            flex: 1 1 calc(50% - 6px);
+            min-height: 36px;
+            font-size: .76rem;
+        }
+
+        .myads-empty {
+            padding: 34px 14px;
+        }
     }
 </style>
 
-<div class="card-custom p-4 shadow-sm border-0 rounded-4 mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 flex-wrap gap-3">
-        <div>
-            <h4 class="fw-bold mb-1 text-primary"><i class="bi bi-list-task me-2"></i>TIN ĐĂNG CỦA BẠN</h4>
-            <p class="text-muted small mb-0">Quản lý kho lưu trữ, gói tin và trạng thái giao dịch bất động sản.</p>
+<div class="myads-page">
+    <div class="myads-topbar">
+        <div class="myads-title-wrap">
+          
         </div>
-        <a href="/Property/Create" class="btn btn-primary rounded-pill px-4 py-2 shadow-sm fw-bold">
-            <i class="bi bi-plus-lg me-1"></i> Đăng tin mới
+
+        <a href="/Property/Create" class="myads-create-btn">
+            <i class="bi bi-plus-circle-fill"></i>
+            Đăng tin mới
         </a>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mobile-card-table">
-            <thead class="table-light text-secondary">
-                <tr>
-                    <th scope="col" style="width: 40%;">Thông tin Bất động sản</th>
-                    <th scope="col" style="width: 22%;">Gói hiển thị & Mức giá</th>
-                    <th scope="col" class="text-center" style="width: 15%;">Trạng thái</th>
-                    <th scope="col" class="text-center" style="width: 23%;">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!Model.Any())
-                {
-                    <tr>
-                        <td colspan="4" class="text-center py-5 text-muted bg-light rounded-3">
-                            <i class="bi bi-clipboard-x display-4 d-block mb-3 opacity-50"></i>
-                            <h6 class="fw-bold">Bạn chưa có tin đăng nào trên hệ thống.</h6>
-                            <a href="/Property/Create" class="btn btn-outline-primary mt-2 rounded-pill px-4">Đăng tin ngay!</a>
-                        </td>
-                    </tr>
-                }
+    <div class="myads-filterbar">
+        <div class="myads-count-pill">
+            <i class="bi bi-funnel-fill"></i>
+            Hiển thị: <span id="visibleCount">@totalAds</span>/<span>@totalAds</span>
+        </div>
 
-                @foreach (var item in Model)
-                {
-                    // Logic nhận diện Bán hay Cho Thuê
-                    bool isSale = item.PropertyType != null && (item.PropertyType.ParentID == 1 || item.PropertyType.TypeName.Contains("Bán", StringComparison.OrdinalIgnoreCase));
-                    bool isRent = item.PropertyType != null && (item.PropertyType.ParentID == 2 || item.PropertyType.TypeName.Contains("Thuê", StringComparison.OrdinalIgnoreCase));
+        <div class="myads-search">
+            <i class="bi bi-search"></i>
+            <input id="myAdsSearch"
+                   type="search"
+                   class="form-control"
+                   placeholder="Tìm mã tin, tiêu đề, loại BĐS, gói tin..."
+                   autocomplete="off" />
+        </div>
 
-                    <tr>
-                        <!-- Cột 1: Thông tin cơ bản -->
-                        <td>
-                            <div class="d-flex align-items-start gap-3">
-                                <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="property-thumb property-img-mobile flex-shrink-0" onerror="this.src='/images/no-image.jpg'">
-                                <div>
-                                    <span class="text-muted small fw-bold d-block mb-1">Mã tin: #@item.PropertyID</span>
-                                    <a href="/Property/Details/@item.PropertyID" target="_blank" class="fw-bold text-dark text-decoration-none d-block" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 1.05rem;" title="@item.Title">
-                                        @item.Title
-                                    </a>
-                                    <div class="small text-muted mt-2"><i class="bi bi-clock me-1"></i> Đăng lúc: @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+        <select id="statusFilter" class="form-select myads-select" aria-label="Lọc trạng thái">
+            <option value="All">Tất cả trạng thái</option>
+            <option value="Approved">Đang hiển thị</option>
+            <option value="Pending">Chờ duyệt</option>
+            <option value="Rejected">Bị từ chối</option>
+            <option value="Sold">Đã bán</option>
+            <option value="Rented">Đã cho thuê</option>
+        </select>
 
-                                    @if (item.Status == "Rejected" && !string.IsNullOrEmpty(item.RejectionReason))
-                                    {
-                                        <div class="mt-2 p-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 text-danger small fw-medium">
-                                            <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Lý do từ chối:</strong> @item.RejectionReason
+        <button type="button" class="myads-reset-btn" id="btnResetFilters">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>
+            Làm mới
+        </button>
+    </div>
+
+    <div class="myads-quick-stats">
+        <span class="quick-stat">
+            <i class="bi bi-collection-fill"></i>
+            Tổng: <strong>@totalAds</strong>
+        </span>
+
+        <span class="quick-stat success">
+            <i class="bi bi-eye-fill"></i>
+            Hiển thị: <strong>@approvedCount</strong>
+        </span>
+
+        <span class="quick-stat warning">
+            <i class="bi bi-hourglass-split"></i>
+            Chờ duyệt: <strong>@pendingCount</strong>
+        </span>
+
+        <span class="quick-stat danger">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            Cần xử lý: <strong>@rejectedCount</strong>
+        </span>
+
+        <span class="quick-stat purple">
+            <i class="bi bi-gem"></i>
+            VIP còn hạn: <strong>@vipActiveCount</strong>
+        </span>
+
+        <span class="quick-stat">
+            <i class="bi bi-check2-circle"></i>
+            Đã giao dịch: <strong>@(soldCount + rentedCount)</strong>
+        </span>
+    </div>
+
+    <div class="myads-table-card">
+        @if (!ads.Any())
+        {
+            <div class="p-3 p-md-4">
+                <div class="myads-empty">
+                    <div class="myads-empty-icon">
+                        <i class="bi bi-clipboard-x"></i>
+                    </div>
+                    <h5>Bạn chưa có tin đăng nào</h5>
+                    <p>Hãy tạo tin đầu tiên để bắt đầu tiếp cận khách hàng đang quan tâm bất động sản tại Khánh Hòa.</p>
+                    <a href="/Property/Create" class="btn btn-primary">
+                        <i class="bi bi-plus-lg me-1"></i>
+                        Đăng tin ngay
+                    </a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div id="adsTableWrap" class="myads-table-wrap">
+                <table class="myads-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 42%;">Thông tin bất động sản</th>
+                            <th style="width: 22%;">Gói tin & giá</th>
+                            <th class="text-center" style="width: 14%;">Trạng thái</th>
+                            <th class="text-center" style="width: 22%;">Thao tác</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="myAdsBody">
+                        @foreach (var item in ads)
+                        {
+                            var status = item.Status ?? "Unknown";
+                            var packageName = item.PostServicePackage?.PackageName ?? "Tin thường";
+                            var packageType = item.PostServicePackage?.PackageType ?? "";
+                            var typeName = item.PropertyType?.TypeName ?? "Chưa phân loại";
+                            var isSale = IsSaleProperty(item);
+                            var isRent = IsRentProperty(item);
+                            var isTransacted = item.Status == "Sold" || item.Status == "Rented";
+
+                            var searchText = $"{item.PropertyID} {item.Title} {status} {GetStatusText(status)} {packageName} {packageType} {typeName} {FormatPrice(item.Price)}".ToLowerInvariant();
+
+                            int? vipDaysLeft = null;
+                            if (item.VipExpiryDate.HasValue)
+                            {
+                                vipDaysLeft = (item.VipExpiryDate.Value.Date - DateTime.Now.Date).Days;
+                            }
+
+                            <tr data-row="property"
+                                data-status="@status"
+                                data-search="@searchText">
+                                <td class="myads-main-cell" data-label="Tin đăng">
+                                    <div class="myads-prop">
+                                        <a href="/Property/Details/@item.PropertyID"
+                                           target="_blank"
+                                           class="myads-thumb-wrap"
+                                           title="Xem tin đăng">
+                                            <img src="@(string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)"
+                                                 class="myads-thumb"
+                                                 alt="@item.Title"
+                                                 loading="lazy"
+                                                 onerror="this.src='/images/no-image.jpg'" />
+
+                                            <span class="myads-deal-badge @GetTransactionTypeClass(item)">
+                                                @GetTransactionTypeLabel(item)
+                                            </span>
+                                        </a>
+
+                                        <div class="myads-prop-info">
+                                            <div class="myads-code-row">
+                                                <span class="myads-code">
+                                                    <i class="bi bi-hash"></i>
+                                                    @item.PropertyID
+                                                </span>
+
+                                                @if (item.IsAutoApproved)
+                                                {
+                                                    <span class="myads-auto-badge">
+                                                        <i class="bi bi-lightning-charge-fill"></i>
+                                                        Tự duyệt
+                                                    </span>
+                                                }
+
+                                                @if (item.IsDuplicate)
+                                                {
+                                                    <span class="myads-duplicate-badge">
+                                                        <i class="bi bi-intersect"></i>
+                                                        Nghi trùng
+                                                    </span>
+                                                }
+                                            </div>
+
+                                            <a href="/Property/Details/@item.PropertyID"
+                                               target="_blank"
+                                               class="myads-prop-title"
+                                               title="@item.Title">
+                                                @item.Title
+                                            </a>
+
+                                            <div class="myads-meta">
+                                                <span>
+                                                    <i class="bi bi-calendar3"></i>
+                                                    @FormatDate(item.CreatedAt, "Chưa rõ ngày đăng")
+                                                </span>
+
+                                                @if (item.UpdatedAt.HasValue)
+                                                {
+                                                    <span>
+                                                        <i class="bi bi-pencil-square"></i>
+                                                        Sửa: @FormatShortDate(item.UpdatedAt)
+                                                    </span>
+                                                }
+
+                                                <span>
+                                                    <i class="bi bi-eye"></i>
+                                                    @FormatNumber(item.Views) lượt xem
+                                                </span>
+                                            </div>
+
+                                            @if (item.Status == "Rejected" && !string.IsNullOrWhiteSpace(item.RejectionReason))
+                                            {
+                                                <div class="myads-alert myads-alert-danger">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    <strong>Lý do từ chối:</strong> @item.RejectionReason
+                                                </div>
+                                            }
+
+                                            @if (item.IsDuplicate && !string.IsNullOrWhiteSpace(item.DuplicateReason))
+                                            {
+                                                <div class="myads-alert myads-alert-warning">
+                                                    <i class="bi bi-info-circle-fill me-1"></i>
+                                                    <strong>Cảnh báo trùng tin:</strong> @item.DuplicateReason
+                                                </div>
+                                            }
                                         </div>
-                                    }
-                                </div>
-                            </div>
-                        </td>
+                                    </div>
+                                </td>
 
-                        <!-- Cột 2: Phân loại, VIP và Giá -->
-                        <td>
-                            <div class="mb-2">
-                                @{
-                                    string pkgName = item.PostServicePackage?.PackageName ?? "Tin Thường";
-                                    string badgeClass = "badge-normal";
-                                    string iconClass = "bi-tag";
+                                <td data-label="Gói tin & giá">
+                                    <div class="myads-package-box">
+                                        <span class="myads-package @GetPackageClass(packageName, packageType)">
+                                            <i class="@GetPackageIcon(packageName, packageType)"></i>
+                                            @packageName
+                                        </span>
 
-                                    if (pkgName.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        badgeClass = "badge-diamond shadow-sm";
-                                        iconClass = "bi-gem";
-                                    }
-                                    else if (pkgName.Contains("Vàng", StringComparison.OrdinalIgnoreCase) || pkgName.Contains("Gold", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        badgeClass = "badge-gold shadow-sm";
-                                        iconClass = "bi-star-fill";
-                                    }
-                                    else if (pkgName.Contains("Bạc", StringComparison.OrdinalIgnoreCase) || pkgName.Contains("Silver", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        badgeClass = "badge-silver shadow-sm";
-                                        iconClass = "bi-award-fill";
-                                    }
-                                }
-                                <span class="badge @badgeClass px-2 py-1 fs-7"><i class="bi @iconClass me-1"></i>@pkgName</span>
-                            </div>
-                            <span class="badge bg-light text-secondary border border-secondary-subtle mb-2">@(item.PropertyType?.TypeName ?? "Chưa phân loại")</span>
-                            <div class="text-danger fw-bold fs-5">
-                                @(item.Price.HasValue ? (item.Price.Value >= 1000000000 ? (item.Price.Value / 1000000000).ToString("0.##") + " Tỷ" : (item.Price.Value / 1000000).ToString("0.##") + " Tr") : "Thỏa thuận")
-                            </div>
-                        </td>
+                                        <span class="myads-type-pill">
+                                            <i class="bi bi-building"></i>
+                                            @typeName
+                                        </span>
 
-                        <!-- Cột 3: Trạng thái -->
-                        <td class="text-md-center">
-                            @if (item.Status == "Approved")
-                            {
-                                <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold"><i class="bi bi-eye-fill me-1"></i> Đang hiển thị</span>
-                            }
-                            else if (item.Status == "Pending")
-                            {
-                                <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill fw-bold"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
-                            }
-                            else if (item.Status == "Rejected")
-                            {
-                                <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Bị từ chối</span>
-                            }
-                            else if (item.Status == "Sold")
-                            {
-                                <span class="badge bg-primary text-white px-3 py-2 rounded-pill fw-bold"><i class="bi bi-bag-check-fill me-1"></i> Đã bán</span>
-                                <div class="small text-muted mt-1 text-md-center">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
-                            }
-                            else if (item.Status == "Rented")
-                            {
-                                <span class="badge bg-info text-white px-3 py-2 rounded-pill fw-bold"><i class="bi bi-key-fill me-1"></i> Đã cho thuê</span>
-                                <div class="small text-muted mt-1 text-md-center">@item.SoldAt?.ToString("dd/MM/yyyy")</div>
-                            }
-                        </td>
+                                        <div>
+                                            <div class="myads-price">@FormatPrice(item.Price)</div>
+                                            <div class="myads-area">
+                                                <i class="bi bi-aspect-ratio"></i>
+                                                @FormatArea(item.AreaSize)
+                                            </div>
+                                        </div>
 
-                        <!-- Cột 4: Thao tác -->
-                        <td class="text-md-center border-0 mobile-action-bar">
-                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-md-center justify-content-start">
+                                        @if (item.VipExpiryDate.HasValue)
+                                        {
+                                            <span class="myads-vip-expiry">
+                                                <i class="bi bi-clock-history"></i>
+                                                @if (vipDaysLeft.HasValue && vipDaysLeft.Value >= 0)
+                                                {
+                                                    <text>VIP còn @vipDaysLeft ngày</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>VIP đã hết hạn</text>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
 
-                                <a href="/Property/Details/@item.PropertyID" target="_blank" class="btn btn-outline-info btn-action-icon shadow-sm" title="Xem trang đích">
-                                    <i class="bi bi-eye-fill"></i>
-                                </a>
+                                <td class="text-md-center" data-label="Trạng thái">
+                                    <div class="myads-status-wrap">
+                                        <span class="myads-status @GetStatusClass(item.Status)">
+                                            <i class="@GetStatusIcon(item.Status)"></i>
+                                            @GetStatusText(item.Status)
+                                        </span>
 
-                                <a href="/Property/Edit/@item.PropertyID" class="btn btn-outline-primary btn-action-icon shadow-sm" title="Chỉnh sửa / Nâng cấp tin">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
+                                        @if (isTransacted)
+                                        {
+                                            <div class="myads-status-note">
+                                                @FormatShortDate(item.SoldAt)
+                                            </div>
+                                        }
+                                        else if (item.Status == "Pending")
+                                        {
+                                            <div class="myads-status-note">
+                                                Đang chờ kiểm tra
+                                            </div>
+                                        }
+                                        else if (item.Status == "Approved")
+                                        {
+                                            <div class="myads-status-note">
+                                                Đang công khai
+                                            </div>
+                                        }
+                                        else if (item.Status == "Rejected")
+                                        {
+                                            <div class="myads-status-note">
+                                                Cần chỉnh sửa
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
 
-                                @if (item.Status == "Approved")
-                                {
-                                    @if (isSale || (!isSale && !isRent))
-                                    {
-                                        <form action="/Property/MarkAsTransacted" method="post" class="m-0">
+                                <td class="text-md-center" data-label="Thao tác">
+                                    <div class="myads-actions">
+                                        <a href="/Property/Details/@item.PropertyID"
+                                           target="_blank"
+                                           class="myads-action-btn btn-view"
+                                           title="Xem tin đăng"
+                                           data-bs-toggle="tooltip">
+                                            <i class="bi bi-eye-fill"></i>
+                                            <span>Xem</span>
+                                        </a>
+
+                                        <a href="/Property/Edit/@item.PropertyID"
+                                           class="myads-action-btn btn-edit"
+                                           title="Chỉnh sửa hoặc nâng cấp gói tin"
+                                           data-bs-toggle="tooltip">
+                                            <i class="bi bi-pencil-square"></i>
+                                            <span>Sửa</span>
+                                        </a>
+
+                                        @if (item.Status == "Approved")
+                                        {
+                                            @if (isSale || (!isSale && !isRent))
+                                            {
+                                                <form action="/Property/MarkAsTransacted"
+                                                      method="post"
+                                                      class="m-0"
+                                                      onsubmit="return confirmTransacted(this, 'Xác nhận đã bán?', 'Tin này sẽ chuyển sang trạng thái Đã bán.', 'Xác nhận');">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.PropertyID" />
+                                                    <input type="hidden" name="transactionStatus" value="Sold" />
+
+                                                    <button type="submit"
+                                                            class="myads-action-btn btn-sold"
+                                                            title="Đánh dấu đã bán"
+                                                            data-bs-toggle="tooltip">
+                                                        <i class="bi bi-bag-check-fill"></i>
+                                                        <span>Đã bán</span>
+                                                    </button>
+                                                </form>
+                                            }
+
+                                            @if (isRent || (!isSale && !isRent))
+                                            {
+                                                <form action="/Property/MarkAsTransacted"
+                                                      method="post"
+                                                      class="m-0"
+                                                      onsubmit="return confirmTransacted(this, 'Xác nhận đã cho thuê?', 'Tin này sẽ chuyển sang trạng thái Đã cho thuê.', 'Xác nhận');">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@item.PropertyID" />
+                                                    <input type="hidden" name="transactionStatus" value="Rented" />
+
+                                                    <button type="submit"
+                                                            class="myads-action-btn btn-rented"
+                                                            title="Đánh dấu đã cho thuê"
+                                                            data-bs-toggle="tooltip">
+                                                        <i class="bi bi-key-fill"></i>
+                                                        <span>Đã thuê</span>
+                                                    </button>
+                                                </form>
+                                            }
+                                        }
+
+                                        <form id="deleteForm-@item.PropertyID"
+                                              action="/Property/DeleteMyAd"
+                                              method="post"
+                                              class="m-0"
+                                              onsubmit="return confirmDelete(this);">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@item.PropertyID" />
-                                            <input type="hidden" name="transactionStatus" value="Sold" />
-                                            <button type="submit" class="btn btn-success fw-bold shadow-sm" style="border-radius: 10px; height: 36px; display: inline-flex; align-items: center;" onclick="return confirm('Xác nhận: Bất động sản này ĐÃ BÁN thành công? Việc này không thể hoàn tác.');">
-                                                <i class="bi bi-bag-check-fill"></i>
+
+                                            <button type="submit"
+                                                    class="myads-action-btn btn-delete"
+                                                    title="Gỡ tin đăng"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="bi bi-trash3-fill"></i>
+                                                <span>Xóa</span>
                                             </button>
                                         </form>
-                                    }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
 
-                                    @if (isRent || (!isSale && !isRent))
-                                    {
-                                        <form action="/Property/MarkAsTransacted" method="post" class="m-0">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="id" value="@item.PropertyID" />
-                                            <input type="hidden" name="transactionStatus" value="Rented" />
-                                            <button type="submit" class="btn btn-info text-white fw-bold shadow-sm" style="border-radius: 10px; height: 36px; display: inline-flex; align-items: center;" onclick="return confirm('Xác nhận: Bất động sản này ĐÃ CHO THUÊ thành công? Việc này không thể hoàn tác.');">
-                                                <i class="bi bi-key-fill"></i>
-                                            </button>
-                                        </form>
-                                    }
-                                }
-
-                                <button type="button" class="btn btn-outline-danger btn-action-icon shadow-sm" onclick="confirmDelete(@item.PropertyID)" title="Xóa vĩnh viễn tin đăng">
-                                    <i class="bi bi-trash3-fill"></i>
-                                </button>
-                                <form id="deleteForm-@item.PropertyID" action="/Property/DeleteMyAd" method="post" class="d-none">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@item.PropertyID" />
-                                </form>
-
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+                <div id="clientEmptyState" class="myads-empty d-none">
+                    <div class="myads-empty-icon">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <h5>Không tìm thấy tin phù hợp</h5>
+                    <p>Thử đổi từ khóa tìm kiếm hoặc chọn lại trạng thái khác.</p>
+                    <button type="button" class="btn btn-outline-primary" onclick="resetMyAdsFilters()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                        Xóa bộ lọc
+                    </button>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        // Kích hoạt Bootstrap tooltips cho các icon (Đảm bảo người dùng biết icon đó là gì khi rê chuột)
-        document.addEventListener("DOMContentLoaded", function () {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'))
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl)
-            })
-        });
 
-        function confirmDelete(id) {
+    <script>
+        const successMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Success"]?.ToString()));
+        const errorMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Error"]?.ToString()));
+
+        function showToast(message, icon = 'success') {
+            if (!message) return;
+
             Swal.fire({
-                title: 'Bạn chắc chắn muốn xóa?',
-                text: "Tin đăng này sẽ bị gỡ khỏi hệ thống và không thể khôi phục!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Đồng ý xóa!',
-                cancelButtonText: 'Hủy bỏ'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('deleteForm-' + id).submit();
-                }
+                toast: true,
+                position: 'top-end',
+                icon: icon,
+                title: message,
+                showConfirmButton: false,
+                timer: icon === 'success' ? 3000 : 4300,
+                timerProgressBar: true
             });
         }
 
-        @if (TempData["Success"] != null)
-        {
-                <text>
-                Swal.fire({ icon: 'success', title: 'Thành công', text: '@Html.Raw(TempData["Success"])', timer: 3500, showConfirmButton: false, toast: true, position: 'top-end' });
-                </text>
+        function confirmTransacted(form, title, text, confirmText) {
+            Swal.fire({
+                title: title,
+                text: text,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: confirmText,
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#16a34a',
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+                focusCancel: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+
+            return false;
         }
-        @if (TempData["Error"] != null)
-        {
-                <text>
-                Swal.fire({ icon: 'error', title: 'Lỗi', text: '@Html.Raw(TempData["Error"])', timer: 4500, showConfirmButton: false, toast: true, position: 'top-end' });
-                </text>
+
+        function confirmDelete(form) {
+            Swal.fire({
+                title: 'Bạn muốn xóa tin đăng này?',
+                text: 'Tin sẽ được gỡ khỏi danh sách quản lý và không còn hiển thị trên hệ thống.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Đồng ý xóa',
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+                focusCancel: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+
+            return false;
         }
+
+        function applyMyAdsFilters() {
+            const searchInput = document.getElementById('myAdsSearch');
+            const statusFilter = document.getElementById('statusFilter');
+            const visibleCount = document.getElementById('visibleCount');
+            const emptyState = document.getElementById('clientEmptyState');
+            const tableWrap = document.getElementById('adsTableWrap');
+            const rows = document.querySelectorAll('#myAdsBody tr[data-row="property"]');
+
+            if (!searchInput || !statusFilter || !visibleCount || !rows.length) return;
+
+            const keyword = (searchInput.value || '').trim().toLowerCase();
+            const status = statusFilter.value;
+            let count = 0;
+
+            rows.forEach(row => {
+                const rowStatus = row.getAttribute('data-status') || '';
+                const rowSearch = row.getAttribute('data-search') || '';
+
+                const matchStatus = status === 'All' || rowStatus === status;
+                const matchKeyword = keyword === '' || rowSearch.includes(keyword);
+
+                const shouldShow = matchStatus && matchKeyword;
+                row.style.display = shouldShow ? '' : 'none';
+
+                if (shouldShow) count++;
+            });
+
+            visibleCount.textContent = count.toString();
+
+            if (emptyState && tableWrap) {
+                const table = tableWrap.querySelector('table');
+
+                if (count === 0) {
+                    emptyState.classList.remove('d-none');
+                    table?.classList.add('d-none');
+                } else {
+                    emptyState.classList.add('d-none');
+                    table?.classList.remove('d-none');
+                }
+            }
+        }
+
+        function resetMyAdsFilters() {
+            const searchInput = document.getElementById('myAdsSearch');
+            const statusFilter = document.getElementById('statusFilter');
+
+            if (searchInput) searchInput.value = '';
+            if (statusFilter) statusFilter.value = 'All';
+
+            applyMyAdsFilters();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+
+            if (window.bootstrap && bootstrap.Tooltip) {
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+            }
+
+            document.getElementById('myAdsSearch')?.addEventListener('input', applyMyAdsFilters);
+            document.getElementById('statusFilter')?.addEventListener('change', applyMyAdsFilters);
+            document.getElementById('btnResetFilters')?.addEventListener('click', resetMyAdsFilters);
+
+            showToast(successMessage, 'success');
+            showToast(errorMessage, 'error');
+        });
     </script>
 }

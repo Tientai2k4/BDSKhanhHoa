@@ -1,211 +1,977 @@
 ﻿@model BDSKhanhHoa.Models.Project
+
 @{
-    ViewData["Title"] = "Cập nhật Tiến độ Dự án";
+    ViewData["Title"] = "Quản lý tiến độ dự án";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
-    // Ép kiểu dữ liệu lấy từ ViewBag
     var milestones = ViewBag.Milestones as List<BDSKhanhHoa.Controllers.ProjectTimelineController.MilestoneItem>
-                     ?? new List<BDSKhanhHoa.Controllers.ProjectTimelineController.MilestoneItem>();
+        ?? new List<BDSKhanhHoa.Controllers.ProjectTimelineController.MilestoneItem>();
+
+    var latestMilestone = milestones.OrderByDescending(x => x.Date).FirstOrDefault();
+
+    string cover = string.IsNullOrWhiteSpace(Model.MainImage)
+        ? "/images/no-image.jpg"
+        : Model.MainImage;
+
+    string projectLocation = $"{(Model.Ward?.WardName ?? "Chưa có phường/xã")}, {(Model.Area?.AreaName ?? Model.Ward?.Area?.AreaName ?? "Chưa có khu vực")}";
 }
 
-<!-- CDN SweetAlert2 -->
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@section Styles {
+    <style>
+        :root {
+            --mt-primary: #2563eb;
+            --mt-primary-dark: #1d4ed8;
+            --mt-success: #059669;
+            --mt-warning: #d97706;
+            --mt-danger: #dc2626;
+            --mt-dark: #0f172a;
+            --mt-muted: #64748b;
+            --mt-border: #e2e8f0;
+            --mt-soft: #f8fafc;
+            --mt-card: #ffffff;
+            --mt-radius: 24px;
+            --mt-shadow: 0 16px 38px rgba(15, 23, 42, .07);
+            --mt-shadow-hover: 0 22px 48px rgba(15, 23, 42, .11);
+        }
 
-<style>
-    .timeline-container {
-        position: relative;
-        padding-left: 40px;
-        margin-top: 30px;
-    }
+        .mt-page {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
 
-        .timeline-container::before {
-            content: '';
+        .mt-back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 44px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid var(--mt-border);
+            color: var(--mt-dark);
+            font-weight: 900;
+            padding: 0 16px;
+            transition: .2s ease;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, .04);
+        }
+
+            .mt-back-link:hover {
+                color: var(--mt-primary);
+                background: #eff6ff;
+                border-color: #bfdbfe;
+                transform: translateX(-2px);
+            }
+
+        .mt-hero,
+        .mt-panel,
+        .mt-timeline-card,
+        .mt-empty {
+            background: var(--mt-card);
+            border: 1px solid rgba(148, 163, 184, .22);
+            border-radius: var(--mt-radius);
+            box-shadow: var(--mt-shadow);
+        }
+
+        .mt-hero {
+            overflow: hidden;
+            position: relative;
+            padding: 0;
+        }
+
+        .mt-hero-inner {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 1fr);
+            min-height: 230px;
+        }
+
+        .mt-cover-wrap {
+            position: relative;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .mt-cover {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            min-height: 230px;
+        }
+
+        .mt-cover-badge {
             position: absolute;
-            left: 15px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #e2e8f0;
+            left: 14px;
+            bottom: 14px;
+            right: 14px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, .92);
+            border: 1px solid rgba(255, 255, 255, .75);
+            backdrop-filter: blur(12px);
+            padding: 12px 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
         }
 
-    .timeline-item {
-        position: relative;
-        margin-bottom: 30px;
-    }
-
-    .timeline-marker {
-        position: absolute;
-        left: -40px;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: #4f46e5;
-        border: 4px solid #eef2ff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        z-index: 1;
-    }
-
-    .timeline-content {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        transition: transform 0.2s;
-        position: relative;
-    }
-
-        .timeline-content:hover {
-            transform: translateX(5px);
-            border-color: #4f46e5;
+        .mt-hero-content {
+            padding: 26px;
+            position: relative;
+            overflow: hidden;
         }
 
-    .timeline-date {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: #4f46e5;
-        background: #eef2ff;
-        padding: 4px 12px;
-        border-radius: 20px;
-        display: inline-block;
-        margin-bottom: 10px;
-    }
+            .mt-hero-content::after {
+                content: "";
+                position: absolute;
+                right: -90px;
+                top: -120px;
+                width: 260px;
+                height: 260px;
+                border-radius: 999px;
+                background: rgba(37, 99, 235, .08);
+            }
 
-    .timeline-title {
-        font-weight: 800;
-        font-size: 1.1rem;
-        color: #0f172a;
-        margin-bottom: 8px;
-    }
+        .mt-title {
+            position: relative;
+            z-index: 1;
+            font-size: clamp(1.28rem, 2.2vw, 2rem);
+            font-weight: 950;
+            color: var(--mt-dark);
+            letter-spacing: -.04em;
+            margin-bottom: 8px;
+            line-height: 1.25;
+        }
 
-    .form-glass {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 25px -3px rgba(0,0,0,0.05);
-    }
+        .mt-subtitle {
+            position: relative;
+            z-index: 1;
+            color: var(--mt-muted);
+            font-weight: 650;
+            line-height: 1.65;
+            margin-bottom: 16px;
+            max-width: 780px;
+        }
 
-    /* Nút xóa mốc tiến độ */
-    .btn-delete-milestone {
-        position: absolute;
-        right: 15px;
-        top: 15px;
-        background: none;
-        border: none;
-        color: #ef4444;
-        font-size: 1.2rem;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
+        .mt-badge-row {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 9px;
+        }
 
-    .timeline-content:hover .btn-delete-milestone {
-        opacity: 1;
-    }
+        .mt-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 34px;
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-size: .76rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
 
-    .btn-delete-milestone:hover {
-        color: #b91c1c;
-        transform: scale(1.1);
-    }
-</style>
+        .mt-badge-blue {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
 
-<div class="container-fluid pb-5 pt-3 animate__animated animate__fadeIn">
+        .mt-badge-green {
+            background: #dcfce7;
+            color: #047857;
+        }
 
-    @if (TempData["Success"] != null)
-    {
-        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 4000 });</script>
-    }
+        .mt-badge-amber {
+            background: #fef3c7;
+            color: #b45309;
+        }
 
-    <div class="mb-4">
-        <a href="@Url.Action("MyProjects", "MemberProject")" class="text-decoration-none fw-bold text-muted btn btn-light border rounded-pill px-4 py-2 shadow-sm">
-            <i class="bi bi-arrow-left-circle-fill text-primary me-2"></i> Quay lại danh sách Dự án
+        .mt-badge-slate {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .mt-stats {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .mt-stat {
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--mt-border);
+            padding: 14px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+            min-width: 0;
+        }
+
+            .mt-stat span {
+                display: block;
+                color: var(--mt-muted);
+                font-size: .72rem;
+                font-weight: 900;
+                text-transform: uppercase;
+                letter-spacing: .06em;
+                margin-bottom: 5px;
+            }
+
+            .mt-stat strong {
+                display: block;
+                color: var(--mt-dark);
+                font-size: 1.05rem;
+                font-weight: 950;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+        .mt-grid {
+            display: grid;
+            grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .mt-panel {
+            padding: 22px;
+            position: sticky;
+            top: 96px;
+        }
+
+        .mt-panel-title {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            font-size: 1.15rem;
+            font-weight: 950;
+            color: var(--mt-dark);
+            margin-bottom: 6px;
+        }
+
+        .mt-title-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 15px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, var(--mt-primary), #4f46e5);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, .20);
+            flex-shrink: 0;
+        }
+
+        .mt-panel-sub {
+            color: var(--mt-muted);
+            font-size: .92rem;
+            font-weight: 650;
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+
+        .mt-alert {
+            border-radius: 18px;
+            padding: 14px 15px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #047857;
+            font-weight: 750;
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+
+        .mt-label {
+            display: block;
+            font-size: .74rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: #475569;
+            font-weight: 950;
+            margin-bottom: 8px;
+        }
+
+        .mt-input {
+            min-height: 50px;
+            border-radius: 16px;
+            border: 1px solid #dbe3ef;
+            background: #fff;
+            box-shadow: none !important;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+            .mt-input:focus {
+                border-color: var(--mt-primary);
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, .08) !important;
+            }
+
+        textarea.mt-input {
+            min-height: 142px;
+            resize: vertical;
+            line-height: 1.65;
+        }
+
+        .btn-mt-primary {
+            min-height: 52px;
+            border-radius: 16px;
+            border: 0;
+            background: linear-gradient(135deg, var(--mt-primary), var(--mt-primary-dark));
+            color: #fff;
+            font-weight: 950;
+            box-shadow: 0 14px 28px rgba(37, 99, 235, .22);
+            transition: .2s ease;
+        }
+
+            .btn-mt-primary:hover {
+                color: #fff;
+                transform: translateY(-1px);
+            }
+
+        .btn-mt-light {
+            min-height: 44px;
+            border-radius: 14px;
+            background: #fff;
+            border: 1px solid var(--mt-border);
+            color: var(--mt-dark);
+            font-weight: 900;
+        }
+
+        .btn-mt-danger {
+            min-height: 40px;
+            border-radius: 13px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #be123c;
+            font-weight: 900;
+        }
+
+            .btn-mt-danger:hover {
+                background: #be123c;
+                color: #fff;
+                border-color: #be123c;
+            }
+
+        .mt-timeline-card {
+            padding: 22px;
+        }
+
+        .mt-timeline-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .mt-timeline-title {
+            font-size: 1.18rem;
+            font-weight: 950;
+            color: var(--mt-dark);
+            margin-bottom: 5px;
+        }
+
+        .mt-timeline-sub {
+            color: var(--mt-muted);
+            font-size: .92rem;
+            font-weight: 650;
+            margin-bottom: 0;
+        }
+
+        .mt-filter-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mt-filter-input {
+            width: 230px;
+            min-height: 42px;
+            border-radius: 999px;
+            border: 1px solid var(--mt-border);
+            padding: 8px 14px;
+            font-size: .9rem;
+            font-weight: 700;
+            outline: none;
+        }
+
+            .mt-filter-input:focus {
+                border-color: var(--mt-primary);
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, .08);
+            }
+
+        .mt-timeline {
+            position: relative;
+            padding-left: 34px;
+        }
+
+            .mt-timeline::before {
+                content: "";
+                position: absolute;
+                left: 12px;
+                top: 8px;
+                bottom: 8px;
+                width: 2px;
+                background: linear-gradient(to bottom, #93c5fd, #e2e8f0);
+            }
+
+        .mt-timeline-item {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .mt-timeline-dot {
+            position: absolute;
+            left: -34px;
+            top: 3px;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            background: var(--mt-primary);
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: .8rem;
+            border: 4px solid #eff6ff;
+            z-index: 1;
+        }
+
+            .mt-timeline-dot.success {
+                background: var(--mt-success);
+                border-color: #dcfce7;
+            }
+
+        .mt-timeline-content {
+            border-radius: 20px;
+            background: #fff;
+            border: 1px solid var(--mt-border);
+            padding: 16px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+            transition: .2s ease;
+        }
+
+            .mt-timeline-content:hover {
+                border-color: rgba(37, 99, 235, .28);
+                box-shadow: var(--mt-shadow-hover);
+            }
+
+        .mt-timeline-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 5px 11px;
+            background: #eff6ff;
+            color: var(--mt-primary);
+            font-size: .76rem;
+            font-weight: 900;
+            margin-bottom: 9px;
+        }
+
+        .mt-timeline-name {
+            color: var(--mt-dark);
+            font-weight: 950;
+            margin-bottom: 7px;
+            line-height: 1.45;
+            font-size: 1.03rem;
+        }
+
+        .mt-timeline-desc {
+            color: #475569;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            margin-bottom: 0;
+        }
+
+        .mt-timeline-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px dashed var(--mt-border);
+        }
+
+        .mt-empty {
+            padding: 54px 20px;
+            text-align: center;
+            border-style: dashed;
+            box-shadow: none;
+            background: #fff;
+        }
+
+        .mt-empty-icon {
+            width: 78px;
+            height: 78px;
+            border-radius: 26px;
+            display: grid;
+            place-items: center;
+            margin: 0 auto 15px;
+            background: #f1f5f9;
+            color: #94a3b8;
+            font-size: 2.2rem;
+        }
+
+        .mt-modal-input {
+            min-height: 48px;
+            border-radius: 14px;
+            border: 1px solid #dbe3ef;
+            font-weight: 700;
+        }
+
+        textarea.mt-modal-input {
+            min-height: 130px;
+        }
+
+        @@media (max-width: 1199.98px) {
+            .mt-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .mt-panel {
+                position: static;
+            }
+        }
+
+        @@media (max-width: 991.98px) {
+            .mt-hero-inner {
+                grid-template-columns: 1fr;
+            }
+
+            .mt-cover-wrap {
+                height: 220px;
+            }
+
+            .mt-cover {
+                min-height: 220px;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .mt-hero,
+            .mt-panel,
+            .mt-timeline-card,
+            .mt-empty {
+                border-radius: 20px;
+            }
+
+            .mt-hero-content,
+            .mt-panel,
+            .mt-timeline-card {
+                padding: 18px;
+            }
+
+            .mt-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .mt-filter-input {
+                width: 100%;
+            }
+
+            .mt-filter-row {
+                width: 100%;
+            }
+
+                .mt-filter-row .btn {
+                    width: 100%;
+                }
+
+            .mt-timeline {
+                padding-left: 30px;
+            }
+
+            .mt-timeline-dot {
+                left: -30px;
+            }
+
+            .mt-timeline-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+}
+
+<div class="mt-page">
+    <div>
+        <a href="@Url.Action("Index", "ProjectTimeline")" class="mt-back-link">
+            <i class="bi bi-arrow-left-circle-fill"></i>
+            Quay lại danh sách tiến độ
         </a>
     </div>
 
-    <div class="row g-4">
-        <!-- BÊN TRÁI: CỘT NHẬP LIỆU -->
-        <div class="col-xl-5">
-            <div class="form-glass sticky-top" style="top: 100px;">
-                <div class="d-flex align-items-center gap-3 mb-4 border-bottom pb-3">
-                    <img src="@(string.IsNullOrEmpty(Model.MainImage) ? "/images/default-project.jpg" : Model.MainImage)" class="rounded-3" style="width: 60px; height: 60px; object-fit: cover;" />
-                    <div>
-                        <h5 class="fw-bolder text-dark mb-0">@Model.ProjectName</h5>
-                        <span class="badge bg-primary mt-1">@Model.ProjectStatus</span>
+    <section class="mt-hero">
+        <div class="mt-hero-inner">
+            <div class="mt-cover-wrap">
+                <img src="@cover"
+                     alt="@Model.ProjectName"
+                     class="mt-cover"
+                     loading="lazy"
+                     onerror="this.src='/images/no-image.jpg'" />
+
+                <div class="mt-cover-badge">
+                    <div class="text-muted small fw-bold">Cập nhật gần nhất</div>
+                    <div class="fw-black text-dark">
+                        @(latestMilestone == null ? "Chưa có tiến độ" : latestMilestone.Date.ToString("dd/MM/yyyy"))
                     </div>
                 </div>
+            </div>
 
-                <form asp-controller="ProjectTimeline" asp-action="AddMilestone" method="post">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="projectId" value="@Model.ProjectID" />
+            <div class="mt-hero-content">
+                <h1 class="mt-title">@Model.ProjectName</h1>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bolder small text-uppercase text-muted">Tiêu đề mốc tiến độ</label>
-                        <input type="text" name="title" class="form-control rounded-3 py-2 border-secondary shadow-sm fw-bold text-dark" placeholder="VD: Cất nóc tòa tháp B" required />
+                <p class="mt-subtitle">
+                    Khu vực này dành cho chủ đầu tư tự cập nhật nhật ký tiến độ dự án.
+                    Các mốc tiến độ sau khi lưu sẽ hiển thị trong hệ thống theo dữ liệu của dự án bạn quản lý.
+                </p>
+
+                <div class="mt-badge-row">
+                    <span class="mt-badge mt-badge-blue">
+                        <i class="bi bi-building"></i>
+                        @(string.IsNullOrWhiteSpace(Model.ProjectType) ? "Dự án BĐS" : Model.ProjectType)
+                    </span>
+
+                    <span class="mt-badge mt-badge-green">
+                        <i class="bi bi-activity"></i>
+                        @(string.IsNullOrWhiteSpace(Model.ProjectStatus) ? "Chưa cập nhật" : Model.ProjectStatus)
+                    </span>
+
+                    <span class="mt-badge mt-badge-amber">
+                        <i class="bi bi-clock-history"></i>
+                        @milestones.Count mốc tiến độ
+                    </span>
+
+                    <span class="mt-badge mt-badge-slate">
+                        <i class="bi bi-geo-alt-fill"></i>
+                        @projectLocation
+                    </span>
+                </div>
+
+                <div class="mt-stats">
+                    <div class="mt-stat">
+                        <span>Tổng mốc</span>
+                        <strong>@milestones.Count</strong>
                     </div>
 
-                    <div class="mb-4">
-                        <label class="form-label fw-bolder small text-uppercase text-muted">Nội dung cập nhật (Chi tiết)</label>
-                        <textarea name="description" class="form-control rounded-3 border-secondary shadow-sm" rows="5" placeholder="Báo cáo hoàn thành phần thô, đổ mái bê tông... (Khách hàng sẽ nhìn thấy nội dung này)" required></textarea>
+                    <div class="mt-stat">
+                        <span>Dự án tạo</span>
+                        <strong>@Model.CreatedAt.ToString("MM/yyyy")</strong>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold py-3 shadow">
-                        <i class="bi bi-plus-circle-fill me-2"></i>Đăng lên Nhật ký Công trình
-                    </button>
-                </form>
+                    <div class="mt-stat">
+                        <span>Cập nhật</span>
+                        <strong>@((Model.UpdatedAt ?? Model.CreatedAt).ToString("dd/MM/yyyy"))</strong>
+                    </div>
+                </div>
             </div>
         </div>
+    </section>
 
-        <!-- BÊN PHẢI: HIỂN THỊ DÒNG THỜI GIAN (DỮ LIỆU THẬT) -->
-        <div class="col-xl-7">
-            <div class="bg-white rounded-4 border p-4 shadow-sm h-100">
-                <h4 class="fw-bolder mb-4 text-dark"><i class="bi bi-clock-history me-2 text-primary"></i>Nhật ký Công trình Thực tế</h4>
+    <div class="mt-grid">
+        <section class="mt-panel">
+            <div class="mt-panel-title">
+                <span class="mt-title-icon">
+                    <i class="bi bi-plus-lg"></i>
+                </span>
+                <span>Thêm mốc tiến độ</span>
+            </div>
 
-                <div class="timeline-container">
+            <p class="mt-panel-sub">
+                Nhập mốc thi công, pháp lý, bàn giao, hoàn thiện tiện ích hoặc các cập nhật quan trọng của dự án.
+            </p>
 
-                    @if (milestones.Any())
+            <div class="mt-alert">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                Chủ đầu tư được thêm, sửa và xóa mốc tiến độ của dự án thuộc quyền quản lý.
+            </div>
+
+            <form asp-controller="ProjectTimeline" asp-action="AddMilestone" method="post">
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" name="projectId" value="@Model.ProjectID" />
+
+                <div class="mb-3">
+                    <label class="mt-label">Ngày cập nhật</label>
+                    <input type="date"
+                           name="milestoneDate"
+                           class="form-control mt-input"
+                           value="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="mt-label">Tiêu đề tiến độ</label>
+                    <input type="text"
+                           name="title"
+                           class="form-control mt-input"
+                           maxlength="180"
+                           placeholder="Ví dụ: Hoàn thành phần móng Block A"
+                           required />
+                </div>
+
+                <div class="mb-3">
+                    <label class="mt-label">Nội dung chi tiết</label>
+                    <textarea name="description"
+                              class="form-control mt-input"
+                              maxlength="3000"
+                              placeholder="Ví dụ: Đã hoàn thành phần móng, đang triển khai cốt thép tầng 1, hạ tầng điện nước nội khu đạt khoảng 60%..."
+                              required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-mt-primary w-100">
+                    <i class="bi bi-cloud-arrow-up-fill me-1"></i>
+                    Lưu mốc tiến độ
+                </button>
+            </form>
+
+            <div class="mt-alert mt-3 mb-0" style="background:#fffbeb;border-color:#fde68a;color:#92400e;">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                Nên nhập nội dung rõ ràng, đúng thực tế thi công và dễ hiểu cho khách hàng.
+            </div>
+        </section>
+
+        <section class="mt-timeline-card">
+            <div class="mt-timeline-head">
+                <div>
+                    <h2 class="mt-timeline-title">
+                        <i class="bi bi-clock-history text-primary me-1"></i>
+                        Nhật ký tiến độ
+                    </h2>
+
+                    <p class="mt-timeline-sub">
+                        Danh sách mốc tiến độ đang được lưu trong dữ liệu dự án.
+                    </p>
+                </div>
+
+                <div class="mt-filter-row">
+                    <input type="text"
+                           id="timelineSearch"
+                           class="mt-filter-input"
+                           placeholder="Tìm mốc tiến độ..." />
+
+                    <button type="button" class="btn btn-mt-light" onclick="resetTimelineSearch()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                        Xóa lọc
+                    </button>
+                </div>
+            </div>
+
+            @if (milestones.Any())
+            {
+                <div class="mt-timeline" id="timelineList">
+                    @foreach (var item in milestones.OrderByDescending(x => x.Date))
                     {
-                        foreach (var item in milestones)
-                        {
-                            <div class="timeline-item">
-                                <div class="timeline-marker"><i class="bi bi-check-lg"></i></div>
-                                <div class="timeline-content">
-                                    <!-- Nút Xóa (Dùng thẻ Form để POST lên server an toàn) -->
-                                    <form asp-action="DeleteMilestone" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mốc tiến độ này không? Khách hàng sẽ không thể xem lại.');">
+                        string searchText = $"{item.Title} {item.Description} {item.Date:dd/MM/yyyy}".ToLowerInvariant();
+
+                        <div class="mt-timeline-item js-timeline-item" data-search="@searchText">
+                            <div class="mt-timeline-dot">
+                                <i class="bi bi-check-lg"></i>
+                            </div>
+
+                            <div class="mt-timeline-content">
+                                <div class="mt-timeline-date">
+                                    <i class="bi bi-calendar-event"></i>
+                                    @item.Date.ToString("dd/MM/yyyy")
+                                </div>
+
+                                <div class="mt-timeline-name">
+                                    @item.Title
+                                </div>
+
+                                <p class="mt-timeline-desc">@item.Description</p>
+
+                                <div class="mt-timeline-actions">
+                                    <button type="button"
+                                            class="btn btn-mt-light"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editMilestone_@item.Id">
+                                        <i class="bi bi-pencil-square text-primary me-1"></i>
+                                        Sửa
+                                    </button>
+
+                                    <form asp-controller="ProjectTimeline"
+                                          asp-action="DeleteMilestone"
+                                          method="post"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Bạn chắc chắn muốn xóa mốc tiến độ này?');">
                                         @Html.AntiForgeryToken()
+
                                         <input type="hidden" name="projectId" value="@Model.ProjectID" />
                                         <input type="hidden" name="milestoneId" value="@item.Id" />
-                                        <button type="submit" class="btn-delete-milestone" title="Xóa bản cập nhật này">
-                                            <i class="bi bi-trash3-fill"></i>
+
+                                        <button type="submit" class="btn btn-mt-danger">
+                                            <i class="bi bi-trash3-fill me-1"></i>
+                                            Xóa
                                         </button>
                                     </form>
-
-                                    <div class="timeline-date"><i class="bi bi-calendar-event me-1"></i>@item.Date.ToString("dd/MM/yyyy HH:mm")</div>
-                                    <div class="timeline-title">@item.Title</div>
-                                    <p class="text-muted mb-0 small" style="white-space: pre-wrap;">@item.Description</p>
                                 </div>
                             </div>
-                        }
+                        </div>
+
+                        <div class="modal fade" id="editMilestone_@item.Id" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-lg">
+                                <div class="modal-content border-0 rounded-4 shadow">
+                                    <div class="modal-header border-0 pb-0">
+                                        <div>
+                                            <h5 class="modal-title fw-black text-dark">
+                                                <i class="bi bi-pencil-square text-primary me-1"></i>
+                                                Sửa mốc tiến độ
+                                            </h5>
+                                            <div class="text-muted fw-semibold small">
+                                                Cập nhật lại nội dung mốc tiến độ của dự án.
+                                            </div>
+                                        </div>
+
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+
+                                    <form asp-controller="ProjectTimeline" asp-action="UpdateMilestone" method="post">
+                                        @Html.AntiForgeryToken()
+
+                                        <div class="modal-body">
+                                            <input type="hidden" name="projectId" value="@Model.ProjectID" />
+                                            <input type="hidden" name="milestoneId" value="@item.Id" />
+
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label class="mt-label">Ngày cập nhật</label>
+                                                    <input type="date"
+                                                           name="milestoneDate"
+                                                           class="form-control mt-modal-input"
+                                                           value="@item.Date.ToString("yyyy-MM-dd")" />
+                                                </div>
+
+                                                <div class="col-md-8">
+                                                    <label class="mt-label">Tiêu đề</label>
+                                                    <input type="text"
+                                                           name="title"
+                                                           class="form-control mt-modal-input"
+                                                           maxlength="180"
+                                                           value="@item.Title"
+                                                           required />
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <label class="mt-label">Nội dung chi tiết</label>
+                                                    <textarea name="description"
+                                                      class="form-control mt-modal-input"
+                                                      maxlength="3000"
+                                                      required>@item.Description</textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="modal-footer border-0 pt-0">
+                                            <button type="button" class="btn btn-mt-light" data-bs-dismiss="modal">
+                                                Hủy
+                                            </button>
+
+                                            <button type="submit" class="btn btn-mt-primary px-4">
+                                                <i class="bi bi-save2-fill me-1"></i>
+                                                Lưu thay đổi
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     }
 
-                    <!-- Item mặc định lúc nào cũng nằm cuối cùng: Ngày khởi tạo dự án -->
-                    <div class="timeline-item">
-                        <div class="timeline-marker bg-success border-success text-white"><i class="bi bi-flag-fill"></i></div>
-                        <div class="timeline-content border-success bg-success bg-opacity-10">
-                            <div class="timeline-date text-success bg-white border border-success-subtle"><i class="bi bi-rocket-takeoff-fill me-1"></i>@Model.CreatedAt.ToString("dd/MM/yyyy")</div>
-                            <div class="timeline-title text-success">Khởi tạo & Công bố Dự án</div>
-                            <p class="text-muted mb-0 small">Dự án chính thức được phê duyệt hiển thị trên Cổng thông tin BĐS Khánh Hòa. Chủ đầu tư: <strong>@Model.Investor</strong>.</p>
+                    <div class="mt-timeline-item">
+                        <div class="mt-timeline-dot success">
+                            <i class="bi bi-flag-fill"></i>
+                        </div>
+
+                        <div class="mt-timeline-content border-success bg-success bg-opacity-10">
+                            <div class="mt-timeline-date text-success bg-white border border-success-subtle">
+                                <i class="bi bi-rocket-takeoff-fill"></i>
+                                @Model.CreatedAt.ToString("dd/MM/yyyy")
+                            </div>
+
+                            <div class="mt-timeline-name text-success">
+                                Khởi tạo dự án trên hệ thống
+                            </div>
+
+                            <p class="mt-timeline-desc">
+                                Dự án được tạo và gán cho chủ đầu tư/đơn vị quản lý:
+                                <strong>@(string.IsNullOrWhiteSpace(Model.Investor) ? "Chưa cập nhật" : Model.Investor)</strong>.
+                            </p>
                         </div>
                     </div>
-
                 </div>
-            </div>
-        </div>
+
+                <div class="mt-empty mt-3" id="timelineNoResult" style="display:none;">
+                    <div class="mt-empty-icon">
+                        <i class="bi bi-search"></i>
+                    </div>
+
+                    <h5 class="fw-black text-dark mb-2">Không tìm thấy mốc tiến độ</h5>
+
+                    <p class="text-muted fw-semibold mb-0">
+                        Hãy thử nhập từ khóa khác hoặc xóa bộ lọc.
+                    </p>
+                </div>
+            }
+            else
+            {
+                <div class="mt-empty">
+                    <div class="mt-empty-icon">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+
+                    <h5 class="fw-black text-dark mb-2">Chưa có mốc tiến độ</h5>
+
+                    <p class="text-muted fw-semibold mb-0">
+                        Hãy thêm mốc tiến độ đầu tiên ở biểu mẫu bên trái.
+                    </p>
+                </div>
+            }
+        </section>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        const timelineSearch = document.getElementById('timelineSearch');
+        const timelineItems = Array.from(document.querySelectorAll('.js-timeline-item'));
+        const timelineNoResult = document.getElementById('timelineNoResult');
+
+        function normalizeTimelineText(value) {
+            return (value || '')
+                .toString()
+                .trim()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function applyTimelineSearch() {
+            const keyword = normalizeTimelineText(timelineSearch?.value);
+            let visibleCount = 0;
+
+            timelineItems.forEach(item => {
+                const searchText = normalizeTimelineText(item.dataset.search);
+                const isVisible = !keyword || searchText.includes(keyword);
+
+                item.style.display = isVisible ? '' : 'none';
+
+                if (isVisible) {
+                    visibleCount++;
+                }
+            });
+
+            if (timelineNoResult) {
+                timelineNoResult.style.display = visibleCount === 0 && timelineItems.length > 0 ? 'block' : 'none';
+            }
+        }
+
+        function resetTimelineSearch() {
+            if (timelineSearch) {
+                timelineSearch.value = '';
+            }
+
+            applyTimelineSearch();
+        }
+
+        timelineSearch?.addEventListener('input', applyTimelineSearch);
+    </script>
+}

@@ -44,6 +44,8 @@ namespace BDSKhanhHoa.Data
         public DbSet<Role> Roles { get; set; }
         public DbSet<ProjectLead> ProjectLeads { get; set; }
         public DbSet<StaticPage> StaticPages { get; set; }
+
+        public DbSet<BankAccount> BankAccounts { get; set; }
         public DbSet<BusinessProfile> BusinessProfiles { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 

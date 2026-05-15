@@ -1,62 +1,758 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Comment>
+
 @{
-    ViewData["Title"] = "Quản lý Bình Luận";
+    ViewData["Title"] = "Quản lý bình luận";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    int totalComments = ViewBag.TotalComments ?? 0;
+    int visibleComments = ViewBag.VisibleComments ?? 0;
+    int hiddenComments = ViewBag.HiddenComments ?? 0;
+    int todayComments = ViewBag.TodayComments ?? 0;
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalItems = ViewBag.TotalItems ?? 0;
+
+    string searchString = ViewBag.SearchString ?? "";
+    string status = ViewBag.Status ?? "";
+    string dateSort = ViewBag.DateSort ?? "desc";
 }
 
-<div class="container-fluid py-4">
-    <!-- Thống kê nhanh -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm p-3 bg-primary text-white" style="border-radius: 12px;">
-                <small>Tổng bình luận</small>
-                <h3 class="fw-bold mb-0">@Model.Count()</h3>
+<style>
+    :root {
+        --comment-bg: #f5f7fb;
+        --comment-card: #ffffff;
+        --comment-text: #0f172a;
+        --comment-muted: #64748b;
+        --comment-border: #e5e7eb;
+        --comment-primary: #2563eb;
+        --comment-success: #16a34a;
+        --comment-warning: #f59e0b;
+        --comment-danger: #dc2626;
+        --comment-purple: #7c3aed;
+        --comment-radius: 22px;
+    }
+
+    .comments-admin-page {
+        background: radial-gradient(circle at 0% 0%, rgba(37, 99, 235, .08), transparent 28%), radial-gradient(circle at 100% 0%, rgba(124, 58, 237, .08), transparent 26%), linear-gradient(180deg, #f8fafc 0%, var(--comment-bg) 100%);
+        min-height: calc(100vh - 80px);
+        padding: 8px 0 32px;
+        color: var(--comment-text);
+    }
+
+    .comments-hero {
+        background: radial-gradient(circle at 90% 0%, rgba(59, 130, 246, .32), transparent 28%), linear-gradient(135deg, #020617 0%, #1e3a8a 55%, #312e81 100%);
+        color: #fff;
+        border-radius: 28px;
+        padding: 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 22px 60px rgba(15, 23, 42, .18);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .comments-hero::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            opacity: .72;
+        }
+
+    .comments-hero-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .comments-hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        border: 1px solid rgba(255,255,255,.16);
+        font-size: .75rem;
+        font-weight: 850;
+        margin-bottom: 10px;
+        color: rgba(255,255,255,.9);
+    }
+
+    .comments-hero-title {
+        font-size: clamp(1.35rem, 2.5vw, 2.2rem);
+        font-weight: 950;
+        letter-spacing: -.04em;
+        margin: 0 0 7px;
+        line-height: 1.08;
+    }
+
+    .comments-hero-sub {
+        color: rgba(255,255,255,.74);
+        margin: 0;
+        max-width: 880px;
+        font-size: .88rem;
+        line-height: 1.6;
+    }
+
+    .comment-card {
+        background: var(--comment-card);
+        border: 1px solid var(--comment-border);
+        border-radius: var(--comment-radius);
+        box-shadow: 0 14px 38px rgba(15, 23, 42, .06);
+        height: 100%;
+    }
+
+    .metric-card {
+        padding: 16px;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .metric-card::after {
+            content: "";
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            right: -45px;
+            top: -55px;
+            border-radius: 999px;
+            background: currentColor;
+            opacity: .1;
+        }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        position: relative;
+        z-index: 2;
+    }
+
+    .metric-label {
+        color: var(--comment-muted);
+        font-size: .7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin-bottom: 6px;
+    }
+
+    .metric-value {
+        color: var(--comment-text);
+        font-size: 1.55rem;
+        font-weight: 950;
+        line-height: 1;
+        margin: 0;
+        letter-spacing: -.04em;
+    }
+
+    .metric-note {
+        margin-top: 8px;
+        color: var(--comment-muted);
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+    .metric-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 1.1rem;
+        flex: 0 0 auto;
+    }
+
+    .bg-blue {
+        background: linear-gradient(135deg, #38bdf8, #2563eb);
+    }
+
+    .bg-green {
+        background: linear-gradient(135deg, #34d399, #16a34a);
+    }
+
+    .bg-orange {
+        background: linear-gradient(135deg, #fbbf24, #f97316);
+    }
+
+    .bg-purple {
+        background: linear-gradient(135deg, #c084fc, #7c3aed);
+    }
+
+    .filter-card {
+        padding: 16px;
+        margin-bottom: 18px;
+    }
+
+    .filter-label {
+        color: var(--comment-muted);
+        font-size: .7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin-bottom: 5px;
+    }
+
+    .filter-card .form-control,
+    .filter-card .form-select {
+        border-radius: 14px;
+        border-color: #e2e8f0;
+        min-height: 42px;
+        font-size: .86rem;
+        font-weight: 700;
+        box-shadow: none !important;
+    }
+
+    .admin-btn {
+        border: 0;
+        min-height: 40px;
+        padding: 9px 14px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-size: .82rem;
+        font-weight: 900;
+        text-decoration: none;
+        transition: .18s ease;
+        white-space: nowrap;
+    }
+
+        .admin-btn:hover {
+            transform: translateY(-1px);
+        }
+
+    .btn-primary-soft {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .btn-dark-soft {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .btn-success-soft {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .btn-warning-soft {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .btn-danger-soft {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .bulk-bar {
+        display: none;
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 18px;
+        border: 1px solid #bfdbfe;
+        background: linear-gradient(135deg, #eff6ff, #f8fafc);
+    }
+
+        .bulk-bar.show {
+            display: flex;
+        }
+
+    .table-card {
+        overflow: hidden;
+    }
+
+    .table-head {
+        padding: 18px;
+        border-bottom: 1px solid var(--comment-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .table-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 950;
+        color: var(--comment-text);
+    }
+
+    .table-sub {
+        margin: 3px 0 0;
+        color: var(--comment-muted);
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    .comment-table {
+        margin: 0;
+        font-size: .84rem;
+    }
+
+        .comment-table thead th {
+            background: #f8fafc;
+            color: var(--comment-muted);
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 950;
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--comment-border);
+            white-space: nowrap;
+        }
+
+        .comment-table tbody td {
+            padding: 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+    .comment-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 170px;
+    }
+
+    .comment-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, .10);
+        background: #f1f5f9;
+    }
+
+    .comment-user-name {
+        font-weight: 900;
+        color: var(--comment-text);
+        line-height: 1.2;
+        max-width: 150px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .comment-user-role {
+        color: var(--comment-muted);
+        font-size: .72rem;
+        font-weight: 700;
+        margin-top: 2px;
+    }
+
+    .comment-content-box {
+        max-width: 430px;
+    }
+
+    .comment-content {
+        color: #334155;
+        font-weight: 700;
+        line-height: 1.45;
+        margin: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .comment-reply-note {
+        margin-top: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: var(--comment-muted);
+        font-size: .68rem;
+        font-weight: 800;
+    }
+
+    .property-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 260px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: .76rem;
+        font-weight: 850;
+        text-decoration: none;
+    }
+
+        .property-link span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-visible {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .status-hidden {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .action-circle {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: .18s ease;
+    }
+
+        .action-circle:hover {
+            transform: translateY(-1px);
+            background: #f8fafc;
+        }
+
+    .mobile-comment-list {
+        display: none;
+    }
+
+    .mobile-comment-card {
+        padding: 14px;
+        border-bottom: 1px solid #eef2f7;
+    }
+
+    .pagination-wrap {
+        padding: 16px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        border-top: 1px solid var(--comment-border);
+    }
+
+    .page-info {
+        color: var(--comment-muted);
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .pagination .page-link {
+        border: 0;
+        margin: 0 2px;
+        border-radius: 12px;
+        color: #334155;
+        font-size: .8rem;
+        font-weight: 850;
+        min-width: 36px;
+        text-align: center;
+    }
+
+    .pagination .active .page-link {
+        background: var(--comment-primary);
+        color: #fff;
+    }
+
+    .empty-state {
+        padding: 50px 20px;
+        text-align: center;
+    }
+
+    .empty-state-icon {
+        width: 70px;
+        height: 70px;
+        margin: 0 auto 14px;
+        border-radius: 24px;
+        background: #eff6ff;
+        color: #2563eb;
+        display: grid;
+        place-items: center;
+        font-size: 2rem;
+    }
+
+    @@media (max-width: 991.98px) {
+        .desktop-comment-table {
+            display: none;
+        }
+
+        .mobile-comment-list {
+            display: block;
+        }
+
+        .comments-hero {
+            border-radius: 22px;
+            padding: 20px;
+        }
+
+        .filter-card {
+            padding: 14px;
+        }
+
+        .bulk-bar.show {
+            display: block;
+        }
+
+        .bulk-bar .admin-btn {
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .table-head {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+<div class="comments-admin-page">
+    <div class="comments-hero">
+        <div class="comments-hero-content">
+            <div class="comments-hero-badge">
+                <i class="bi bi-chat-square-text-fill"></i>
+                Comment Moderation
+            </div>
+            <h1 class="comments-hero-title">Quản lý bình luận</h1>
+            <p class="comments-hero-sub">
+                Theo dõi, tìm kiếm, duyệt hiển thị, ẩn hoặc xóa bình luận người dùng.
+                Giao diện tối ưu cho quản trị viên trên cả máy tính và thiết bị di động.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-xl-3">
+            <div class="comment-card metric-card" style="color: var(--comment-primary);">
+                <div class="metric-row">
+                    <div>
+                        <div class="metric-label">Tổng bình luận</div>
+                        <h2 class="metric-value">@totalComments.ToString("N0")</h2>
+                        <div class="metric-note">Tất cả nội dung</div>
+                    </div>
+                    <div class="metric-icon bg-blue">
+                        <i class="bi bi-chat-dots-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="comment-card metric-card" style="color: var(--comment-success);">
+                <div class="metric-row">
+                    <div>
+                        <div class="metric-label">Đang hiện</div>
+                        <h2 class="metric-value">@visibleComments.ToString("N0")</h2>
+                        <div class="metric-note">Người dùng nhìn thấy</div>
+                    </div>
+                    <div class="metric-icon bg-green">
+                        <i class="bi bi-eye-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="comment-card metric-card" style="color: var(--comment-warning);">
+                <div class="metric-row">
+                    <div>
+                        <div class="metric-label">Đang ẩn</div>
+                        <h2 class="metric-value">@hiddenComments.ToString("N0")</h2>
+                        <div class="metric-note">Cần kiểm tra</div>
+                    </div>
+                    <div class="metric-icon bg-orange">
+                        <i class="bi bi-eye-slash-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-xl-3">
+            <div class="comment-card metric-card" style="color: var(--comment-purple);">
+                <div class="metric-row">
+                    <div>
+                        <div class="metric-label">Hôm nay</div>
+                        <h2 class="metric-value">@todayComments.ToString("N0")</h2>
+                        <div class="metric-note">Bình luận mới</div>
+                    </div>
+                    <div class="metric-icon bg-purple">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0" style="border-radius: 16px;">
-        <div class="card-header bg-white border-0 pt-4 pb-0">
-            <div class="row align-items-center">
-                <div class="col-md-4">
-                    <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-chat-dots me-2"></i>Quản lý Bình Luận</h4>
+    <div class="comment-card filter-card">
+        <form method="get" asp-area="Admin" asp-controller="Comments" asp-action="Index">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg-5">
+                    <div class="filter-label">Tìm kiếm</div>
+                    <input type="text"
+                           name="searchString"
+                           value="@searchString"
+                           class="form-control"
+                           placeholder="Nhập nội dung, tên người dùng hoặc tiêu đề tin..." />
                 </div>
-                <div class="col-md-8">
-                    <form method="get" class="d-flex gap-2 justify-content-end">
-                        <input type="text" name="searchString" class="form-control rounded-pill w-50" placeholder="Tìm tên, nội dung..." value="@ViewBag.SearchString">
-                        <select name="status" class="form-select rounded-pill w-auto">
+
+                <div class="col-12 col-md-6 col-lg-2">
+                    <div class="filter-label">Trạng thái</div>
+                    <select name="status" class="form-select">
+                        @if (string.IsNullOrWhiteSpace(status))
+                        {
+                            <option value="" selected>Tất cả</option>
+                        }
+                        else
+                        {
                             <option value="">Tất cả</option>
-                            <option value="visible" selected="@(ViewBag.Status == "visible")">Đang hiện</option>
-                            <option value="pending" selected="@(ViewBag.Status == "pending")">Chờ duyệt (Bị ẩn)</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary rounded-pill px-4">Lọc</button>
-                    </form>
+                        }
+
+                        @if (status == "visible")
+                        {
+                            <option value="visible" selected>Đang hiện</option>
+                        }
+                        else
+                        {
+                            <option value="visible">Đang hiện</option>
+                        }
+
+                        @if (status == "hidden")
+                        {
+                            <option value="hidden" selected>Đang ẩn</option>
+                        }
+                        else
+                        {
+                            <option value="hidden">Đang ẩn</option>
+                        }
+
+                        @if (status == "parent")
+                        {
+                            <option value="parent" selected>Bình luận gốc</option>
+                        }
+                        else
+                        {
+                            <option value="parent">Bình luận gốc</option>
+                        }
+
+                        @if (status == "reply")
+                        {
+                            <option value="reply" selected>Phản hồi</option>
+                        }
+                        else
+                        {
+                            <option value="reply">Phản hồi</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6 col-lg-2">
+                    <div class="filter-label">Sắp xếp</div>
+                    <select name="dateSort" class="form-select">
+                        @if (dateSort == "desc")
+                        {
+                            <option value="desc" selected>Mới nhất</option>
+                        }
+                        else
+                        {
+                            <option value="desc">Mới nhất</option>
+                        }
+
+                        @if (dateSort == "asc")
+                        {
+                            <option value="asc" selected>Cũ nhất</option>
+                        }
+                        else
+                        {
+                            <option value="asc">Cũ nhất</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="submit" class="admin-btn btn-primary-soft">
+                            <i class="bi bi-search"></i>
+                            Lọc dữ liệu
+                        </button>
+                        <a href="/Admin/Comments" class="admin-btn btn-dark-soft">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                            Làm mới
+                        </a>
+                    </div>
                 </div>
             </div>
+        </form>
 
-            <!-- THANH CÔNG CỤ DUYỆT NHANH (Sẽ ẩn/hiện khi check) -->
-            <div id="bulkActions" class="mt-3 p-2 bg-light rounded-3 d-none animate__animated animate__fadeIn">
-                <span class="ms-2 fw-bold text-dark"><span id="selectedCount">0</span> mục đã chọn:</span>
-                <button class="btn btn-sm btn-success ms-3 rounded-pill px-3" onclick="bulkApprove()">
-                    <i class="bi bi-check-all"></i> Duyệt hiển thị hàng loạt
+        <div id="bulkActions" class="bulk-bar align-items-center justify-content-between gap-2">
+            <div class="fw-bold text-dark">
+                <i class="bi bi-check2-square text-primary me-1"></i>
+                Đã chọn <span id="selectedCount">0</span> bình luận
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="admin-btn btn-success-soft" onclick="bulkApprove()">
+                    <i class="bi bi-check-all"></i>
+                    Duyệt hiển thị
                 </button>
-                <button class="btn btn-sm btn-danger ms-2 rounded-pill px-3" onclick="bulkDelete()">
-                    <i class="bi bi-trash"></i> Xóa hàng loạt
+
+                <button type="button" class="admin-btn btn-warning-soft" onclick="bulkHide()">
+                    <i class="bi bi-eye-slash"></i>
+                    Ẩn bình luận
+                </button>
+
+                <button type="button" class="admin-btn btn-danger-soft" onclick="bulkDelete()">
+                    <i class="bi bi-trash"></i>
+                    Xóa đã chọn
                 </button>
             </div>
         </div>
+    </div>
 
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
+    <div class="comment-card table-card">
+        <div class="table-head">
+            <div>
+                <h5 class="table-title">
+                    <i class="bi bi-list-check text-primary me-2"></i>
+                    Danh sách bình luận
+                </h5>
+                <p class="table-sub">
+                    Tìm thấy @totalItems.ToString("N0") kết quả phù hợp bộ lọc hiện tại.
+                </p>
+            </div>
+        </div>
+
+        @if (Model.Any())
+        {
+            <div class="desktop-comment-table table-responsive">
+                <table class="table table-hover comment-table align-middle">
+                    <thead>
                         <tr>
-                            <th style="width: 40px;">
-                                <input type="checkbox" class="form-check-input" id="selectAll">
+                            <th style="width:44px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll" />
                             </th>
                             <th>Người dùng</th>
-                            <th>Nội dung bình luận</th>
-                            <th>Liên quan tin</th>
+                            <th>Nội dung</th>
+                            <th>Tin liên quan</th>
                             <th>Thời gian</th>
                             <th>Trạng thái</th>
                             <th class="text-end">Thao tác</th>
@@ -65,33 +761,102 @@
                     <tbody>
                         @foreach (var item in Model)
                         {
+                            string avatar = string.IsNullOrWhiteSpace(item.User?.Avatar)
+                            ? "/images/avatars/default-user.png"
+                            : item.User.Avatar;
+
+                            string fullName = !string.IsNullOrWhiteSpace(item.User?.FullName)
+                            ? item.User.FullName
+                            : (!string.IsNullOrWhiteSpace(item.User?.Username) ? item.User.Username : "Người dùng");
+
+                            string propertyTitle = !string.IsNullOrWhiteSpace(item.Property?.Title)
+                            ? item.Property.Title
+                            : $"Tin #{item.PropertyID}";
+
                             <tr id="row-@item.CommentID">
                                 <td>
-                                    <input type="checkbox" class="form-check-input row-checkbox" data-id="@item.CommentID">
+                                    <input type="checkbox" class="form-check-input row-checkbox" data-id="@item.CommentID" />
                                 </td>
+
                                 <td>
-                                    <div class="d-flex align-items-center">
-                                        <img src="@(item.User?.Avatar ?? "/images/default-user.png")" class="rounded-circle me-2 border" width="35" height="35">
-                                        <div class="d-flex flex-column">
-                                            <span class="fw-bold small">@item.User?.FullName</span>
+                                    <div class="comment-user">
+                                        <img src="@avatar"
+                                             class="comment-avatar"
+                                             alt="@fullName"
+                                             onerror="this.src='/images/avatars/default-user.png'" />
+                                        <div>
+                                            <div class="comment-user-name">@fullName</div>
+                                            <div class="comment-user-role">
+                                                ID: @item.UserID
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
+
                                 <td>
-                                    <p class="mb-0 text-truncate" style="max-width: 300px;" title="@item.Content">@item.Content</p>
+                                    <div class="comment-content-box">
+                                        <p class="comment-content" title="@item.Content">@item.Content</p>
+
+                                        @if (item.ParentID.HasValue)
+                                        {
+                                            <span class="comment-reply-note">
+                                                <i class="bi bi-reply-fill"></i>
+                                                Phản hồi bình luận #@item.ParentID
+                                            </span>
+                                        }
+                                        else if (item.Replies != null && item.Replies.Any())
+                                        {
+                                            <span class="comment-reply-note">
+                                                <i class="bi bi-chat-left-text"></i>
+                                                @item.Replies.Count phản hồi
+                                            </span>
+                                        }
+                                    </div>
                                 </td>
-                                <td><a href="/Property/Details/@item.PropertyID" target="_blank" class="badge bg-light text-primary text-decoration-none">#@item.PropertyID <i class="bi bi-link"></i></a></td>
-                                <td class="small text-muted">@item.TimeAgo</td>
+
                                 <td>
-                                    <span class="badge @(item.IsHidden ? "bg-warning text-dark" : "bg-success") status-badge-@item.CommentID">
-                                        @(item.IsHidden ? "Chờ duyệt" : "Đang hiện")
+                                    <a href="/Property/Details/@item.PropertyID"
+                                       target="_blank"
+                                       class="property-link"
+                                       title="@propertyTitle">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                        <span>@propertyTitle</span>
+                                    </a>
+                                </td>
+
+                                <td>
+                                    <div class="fw-bold text-dark">@item.TimeAgo</div>
+                                    <div class="text-muted small">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                                </td>
+
+                                <td>
+                                    <span class="status-pill @(item.IsHidden ? "status-hidden" : "status-visible") status-badge-@item.CommentID">
+                                        <i class="bi @(item.IsHidden ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                                        @(item.IsHidden ? "Đang ẩn" : "Đang hiện")
                                     </span>
                                 </td>
+
                                 <td class="text-end">
-                                    <div class="btn-group">
-                                        <a href="/Admin/Comments/Details/@item.CommentID" class="btn btn-sm btn-light border-0 rounded-circle me-1"><i class="bi bi-eye"></i></a>
-                                        <button class="btn btn-sm btn-light border-0 text-warning rounded-circle btn-toggle-admin me-1" data-id="@item.CommentID"><i class="bi bi-shield-check"></i></button>
-                                        <button class="btn btn-sm btn-light border-0 text-danger rounded-circle btn-delete-admin" data-id="@item.CommentID"><i class="bi bi-trash"></i></button>
+                                    <div class="d-inline-flex gap-1">
+                                        <a href="/Admin/Comments/Details/@item.CommentID"
+                                           class="action-circle text-primary"
+                                           title="Xem chi tiết">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+
+                                        <button type="button"
+                                                class="action-circle text-warning btn-toggle-admin"
+                                                data-id="@item.CommentID"
+                                                title="Ẩn/hiện bình luận">
+                                            <i class="bi bi-shield-check"></i>
+                                        </button>
+
+                                        <button type="button"
+                                                class="action-circle text-danger btn-delete-admin"
+                                                data-id="@item.CommentID"
+                                                title="Xóa bình luận">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -99,85 +864,334 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+
+            <div class="mobile-comment-list">
+                @foreach (var item in Model)
+                {
+                    string avatar = string.IsNullOrWhiteSpace(item.User?.Avatar)
+                    ? "/images/avatars/default-user.png"
+                    : item.User.Avatar;
+
+                    string fullName = !string.IsNullOrWhiteSpace(item.User?.FullName)
+                    ? item.User.FullName
+                    : (!string.IsNullOrWhiteSpace(item.User?.Username) ? item.User.Username : "Người dùng");
+
+                    string propertyTitle = !string.IsNullOrWhiteSpace(item.Property?.Title)
+                    ? item.Property.Title
+                    : $"Tin #{item.PropertyID}";
+
+                    <div class="mobile-comment-card" id="mobile-row-@item.CommentID">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <div class="comment-user">
+                                <input type="checkbox" class="form-check-input row-checkbox me-1" data-id="@item.CommentID" />
+                                <img src="@avatar"
+                                     class="comment-avatar"
+                                     alt="@fullName"
+                                     onerror="this.src='/images/avatars/default-user.png'" />
+                                <div>
+                                    <div class="comment-user-name">@fullName</div>
+                                    <div class="comment-user-role">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                                </div>
+                            </div>
+
+                            <span class="status-pill @(item.IsHidden ? "status-hidden" : "status-visible") status-badge-@item.CommentID">
+                                @(item.IsHidden ? "Ẩn" : "Hiện")
+                            </span>
+                        </div>
+
+                        <p class="comment-content mb-2">@item.Content</p>
+
+                        <a href="/Property/Details/@item.PropertyID"
+                           target="_blank"
+                           class="property-link mb-2">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                            <span>@propertyTitle</span>
+                        </a>
+
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="text-muted small fw-bold">@item.TimeAgo</div>
+
+                            <div class="d-flex gap-1">
+                                <a href="/Admin/Comments/Details/@item.CommentID"
+                                   class="action-circle text-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+
+                                <button type="button"
+                                        class="action-circle text-warning btn-toggle-admin"
+                                        data-id="@item.CommentID">
+                                    <i class="bi bi-shield-check"></i>
+                                </button>
+
+                                <button type="button"
+                                        class="action-circle text-danger btn-delete-admin"
+                                        data-id="@item.CommentID">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="pagination-wrap">
+                <div class="page-info">
+                    Trang @currentPage / @totalPages · Tổng @totalItems.ToString("N0") bình luận
+                </div>
+
+                <nav aria-label="Phân trang bình luận">
+                    <ul class="pagination mb-0">
+                        @{
+                            int previousPage = currentPage - 1;
+                            int nextPage = currentPage + 1;
+                        }
+
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", "Comments", new { area = "Admin", page = previousPage, searchString = searchString, status = status, dateSort = dateSort })">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+
+                        @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link"
+                                   href="@Url.Action("Index", "Comments", new { area = "Admin", page = i, searchString = searchString, status = status, dateSort = dateSort })">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", "Comments", new { area = "Admin", page = nextPage, searchString = searchString, status = status, dateSort = dateSort })">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-chat-square-text"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Không có bình luận phù hợp</h5>
+                <p class="text-muted mb-3">
+                    Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.
+                </p>
+                <a href="/Admin/Comments" class="admin-btn btn-primary-soft">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    Làm mới bộ lọc
+                </a>
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         $(document).ready(function () {
-            // Xử lý Checkbox chọn tất cả
-            $('#selectAll').click(function () {
+            const bulkBar = $('#bulkActions');
+            const selectedCountText = $('#selectedCount');
+
+            $('#selectAll').on('change', function () {
                 $('.row-checkbox').prop('checked', this.checked);
                 toggleBulkActions();
             });
 
-            $('.row-checkbox').change(function () {
+            $(document).on('change', '.row-checkbox', function () {
                 toggleBulkActions();
+
+                const totalCheckbox = $('.row-checkbox').length;
+                const totalChecked = $('.row-checkbox:checked').length;
+
+                $('#selectAll').prop('checked', totalCheckbox > 0 && totalCheckbox === totalChecked);
             });
 
+            function getSelectedIds() {
+                return $('.row-checkbox:checked').map(function () {
+                    return parseInt($(this).data('id'));
+                }).get();
+            }
+
             function toggleBulkActions() {
-                var count = $('.row-checkbox:checked').length;
-                $('#selectedCount').text(count);
+                const count = $('.row-checkbox:checked').length;
+                selectedCountText.text(count);
+
                 if (count > 0) {
-                    $('#bulkActions').removeClass('d-none');
+                    bulkBar.addClass('show');
                 } else {
-                    $('#bulkActions').addClass('d-none');
+                    bulkBar.removeClass('show');
                 }
             }
 
-            // --- HÀNH ĐỘNG HÀNG LOẠT ---
-            window.bulkApprove = function() {
-                var ids = $('.row-checkbox:checked').map(function() { return $(this).data('id'); }).get();
-                confirmBulk('/Admin/Comments/ApproveSelected', ids, 'Duyệt hiển thị các bình luận đã chọn?');
-            }
+            window.bulkApprove = function () {
+                const ids = getSelectedIds();
 
-            window.bulkDelete = function() {
-                var ids = $('.row-checkbox:checked').map(function() { return $(this).data('id'); }).get();
-                confirmBulk('/Admin/Comments/DeleteSelected', ids, 'Xóa vĩnh viễn các bình luận đã chọn?');
-            }
+                confirmBulkAction({
+                    url: '/Admin/Comments/ApproveSelected',
+                    ids: ids,
+                    title: 'Duyệt hiển thị?',
+                    text: 'Các bình luận đã chọn sẽ được phép hiển thị công khai.',
+                    icon: 'question',
+                    confirmText: 'Duyệt hiển thị'
+                });
+            };
 
-            function confirmBulk(url, ids, message) {
+            window.bulkHide = function () {
+                const ids = getSelectedIds();
+
+                confirmBulkAction({
+                    url: '/Admin/Comments/HideSelected',
+                    ids: ids,
+                    title: 'Ẩn bình luận?',
+                    text: 'Các bình luận đã chọn sẽ bị ẩn khỏi giao diện người dùng.',
+                    icon: 'warning',
+                    confirmText: 'Ẩn bình luận'
+                });
+            };
+
+            window.bulkDelete = function () {
+                const ids = getSelectedIds();
+
+                confirmBulkAction({
+                    url: '/Admin/Comments/DeleteSelected',
+                    ids: ids,
+                    title: 'Xóa bình luận?',
+                    text: 'Hành động này không thể hoàn tác. Các phản hồi liên quan cũng có thể bị xóa.',
+                    icon: 'warning',
+                    confirmText: 'Xóa vĩnh viễn',
+                    danger: true
+                });
+            };
+
+            function confirmBulkAction(options) {
+                if (!options.ids || options.ids.length === 0) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Chưa chọn bình luận',
+                        text: 'Vui lòng chọn ít nhất một bình luận để thao tác.'
+                    });
+                    return;
+                }
+
                 Swal.fire({
-                    title: 'Xác nhận?', text: message, icon: 'question',
-                    showCancelButton: true, confirmButtonText: 'Đồng ý'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(ids)
-                        }).then(res => res.json()).then(data => {
-                            if (data.success) {
-                                Swal.fire('Thành công', data.message, 'success').then(() => location.reload());
-                            }
-                        });
+                    title: options.title,
+                    text: options.text,
+                    icon: options.icon,
+                    showCancelButton: true,
+                    confirmButtonText: options.confirmText,
+                    cancelButtonText: 'Hủy',
+                    confirmButtonColor: options.danger ? '#dc2626' : '#2563eb'
+                }).then(function (result) {
+                    if (!result.isConfirmed) {
+                        return;
                     }
+
+                    fetch(options.url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(options.ids)
+                    })
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (data) {
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Thành công',
+                                text: data.message,
+                                timer: 1400,
+                                showConfirmButton: false
+                            }).then(function () {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Không thành công', data.message || 'Có lỗi xảy ra.', 'error');
+                        }
+                    })
+                    .catch(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    });
                 });
             }
 
-            // Giữ lại các Ajax lẻ cũ của bạn (ToggleVisibility, Delete...)
-            $('.btn-toggle-admin').click(function () {
-                var id = $(this).data('id');
-                $.post('/Admin/Comments/ToggleVisibility', { id: id }, function (res) {
-                    if (res.success) {
-                        location.reload(); // Cách đơn giản nhất để cập nhật badge và UI
-                    }
-                });
+            $(document).on('click', '.btn-toggle-admin', function () {
+                const id = $(this).data('id');
+
+                $.post('/Admin/Comments/ToggleVisibility', { id: id })
+                    .done(function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: response.message || 'Đã cập nhật',
+                                showConfirmButton: false,
+                                timer: 1300
+                            }).then(function () {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Lỗi', response.message || 'Không thể cập nhật trạng thái.', 'error');
+                        }
+                    })
+                    .fail(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    });
             });
 
-            $('.btn-delete-admin').click(function () {
-                var id = $(this).data('id');
+            $(document).on('click', '.btn-delete-admin', function () {
+                const id = $(this).data('id');
+
                 Swal.fire({
-                    title: 'Xóa bình luận?', text: "Hành động này không thể hoàn tác!",
-                    icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.post('/Admin/Comments/Delete', { id: id }, function (res) {
-                            if (res.success) $('#row-' + id).fadeOut();
-                        });
+                    title: 'Xóa bình luận?',
+                    text: 'Bình luận và các phản hồi liên quan sẽ bị xóa vĩnh viễn.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Xóa',
+                    cancelButtonText: 'Hủy',
+                    confirmButtonColor: '#dc2626'
+                }).then(function (result) {
+                    if (!result.isConfirmed) {
+                        return;
                     }
+
+                    $.post('/Admin/Comments/Delete', { id: id })
+                        .done(function (response) {
+                            if (response.success) {
+                                $('#row-' + id).fadeOut(220, function () {
+                                    $(this).remove();
+                                });
+
+                                $('#mobile-row-' + id).fadeOut(220, function () {
+                                    $(this).remove();
+                                });
+
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: response.message || 'Đã xóa bình luận',
+                                    showConfirmButton: false,
+                                    timer: 1400
+                                });
+                            } else {
+                                Swal.fire('Lỗi', response.message || 'Không thể xóa bình luận.', 'error');
+                            }
+                        })
+                        .fail(function () {
+                            Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                        });
                 });
             });
         });

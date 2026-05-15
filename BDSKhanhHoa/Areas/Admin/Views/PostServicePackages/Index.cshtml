@@ -1,137 +1,245 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PostServicePackage>
+
 @{
-    ViewData["Title"] = "Quản lý Gói dịch vụ (VIP)";
+    ViewData["Title"] = "Quản lý Gói đăng tin";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string GetTierClass(string type)
+    {
+        return type switch
+        {
+            "Kim Cương" => "tier-diamond",
+            "Vàng" => "tier-gold",
+            "Bạc" => "tier-silver",
+            "Đồng" => "tier-bronze",
+            _ => "tier-normal"
+        };
+    }
+
+    string GetIconClass(string type)
+    {
+        return type switch
+        {
+            "Kim Cương" => "bi-gem",
+            "Vàng" => "bi-star-fill",
+            "Bạc" => "bi-shield-fill",
+            "Đồng" => "bi-award-fill",
+            _ => "bi-tag-fill"
+        };
+    }
+
+    string GetPriorityText(int priority)
+    {
+        return priority switch
+        {
+            1 => "Hạng 1 - Cao nhất",
+            2 => "Hạng 2 - Sau Kim Cương",
+            3 => "Hạng 3 - Sau Vàng",
+            4 => "Hạng 4 - Sau Bạc",
+            5 => "Hạng 5 - Tin thường",
+            _ => "Hạng " + priority
+        };
+    }
 }
 
 <style>
-    .tier-card {
-        transition: all 0.3s ease;
-        border-left: 4px solid transparent;
+    .package-page {
+        background: #f8fafc;
+        min-height: calc(100vh - 80px);
     }
 
-        .tier-card:hover {
-            transform: translateX(5px);
-            background-color: #f8fafc;
+    .page-title {
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .help-card {
+        border: 1px solid #dbeafe;
+        background: linear-gradient(135deg, #eff6ff, #ffffff);
+        border-radius: 20px;
+    }
+
+    .help-step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.75);
+        border: 1px solid rgba(191,219,254,.75);
+        height: 100%;
+    }
+
+        .help-step .num {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 900;
+            flex-shrink: 0;
         }
 
-    /* MÀU SẮC ĐẶC TRƯNG TỪNG HẠNG */
-    /* Kim Cương */
+    .pkg-row {
+        transition: .2s ease;
+        border-left: 5px solid transparent;
+    }
+
+        .pkg-row:hover {
+            background: #f8fafc;
+            transform: translateX(4px);
+        }
+
+    .tier-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        box-shadow: 0 10px 24px rgba(15,23,42,.08);
+        flex-shrink: 0;
+    }
+
     .tier-diamond {
-        border-left-color: #00f2fe;
+        border-left-color: #00c6ff;
     }
 
-    .icon-diamond {
-        background: linear-gradient(135deg, #00c6ff, #0072ff);
-        color: white;
-        box-shadow: 0 4px 15px rgba(0, 198, 255, 0.4);
-        animation: pulse-glow 2s infinite;
-    }
-
-    .text-diamond {
-        background: linear-gradient(135deg, #00c6ff, #0072ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 900;
-    }
-
-    /* Vàng */
     .tier-gold {
-        border-left-color: #f6d365;
+        border-left-color: #f59e0b;
     }
 
-    .icon-gold {
-        background: linear-gradient(135deg, #f6d365, #fda085);
-        color: #fff;
-        box-shadow: 0 4px 15px rgba(253, 160, 133, 0.4);
-    }
-
-    .text-gold {
-        color: #d35400;
-        font-weight: 800;
-    }
-
-    /* Bạc */
     .tier-silver {
-        border-left-color: #bdc3c7;
+        border-left-color: #94a3b8;
     }
 
-    .icon-silver {
-        background: linear-gradient(135deg, #e2e2e2, #bdc3c7);
-        color: #2c3e50;
-        box-shadow: 0 4px 10px rgba(189, 195, 199, 0.4);
-    }
-
-    .text-silver {
-        color: #7f8c8d;
-        font-weight: 800;
-    }
-
-    /* Đồng */
     .tier-bronze {
-        border-left-color: #cd7f32;
+        border-left-color: #b45309;
     }
 
-    .icon-bronze {
-        background: linear-gradient(135deg, #e67e22, #d35400);
-        color: #fff;
-        box-shadow: 0 4px 10px rgba(211, 84, 0, 0.3);
-    }
-
-    .text-bronze {
-        color: #e67e22;
-        font-weight: 800;
-    }
-
-    /* Thường */
     .tier-normal {
-        border-left-color: #e2e8f0;
+        border-left-color: #cbd5e1;
     }
 
-    .icon-normal {
+    .tier-diamond .tier-icon {
+        background: linear-gradient(135deg, #00c6ff, #2563eb);
+        color: #fff;
+    }
+
+    .tier-gold .tier-icon {
+        background: linear-gradient(135deg, #fde68a, #f59e0b);
+        color: #78350f;
+    }
+
+    .tier-silver .tier-icon {
+        background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+        color: #334155;
+    }
+
+    .tier-bronze .tier-icon {
+        background: linear-gradient(135deg, #fed7aa, #c2410c);
+        color: #fff;
+    }
+
+    .tier-normal .tier-icon {
         background: #f1f5f9;
         color: #64748b;
         border: 1px solid #e2e8f0;
     }
 
-    .text-normal {
+    .tier-name {
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: #0f172a;
+        color: #fff;
+        font-weight: 900;
+        font-size: 1rem;
+    }
+
+    .rank-note {
+        font-size: .8rem;
         color: #64748b;
         font-weight: 700;
     }
 
-    @@keyframes pulse-glow {
-        0%
-
-    {
-        box-shadow: 0 0 0 0 rgba(0, 198, 255, 0.4);
-    }
-
-    70% {
-        box-shadow: 0 0 0 10px rgba(0, 198, 255, 0);
-    }
-
-    100% {
-        box-shadow: 0 0 0 0 rgba(0, 198, 255, 0);
-    }
-
-    }
-
-    .priority-badge {
-        font-family: 'Consolas', monospace;
+    .price-text {
+        font-weight: 900;
         font-size: 1.1rem;
+    }
+
+    .desc-line {
+        max-width: 360px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    @@media (max-width: 768px) {
+        .desc-line {
+            max-width: 230px;
+        }
     }
 </style>
 
-<div class="container-fluid py-4">
+<div class="package-page container-fluid py-4">
     <div class="row align-items-center mb-4 g-3">
-        <div class="col-md-8">
-            <h3 class="fw-black text-dark mb-1" style="font-weight: 900;"><i class="bi bi-tags text-primary me-2"></i>Quản Lý Gói Đăng Tin</h3>
-            <p class="text-muted small mb-0">Hệ thống phân cấp tin VIP tự động đính kèm Logo và hiệu ứng nổi bật ngoài giao diện.</p>
+        <div class="col-lg-8">
+            <h3 class="page-title mb-1">
+                <i class="bi bi-tags-fill text-primary me-2"></i>Quản lý gói đăng tin
+            </h3>
+            <p class="text-muted mb-0">
+                Thứ tự hiển thị được tính theo hạng: Kim Cương đứng đầu, sau đó Vàng, Bạc, Đồng và cuối cùng là Tin Thường.
+            </p>
         </div>
-        <div class="col-md-4 text-md-end">
-            <a href="/Admin/PostServicePackages/Create" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4 py-2">
-                <i class="bi bi-plus-circle me-1"></i> Tạo Gói Dịch Vụ Mới
+        <div class="col-lg-4 text-lg-end">
+            <a href="/Admin/PostServicePackages/Create" class="btn btn-primary fw-bold rounded-pill px-4 py-2 shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i> Tạo gói mới
             </a>
+        </div>
+    </div>
+
+    <div class="help-card p-3 p-md-4 mb-4">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="help-step">
+                    <span class="num">1</span>
+                    <div>
+                        <div class="fw-bold text-dark">Hạng càng nhỏ càng cao</div>
+                        <div class="small text-muted">Hạng 1 là Kim Cương, Hạng 5 là Tin Thường.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="help-step">
+                    <span class="num">2</span>
+                    <div>
+                        <div class="fw-bold text-dark">Không nhập tay ưu tiên</div>
+                        <div class="small text-muted">Chọn loại gói, hệ thống tự gán PriorityLevel.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="help-step">
+                    <span class="num">3</span>
+                    <div>
+                        <div class="fw-bold text-dark">Tin thường luôn cuối</div>
+                        <div class="small text-muted">Tin thường là gói không VIP, có thể miễn phí hoặc có phí.</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -140,10 +248,10 @@
             <table class="table align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Thông tin gói (Hạng)</th>
+                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Gói đăng tin</th>
                         <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Thời hạn</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-end">Giá cước</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Điểm hiển thị (Top)</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-end">Giá</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hạng hiển thị</th>
                         <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Thao tác</th>
                     </tr>
                 </thead>
@@ -151,72 +259,77 @@
                     @if (!Model.Any())
                     {
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-muted">
-                                <i class="bi bi-box-seam display-1 d-block mb-3 opacity-25"></i>
-                                <h6 class="fw-bold">Chưa có cấu hình gói dịch vụ nào.</h6>
+                            <td colspan="5" class="text-center py-5">
+                                <i class="bi bi-box-seam display-3 d-block text-muted opacity-25 mb-3"></i>
+                                <h6 class="fw-bold text-dark mb-1">Chưa có gói đăng tin nào</h6>
+                                <p class="small text-muted mb-0">Bạn có thể tạo gói Tin Thường miễn phí hoặc có phí, sau đó tạo thêm các gói VIP.</p>
                             </td>
                         </tr>
                     }
+
                     @foreach (var item in Model)
                     {
-                        // Phân loại giao diện
-                        string tierClass = "tier-normal";
-                        string iconClass = "icon-normal";
-                        string textClass = "text-normal";
-                        string iconObj = "bi-tag-fill";
+                        var tierClass = GetTierClass(item.PackageType);
+                        var iconClass = GetIconClass(item.PackageType);
+                        var isNormal = item.PackageType == "Tin Thường";
 
-                        switch (item.PackageType)
-                        {
-                            case "Kim Cương":
-                                tierClass = "tier-diamond"; iconClass = "icon-diamond"; textClass = "text-diamond"; iconObj = "bi-gem";
-                                break;
-                            case "Vàng":
-                                tierClass = "tier-gold"; iconClass = "icon-gold"; textClass = "text-gold"; iconObj = "bi-star-fill";
-                                break;
-                            case "Bạc":
-                                tierClass = "tier-silver"; iconClass = "icon-silver"; textClass = "text-silver"; iconObj = "bi-shield-fill";
-                                break;
-                            case "Đồng":
-                                tierClass = "tier-bronze"; iconClass = "icon-bronze"; textClass = "text-bronze"; iconObj = "bi-award-fill";
-                                break;
-                        }
-
-                        <tr class="tier-card @tierClass">
+                        <tr class="pkg-row @tierClass">
                             <td class="ps-4 py-3">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle @iconClass" style="width: 48px; height: 48px;">
-                                        <i class="bi @iconObj fs-5"></i>
+                                    <div class="tier-icon">
+                                        <i class="bi @iconClass"></i>
                                     </div>
                                     <div>
-                                        <div class="fw-bold text-dark fs-6 mb-1">@item.PackageName</div>
-                                        <div class="small @textClass text-uppercase"><i class="bi bi-stars me-1"></i>Hạng: @item.PackageType</div>
-                                        @if (!string.IsNullOrEmpty(item.Description))
+                                        <div class="tier-name">@item.PackageName</div>
+                                        <div class="small fw-bold @(isNormal ? "text-secondary" : "text-primary")">
+                                            @(isNormal ? "Tin thường" : "VIP " + item.PackageType)
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Description))
                                         {
-                                            <div class="small text-muted text-truncate mt-1" style="max-width: 250px;" title="@item.Description">@item.Description</div>
+                                            <div class="small text-muted desc-line" title="@item.Description">
+                                                @item.Description
+                                            </div>
                                         }
                                     </div>
                                 </div>
                             </td>
+
                             <td class="py-3 text-center">
-                                <span class="badge bg-light text-dark border px-3 py-2 fw-bold"><i class="bi bi-calendar-event text-primary me-1"></i> @item.DurationDays Ngày</span>
+                                <span class="badge bg-light text-dark border px-3 py-2">
+                                    <i class="bi bi-calendar-event text-primary me-1"></i>
+                                    @(item.DurationDays == 0 ? "Không hết hạn" : item.DurationDays + " ngày")
+                                </span>
                             </td>
+
                             <td class="py-3 text-end">
-                                <span class="fw-black fs-5 @textClass">@(item.Price == 0 ? "MIỄN PHÍ" : item.Price.ToString("N0") + " ₫")</span>
+                                <span class="price-text @(item.Price == 0 ? "text-success" : "text-danger")">
+                                    @(item.Price == 0 ? "Miễn phí" : item.Price.ToString("N0") + " ₫")
+                                </span>
                             </td>
+
                             <td class="py-3 text-center">
-                                <div class="d-inline-flex align-items-center justify-content-center bg-dark text-white priority-badge rounded-3 shadow-sm" style="width: 40px; height: 40px;" title="Ưu tiên hiển thị: @item.PriorityLevel">
-                                    @item.PriorityLevel
+                                <div class="d-flex flex-column align-items-center">
+                                    <span class="rank-badge">@item.PriorityLevel</span>
+                                    <span class="rank-note mt-1">@GetPriorityText(item.PriorityLevel)</span>
                                 </div>
                             </td>
+
                             <td class="text-end pe-4 py-3">
                                 <div class="d-inline-flex gap-2">
-                                    <a href="/Admin/PostServicePackages/Edit/@item.PackageID" class="btn btn-sm btn-light border text-primary rounded-3 shadow-sm" title="Chỉnh sửa">
-                                        <i class="bi bi-pencil-square"></i> Sửa
+                                    <a href="/Admin/PostServicePackages/Edit/@item.PackageID"
+                                       class="btn btn-sm btn-light border text-primary rounded-3 fw-bold">
+                                        <i class="bi bi-pencil-square me-1"></i>Sửa
                                     </a>
-                                    <form id="deleteForm-@item.PackageID" action="/Admin/PostServicePackages/Delete" method="post" class="d-inline">
+
+                                    <form id="deleteForm-@item.PackageID"
+                                          action="/Admin/PostServicePackages/Delete"
+                                          method="post"
+                                          class="d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@item.PackageID" />
-                                        <button type="button" class="btn btn-sm btn-light border text-danger rounded-3 shadow-sm" onclick="confirmDelete(@item.PackageID)" title="Xóa">
+                                        <button type="button"
+                                                class="btn btn-sm btn-light border text-danger rounded-3 fw-bold"
+                                                onclick="confirmDelete(@item.PackageID)">
                                             <i class="bi bi-trash3-fill"></i>
                                         </button>
                                     </form>
@@ -232,28 +345,48 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         function confirmDelete(id) {
             Swal.fire({
-                title: 'Xóa Gói Dịch Vụ?',
-                text: "Lưu ý: Không thể xóa nếu đang có tin đăng sử dụng gói này!",
+                title: 'Xóa gói đăng tin?',
+                text: 'Không thể xóa nếu đang có tin bất động sản sử dụng gói này.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#64748b',
                 confirmButtonText: '<i class="bi bi-trash3"></i> Đồng ý xóa',
-                cancelButtonText: 'Hủy bỏ'
+                cancelButtonText: 'Hủy'
             }).then((result) => {
-                if (result.isConfirmed) { document.getElementById('deleteForm-' + id).submit(); }
-            })
+                if (result.isConfirmed) {
+                    document.getElementById('deleteForm-' + id).submit();
+                }
+            });
         }
+
         @if (TempData["Success"] != null)
         {
-                <text>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@Html.Raw(TempData["Success"])', showConfirmButton: false, timer: 3000 });</text>
+                <text>
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: '@Html.Raw(TempData["Success"])',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                </text>
         }
+
         @if (TempData["Error"] != null)
         {
-                <text>Swal.fire({ icon: 'error', title: 'Lỗi Xóa Dữ Liệu!', text: '@Html.Raw(TempData["Error"])' });</text>
+                <text>
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Không thể thực hiện',
+                        text: '@Html.Raw(TempData["Error"])'
+                    });
+                </text>
         }
     </script>
 }

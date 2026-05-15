@@ -1,0 +1,658 @@
+﻿@model IEnumerable<dynamic>
+@{
+    ViewData["Title"] = "Hộp thư & Trò chuyện";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
+    int currentUserId = ViewBag.CurrentUserId;
+}
+
+<style>
+    /* --- BỐ CỤC TỔNG THỂ (SỬA LỖI TRÀN MÀN HÌNH) --- */
+    .chat-container {
+        display: flex;
+        flex-direction: row;
+        height: calc(100vh - 120px);
+        min-height: 500px;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        margin: 20px 0 40px 0;
+        overflow: hidden; /* Khóa chặt không cho phần tử con tràn ra ngoài */
+        position: relative;
+    }
+
+    /* --- SIDEBAR TRÁI --- */
+    .chat-sidebar {
+        width: 340px;
+        flex-shrink: 0; /* Không bị bóp méo khi màn hình nhỏ */
+        background: #f8fafc;
+        border-right: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        z-index: 5;
+    }
+
+    .chat-sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+        flex-shrink: 0;
+    }
+
+    .conversation-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .conversation-item {
+        padding: 16px 20px;
+        display: flex;
+        gap: 12px;
+        cursor: pointer;
+        transition: 0.2s;
+        border-bottom: 1px solid #f1f5f9;
+        text-decoration: none;
+        color: #334155;
+    }
+
+        .conversation-item:hover, .conversation-item.active {
+            background: #eff6ff;
+        }
+
+        .conversation-item.active {
+            border-left: 4px solid #2563eb;
+        }
+
+    .cv-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+
+    /* FIX LỖI TRÀN CHỮ: Thêm min-width: 0 */
+    .cv-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .cv-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #0f172a;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cv-prop {
+        font-size: 0.75rem;
+        color: #2563eb;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+    }
+
+    .cv-lastmsg {
+        font-size: 0.85rem;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+    }
+
+    /* --- KHUNG CHAT PHẢI --- */
+    .chat-window {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0; /* FIX LỖI TRÀN MÀN HÌNH DO NỘI DUNG DÀI */
+        background: #fff;
+        position: relative;
+    }
+
+    .chat-header {
+        padding: 15px 25px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fff;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        z-index: 2;
+        flex-shrink: 0;
+    }
+
+    .btn-back-mobile {
+        display: none;
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        color: #0f172a;
+        padding-right: 15px;
+    }
+
+    .chat-messages {
+        flex: 1;
+        padding: 25px;
+        overflow-y: auto;
+        background: #f1f5f9;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* --- BUBBLE TIN NHẮN --- */
+    .msg-box {
+        display: flex;
+        flex-direction: column;
+        max-width: 75%;
+    }
+
+        .msg-box.mine {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .msg-box.theirs {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+    .msg-bubble {
+        padding: 12px 18px;
+        border-radius: 20px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        word-wrap: break-word;
+    }
+
+    .msg-box.mine .msg-bubble {
+        background: #2563eb;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+
+    .msg-box.theirs .msg-bubble {
+        background: #fff;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        border-bottom-left-radius: 4px;
+    }
+
+    .msg-time {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        margin-top: 5px;
+    }
+
+    /* Ảnh & File gửi lên */
+    .msg-image {
+        max-width: 250px;
+        border-radius: 12px;
+        cursor: pointer;
+        border: 2px solid #e2e8f0;
+        object-fit: cover;
+    }
+
+    .msg-file {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #e2e8f0;
+        padding: 10px 15px;
+        border-radius: 12px;
+        color: #0f172a;
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    .msg-box.mine .msg-file {
+        background: rgba(255,255,255,0.2);
+        color: #fff;
+    }
+
+    /* --- QUICK REPLIES CHIPS --- */
+    .quick-replies-container {
+        display: flex;
+        gap: 10px;
+        padding: 12px 20px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none;
+        flex-shrink: 0;
+    }
+
+        .quick-replies-container::-webkit-scrollbar {
+            display: none;
+        }
+
+    .quick-reply-pill {
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        color: #2563eb;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: 0.2s;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        flex-shrink: 0;
+    }
+
+        .quick-reply-pill:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            transform: translateY(-2px);
+        }
+
+    /* --- INPUT AREA --- */
+    .chat-input-area {
+        padding: 15px 20px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+
+    .chat-input {
+        flex: 1;
+        border: 1px solid #e2e8f0;
+        border-radius: 25px;
+        padding: 12px 20px;
+        outline: none;
+        transition: 0.3s;
+        background: #f8fafc;
+    }
+
+        .chat-input:focus {
+            border-color: #2563eb;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+    .btn-action {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: 0.2s;
+        flex-shrink: 0;
+    }
+
+    .btn-attach {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+        .btn-attach:hover {
+            background: #e2e8f0;
+        }
+
+    .btn-send {
+        background: #2563eb;
+        color: #fff;
+    }
+
+        .btn-send:hover {
+            background: #1d4ed8;
+        }
+
+    #filePreviewContainer {
+        display: none;
+        padding: 10px 25px;
+        background: #eff6ff;
+        border-top: 1px solid #bfdbfe;
+        font-size: 0.85rem;
+        font-weight: bold;
+        color: #1e40af;
+        flex-shrink: 0;
+    }
+
+    .empty-chat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #94a3b8;
+        background: #f8fafc;
+    }
+
+    /* --- RESPONSIVE MOBILE TỐI ƯU --- */
+    @@media (max-width: 768px) {
+        .chat-container {
+            height: calc(100vh - 80px);
+            margin: 10px 0;
+            border-radius: 12px;
+        }
+
+        .chat-sidebar {
+            width: 100%;
+        }
+
+        .chat-window {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+            .chat-window.mobile-active {
+                transform: translateX(0);
+            }
+
+        .btn-back-mobile {
+            display: block;
+        }
+
+        .chat-input-area {
+            padding: 10px 15px;
+            gap: 8px;
+        }
+
+        .btn-action {
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+        }
+    }
+</style>
+
+<div class="container px-md-3 px-0">
+    <div class="chat-container">
+
+        <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+                <h5 class="fw-black mb-0 text-dark"><i class="bi bi-chat-left-dots-fill text-primary me-2"></i>Hộp thư BĐS</h5>
+            </div>
+            <div class="conversation-list">
+                @if (!Model.Any())
+                {
+                    <div class="text-center p-4 text-muted small mt-4">
+                        <i class="bi bi-inbox fs-1 opacity-50 mb-2 d-block"></i> Chưa có cuộc hội thoại nào.
+                    </div>
+                }
+
+                @foreach (var msg in Model)
+                {
+                    int partnerId = msg.SenderID == currentUserId ? msg.ReceiverID : msg.SenderID;
+                    var partner = msg.SenderID == currentUserId ? msg.Receiver : msg.Sender;
+                    string partnerName = partner?.FullName ?? partner?.Username;
+                    string propTitle = msg.Property?.Title ?? "Bất động sản đã xóa";
+                    string lastMsg = msg.MessageType == "Text" ? msg.MessageContent : $"[{msg.MessageType}] Đã gửi một tệp đính kèm";
+
+                    <div class="conversation-item" data-partner="@partnerId" data-prop="@msg.PropertyID" onclick="openChat(@partnerId, @msg.PropertyID, this)">
+                        <img src="@(partner?.Avatar ?? "/images/avatars/default-user.png")" class="cv-avatar">
+                        <div class="cv-info">
+                            <div class="cv-name">@partnerName</div>
+                            <div class="cv-prop"><i class="bi bi-house-door-fill me-1"></i>@propTitle</div>
+                            <div class="cv-lastmsg">@lastMsg</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="chat-window" id="mainChatWindow">
+
+            <div id="emptyScreen" class="empty-chat">
+                <i class="bi bi-chat-square-heart" style="font-size: 4rem; opacity: 0.3; margin-bottom:15px;"></i>
+                <h5>Chọn một cuộc hội thoại để bắt đầu</h5>
+            </div>
+
+            <div id="activeChatScreen" style="display:none; height: 100%; flex-direction: column;">
+
+                <div class="chat-header">
+                    <div class="d-flex align-items-center flex-grow-1 min-w-0 gap-3">
+                        <button class="btn-back-mobile flex-shrink-0" onclick="closeChatMobile()"><i class="bi bi-arrow-left"></i></button>
+                        <img id="headAvatar" src="" class="rounded-circle border flex-shrink-0" width="46" height="46" style="object-fit:cover;">
+                        <div style="min-width: 0;">
+                            <h6 id="headName" class="fw-bold mb-0 text-dark text-truncate">Name</h6>
+                            <small id="headPhone" class="text-muted fw-bold text-truncate"></small>
+                        </div>
+                    </div>
+                    <div class="text-end d-none d-md-block ms-3 flex-shrink-0" style="max-width: 250px;">
+                        <div id="headPropTitle" class="fw-bold text-primary text-truncate" style="font-size: 0.85rem;"></div>
+                        <div id="headPropPrice" class="fw-black text-danger"></div>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chatBox">
+                </div>
+
+                <div class="quick-replies-container" id="quickRepliesBox">
+                </div>
+
+                <div id="filePreviewContainer">
+                    <i class="bi bi-paperclip"></i> Đã chọn: <span id="fileNameDisplay"></span>
+                    <i class="bi bi-x-circle-fill text-danger ms-3 cursor-pointer fs-5" onclick="clearFile()" style="cursor:pointer; vertical-align: middle;"></i>
+                </div>
+
+                <div class="chat-input-area">
+                    <input type="hidden" id="currentPartnerId">
+                    <input type="hidden" id="currentPropertyId">
+
+                    <button class="btn-action btn-attach" title="Gửi tài liệu" onclick="document.getElementById('fileUpload').click()"><i class="bi bi-paperclip"></i></button>
+                    <input type="file" id="fileUpload" style="display:none" onchange="showFilePreview(this)">
+
+                    <button class="btn-action btn-attach" title="Gửi ảnh" onclick="document.getElementById('imageUpload').click()"><i class="bi bi-image"></i></button>
+                    <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="showFilePreview(this)">
+
+                    <input type="text" id="txtMessage" class="chat-input" placeholder="Nhập tin nhắn..." onkeypress="handleKeyPress(event)" autocomplete="off">
+
+                    <button class="btn-action btn-send" onclick="sendMessage()"><i class="bi bi-send-fill"></i></button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let pollingTimer;
+
+        $(document).ready(function () {
+            var reqReceiver = '@ViewBag.OpenReceiverId';
+            var reqProp = '@ViewBag.OpenPropertyId';
+            if (reqReceiver && reqProp) {
+                // Tự động mở chat nếu đi từ trang Chi tiết BĐS
+                openChat(reqReceiver, reqProp, null);
+            }
+        });
+
+        // ── XỬ LÝ GIAO DIỆN MOBILE ──
+        function closeChatMobile() {
+            $('#mainChatWindow').removeClass('mobile-active');
+            clearInterval(pollingTimer);
+            $('.conversation-item').removeClass('active');
+        }
+
+        // ── XỬ LÝ FILE PREVIEW ──
+        function showFilePreview(input) {
+            if (input.files && input.files[0]) {
+                $('#fileNameDisplay').text(input.files[0].name);
+                $('#filePreviewContainer').slideDown();
+                $('#txtMessage').focus();
+            }
+        }
+
+        function clearFile() {
+            $('#fileUpload').val('');
+            $('#imageUpload').val('');
+            $('#filePreviewContainer').slideUp();
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function scrollToBottom() {
+            var chatBox = document.getElementById("chatBox");
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // ── QUICK REPLIES LOGIC ──
+        function renderQuickReplies(isOwner) {
+            const container = $('#quickRepliesBox');
+            container.empty();
+
+            // Gợi ý thông minh dựa trên vai trò của người chat
+            let replies = isOwner ?
+                ["Nhà vẫn còn nhé bạn", "Bạn có muốn qua xem trực tiếp không?", "Sổ đỏ pháp lý rõ ràng nhé", "Chốt giá này nhé!", "Gọi trực tiếp cho mình nhé"] :
+                ["Bất động sản này còn không ạ?", "Cho mình xem thêm ảnh sổ đỏ được không?", "Giá này có thương lượng thêm không?", "Mình rất quan tâm, hẹn lịch đi xem nhé!"];
+
+            replies.forEach(text => {
+                container.append(`<span class="quick-reply-pill" onclick="fillQuickReply('${text}')">${text}</span>`);
+            });
+        }
+
+        function fillQuickReply(text) {
+            $('#txtMessage').val(text);
+            $('#txtMessage').focus();
+        }
+
+        // ── MỞ CUỘC HỘI THOẠI ──
+        function openChat(partnerId, propertyId, element) {
+            $('.conversation-item').removeClass('active');
+
+            // Nếu người dùng click vào từ List
+            if (element) {
+                $(element).addClass('active');
+            } else {
+                // Nếu click từ trang chi tiết BĐS, tự động highlight item tương ứng (nếu có)
+                $(`.conversation-item[data-partner='${partnerId}'][data-prop='${propertyId}']`).addClass('active');
+            }
+
+            $('#currentPartnerId').val(partnerId);
+            $('#currentPropertyId').val(propertyId);
+
+            $('#emptyScreen').hide();
+            $('#activeChatScreen').css('display', 'flex');
+
+            // Trượt màn hình chat ra (Dành cho Mobile)
+            $('#mainChatWindow').addClass('mobile-active');
+
+            // 1. Tải Header & Nhận diện vai trò
+            $.get(`/UserMessage/GetChatHeader?partnerId=${partnerId}&propertyId=${propertyId}`, function (data) {
+                $('#headName').text(data.partnerName);
+                $('#headAvatar').attr('src', data.partnerAvatar);
+                $('#headPhone').text(data.partnerPhone || 'SĐT: Không công khai');
+                $('#headPropTitle').text(data.propertyTitle);
+                $('#headPropPrice').text(data.propertyPrice);
+
+                // Render các nút gợi ý phù hợp
+                renderQuickReplies(data.isOwner);
+            });
+
+            // 2. Load Tin nhắn
+            fetchMessages();
+
+            // 3. Auto-load mỗi 3 giây
+            clearInterval(pollingTimer);
+            pollingTimer = setInterval(fetchMessages, 3000);
+        }
+
+        function fetchMessages() {
+            let pId = $('#currentPartnerId').val();
+            let propId = $('#currentPropertyId').val();
+            if (!pId || !propId) return;
+
+            $.get(`/UserMessage/GetChatHistory?partnerId=${pId}&propertyId=${propId}`, function (messages) {
+                let html = '';
+                messages.forEach(m => {
+                    let cssClass = m.isMine ? "mine" : "theirs";
+
+                    let contentHtml = '';
+                    if (m.messageType === 'Text') {
+                        contentHtml = `<div class="msg-bubble">${m.messageContent}</div>`;
+                    } else if (m.messageType === 'Image') {
+                        contentHtml = `<img src="${m.attachmentUrl}" class="msg-image" onclick="window.open('${m.attachmentUrl}', '_blank')">`;
+                    } else if (m.messageType === 'File') {
+                        contentHtml = `<a href="${m.attachmentUrl}" target="_blank" class="msg-file"><i class="bi bi-file-earmark-arrow-down fs-4"></i> Tải tài liệu đính kèm</a>`;
+                    }
+
+                    if (m.messageType !== 'Text' && m.messageContent) {
+                        contentHtml += `<div class="msg-bubble mt-1">${m.messageContent}</div>`;
+                    }
+
+                    html += `
+                        <div class="msg-box ${cssClass}">
+                            ${contentHtml}
+                            <div class="msg-time">${m.time}</div>
+                        </div>
+                    `;
+                });
+
+                let chatBox = $('#chatBox');
+                // Chặn giật màn hình: Chỉ render lại nếu độ dài HTML mới khác HTML cũ
+                let shouldScroll = chatBox.html().length !== html.length;
+
+                if (shouldScroll) {
+                    chatBox.html(html);
+                    scrollToBottom();
+                }
+            });
+        }
+
+        // ── GỬI TIN NHẮN ──
+        function sendMessage() {
+            let receiverId = $('#currentPartnerId').val();
+            let propertyId = $('#currentPropertyId').val();
+            let text = $('#txtMessage').val();
+            let fileInput = document.getElementById('fileUpload').files[0];
+            let imageInput = document.getElementById('imageUpload').files[0];
+
+            let fileToSend = imageInput || fileInput;
+
+            if (!text.trim() && !fileToSend) return;
+
+            let fd = new FormData();
+            fd.append('receiverId', receiverId);
+            fd.append('propertyId', propertyId);
+            fd.append('messageContent', text);
+            if (fileToSend) fd.append('attachment', fileToSend);
+
+            $('#txtMessage').val('');
+            clearFile();
+
+            $.ajax({
+                url: '/UserMessage/SendMessage',
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    if (res.success) {
+                        fetchMessages(); // Buộc tải lại ngay để hiện tin
+                    } else {
+                        alert(res.message);
+                    }
+                }
+            });
+        }
+    </script>
+}

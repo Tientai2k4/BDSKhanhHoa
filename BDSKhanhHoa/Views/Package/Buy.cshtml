@@ -122,7 +122,7 @@
             }
 
     .pricing-price {
-        font-size: 2.8rem;
+        font-size: 2.5rem;
         font-weight: 900;
         margin-bottom: 25px;
         line-height: 1;
@@ -159,27 +159,81 @@
 
     .btn-buy {
         border: none;
-        padding: 18px;
+        padding: 16px;
         border-radius: 16px;
         font-weight: 800;
-        font-size: 1.1rem;
+        font-size: 1rem;
         transition: 0.3s;
         text-transform: uppercase;
         width: 100%;
     }
 
         .btn-buy:hover {
-            transform: scale(1.03);
-            filter: brightness(1.1);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
         }
+
+    /* Nút Giỏ hàng nổi Floating Cart */
+    .floating-cart {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: white;
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: none; /* Ẩn mặc định, hiện khi có đồ trong giỏ */
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        box-shadow: 0 10px 30px rgba(37, 99, 235, 0.4);
+        z-index: 999;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+        .floating-cart:hover {
+            transform: scale(1.1);
+            color: white;
+        }
+
+    .cart-badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: #ef4444;
+        color: white;
+        font-size: 0.8rem;
+        font-weight: bold;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+    }
+
+    @@media (max-width: 768px) {
+        .pricing-price {
+            font-size: 2rem;
+        }
+
+        .floating-cart {
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5rem;
+        }
+    }
 </style>
 
 <div class="container my-5">
-    <div class="pricing-header shadow-sm">
-        <span class="badge bg-dark text-white px-4 py-2 rounded-pill fw-bold mb-3 fs-6">DỊCH VỤ PREMIUM</span>
-        <h1 class="fw-black text-dark mb-3" style="font-weight: 900; font-size: 3rem;">Tiếp Cận Hàng Triệu Khách Hàng</h1>
-        <p class="text-muted fs-5 max-w-2xl mx-auto">Nâng cấp tin đăng của bạn ngay hôm nay để chốt sale nhanh chóng hơn.</p>
+    <div class="pricing-header shadow-sm animate__animated animate__fadeInDown">
+        <span class="badge bg-dark text-white px-4 py-2 rounded-pill fw-bold mb-3 fs-6">DỊCH VỤ PREMIUM BẤT ĐỘNG SẢN KHÁNH HÒA</span>
+        <h1 class="fw-black text-dark mb-3" style="font-weight: 900; font-size: clamp(2rem, 5vw, 3rem);">Tiếp Cận Khách Hàng Nhanh Chóng</h1>
+        <p class="text-muted fs-5" style="max-width: 600px; margin: 0 auto;">Nâng cấp tin đăng của bạn ngay hôm nay để chốt sale nhanh chóng hơn.</p>
     </div>
 
     <div class="row g-4 justify-content-center position-relative z-1">
@@ -191,7 +245,7 @@
             else if (pkg.PackageType == "Vàng") { themeClass = "theme-gold"; iconClass = "bi-star-fill"; }
             else if (pkg.PackageType == "Bạc") { themeClass = "theme-silver"; iconClass = "bi-shield-check"; }
 
-            <div class="col-lg-4 col-md-6">
+            <div class="col-lg-4 col-md-6 animate__animated animate__fadeInUp">
                 <div class="pricing-card @themeClass">
                     @if (pkg.PackageType != "Tin Thường")
                     {
@@ -207,7 +261,7 @@
 
                     <ul class="pricing-features">
                         <li><i class="bi bi-check-circle-fill"></i> Hiển thị liên tục trong <strong>@pkg.DurationDays ngày</strong></li>
-                        <li><i class="bi bi-check-circle-fill"></i> Mức độ ưu tiên: <strong>Top @pkg.PriorityLevel</strong></li>
+                        <li><i class="bi bi-check-circle-fill"></i> Mức độ ưu tiên hiển thị: <strong>Top @pkg.PriorityLevel</strong></li>
                         @if (!string.IsNullOrEmpty(pkg.Description))
                         {
                             foreach (var line in pkg.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
@@ -217,11 +271,77 @@
                         }
                     </ul>
 
-                    <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn btn-buy text-decoration-none text-center">
-                        @(pkg.Price == 0 ? "Sử dụng ngay" : "CHỌN GÓI NÀY")
-                    </a>
+                    <!-- Thay đổi thẻ <a> thành <button> tích hợp JS -->
+                    <button type="button" onclick="addToCart(@pkg.PackageID, '@pkg.PackageName')" class="btn btn-buy shadow-sm text-center">
+                        <i class="bi bi-cart-plus me-2"></i> @(pkg.Price == 0 ? "Thêm miễn phí" : "Thêm vào giỏ")
+                    </button>
+
+                    @if (pkg.Price > 0)
+                    {
+                        <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn btn-outline-dark mt-2 fw-bold" style="border-radius: 16px; padding: 12px;">
+                            Thanh toán ngay
+                        </a>
+                    }
                 </div>
             </div>
         }
     </div>
 </div>
+
+<!-- Nút Floating Cart góc phải dưới -->
+<a href="/Payment/Checkout" class="floating-cart" id="floatingCart">
+    <i class="bi bi-bag-heart"></i>
+    <span class="cart-badge" id="cartBadgeCount">0</span>
+</a>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Lấy giỏ hàng từ LocalStorage
+        let bdsCart = JSON.parse(localStorage.getItem('bds_cart')) || [];
+
+        function updateCartUI() {
+            const count = bdsCart.reduce((sum, item) => sum + item.Quantity, 0);
+            const cartElement = document.getElementById('floatingCart');
+            const badgeElement = document.getElementById('cartBadgeCount');
+
+            badgeElement.innerText = count;
+            if (count > 0) {
+                cartElement.style.display = 'flex';
+                // Thêm hiệu ứng nảy nhẹ khi cập nhật
+                cartElement.classList.remove('animate__bounceIn');
+                void cartElement.offsetWidth; // trigger reflow
+                cartElement.classList.add('animate__animated', 'animate__bounceIn');
+            } else {
+                cartElement.style.display = 'none';
+            }
+        }
+
+        function addToCart(pkgId, pkgName) {
+            let item = bdsCart.find(x => x.PackageId === pkgId);
+            if (item) {
+                item.Quantity++;
+            } else {
+                bdsCart.push({ PackageId: pkgId, Quantity: 1 });
+            }
+
+            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+            updateCartUI();
+
+            // Hiển thị thông báo góc màn hình
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `Đã thêm gói ${pkgName}!`,
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true,
+                customClass: { popup: 'rounded-4' }
+            });
+        }
+
+        // Khởi tạo hiển thị lúc mới load trang
+        updateCartUI();
+    </script>
+}

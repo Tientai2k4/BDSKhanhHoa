@@ -43,5 +43,9 @@ namespace BDSKhanhHoa.Models
 
         [ForeignKey("PropertyID")]
         public virtual Property? Property { get; set; }
+        // Thêm dòng này vào class Transaction trong file Models/Transaction.cs
+        [StringLength(500)]
+        public string? BillImageUrl { get; set; }
+
     }
 }

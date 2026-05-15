@@ -1,297 +1,620 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
 @using System.Text.Json
+
 @{
-    ViewData["Title"] = "Nhật ký giai đoạn dự án";
+    ViewData["Title"] = "Tiến độ dự án";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
-    int totalProjects = ViewBag.TotalProjects ?? 0;
+    int totalProjects = ViewBag.TotalProjects ?? (Model?.Count() ?? 0);
     int activeProjects = ViewBag.ActiveProjects ?? 0;
     int completedProjects = ViewBag.CompletedProjects ?? 0;
     int pendingProjects = ViewBag.PendingProjects ?? 0;
     string businessName = ViewBag.BusinessName as string ?? "Doanh nghiệp đối tác";
 }
 
-<!-- Cấu trúc DTO để đọc JSON ngay trên View -->
 @functions {
     public class MilestonePreview
     {
+        public string? Id { get; set; }
         public DateTime Date { get; set; }
-        public string Title { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+    }
+
+    public string GetApprovalText(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return "Chưa xác định";
+
+        return status.Trim() switch
+        {
+            "Approved" => "Đã duyệt",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Từ chối",
+            "Draft" => "Bản nháp",
+            "Đã duyệt" => "Đã duyệt",
+            "Chờ duyệt" => "Chờ duyệt",
+            "Từ chối" => "Từ chối",
+            _ => status.Trim()
+        };
+    }
+
+    public string GetApprovalClass(string? status)
+    {
+        string text = GetApprovalText(status);
+
+        return text switch
+        {
+            "Đã duyệt" => "badge-success",
+            "Chờ duyệt" => "badge-warning",
+            "Từ chối" => "badge-danger",
+            _ => "badge-muted"
+        };
     }
 }
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
-
-<style>
-    :root {
-        --timeline-primary: #4f46e5;
-        --timeline-success: #10b981;
-        --timeline-warning: #f59e0b;
-        --timeline-slate: #64748b;
-    }
-
-    .timeline-topbar {
-        background: #fff;
-        border-radius: 24px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
-        border: 1px solid rgba(148,163,184,.15);
-        padding: 30px;
-        margin-bottom: 25px;
-    }
-
-    .timeline-title {
-        font-size: 1.75rem;
-        font-weight: 900;
-        letter-spacing: -0.02em;
-        background: linear-gradient(to right, #0f172a, var(--timeline-primary));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .timeline-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 18px;
-        border-radius: 14px;
-        background: #ffffff;
-        border: 1.5px solid #f1f5f9;
-        font-weight: 700;
-        color: #334155;
-        transition: all 0.3s ease;
-    }
-
-        .timeline-chip:hover {
-            border-color: var(--timeline-primary);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+@section Styles {
+    <style>
+        :root {
+            --tl-primary: #2563eb;
+            --tl-primary-dark: #1d4ed8;
+            --tl-success: #059669;
+            --tl-warning: #d97706;
+            --tl-danger: #dc2626;
+            --tl-dark: #0f172a;
+            --tl-muted: #64748b;
+            --tl-border: #e2e8f0;
+            --tl-soft: #f8fafc;
+            --tl-card: #ffffff;
+            --tl-radius: 24px;
+            --tl-shadow: 0 16px 38px rgba(15, 23, 42, .07);
         }
 
-    .project-block {
-        border-radius: 28px;
-        overflow: hidden;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 15px 35px rgba(15, 23, 42, .05);
-        margin-bottom: 30px;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-        .project-block:hover {
-            border-color: var(--timeline-primary);
-            box-shadow: 0 20px 40px rgba(79, 70, 229, 0.08);
+        .tl-hero,
+        .tl-project-card,
+        .tl-empty {
+            background: var(--tl-card);
+            border: 1px solid rgba(148, 163, 184, .20);
+            border-radius: var(--tl-radius);
+            box-shadow: var(--tl-shadow);
         }
 
-    .project-head {
-        padding: 24px 30px;
-        border-bottom: 1px solid #f1f5f9;
-        background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-    }
+        .tl-hero {
+            padding: 26px;
+            margin-bottom: 22px;
+            overflow: hidden;
+            position: relative;
+        }
 
-    .project-cover {
-        width: 100%;
-        height: 100%;
-        min-height: 250px;
-        object-fit: cover;
-        border-radius: 20px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-    }
+            .tl-hero::after {
+                content: "";
+                position: absolute;
+                width: 260px;
+                height: 260px;
+                border-radius: 999px;
+                right: -110px;
+                top: -130px;
+                background: rgba(37, 99, 235, .09);
+            }
 
-    .phase-box {
-        border-radius: 20px;
-        border: 1.5px solid #f1f5f9;
-        background: #fcfcfd;
-        padding: 22px;
-        height: 100%;
-        position: relative;
-        transition: all 0.3s ease;
-    }
+        .tl-title {
+            font-size: clamp(1.35rem, 2.4vw, 2rem);
+            font-weight: 950;
+            color: var(--tl-dark);
+            margin-bottom: 8px;
+            letter-spacing: -.04em;
+        }
 
-        .phase-box:hover {
+        .tl-subtitle {
+            color: var(--tl-muted);
+            font-weight: 600;
+            margin-bottom: 0;
+            line-height: 1.6;
+        }
+
+        .tl-business {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            color: var(--tl-primary);
+            font-weight: 900;
+        }
+
+        .tl-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .tl-stat {
+            border-radius: 18px;
             background: #fff;
-            border-color: var(--timeline-primary);
+            border: 1px solid var(--tl-border);
+            padding: 16px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
         }
 
-    .btn-manage {
-        background: var(--timeline-primary);
-        color: #fff;
-        border-radius: 12px;
-        padding: 12px 24px;
-        font-weight: 700;
-        border: none;
-        transition: all 0.3s;
-    }
-
-        .btn-manage:hover {
-            background: #3730a3;
-            transform: scale(1.05);
-            color: white;
+        .tl-stat-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 12px;
+            font-size: 1.2rem;
         }
 
-    .latest-update-box {
-        background: linear-gradient(to right, #eff6ff, #ffffff);
-        border-left: 4px solid var(--timeline-primary);
-        border-radius: 0 16px 16px 0;
-        padding: 16px 20px;
-    }
-</style>
+        .tl-stat-label {
+            color: var(--tl-muted);
+            font-size: .76rem;
+            font-weight: 900;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
 
-<div class="container-fluid py-4 animate__animated animate__fadeIn">
+        .tl-stat-value {
+            margin-top: 5px;
+            font-size: 1.45rem;
+            font-weight: 950;
+            color: var(--tl-dark);
+        }
 
-    <!-- TOPBAR THỐNG KÊ -->
-    <div class="timeline-topbar d-flex flex-column flex-lg-row justify-content-between align-items-center gap-4">
-        <div>
-            <div class="timeline-title">Nhật ký & Tiến độ Thi công</div>
-            <p class="text-muted fw-medium mb-0">Hệ thống quản trị vòng đời dự án chuyên nghiệp dành cho Chủ đầu tư.</p>
-            <div class="mt-2 text-primary fw-bold"><i class="bi bi-patch-check-fill"></i> @businessName</div>
+        .bg-soft-blue {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .bg-soft-green {
+            background: #ecfdf5;
+            color: #059669;
+        }
+
+        .bg-soft-amber {
+            background: #fffbeb;
+            color: #d97706;
+        }
+
+        .bg-soft-slate {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .tl-project-card {
+            overflow: hidden;
+            margin-bottom: 22px;
+        }
+
+        .tl-project-head {
+            padding: 22px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+        }
+
+        .tl-project-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            display: grid;
+            place-items: center;
+            background: var(--tl-primary);
+            color: #fff;
+            font-size: 1.35rem;
+            box-shadow: 0 14px 25px rgba(37, 99, 235, .22);
+            flex-shrink: 0;
+        }
+
+        .tl-project-name {
+            font-weight: 950;
+            color: var(--tl-dark);
+            font-size: 1.22rem;
+            line-height: 1.35;
+            margin: 0 0 5px;
+        }
+
+        .tl-location {
+            color: var(--tl-muted);
+            font-weight: 700;
+            font-size: .92rem;
+        }
+
+        .tl-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .badge-success {
+            background: #dcfce7;
+            color: #047857;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .badge-muted {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .tl-cover-wrap {
+            position: relative;
+            height: 100%;
+            min-height: 260px;
+            border-radius: 22px;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .tl-cover {
+            width: 100%;
+            height: 100%;
+            min-height: 260px;
+            object-fit: cover;
+            transition: transform .35s ease;
+        }
+
+        .tl-project-card:hover .tl-cover {
+            transform: scale(1.035);
+        }
+
+        .tl-cover-info {
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: 14px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, .93);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, .8);
+            padding: 14px;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, .12);
+        }
+
+        .tl-latest {
+            background: linear-gradient(135deg, #eff6ff, #ffffff);
+            border: 1px solid #dbeafe;
+            border-left: 5px solid var(--tl-primary);
+            border-radius: 20px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .tl-latest-label {
+            font-size: .75rem;
+            font-weight: 950;
+            color: var(--tl-primary);
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            margin-bottom: 8px;
+        }
+
+        .tl-latest-title {
+            font-size: 1.12rem;
+            font-weight: 950;
+            color: var(--tl-dark);
+            margin-bottom: 0;
+            line-height: 1.45;
+        }
+
+        .tl-desc-box {
+            background: #fff;
+            border: 1px solid var(--tl-border);
+            border-radius: 20px;
+            padding: 18px;
+        }
+
+        .tl-desc {
+            color: #475569;
+            line-height: 1.7;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 0;
+        }
+
+        .tl-action-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px dashed var(--tl-border);
+        }
+
+        .btn-tl-primary {
+            background: linear-gradient(135deg, var(--tl-primary), var(--tl-primary-dark));
+            color: #fff;
+            border: 0;
+            border-radius: 15px;
+            padding: 12px 18px;
+            font-weight: 900;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, .18);
+        }
+
+            .btn-tl-primary:hover {
+                color: #fff;
+                transform: translateY(-1px);
+            }
+
+        .btn-tl-light {
+            background: #fff;
+            color: var(--tl-dark);
+            border: 1px solid var(--tl-border);
+            border-radius: 15px;
+            padding: 12px 18px;
+            font-weight: 900;
+        }
+
+            .btn-tl-light:hover {
+                background: var(--tl-soft);
+            }
+
+        .tl-empty {
+            padding: 70px 24px;
+            text-align: center;
+        }
+
+        @@media (max-width: 991.98px) {
+            .tl-stat-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                margin-top: 18px;
+            }
+
+            .tl-project-head {
+                padding: 18px;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .tl-hero {
+                padding: 20px;
+                border-radius: 20px;
+            }
+
+            .tl-stat-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tl-project-name {
+                font-size: 1.05rem;
+            }
+
+            .tl-cover-wrap,
+            .tl-cover {
+                min-height: 210px;
+            }
+
+            .tl-action-row .btn {
+                width: 100%;
+            }
+        }
+    </style>
+}
+
+<div class="tl-hero">
+    <div class="row g-4 align-items-center position-relative" style="z-index:1;">
+        <div class="col-xl-5 col-lg-12">
+            <h1 class="tl-title">Tiến độ dự án</h1>
+
+            <p class="tl-subtitle">
+                Theo dõi nhật ký giai đoạn, tiến độ xây dựng và gửi yêu cầu cập nhật cho Admin duyệt.
+                CĐT không trực tiếp tạo hoặc chỉnh sửa dự án công khai.
+            </p>
+
+            <div class="tl-business">
+                <i class="bi bi-patch-check-fill"></i>
+                @businessName
+            </div>
         </div>
-        <div class="d-flex gap-3 flex-wrap justify-content-center">
-            <div class="timeline-chip">
-                <span class="text-primary fs-4"><i class="bi bi-collection-fill"></i></span>
-                <div><div class="small text-muted">Tổng số</div><div class="lh-1">@totalProjects Dự án</div></div>
+
+        <div class="col-xl-7 col-lg-12">
+            <div class="tl-stat-grid">
+                <div class="tl-stat">
+                    <div class="tl-stat-icon bg-soft-blue">
+                        <i class="bi bi-collection-fill"></i>
+                    </div>
+                    <div class="tl-stat-label">Tổng dự án</div>
+                    <div class="tl-stat-value">@totalProjects</div>
+                </div>
+
+                <div class="tl-stat">
+                    <div class="tl-stat-icon bg-soft-green">
+                        <i class="bi bi-megaphone-fill"></i>
+                    </div>
+                    <div class="tl-stat-label">Đang mở bán</div>
+                    <div class="tl-stat-value">@activeProjects</div>
+                </div>
+
+                <div class="tl-stat">
+                    <div class="tl-stat-icon bg-soft-slate">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <div class="tl-stat-label">Đã hoàn thiện</div>
+                    <div class="tl-stat-value">@completedProjects</div>
+                </div>
+
+                <div class="tl-stat">
+                    <div class="tl-stat-icon bg-soft-amber">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div class="tl-stat-label">Chờ xử lý</div>
+                    <div class="tl-stat-value">@pendingProjects</div>
+                </div>
             </div>
-            <div class="timeline-chip">
-                <span class="text-success fs-4"><i class="bi bi-megaphone-fill"></i></span>
-                <div><div class="small text-muted">Thị trường</div><div class="lh-1">@activeProjects Đang bán</div></div>
+        </div>
+    </div>
+</div>
+
+@if (Model != null && Model.Any())
+{
+    foreach (var item in Model)
+    {
+        string cover = string.IsNullOrWhiteSpace(item.MainImage)
+            ? "/images/no-image.jpg"
+            : item.MainImage;
+
+        int milestoneCount = 0;
+        string latestTitle = "Khởi tạo & công bố dự án";
+        DateTime latestDate = item.CreatedAt;
+
+        if (!string.IsNullOrWhiteSpace(item.TimelineJson))
+        {
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<MilestonePreview>>(item.TimelineJson);
+
+                if (list != null && list.Any())
+                {
+                    milestoneCount = list.Count;
+
+                    var latest = list
+                        .OrderByDescending(m => m.Date)
+                        .First();
+
+                    latestTitle = string.IsNullOrWhiteSpace(latest.Title)
+                        ? "Cập nhật tiến độ dự án"
+                        : latest.Title!;
+
+                    latestDate = latest.Date;
+                }
+            }
+            catch
+            {
+                milestoneCount = 0;
+            }
+        }
+
+<article class="tl-project-card">
+    <div class="tl-project-head">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+            <div class="d-flex align-items-start gap-3">
+                <div class="tl-project-icon">
+                    <i class="bi bi-building-fill-check"></i>
+                </div>
+
+                <div>
+                    <h2 class="tl-project-name">@item.ProjectName</h2>
+
+                    <div class="tl-location">
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                        @(item.Ward?.WardName ?? "Chưa có phường/xã"), @(item.Area?.AreaName ?? "Chưa có khu vực")
+                    </div>
+                </div>
             </div>
-            <div class="timeline-chip">
-                <span class="text-warning fs-4"><i class="bi bi-shield-lock-fill"></i></span>
-                <div><div class="small text-muted">Kiểm duyệt</div><div class="lh-1">@pendingProjects Chờ duyệt</div></div>
+
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="tl-badge @(item.ProjectStatus == "Đang mở bán" ? "badge-success" : "badge-muted")">
+                    <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                    @(string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Chưa cập nhật" : item.ProjectStatus)
+                </span>
+
+                <span class="tl-badge @GetApprovalClass(item.ApprovalStatus)">
+                    <i class="bi bi-shield-check"></i>
+                    @GetApprovalText(item.ApprovalStatus)
+                </span>
             </div>
         </div>
     </div>
 
-    @if (Model != null && Model.Any())
-    {
-        foreach (var item in Model)
-        {
-            var cover = string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage;
+    <div class="p-3 p-lg-4">
+        <div class="row g-4">
+            <div class="col-xl-4 col-lg-5">
+                <div class="tl-cover-wrap">
+                    <img src="@cover" alt="@item.ProjectName" class="tl-cover" loading="lazy" />
 
-            // XỬ LÝ LOGIC: Đọc dữ liệu JSON để lấy tổng mốc & mốc mới nhất
-            int milestoneCount = 0;
-            string latestTitle = "Khởi tạo & Công bố Dự án";
-            DateTime latestDate = item.CreatedAt;
-
-            if (!string.IsNullOrEmpty(item.TimelineJson))
-            {
-                try
-                {
-                    var list = JsonSerializer.Deserialize<List<MilestonePreview>>(item.TimelineJson);
-                    if (list != null && list.Any())
-                    {
-                        milestoneCount = list.Count;
-                        // Sắp xếp ngày lấy dòng mới nhất
-                        var latest = list.OrderByDescending(m => m.Date).First();
-                        latestTitle = latest.Title;
-                        latestDate = latest.Date;
-                    }
-                }
-                catch { /* Bỏ qua nếu lỗi Parse */ }
-            }
-
-            <div class="project-block animate__animated animate__fadeInUp">
-                <!-- Header Dự án -->
-                <div class="project-head d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="bg-primary bg-opacity-10 p-3 rounded-4">
-                            <i class="bi bi-building-fill-check text-primary fs-3"></i>
-                        </div>
-                        <div>
-                            <h4 class="mb-1 fw-900 text-dark">@item.ProjectName</h4>
-                            <div class="text-muted fw-semibold">
-                                <i class="bi bi-geo-alt-fill text-danger"></i> @item.Ward?.WardName, @item.Area?.AreaName
-                            </div>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-3">
-                        <div class="text-end d-none d-md-block">
-                            <div class="small text-muted fw-bold">TRẠNG THÁI</div>
-                            <span class="badge @(item.ProjectStatus == "Đang mở bán" ? "bg-success" : "bg-secondary") rounded-pill px-3 py-2">
-                                @item.ProjectStatus
-                            </span>
-                        </div>
-                        <div class="text-end d-none d-md-block">
-                            <div class="small text-muted fw-bold">HỒ SƠ</div>
-                            <span class="badge @(item.ApprovalStatus == "Approved" ? "bg-primary" : "bg-warning text-dark") rounded-pill px-3 py-2">
-                                @item.ApprovalStatus
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="project-body p-4">
-                    <div class="row g-4 align-items-stretch">
-
-                        <!-- Ảnh bìa -->
-                        <div class="col-xl-4 col-lg-5">
-                            <div class="position-relative h-100">
-                                <img src="@cover" alt="@item.ProjectName" class="project-cover" />
-                                <div class="position-absolute bottom-0 start-0 w-100 p-3">
-                                    <div class="bg-white bg-opacity-90 backdrop-blur rounded-4 p-3 border shadow-sm">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="fw-bold text-dark"><i class="bi bi-list-stars text-primary"></i> Tổng mốc tiến độ:</span>
-                                            <span class="badge bg-dark rounded-circle" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center;">@milestoneCount</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Nội dung Tiến độ thực tế -->
-                        <div class="col-xl-8 col-lg-7 d-flex flex-column">
-
-                            <!-- Hiển thị mốc mới nhất lấy từ JSON thay vì 3 ô cứng -->
-                            <div class="latest-update-box shadow-sm mb-4">
-                                <div class="text-primary small fw-bold text-uppercase mb-2"><i class="bi bi-broadcast me-1"></i> Báo cáo tiến độ mới nhất</div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <span class="badge bg-primary rounded-pill px-3 py-2"><i class="bi bi-clock-history me-1"></i> @latestDate.ToString("dd/MM/yyyy")</span>
-                                    <h5 class="fw-bold text-dark mb-0">@latestTitle</h5>
-                                </div>
+                    <div class="tl-cover-info">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="text-muted small fw-bold">Tổng mốc tiến độ</div>
+                                <div class="fw-black text-dark">Nhật ký dự án</div>
                             </div>
 
-                            <div class="phase-box flex-grow-1 d-flex flex-column justify-content-between shadow-sm">
-                                <div>
-                                    <h6 class="fw-bold text-dark"><i class="bi bi-info-circle-fill text-muted me-2"></i>Mô tả tổng quan dự án</h6>
-                                    <p class="text-muted mb-0" style="display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.6;">
-                                        @item.Description
-                                    </p>
-                                </div>
-
-                                <div class="d-flex flex-wrap gap-2 mt-4 pt-4 border-top">
-                                    <a href="@Url.Action("ManageTimeline", "ProjectTimeline", new { id = item.ProjectID })" class="btn btn-manage shadow-sm">
-                                        <i class="bi bi-pencil-square me-2"></i>Quản lý Nhật ký
-                                    </a>
-                                    <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-light border fw-bold text-dark rounded-3 px-4">
-                                        <i class="bi bi-globe me-1"></i> Xem Public
-                                    </a>
-                                </div>
-                            </div>
-
+                            <span class="badge bg-dark rounded-pill px-3 py-2">@milestoneCount mốc</span>
                         </div>
                     </div>
                 </div>
             </div>
-        }
-    }
-    else
-    {
-        <!-- Empty State -->
-        <div class="timeline-topbar p-5 text-center">
-            <div class="py-5">
-                <i class="bi bi-folder-x display-1 text-muted opacity-25"></i>
-                <h3 class="fw-900 text-dark mt-4">Chưa có dự án phụ trách</h3>
-                <p class="text-muted px-5">Khi các dự án của bạn được Admin gán quyền quản lý, nhật ký thi công và lộ trình giai đoạn sẽ hiển thị chi tiết tại đây để bạn điều phối.</p>
-                <a href="/" class="btn btn-primary rounded-pill px-5 py-3 fw-bold mt-3 shadow">Quay lại Trang chủ</a>
-            </div>
-        </div>
-    }
-</div>
 
-@section Scripts {
-    <script>
-        $('.project-block').hover(
-            function() { $(this).find('.project-cover').css('transform', 'scale(1.02)'); },
-            function() { $(this).find('.project-cover').css('transform', 'scale(1)'); }
-        );
-    </script>
+            <div class="col-xl-8 col-lg-7">
+                <div class="tl-latest">
+                    <div class="tl-latest-label">
+                        <i class="bi bi-broadcast me-1"></i>
+                        Cập nhật mới nhất
+                    </div>
+
+                    <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 gap-md-3">
+                        <span class="tl-badge badge-success">
+                            <i class="bi bi-calendar-event"></i>
+                            @latestDate.ToString("dd/MM/yyyy")
+                        </span>
+
+                        <h3 class="tl-latest-title">@latestTitle</h3>
+                    </div>
+                </div>
+
+                <div class="tl-desc-box">
+                    <h6 class="fw-black text-dark mb-2">
+                        <i class="bi bi-info-circle-fill text-primary me-1"></i>
+                        Tổng quan dự án
+                    </h6>
+
+                    <p class="tl-desc">
+                        @(string.IsNullOrWhiteSpace(item.Description)
+                                                ? "Dự án chưa có mô tả chi tiết. Vui lòng gửi yêu cầu cho Admin nếu cần cập nhật nội dung công khai."
+                                                : item.Description)
+                    </p>
+
+                            <div class="tl-action-row">
+                                <a href="@Url.Action("ManageTimeline", "ProjectTimeline", new { id = item.ProjectID })" class="btn btn-tl-primary">
+                                    <i class="bi bi-send-check-fill me-1"></i>
+                                    Gửi yêu cầu cập nhật
+                                </a>
+
+                                <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-tl-light">
+                                    <i class="bi bi-eye-fill me-1"></i>
+                                    Xem trang công khai
+                                </a>
+
+                                <a href="/SupportTickets/Index" class="btn btn-tl-light">
+                                    <i class="bi bi-headset me-1"></i>
+                                    Hỗ trợ dự án
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </article>
+    }
+}
+else
+{
+    <div class="tl-empty">
+        <i class="bi bi-folder-x display-1 text-muted opacity-25 d-block mb-3"></i>
+
+        <h3 class="fw-black text-dark mb-2">Chưa có dự án được phân quyền</h3>
+
+        <p class="text-muted mb-4 mx-auto" style="max-width:620px;">
+            Khi Admin gán dự án cho tài khoản CĐT, danh sách dự án và tiến độ thi công sẽ hiển thị tại đây.
+            CĐT không tự tạo dự án mới trên hệ thống.
+        </p>
+
+        <a href="/SupportTickets/Index" class="btn btn-primary rounded-pill px-4 py-2 fw-bold">
+            <i class="bi bi-headset me-1"></i>
+            Gửi yêu cầu hỗ trợ
+        </a>
+    </div>
 }

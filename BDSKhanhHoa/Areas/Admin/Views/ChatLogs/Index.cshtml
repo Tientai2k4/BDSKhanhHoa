@@ -1,0 +1,168 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.ChatLogs>
+@{
+    ViewData["Title"] = "Lịch sử Chatbot AI";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    var userDict = ViewBag.UserDict as Dictionary<int, string> ?? new Dictionary<int, string>();
+}
+
+<div class="container-fluid py-4 animate__animated animate__fadeIn">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold text-primary mb-1"><i class="bi bi-robot me-2"></i>Lịch sử tư vấn Chatbot AI</h4>
+            <p class="text-muted mb-0 small">Theo dõi chi tiết các cuộc hội thoại giữa khách hàng và AI.</p>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-muted" style="font-size: 0.85rem; text-transform: uppercase;">
+                        <tr>
+                            <th class="ps-4 py-3" style="border-top-left-radius: 16px; width: 15%;">Người dùng</th>
+                            <th class="py-3" style="width: 30%;">Câu hỏi (Tóm tắt)</th>
+                            <th class="py-3" style="width: 35%;">AI Phản hồi (Tóm tắt)</th>
+                            <th class="py-3 text-center" style="width: 10%;">Thời gian</th>
+                            <th class="pe-4 py-3 text-end" style="border-top-right-radius: 16px; width: 10%;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var item in Model)
+                            {
+                                string userName = "Khách vãng lai";
+                                string badgeClass = "bg-secondary bg-opacity-10 text-secondary";
+                                string iconClass = "bi-person";
+
+                                if (item.UserID.HasValue && userDict.ContainsKey(item.UserID.Value))
+                                {
+                                    userName = userDict[item.UserID.Value];
+                                    badgeClass = "bg-primary bg-opacity-10 text-primary";
+                                    iconClass = "bi-person-check-fill";
+                                }
+
+                                <tr>
+                                    <td class="ps-4 py-3">
+                                        <div class="badge @badgeClass px-2 py-1 rounded-pill" style="font-size: 0.8rem;">
+                                            <i class="bi @iconClass me-1"></i> @userName
+                                        </div>
+                                    </td>
+                                    <td class="py-3">
+                                        <div class="text-truncate text-dark fw-medium" style="max-width: 250px; font-size: 0.9rem;" title="@item.UserMessage">
+                                            @item.UserMessage
+                                        </div>
+                                    </td>
+                                    <td class="py-3">
+                                        <div class="text-truncate text-muted" style="max-width: 300px; font-size: 0.9rem;" title="@item.BotResponse">
+                                            @item.BotResponse
+                                        </div>
+                                    </td>
+                                    <td class="py-3 text-center text-muted" style="font-size: 0.85rem;">
+                                        @(item.CreatedAt.HasValue? item.CreatedAt.Value.ToString("dd/MM/yyyy HH:mm") : "N/A")
+                                    </td>
+                                    <td class="pe-4 py-3 text-end">
+                                        <button type="button" class="btn btn-sm btn-info text-white rounded-circle me-1 shadow-sm" title="Xem chi tiết" onclick="viewChatDetail(@item.LogID)">
+                                            <i class="bi bi-eye-fill"></i>
+                                        </button>
+
+                                        @if (User.IsInRole("Admin"))
+                                        {
+                                            <form asp-action="Delete" asp-route-id="@item.LogID" method="post" onsubmit="return confirm('Bạn có chắc chắn muốn xóa bản ghi này?');" style="display:inline;">
+                                                <button type="submit" class="btn btn-sm btn-danger rounded-circle shadow-sm" title="Xóa">
+                                                    <i class="bi bi-trash3-fill"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                    Chưa có dữ liệu lịch sử chat nào.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="chatDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+            <div class="modal-header bg-light border-0 px-4 py-3">
+                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-chat-quote-fill text-primary me-2"></i>Chi tiết hội thoại</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" style="background: #f8fafc;">
+                <div class="text-center mb-3">
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1" id="detailTime"></span>
+                </div>
+
+                <div class="d-flex flex-column align-items-end mb-4">
+                    <span class="text-muted small fw-bold mb-1" id="detailUserName">Khách hàng</span>
+                    <div class="p-3 text-white shadow-sm" id="detailUserMsg" style="background: #2563eb; border-radius: 18px 18px 4px 18px; max-width: 85%; font-size: 0.95rem;">
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column align-items-start">
+                    <span class="text-primary small fw-bold mb-1"><i class="bi bi-robot me-1"></i>Gemini AI</span>
+                    <div class="p-3 bg-white shadow-sm border" id="detailBotMsg" style="border-color: #e5ecf4; border-radius: 18px 18px 18px 4px; max-width: 95%; font-size: 0.95rem; color: #0f172a;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 px-4 py-3 bg-light">
+                <button type="button" class="btn btn-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        function viewChatDetail(logId) {
+            // Hiển thị loading nhẹ
+            document.getElementById('detailUserMsg').innerHTML = 'Đang tải...';
+            document.getElementById('detailBotMsg').innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Đang giải mã...';
+
+            // Mở Modal
+            var myModal = new bootstrap.Modal(document.getElementById('chatDetailModal'));
+            myModal.show();
+
+            // Fetch data
+            fetch('/Admin/ChatLogs/Details/' + logId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('detailTime').innerText = data.time;
+                    document.getElementById('detailUserName').innerText = data.userName;
+
+                    // Render User Message (text thường)
+                    document.getElementById('detailUserMsg').innerText = data.userMessage;
+
+                    // Render Bot Response (Biên dịch Markdown ra HTML)
+                    // Thiết lập options cho marked để xuống dòng tự nhiên
+                    marked.setOptions({ breaks: true });
+                    document.getElementById('detailBotMsg').innerHTML = marked.parse(data.botResponse);
+                })
+                .catch(error => {
+                    document.getElementById('detailBotMsg').innerHTML = '<span class="text-danger">Không thể tải dữ liệu chi tiết!</span>';
+                });
+        }
+    </script>
+}

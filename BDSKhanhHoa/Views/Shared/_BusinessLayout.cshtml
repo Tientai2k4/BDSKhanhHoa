@@ -4,622 +4,724 @@
 @inject ApplicationDbContext _context
 
 @{
-    /* -------------------------------------------------------------------------
-       PHẦN XỬ LÝ LOGIC DỮ LIỆU HỆ THỐNG
-       ------------------------------------------------------------------------- */
     int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId);
-    var userAvatar = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-business.png";
 
-    // Truy vấn thông tin doanh nghiệp (Sử dụng AsNoTracking để tối ưu hiệu năng)
-    var businessProfile = _context.BusinessProfiles.AsNoTracking().FirstOrDefault(b => b.UserID == currentUserId);
-    var businessName = businessProfile?.BusinessName ?? "Doanh nghiệp đối tác";
+    string userAvatar = User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-business.png";
 
-    // Xác định Controller và Action hiện tại để kích hoạt trạng thái "Active" trên Menu
-    var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
-    var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+    var businessProfile = _context.BusinessProfiles
+        .AsNoTracking()
+        .FirstOrDefault(b => b.UserID == currentUserId);
 
-    // Đếm số lượng thông báo mới (Lead mới đổ về từ dự án)
-    int newLeadsCount = _context.ProjectLeads.Include(l => l.Project)
-                        .Count(l => l.Project != null && l.Project.OwnerUserID == currentUserId && l.LeadStatus == "New");
+    var currentUser = _context.Users
+        .AsNoTracking()
+        .FirstOrDefault(u => u.UserID == currentUserId);
 
-    // Thống kê nhanh cho Sidebar
-    int activeProjects = _context.Projects.Count(p => p.OwnerUserID == currentUserId && !p.IsDeleted);
-    int activeAppointments = _context.Appointments.Count(a => a.BuyerID == currentUserId || a.SellerID == currentUserId);
+    string businessName = businessProfile?.BusinessName
+        ?? currentUser?.FullName
+        ?? "Doanh nghiệp đối tác";
 
-    /* Hàm kiểm tra trạng thái Menu đang hoạt động */
+    string representativeName = businessProfile?.RepresentativeName
+        ?? currentUser?.FullName
+        ?? User.Identity?.Name
+        ?? "Quản lý dự án";
+
+    string currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
+    string currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+
+    int projectCount = _context.Projects
+        .AsNoTracking()
+        .Count(p => p.OwnerUserID == currentUserId && !p.IsDeleted);
+
+    int newLeadCount = _context.ProjectLeads
+        .AsNoTracking()
+        .Include(l => l.Project)
+        .Count(l =>
+            l.Project != null &&
+            l.Project.OwnerUserID == currentUserId &&
+            (l.LeadStatus == "New" || l.LeadStatus == "Mới"));
+
+    int appointmentCount = _context.Appointments
+        .AsNoTracking()
+        .Count(a => a.BuyerID == currentUserId || a.SellerID == currentUserId);
+
+    int supportPendingCount = _context.ContactMessages
+        .AsNoTracking()
+        .Count(x =>
+            x.UserID == currentUserId &&
+            (
+                x.Status == "Pending" ||
+                x.Status == "Chưa xử lý" ||
+                x.Status == "Chờ xử lý" ||
+                x.Status == "Đang xử lý"
+            ));
+
     bool IsActive(string controller, string? action = null)
     {
-        if (!string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return action == null || string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase);
     }
 
-    string navClass(string controller, string? action = null) => IsActive(controller, action) ? "menu-item active" : "menu-item";
+    string NavClass(string controller, string? action = null)
+    {
+        return IsActive(controller, action) ? "partner-menu-link active" : "partner-menu-link";
+    }
+
+    string pageTitle = ViewData["Title"]?.ToString() ?? "Cổng đối tác";
 }
 
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Hệ thống quản trị dành cho đối tác chiến lược - BDS Khánh Hòa" />
-    <title>@ViewData["Title"] | Cổng Quản Trị Đối Tác - BDS Khánh Hòa</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Cổng quản trị đối tác dự án - BDS Khánh Hòa" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>@pageTitle | Cổng Đối Tác - BDS Khánh Hòa</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap" rel="stylesheet" />
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
     <style>
         :root {
-            /* Hệ màu SaaS Modern 2026 */
-            --primary: #4361ee;
-            --primary-light: #4895ef;
-            --primary-soft: #f0f4ff;
-            --secondary: #3f37c9;
-            --accent: #f59e0b;
-            --success: #10b981;
-            --danger: #ef4444;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --bg-body: #f8fafc;
-            --sidebar-bg: #ffffff;
-            --sidebar-width: 290px;
-            --header-height: 76px;
-            --radius-xl: 20px;
-            --radius-lg: 14px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
-            --shadow-soft: 0 10px 30px -5px rgba(0,0,0,0.04), 0 4px 6px -2px rgba(0,0,0,0.02);
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --partner-primary: #2563eb;
+            --partner-primary-dark: #1d4ed8;
+            --partner-primary-soft: #eff6ff;
+            --partner-purple: #4f46e5;
+            --partner-success: #059669;
+            --partner-warning: #d97706;
+            --partner-danger: #dc2626;
+            --partner-dark: #0f172a;
+            --partner-muted: #64748b;
+            --partner-border: #e2e8f0;
+            --partner-soft: #f8fafc;
+            --partner-body: #f3f6fb;
+            --partner-card: #ffffff;
+            --partner-sidebar-width: 270px;
+            --partner-header-height: 74px;
+            --partner-radius: 22px;
+            --partner-radius-sm: 15px;
+            --partner-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+            --partner-shadow-soft: 0 10px 25px rgba(15, 23, 42, .05);
+            --partner-transition: all .25s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
+            margin: 0;
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, .08), transparent 32rem), radial-gradient(circle at bottom right, rgba(5, 150, 105, .07), transparent 28rem), var(--partner-body);
+            color: var(--partner-dark);
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-body);
-            color: var(--text-main);
+            font-size: .95rem;
             overflow-x: hidden;
-            letter-spacing: -0.01em;
-            font-size: 0.95rem;
         }
 
-        h1, h2, h3, h4, h5, h6, .brand-text {
+        h1, h2, h3, h4, h5, h6,
+        .partner-brand-title,
+        .partner-page-title {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-weight: 700;
-            color: var(--text-main);
+            letter-spacing: -.025em;
         }
 
-        /* -------------------------------------------------------------------------
-                   THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR)
-                   ------------------------------------------------------------------------- */
-        .sidebar-wrapper {
+        a {
+            text-decoration: none;
+        }
+
+        .partner-app {
+            min-height: 100vh;
+        }
+
+        .partner-sidebar {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-width);
-            height: 100vh;
-            background: var(--sidebar-bg);
-            border-right: 1px solid rgba(15, 23, 42, 0.06);
-            z-index: 1040;
-            transition: var(--transition);
+            inset: 0 auto 0 0;
+            width: var(--partner-sidebar-width);
+            background: rgba(255, 255, 255, .97);
+            backdrop-filter: blur(18px);
+            border-right: 1px solid rgba(148, 163, 184, .18);
+            z-index: 1050;
             display: flex;
             flex-direction: column;
-            box-shadow: var(--shadow-sm);
+            transition: var(--partner-transition);
+            box-shadow: 12px 0 30px rgba(15, 23, 42, .03);
         }
 
-        .sidebar-brand {
-            height: var(--header-height);
+        .partner-sidebar-header {
+            height: var(--partner-header-height);
             display: flex;
             align-items: center;
-            padding: 0 28px;
-            margin-bottom: 8px;
+            gap: 13px;
+            padding: 0 22px;
+            border-bottom: 1px solid rgba(148, 163, 184, .13);
+            flex-shrink: 0;
         }
 
-        .logo-box {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.3rem;
-            box-shadow: 0 6px 16px rgba(67, 97, 238, 0.25);
+        .partner-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, var(--partner-primary), var(--partner-purple));
+            color: #fff;
+            font-size: 1.35rem;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, .25);
+            flex-shrink: 0;
         }
 
-        .brand-text {
-            margin-left: 14px;
-            font-size: 1.05rem;
-            letter-spacing: -0.5px;
-            background: linear-gradient(to right, var(--text-main), var(--primary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .partner-brand-title {
+            font-size: .95rem;
+            font-weight: 900;
+            line-height: 1.1;
+            color: var(--partner-dark);
         }
 
-        .sidebar-content {
-            flex: 1;
+        .partner-brand-sub {
+            margin-top: 3px;
+            font-size: .68rem;
+            font-weight: 800;
+            color: var(--partner-muted);
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+
+        .partner-sidebar-body {
+            padding: 16px 16px 12px;
             overflow-y: auto;
-            padding: 12px 18px;
+            flex: 1;
             scrollbar-width: thin;
         }
 
-        /* Thẻ hồ sơ doanh nghiệp nhanh */
-        .biz-profile-card {
-            background: var(--primary-soft);
-            border-radius: var(--radius-lg);
-            padding: 16px;
-            margin-bottom: 24px;
-            border: 1px solid rgba(67, 97, 238, 0.08);
-            transition: var(--transition);
-        }
-
-            .biz-profile-card:hover {
-                border-color: var(--primary);
-                background: #ffffff;
-                box-shadow: var(--shadow-soft);
-            }
-
-            .biz-profile-card img {
-                width: 48px;
-                height: 48px;
-                border-radius: 12px;
-                object-fit: cover;
-                border: 2px solid white;
-                box-shadow: var(--shadow-sm);
-            }
-
-        .profile-info .name {
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .profile-info .status {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        /* Danh mục Menu */
-        .menu-category {
-            font-size: 0.7rem;
-            font-weight: 800;
+        .partner-menu-title {
+            margin: 18px 0 9px 10px;
+            font-size: .68rem;
+            font-weight: 900;
+            letter-spacing: .11em;
+            color: #94a3b8;
             text-transform: uppercase;
-            color: var(--text-muted);
-            letter-spacing: 0.1em;
-            margin: 24px 0 12px 12px;
-            opacity: 0.8;
         }
 
-        .menu-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 16px;
-            margin-bottom: 6px;
-            color: var(--text-muted);
-            text-decoration: none;
-            border-radius: 12px;
-            font-weight: 500;
-            font-size: 0.94rem;
-            transition: var(--transition);
-            border: 1px solid transparent;
-        }
-
-            .menu-item i {
-                font-size: 1.25rem;
-                margin-right: 14px;
-                transition: var(--transition);
-            }
-
-            .menu-item:hover {
-                background: var(--primary-soft);
-                color: var(--primary);
-                transform: translateX(4px);
-            }
-
-            /* Trạng thái Active cho Menu */
-            .menu-item.active {
-                background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-                color: white;
-                box-shadow: 0 8px 20px rgba(67, 97, 238, 0.22);
-                font-weight: 600;
-            }
-
-                .menu-item.active i {
-                    color: white;
-                    transform: scale(1.1);
-                }
-
-        /* Badge thông báo trên Menu */
-        .menu-badge {
-            margin-left: auto;
-            background: var(--danger);
-            color: white;
-            font-size: 0.72rem;
-            padding: 2px 9px;
-            border-radius: 10px;
-            font-weight: 700;
-            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
-        }
-
-            .menu-badge.soft {
-                background: rgba(67, 97, 238, 0.15);
-                color: var(--primary);
-                box-shadow: none;
-            }
-
-        /* -------------------------------------------------------------------------
-                   BẢNG ĐIỀU KHIỂN CHÍNH & HEADER
-                   ------------------------------------------------------------------------- */
-        .main-panel {
-            margin-left: var(--sidebar-width);
-            min-height: 100vh;
-            transition: var(--transition);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .top-header {
-            height: var(--header-height);
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            position: sticky;
-            top: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-            z-index: 1000;
-            border-bottom: 1px solid rgba(15, 23, 42, 0.05);
-        }
-
-        .header-action-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            border: 1px solid #f1f5f9;
-            background: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-muted);
+        .partner-menu-link {
             position: relative;
-            transition: var(--transition);
-            cursor: pointer;
-        }
-
-            .header-action-btn:hover {
-                border-color: var(--primary);
-                color: var(--primary);
-                background: var(--primary-soft);
-                transform: translateY(-2px);
-            }
-
-            .header-action-btn .dot {
-                position: absolute;
-                top: 10px;
-                right: 10px;
-                width: 9px;
-                height: 9px;
-                background: var(--danger);
-                border: 2px solid white;
-                border-radius: 50%;
-                animation: pulse 2s infinite;
-            }
-
-        /* User Profile Chip */
-        .user-nav-profile {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 6px 6px 6px 16px;
-            background: #ffffff;
-            border-radius: 14px;
-            border: 1px solid #f1f5f9;
-            box-shadow: var(--shadow-sm);
-            transition: var(--transition);
+            min-height: 48px;
+            padding: 11px 13px;
+            border-radius: 16px;
+            color: #475569;
+            font-weight: 800;
+            border: 1px solid transparent;
+            transition: var(--partner-transition);
+            margin-bottom: 6px;
         }
 
-            .user-nav-profile:hover {
-                border-color: var(--primary);
-                box-shadow: var(--shadow-soft);
+            .partner-menu-link i {
+                width: 24px;
+                text-align: center;
+                font-size: 1.18rem;
+                color: #64748b;
+                transition: var(--partner-transition);
             }
 
-            .user-nav-profile img {
+            .partner-menu-link:hover {
+                color: var(--partner-primary);
+                background: var(--partner-primary-soft);
+                border-color: rgba(37, 99, 235, .12);
+                transform: translateX(3px);
+            }
+
+                .partner-menu-link:hover i {
+                    color: var(--partner-primary);
+                }
+
+            .partner-menu-link.active {
+                color: #fff;
+                background: linear-gradient(135deg, var(--partner-primary), var(--partner-purple));
+                box-shadow: 0 14px 28px rgba(37, 99, 235, .24);
+            }
+
+                .partner-menu-link.active i {
+                    color: #fff;
+                }
+
+        .partner-badge {
+            margin-left: auto;
+            min-width: 24px;
+            height: 24px;
+            padding: 0 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--partner-danger);
+            color: #fff;
+            font-size: .72rem;
+            font-weight: 900;
+        }
+
+            .partner-badge.soft {
+                background: rgba(37, 99, 235, .12);
+                color: var(--partner-primary);
+            }
+
+        .partner-menu-link.active .partner-badge.soft {
+            background: rgba(255, 255, 255, .22);
+            color: #fff;
+        }
+
+        .partner-sidebar-note {
+            margin: 18px 0 0;
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px dashed #bfdbfe;
+            background: #eff6ff;
+            color: #1e40af;
+            font-size: .78rem;
+            line-height: 1.55;
+            font-weight: 700;
+        }
+
+        .partner-sidebar-footer {
+            padding: 14px 16px 18px;
+            border-top: 1px solid rgba(148, 163, 184, .14);
+            flex-shrink: 0;
+        }
+
+        .partner-main {
+            margin-left: var(--partner-sidebar-width);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: var(--partner-transition);
+        }
+
+        .partner-topbar {
+            position: sticky;
+            top: 0;
+            height: var(--partner-header-height);
+            background: rgba(255, 255, 255, .82);
+            backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(148, 163, 184, .15);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 0 30px;
+        }
+
+        .partner-icon-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 15px;
+            border: 1px solid var(--partner-border);
+            background: #fff;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--partner-transition);
+            position: relative;
+        }
+
+            .partner-icon-btn:hover {
+                color: var(--partner-primary);
+                border-color: rgba(37, 99, 235, .24);
+                background: var(--partner-primary-soft);
+                transform: translateY(-1px);
+            }
+
+        .partner-notify-dot {
+            position: absolute;
+            top: 9px;
+            right: 9px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--partner-danger);
+            border: 2px solid #fff;
+        }
+
+        .partner-page-title {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: var(--partner-dark);
+        }
+
+        .partner-breadcrumb {
+            margin: 3px 0 0;
+            color: var(--partner-muted);
+            font-size: .77rem;
+            font-weight: 700;
+        }
+
+        .partner-user-chip {
+            min-height: 46px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid var(--partner-border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px 6px 14px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, .04);
+        }
+
+            .partner-user-chip img {
                 width: 36px;
                 height: 36px;
-                border-radius: 10px;
+                border-radius: 13px;
                 object-fit: cover;
             }
 
-        .content-body {
-            padding: 32px;
+        .partner-content {
             flex: 1;
+            padding: 28px;
         }
 
-        /* Thông báo tùy chỉnh */
-        .custom-alert {
-            border: none;
-            border-radius: var(--radius-lg);
-            padding: 16px 24px;
+        .partner-footer {
+            background: rgba(255, 255, 255, .78);
+            border-top: 1px solid rgba(148, 163, 184, .16);
+            padding: 16px 28px;
+            color: var(--partner-muted);
+            font-size: .83rem;
+        }
+
+        .partner-alert {
+            border: 0;
+            border-radius: 18px;
+            background: #fff;
+            box-shadow: var(--partner-shadow-soft);
+            padding: 16px 18px;
             display: flex;
             align-items: center;
-            gap: 16px;
-            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.1);
-            background: #ffffff;
-            border-left: 5px solid var(--success);
+            gap: 12px;
+            font-weight: 800;
         }
 
-        /* -------------------------------------------------------------------------
-                   MEDIA QUERIES (MOBILE)
-                   ------------------------------------------------------------------------- */
-        @@media (max-width: 991px) {
-            .sidebar-wrapper {
-                transform: translateX(-100%);
+            .partner-alert.success {
+                border-left: 5px solid var(--partner-success);
             }
 
-                .sidebar-wrapper.show {
+            .partner-alert.error {
+                border-left: 5px solid var(--partner-danger);
+            }
+
+        .partner-mobile-overlay {
+            display: none;
+        }
+
+        @@media (max-width: 991.98px) {
+            .partner-sidebar {
+                transform: translateX(-105%);
+                box-shadow: 24px 0 55px rgba(15, 23, 42, .18);
+            }
+
+                .partner-sidebar.show {
                     transform: translateX(0);
-                    box-shadow: 25px 0 60px rgba(15, 23, 42, 0.15);
                 }
 
-            .main-panel {
+            .partner-main {
                 margin-left: 0;
             }
 
-            .top-header {
+            .partner-topbar {
                 padding: 0 16px;
             }
 
-            .content-body {
-                padding: 20px;
+            .partner-content {
+                padding: 18px;
             }
+
+            .partner-mobile-overlay {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, .44);
+                z-index: 1040;
+                opacity: 0;
+                visibility: hidden;
+                transition: var(--partner-transition);
+            }
+
+                .partner-mobile-overlay.show {
+                    opacity: 1;
+                    visibility: visible;
+                }
         }
 
-        @@keyframes pulse {
-            0% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        @@media (max-width: 575.98px) {
+            .partner-topbar {
+                height: 66px;
             }
 
-            70% {
-                transform: scale(1);
-                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            .partner-page-title {
+                font-size: .95rem;
             }
 
-            100% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            .partner-breadcrumb,
+            .partner-user-chip .user-meta {
+                display: none;
             }
-        }
 
-        /* Footer cho Sidebar */
-        .sidebar-support-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-radius: 14px;
-            padding: 15px;
-            margin: 10px 18px 20px;
-            text-align: center;
-            border: 1px dashed var(--crm-slate-200);
+            .partner-content {
+                padding: 14px;
+            }
+
+            .partner-footer {
+                padding: 14px;
+                text-align: center;
+            }
         }
     </style>
+
+    @await RenderSectionAsync("Styles", required: false)
 </head>
+
 <body>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="partner-app">
+        <div class="partner-mobile-overlay" id="partnerOverlay"></div>
 
-    <aside class="sidebar-wrapper" id="sidebar">
-        <div class="sidebar-brand">
-            <div class="logo-box">
-                <i class="bi bi-buildings-fill"></i>
+        <aside class="partner-sidebar" id="partnerSidebar">
+            <div class="partner-sidebar-header">
+                <a href="/MemberProject/Index" class="partner-logo" title="Cổng đối tác BDS Khánh Hòa">
+                    <i class="bi bi-buildings-fill"></i>
+                </a>
+
+                <div class="overflow-hidden">
+                    <div class="partner-brand-title">BDS KHÁNH HÒA</div>
+                    <div class="partner-brand-sub">Cổng đối tác dự án</div>
+                </div>
             </div>
-            <div class="brand-text fw-bold">BDS KHÁNH HÒA <br><small class="text-muted fw-normal" style="font-size: 0.65rem; text-transform: uppercase;">Cổng Đối Tác Doanh Nghiệp</small></div>
-        </div>
 
-        <div class="sidebar-content">
-            <div class="biz-profile-card">
-                <div class="d-flex align-items-center gap-3">
-                    <img src="@userAvatar" alt="Logo doanh nghiệp" />
-                    <div class="profile-info overflow-hidden">
-                        <div class="name" title="@businessName">@businessName</div>
-                        <div class="status">
-                            <i class="bi bi-patch-check-fill text-success"></i>
-                            <span>Đối tác tin cậy</span>
+            <div class="partner-sidebar-body">
+                <nav>
+                    <div class="partner-menu-title">Khách hàng</div>
+
+                    <a href="/MemberProject/Index" class="@NavClass("MemberProject", "Index")">
+                        <i class="bi bi-funnel-fill"></i>
+                        <span>Phễu khách hàng</span>
+                        @if (newLeadCount > 0)
+                        {
+                            <span class="partner-badge">@newLeadCount</span>
+                        }
+                    </a>
+
+                    <a href="/Appointments/Index?mode=DoanhNghiep" class="@NavClass("Appointments", "Index")">
+                        <i class="bi bi-calendar2-check-fill"></i>
+                        <span>Lịch hẹn xem dự án</span>
+                        @if (appointmentCount > 0)
+                        {
+                            <span class="partner-badge soft">@appointmentCount</span>
+                        }
+                    </a>
+
+                    <div class="partner-menu-title">Dự án được Admin gán</div>
+
+                    <a href="/MemberProject/MyProjects" class="@NavClass("MemberProject", "MyProjects")">
+                        <i class="bi bi-kanban-fill"></i>
+                        <span>Danh mục dự án</span>
+                        @if (projectCount > 0)
+                        {
+                            <span class="partner-badge soft">@projectCount</span>
+                        }
+                    </a>
+
+                    <a href="/ProjectTimeline/Index" class="@NavClass("ProjectTimeline")">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Tiến độ dự án</span>
+                    </a>
+
+                    <a href="/ProjectVault/Index" class="@NavClass("ProjectVault")">
+                        <i class="bi bi-folder2-open"></i>
+                        <span>Kho hồ sơ pháp lý</span>
+                    </a>
+
+                    <div class="partner-menu-title">Báo cáo & hỗ trợ</div>
+
+                    <a href="/Analytics/Index" class="@NavClass("Analytics")">
+                        <i class="bi bi-graph-up-arrow"></i>
+                        <span>Báo cáo hiệu suất</span>
+                    </a>
+
+                    <a href="/SupportTickets/Index" class="@NavClass("SupportTickets")">
+                        <i class="bi bi-headset"></i>
+                        <span>Yêu cầu hỗ trợ</span>
+                        @if (supportPendingCount > 0)
+                        {
+                            <span class="partner-badge">@supportPendingCount</span>
+                        }
+                    </a>
+
+                    <div class="partner-menu-title">Tài khoản</div>
+
+                    <a href="/Account/Profile" class="@NavClass("Account", "Profile")">
+                        <i class="bi bi-person-badge-fill"></i>
+                        <span>Hồ sơ tài khoản</span>
+                    </a>
+
+                    <a href="/" class="partner-menu-link">
+                        <i class="bi bi-globe2"></i>
+                        <span>Về trang chủ</span>
+                    </a>
+                </nav>
+
+                <div class="partner-sidebar-note">
+                    <i class="bi bi-shield-check me-1"></i>
+                    Tài khoản CĐT chỉ quản lý dự án được Admin phân quyền, không tự tạo dự án mới.
+                </div>
+            </div>
+
+            <div class="partner-sidebar-footer">
+                <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                    @Html.AntiForgeryToken()
+
+                    <button type="submit" class="btn btn-light border text-danger fw-bold w-100 rounded-4 py-2">
+                        <i class="bi bi-box-arrow-right me-2"></i>
+                        Đăng xuất
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="partner-main">
+            <header class="partner-topbar">
+                <div class="d-flex align-items-center gap-3 overflow-hidden">
+                    <button type="button" class="partner-icon-btn d-lg-none" id="btnPartnerSidebar">
+                        <i class="bi bi-list fs-4"></i>
+                    </button>
+
+                    <div class="overflow-hidden">
+                        <h1 class="partner-page-title text-truncate">@pageTitle</h1>
+                        <div class="partner-breadcrumb">
+                            Cổng đối tác / @currentController
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <nav>
-                <div class="menu-category">Kinh doanh & Khách hàng</div>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="/" class="partner-icon-btn d-none d-sm-inline-flex" title="Xem website">
+                        <i class="bi bi-house-door-fill"></i>
+                    </a>
 
-                <a href="/MemberProject/Index" class="@navClass("MemberProject", "Index")" title="Quản lý khách hàng tiềm năng">
-                    <i class="bi bi-person-lines-fill"></i>
-                    <span>Hệ thống CRM</span>
-                    @if (newLeadsCount > 0)
-                    {
-                        <span class="menu-badge animate__animated animate__heartBeat animate__infinite">@newLeadsCount</span>
-                    }
-                </a>
+                    <a href="/SupportTickets/Index" class="partner-icon-btn" title="Thông báo và hỗ trợ">
+                        <i class="bi bi-bell-fill"></i>
+                        @if (newLeadCount > 0 || supportPendingCount > 0)
+                        {
+                            <span class="partner-notify-dot"></span>
+                        }
+                    </a>
 
-                <a href="/Appointments/Index" class="@navClass("Appointments", "Index")" title="Quản lý lịch xem dự án">
-                    <i class="bi bi-calendar-check"></i>
-                    <span>Lịch hẹn điều phối</span>
-                    @if (activeAppointments > 0)
-                    {
-                        <span class="menu-badge soft">@activeAppointments</span>
-                    }
-                </a>
+                    <div class="partner-user-chip">
+                        <div class="user-meta text-end">
+                            <div class="fw-bold text-dark" style="font-size:.84rem; line-height:1.15;">@representativeName</div>
+                            <div class="text-muted fw-bold" style="font-size:.7rem;">Quản lý dự án</div>
+                        </div>
 
-                <div class="menu-category">Quản lý tài sản</div>
-
-                <a href="/MemberProject/MyProjects" class="@navClass("MemberProject", "MyProjects")" title="Danh sách dự án đang sở hữu">
-                    <i class="bi bi-collection"></i>
-                    <span>Danh mục dự án</span>
-                    @if (activeProjects > 0)
-                    {
-                        <span class="menu-badge soft">@activeProjects</span>
-                    }
-                </a>
-
-                <a href="/ProjectTimeline/Index" class="@navClass("ProjectTimeline", "Index")" title="Theo dõi tiến độ xây dựng">
-                    <i class="bi bi-kanban"></i>
-                    <span>Tiến độ dự án</span>
-                </a>
-
-                <a href="/ProjectVault/Index" class="@navClass("ProjectVault", "Index")" title="Kho hồ sơ pháp lý dự án">
-                    <i class="bi bi-folder-symlink"></i>
-                    <span>Kho tài liệu pháp lý</span>
-                </a>
-
-                <div class="menu-category">Dữ liệu chiến lược</div>
-
-                <a href="/Analytics/Index" class="@navClass("Analytics", "Index")" title="Báo cáo doanh thu và hiệu suất">
-                    <i class="bi bi-graph-up-arrow"></i>
-                    <span>Phân tích dữ liệu</span>
-                </a>
-                <a href="/SupportTickets/Index" class="@navClass("SupportTickets", "Index")" title="Hỗ trợ dự án ">
-                    <i class="bi bi-headset me-2 text-primar"></i>
-                    <span>Hỗ trợ dự án</span>
-                </a>
-
-                <div class="menu-category">Tài khoản & Hệ thống</div>
-
-                <a href="/Account/Profile" class="@navClass("Account", "Profile")" title="Cài đặt thông tin doanh nghiệp">
-                    <i class="bi bi-shield-lock"></i>
-                    <span>Hồ sơ năng lực (KYC)</span>
-                </a>
-            </nav>
-
-        </div>
-
-        <div class="sidebar-footer p-3 border-top">
-            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" class="m-0">
-                @Html.AntiForgeryToken()
-                <button type="submit" class="btn btn-light text-danger w-100 rounded-3 text-start px-3 py-2 fw-bold" style="font-size: 0.9rem;">
-                    <i class="bi bi-power me-2"></i> Rời khỏi hệ thống
-                </button>
-            </form>
-        </div>
-    </aside>
-
-    <div class="main-panel">
-        <header class="top-header">
-            <div class="d-flex align-items-center gap-3">
-                <button class="header-action-btn d-lg-none" id="btnToggleSidebar">
-                    <i class="bi bi-list fs-4"></i>
-                </button>
-                <div class="d-none d-md-block">
-                    <h5 class="mb-0 fw-bold">@ViewData["Title"]</h5>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb mb-0" style="font-size: 0.75rem;">
-                            <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">Hệ thống</a></li>
-                            <li class="breadcrumb-item text-primary active fw-bold" aria-current="page">@currentController</li>
-                        </ol>
-                    </nav>
-                </div>
-            </div>
-
-            <div class="d-flex align-items-center gap-2 gap-md-3">
-                <a href="/" class="header-action-btn d-none d-sm-flex" title="Quay lại trang chủ Web">
-                    <i class="bi bi-globe-central-south-asia"></i>
-                </a>
-
-                <div class="header-action-btn" title="Trung tâm thông báo">
-                    <i class="bi bi-bell-fill"></i>
-                    @if (newLeadsCount > 0)
-                    {
-                        <span class="dot"></span>
-                    }
-                </div>
-
-                <div class="user-nav-profile">
-                    <div class="text-end me-2 d-none d-lg-block">
-                        <div class="fw-bold text-dark" style="font-size: 0.85rem; line-height: 1.2;">@User.Identity?.Name</div>
-                        <small class="text-muted" style="font-size: 0.7rem;">Quản trị viên dự án</small>
+                        <img src="@userAvatar" alt="Ảnh tài khoản" />
                     </div>
-                    <img src="@userAvatar" alt="Ảnh đại diện" />
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <main class="content-body">
-            @if (TempData["Success"] != null)
-            {
-                <div class="alert alert-success custom-alert mb-4 border-0 shadow-sm animate__animated animate__fadeInDown">
-                    <div class="p-2 bg-success rounded-circle text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                        <i class="bi bi-check-lg"></i>
+            <main class="partner-content">
+                @if (TempData["Success"] != null)
+                {
+                    <div class="partner-alert success mb-4">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success text-white" style="width:34px;height:34px;">
+                            <i class="bi bi-check-lg"></i>
+                        </span>
+                        <div>@TempData["Success"]</div>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
                     </div>
-                    <div class="fw-semibold">@TempData["Success"]</div>
-                    <button type="button" class="btn-close ms-auto shadow-none" data-bs-dismiss="alert"></button>
-                </div>
-            }
+                }
 
-            @if (TempData["Error"] != null)
-            {
-                <div class="alert alert-danger custom-alert mb-4 border-0 border-start border-danger border-5 shadow-sm animate__animated animate__shakeX">
-                    <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i>
-                    <div class="fw-semibold">@TempData["Error"]</div>
-                    <button type="button" class="btn-close ms-auto shadow-none" data-bs-dismiss="alert"></button>
-                </div>
-            }
+                @if (TempData["Error"] != null)
+                {
+                    <div class="partner-alert error mb-4">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-danger text-white" style="width:34px;height:34px;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </span>
+                        <div>@TempData["Error"]</div>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+                    </div>
+                }
 
-            <div class="animate__animated animate__fadeIn">
                 @RenderBody()
-            </div>
-        </main>
+            </main>
 
-        <footer class="mt-auto px-4 py-3 bg-white border-top">
-            <div class="d-flex flex-wrap justify-content-between align-items-center small text-muted">
-                <div>&copy; 2026 <strong>BDS Khánh Hòa</strong>. Phiên bản doanh nghiệp v4.0.</div>
-                <div class="d-flex gap-3">
-                    <a href="#" class="text-decoration-none text-muted">Quy định bảo mật</a>
-                    <a href="#" class="text-decoration-none text-muted">Hỗ trợ kỹ thuật</a>
+            <footer class="partner-footer">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+                    <div>
+                        © 2026 <strong>BDS Khánh Hòa</strong> — Cổng quản trị dành cho đối tác dự án.
+                    </div>
+
+                    <div class="d-flex gap-3">
+                        <a href="/SupportTickets/Index" class="text-muted fw-bold">Hỗ trợ</a>
+                        <a href="/" class="text-muted fw-bold">Website</a>
+                    </div>
                 </div>
-            </div>
-        </footer>
+            </footer>
+        </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        $(function () {
-            // Tự động ẩn các thông báo sau 6 giây để không làm phiền người dùng
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('partnerSidebar');
+            const overlay = document.getElementById('partnerOverlay');
+            const btnSidebar = document.getElementById('btnPartnerSidebar');
+
+            function openSidebar() {
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+
+            btnSidebar?.addEventListener('click', openSidebar);
+            overlay?.addEventListener('click', closeSidebar);
+
+            document.querySelectorAll('.partner-menu-link').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    if (window.innerWidth < 992) {
+                        closeSidebar();
+                    }
+                });
+            });
+
             setTimeout(function () {
-                $('.custom-alert').addClass('animate__fadeOutUp');
-                setTimeout(function() { $('.custom-alert').remove(); }, 500);
-            }, 6000);
-
-            // Xử lý bật/tắt Sidebar trên thiết bị di động
-            const $sidebar = $('#sidebar');
-            const $overlay = $('#sidebarOverlay');
-
-            $('#btnToggleSidebar').on('click', function () {
-                $sidebar.addClass('show');
-                $overlay.addClass('show');
-            });
-
-            $overlay.on('click', function () {
-                $sidebar.removeClass('show');
-                $(this).removeClass('show');
-            });
-
-            // Hiệu ứng Hover mượt mà cho Menu
-            $('.menu-item').on('mouseenter', function() {
-                if(!$(this).hasClass('active')) {
-                    $(this).find('i').addClass('animate__animated animate__headShake');
-                }
-            }).on('mouseleave', function() {
-                $(this).find('i').removeClass('animate__animated animate__headShake');
-            });
+                document.querySelectorAll('.partner-alert').forEach(function (alert) {
+                    alert.style.transition = 'all .25s ease';
+                    alert.style.opacity = '0';
+                    alert.style.transform = 'translateY(-8px)';
+                    setTimeout(function () {
+                        alert.remove();
+                    }, 300);
+                });
+            }, 6500);
         });
     </script>
 

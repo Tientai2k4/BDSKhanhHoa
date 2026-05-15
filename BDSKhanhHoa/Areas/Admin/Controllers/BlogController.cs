@@ -1,5 +1,6 @@
 ﻿using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
+using BDSKhanhHoa.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -14,8 +15,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly IAuditLogService _auditLogService; // Thêm Service Log
 
-        // Định nghĩa sẵn các danh mục chuẩn
         private readonly List<string> _blogCategories = new List<string>
         {
             "Tin tức thị trường",
@@ -25,15 +26,13 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             "Thông báo hệ thống"
         };
 
-        public BlogController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment)
+        public BlogController(ApplicationDbContext context, IWebHostEnvironment hostEnvironment, IAuditLogService auditLogService)
         {
             _context = context;
             _hostEnvironment = hostEnvironment;
+            _auditLogService = auditLogService;
         }
 
-        // ==========================================
-        // 1. DANH SÁCH BÀI VIẾT (CÓ LỌC DANH MỤC)
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Index(string category = "")
         {
@@ -51,17 +50,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             ViewBag.TotalViews = blogs.Sum(b => b.Views);
             ViewBag.TotalPosts = blogs.Count;
-
-            // Gửi danh sách Category ra View để làm thẻ Select Lọc
             ViewBag.Categories = _blogCategories;
             ViewBag.CurrentCategory = category;
 
             return View(blogs);
         }
 
-        // ==========================================
-        // 2. THÊM MỚI BÀI VIẾT
-        // ==========================================
         [HttpGet]
         public IActionResult Create()
         {
@@ -95,6 +89,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     _context.Blogs.Add(blog);
                     await _context.SaveChangesAsync();
 
+                    // GHI LOG
+                    await _auditLogService.LogAsync(blog.UserID, "Đăng bài viết mới", "Blog", $"BlogID: {blog.BlogID} - {blog.Title}", severity: "Info");
+
                     TempData["Success"] = "Đăng bài viết mới thành công!";
                     return RedirectToAction(nameof(Index));
                 }
@@ -107,9 +104,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(blog);
         }
 
-        // ==========================================
-        // 3. CHỈNH SỬA BÀI VIẾT
-        // ==========================================
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -148,6 +142,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     _context.Update(blog);
                     await _context.SaveChangesAsync();
 
+                    // GHI LOG
+                    int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                    await _auditLogService.LogAsync(currentUserId, "Cập nhật bài viết", "Blog", $"BlogID: {blog.BlogID}", severity: "Info");
+
                     TempData["Success"] = "Cập nhật bài viết thành công!";
                     return RedirectToAction(nameof(Index));
                 }
@@ -162,9 +160,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return View(blog);
         }
 
-        // ==========================================
-        // 4. XÓA BÀI VIẾT (XÓA MỀM)
-        // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
@@ -174,6 +169,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             {
                 blog.IsDeleted = true;
                 await _context.SaveChangesAsync();
+
+                // GHI LOG
+                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                await _auditLogService.LogAsync(userId, "Đưa bài viết vào thùng rác", "Blog", $"BlogID: {id}", severity: "Warning");
+
                 TempData["Success"] = "Đã đưa bài viết vào thùng rác!";
             }
             else
@@ -183,9 +183,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // ==========================================
-        // 5. CÁC HÀM HỖ TRỢ XỬ LÝ ẢNH
-        // ==========================================
         private async Task<string> SaveImage(IFormFile file, string folder)
         {
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
