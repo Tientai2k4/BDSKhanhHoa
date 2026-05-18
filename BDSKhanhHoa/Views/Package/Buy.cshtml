@@ -1,347 +1,1169 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PostServicePackage>
+
 @{
     ViewData["Title"] = "Bảng giá dịch vụ";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
+    var packages = Model?
+        .OrderBy(p => p.PriorityLevel)
+        .ThenBy(p => p.Price)
+        .ToList() ?? new List<BDSKhanhHoa.Models.PostServicePackage>();
+
+    var diamond = packages.FirstOrDefault(p => p.PackageType == "Kim Cương");
+    decimal minPrice = packages.Any() ? packages.Min(p => p.Price) : 0;
+}
+
+@functions {
+    public string ThemeClass(string? packageType)
+    {
+        return packageType switch
+        {
+            "Kim Cương" => "theme-diamond",
+            "Vàng" => "theme-gold",
+            "Bạc" => "theme-silver",
+            "Tin Thường" => "theme-basic",
+            _ => "theme-basic"
+        };
+    }
+
+    public string IconClass(string? packageType)
+    {
+        return packageType switch
+        {
+            "Kim Cương" => "bi-gem",
+            "Vàng" => "bi-star-fill",
+            "Bạc" => "bi-shield-check",
+            "Tin Thường" => "bi-box-seam",
+            _ => "bi-rocket-takeoff"
+        };
+    }
+
+    public string PackageShortText(string? packageType)
+    {
+        return packageType switch
+        {
+            "Kim Cương" => "Tự động duyệt tin mới",
+            "Vàng" => "Ưu tiên hiển thị cao",
+            "Bạc" => "Tăng khả năng tiếp cận",
+            "Tin Thường" => "Phù hợp đăng cơ bản",
+            _ => "Gói dịch vụ đăng tin"
+        };
+    }
+
+    public string FormatMoney(decimal price)
+    {
+        if (price <= 0)
+        {
+            return "Miễn phí";
+        }
+
+        return price.ToString("N0") + " đ";
+    }
 }
 
 <style>
-    .pricing-header {
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-        border-radius: 24px;
-        padding: 60px 20px;
-        text-align: center;
-        margin-bottom: -80px;
-        padding-bottom: 120px;
+    :root {
+        --pricing-primary: #2563eb;
+        --pricing-primary-soft: #eff6ff;
+        --pricing-danger: #ef4444;
+        --pricing-danger-soft: #fef2f2;
+        --pricing-warning: #f59e0b;
+        --pricing-warning-soft: #fffbeb;
+        --pricing-sky: #0ea5e9;
+        --pricing-sky-soft: #f0f9ff;
+        --pricing-slate: #64748b;
+        --pricing-slate-soft: #f8fafc;
+        --pricing-success: #10b981;
+        --pricing-dark: #0f172a;
+        --pricing-text: #334155;
+        --pricing-muted: #64748b;
+        --pricing-border: #e2e8f0;
+        --pricing-card: #ffffff;
+        --pricing-radius: 24px;
+        --pricing-shadow: 0 18px 46px rgba(15, 23, 42, .08);
+        --pricing-shadow-sm: 0 9px 26px rgba(15, 23, 42, .06);
+    }
+
+    .pricing-page {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 28px 0 70px;
+    }
+
+    .pricing-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 30px;
+        padding: 34px;
+        margin-bottom: 18px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .18), transparent 340px), radial-gradient(circle at bottom left, rgba(245, 158, 11, .12), transparent 320px), linear-gradient(135deg, #ffffff, #f8fbff);
+        border: 1px solid rgba(148, 163, 184, .24);
+        box-shadow: var(--pricing-shadow-sm);
+    }
+
+    .pricing-hero-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 22px;
+    }
+
+    .premium-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 7px 13px;
+        border-radius: 999px;
+        background: #0f172a;
+        color: #fff;
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .045em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, .16);
+    }
+
+    .pricing-title {
+        margin: 0;
+        color: var(--pricing-dark);
+        font-size: clamp(1.7rem, 3.3vw, 3.2rem);
+        font-weight: 980;
+        letter-spacing: -.055em;
+        line-height: 1.08;
+        max-width: 780px;
+    }
+
+    .pricing-subtitle {
+        margin: 12px 0 0;
+        color: var(--pricing-muted);
+        font-size: clamp(.95rem, 1.15vw, 1.12rem);
+        font-weight: 600;
+        line-height: 1.65;
+        max-width: 680px;
+    }
+
+    .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .hero-btn {
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-weight: 900;
+        text-decoration: none;
+        transition: .2s ease;
+        white-space: nowrap;
+    }
+
+    .hero-btn-primary {
+        background: linear-gradient(135deg, var(--pricing-primary), #1d4ed8);
+        color: #fff;
+        border: 0;
+        box-shadow: 0 14px 30px rgba(37, 99, 235, .24);
+    }
+
+        .hero-btn-primary:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+    .hero-btn-light {
+        background: #fff;
+        color: #0f172a;
+        border: 1px solid #dbe4ef;
+    }
+
+        .hero-btn-light:hover {
+            color: var(--pricing-primary);
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .hero-summary {
+        width: 260px;
+        border-radius: 26px;
+        padding: 20px;
+        background: rgba(255, 255, 255, .84);
+        border: 1px solid rgba(226, 232, 240, .9);
+        box-shadow: var(--pricing-shadow-sm);
+        backdrop-filter: blur(12px);
+    }
+
+    .hero-summary-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #fef3c7, #fff7ed);
+        color: #d97706;
+        font-size: 1.6rem;
+        margin-bottom: 14px;
+    }
+
+    .hero-summary-label {
+        color: var(--pricing-muted);
+        font-size: .78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+        margin-bottom: 6px;
+    }
+
+    .hero-summary-value {
+        color: var(--pricing-dark);
+        font-size: 1.5rem;
+        font-weight: 950;
+        letter-spacing: -.035em;
+        line-height: 1.12;
+    }
+
+    .hero-summary-desc {
+        margin-top: 8px;
+        color: var(--pricing-muted);
+        font-size: .82rem;
+        font-weight: 650;
+        line-height: 1.55;
+    }
+
+    .pricing-helper-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .helper-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .23);
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: var(--pricing-shadow-sm);
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .helper-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 15px;
+        background: var(--pricing-primary-soft);
+        color: var(--pricing-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    .helper-title {
+        margin: 0 0 3px;
+        color: var(--pricing-dark);
+        font-size: .94rem;
+        font-weight: 950;
+    }
+
+    .helper-desc {
+        margin: 0;
+        color: var(--pricing-muted);
+        font-size: .8rem;
+        font-weight: 650;
+        line-height: 1.45;
+    }
+
+    .pricing-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        align-items: stretch;
     }
 
     .pricing-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 24px;
-        padding: 40px 30px;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
         height: 100%;
+        border-radius: 26px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .24);
+        box-shadow: var(--pricing-shadow-sm);
         display: flex;
         flex-direction: column;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        transition: .22s ease;
     }
 
         .pricing-card:hover {
-            transform: translateY(-15px);
-            box-shadow: 0 25px 50px rgba(0,0,0,0.12);
+            transform: translateY(-4px);
+            box-shadow: var(--pricing-shadow);
         }
 
-    .badge-ribbon {
-        position: absolute;
-        top: 25px;
-        right: -35px;
-        color: white;
-        padding: 6px 40px;
-        font-size: 0.8rem;
-        font-weight: 800;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        transform: rotate(45deg);
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    }
+        .pricing-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 5px;
+            background: #64748b;
+        }
 
-    .icon-box {
-        width: 80px;
-        height: 80px;
-        border-radius: 20px;
+    .pricing-card-inner {
+        padding: 24px;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.5rem;
-        margin-bottom: 30px;
-        transform: rotate(-5deg);
+        flex-direction: column;
+        height: 100%;
     }
 
-    /* Các theme màu sắc */
     .theme-diamond {
-        border-top: 5px solid #ef4444;
+        border-color: rgba(239, 68, 68, .30);
     }
 
-        .theme-diamond .icon-box {
-            background: linear-gradient(135deg, #fef2f2, #fee2e2);
-            color: #ef4444;
-        }
-
-        .theme-diamond .badge-ribbon, .theme-diamond .btn-buy {
+        .theme-diamond::before {
             background: linear-gradient(135deg, #ef4444, #b91c1c);
-            color: white;
         }
 
     .theme-gold {
-        border-top: 5px solid #f59e0b;
+        border-color: rgba(245, 158, 11, .36);
     }
 
-        .theme-gold .icon-box {
-            background: linear-gradient(135deg, #fffbeb, #fef3c7);
-            color: #f59e0b;
-        }
-
-        .theme-gold .badge-ribbon, .theme-gold .btn-buy {
+        .theme-gold::before {
             background: linear-gradient(135deg, #f59e0b, #b45309);
-            color: white;
         }
 
     .theme-silver {
-        border-top: 5px solid #0ea5e9;
+        border-color: rgba(14, 165, 233, .32);
     }
 
-        .theme-silver .icon-box {
-            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
-            color: #0ea5e9;
-        }
-
-        .theme-silver .badge-ribbon, .theme-silver .btn-buy {
+        .theme-silver::before {
             background: linear-gradient(135deg, #0ea5e9, #0369a1);
-            color: white;
         }
 
-    .theme-basic {
-        border-top: 5px solid #64748b;
+    .theme-basic::before {
+        background: linear-gradient(135deg, #64748b, #334155);
     }
 
-        .theme-basic .icon-box {
-            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-            color: #64748b;
-        }
+    .pricing-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
 
-        .theme-basic .btn-buy {
-            background: #e2e8f0;
-            color: #334155;
-        }
+    .icon-box {
+        width: 62px;
+        height: 62px;
+        border-radius: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        flex-shrink: 0;
+    }
 
-            .theme-basic .btn-buy:hover {
-                background: #cbd5e1;
-            }
+    .theme-diamond .icon-box {
+        background: #fef2f2;
+        color: #ef4444;
+    }
+
+    .theme-gold .icon-box {
+        background: #fffbeb;
+        color: #f59e0b;
+    }
+
+    .theme-silver .icon-box {
+        background: #f0f9ff;
+        color: #0ea5e9;
+    }
+
+    .theme-basic .icon-box {
+        background: #f8fafc;
+        color: #64748b;
+    }
+
+    .package-type-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .theme-diamond .package-type-pill {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .theme-gold .package-type-pill {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+    }
+
+    .theme-silver .package-type-pill {
+        background: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+
+    .theme-basic .package-type-pill {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+
+    .popular-ribbon {
+        position: absolute;
+        top: 16px;
+        right: -38px;
+        transform: rotate(38deg);
+        width: 150px;
+        text-align: center;
+        padding: 6px 0;
+        color: #fff;
+        font-size: .68rem;
+        font-weight: 950;
+        letter-spacing: .045em;
+        text-transform: uppercase;
+        background: linear-gradient(135deg, #ef4444, #b91c1c);
+        box-shadow: 0 8px 18px rgba(239, 68, 68, .22);
+    }
+
+    .package-name {
+        color: #0f172a;
+        font-size: 1.22rem;
+        font-weight: 980;
+        letter-spacing: -.03em;
+        margin: 0 0 6px;
+        line-height: 1.25;
+    }
+
+    .package-short {
+        color: var(--pricing-muted);
+        font-size: .84rem;
+        font-weight: 650;
+        line-height: 1.5;
+        margin: 0 0 18px;
+        min-height: 42px;
+    }
 
     .pricing-price {
-        font-size: 2.5rem;
-        font-weight: 900;
-        margin-bottom: 25px;
-        line-height: 1;
-        color: #0f172a;
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 20px;
     }
 
-        .pricing-price span {
-            font-size: 1.2rem;
-            color: #64748b;
-            font-weight: 600;
-        }
+    .price-main {
+        color: var(--pricing-dark);
+        font-size: clamp(1.75rem, 2.3vw, 2.35rem);
+        font-weight: 980;
+        letter-spacing: -.055em;
+        line-height: 1;
+    }
+
+    .price-unit {
+        color: var(--pricing-muted);
+        font-size: .88rem;
+        font-weight: 800;
+        padding-bottom: 4px;
+    }
 
     .pricing-features {
         list-style: none;
         padding: 0;
-        margin: 0 0 40px 0;
+        margin: 0 0 22px;
+        display: grid;
+        gap: 10px;
         flex-grow: 1;
     }
 
         .pricing-features li {
-            margin-bottom: 18px;
-            color: #475569;
-            font-weight: 500;
             display: flex;
             align-items: flex-start;
-            font-size: 1.05rem;
+            gap: 10px;
+            color: #475569;
+            font-size: .9rem;
+            font-weight: 650;
+            line-height: 1.45;
         }
 
             .pricing-features li i {
-                color: #10b981;
-                font-size: 1.3rem;
-                margin-right: 15px;
+                color: var(--pricing-success);
+                font-size: 1.05rem;
+                margin-top: 1px;
+                flex-shrink: 0;
             }
 
-    .btn-buy {
-        border: none;
-        padding: 16px;
-        border-radius: 16px;
-        font-weight: 800;
-        font-size: 1rem;
-        transition: 0.3s;
-        text-transform: uppercase;
-        width: 100%;
+    .feature-strong {
+        color: #0f172a;
+        font-weight: 900;
     }
 
-        .btn-buy:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
+    .pricing-actions {
+        display: grid;
+        gap: 9px;
+        margin-top: auto;
+    }
 
-    /* Nút Giỏ hàng nổi Floating Cart */
-    .floating-cart {
-        position: fixed;
-        bottom: 30px;
-        right: 30px;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: white;
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        display: none; /* Ẩn mặc định, hiện khi có đồ trong giỏ */
+    .btn-buy {
+        width: 100%;
+        min-height: 48px;
+        border: 0;
+        border-radius: 999px;
+        color: #fff;
+        font-weight: 950;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.8rem;
-        box-shadow: 0 10px 30px rgba(37, 99, 235, 0.4);
+        gap: 8px;
+        transition: .2s ease;
+        box-shadow: 0 13px 26px rgba(15, 23, 42, .12);
+    }
+
+    .theme-diamond .btn-buy {
+        background: linear-gradient(135deg, #ef4444, #b91c1c);
+    }
+
+    .theme-gold .btn-buy {
+        background: linear-gradient(135deg, #f59e0b, #b45309);
+    }
+
+    .theme-silver .btn-buy {
+        background: linear-gradient(135deg, #0ea5e9, #0369a1);
+    }
+
+    .theme-basic .btn-buy {
+        background: linear-gradient(135deg, #64748b, #334155);
+    }
+
+    .btn-buy:hover {
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+    .btn-pay-now {
+        width: 100%;
+        min-height: 44px;
+        border-radius: 999px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        color: #0f172a;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        text-decoration: none;
+        transition: .2s ease;
+    }
+
+        .btn-pay-now:hover {
+            color: var(--pricing-primary);
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .empty-pricing {
+        grid-column: 1 / -1;
+        background: #fff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 26px;
+        padding: 52px 18px;
+        text-align: center;
+        box-shadow: var(--pricing-shadow-sm);
+    }
+
+    .empty-pricing-icon {
+        width: 78px;
+        height: 78px;
+        border-radius: 26px;
+        margin: 0 auto 14px;
+        background: #f1f5f9;
+        color: #94a3b8;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.1rem;
+    }
+
+    .floating-cart {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        width: 66px;
+        height: 66px;
+        border-radius: 999px;
         z-index: 999;
-        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--pricing-primary), #1d4ed8);
+        color: #fff;
+        font-size: 1.65rem;
+        text-decoration: none;
+        box-shadow: 0 18px 38px rgba(37, 99, 235, .32);
+        transition: .2s ease;
     }
 
         .floating-cart:hover {
-            transform: scale(1.1);
-            color: white;
+            color: #fff;
+            transform: translateY(-2px) scale(1.04);
         }
 
     .cart-badge {
         position: absolute;
-        top: 0;
-        right: 0;
+        top: -4px;
+        right: -4px;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 7px;
+        border-radius: 999px;
         background: #ef4444;
-        color: white;
-        font-size: 0.8rem;
-        font-weight: bold;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
+        color: #fff;
+        border: 2px solid #fff;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 2px solid white;
+        font-size: .76rem;
+        font-weight: 950;
     }
 
-    @@media (max-width: 768px) {
-        .pricing-price {
-            font-size: 2rem;
+    .cart-mini-panel {
+        position: fixed;
+        right: 24px;
+        bottom: 98px;
+        width: min(340px, calc(100vw - 28px));
+        z-index: 998;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 22px;
+        box-shadow: 0 22px 55px rgba(15, 23, 42, .18);
+        padding: 16px;
+        display: none;
+    }
+
+        .cart-mini-panel.show {
+            display: block;
+            animation: cartPanelIn .2s ease;
+        }
+
+    @@keyframes cartPanelIn {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .cart-mini-title {
+        color: #0f172a;
+        font-size: .98rem;
+        font-weight: 950;
+        margin-bottom: 4px;
+    }
+
+    .cart-mini-desc {
+        color: #64748b;
+        font-size: .8rem;
+        font-weight: 650;
+        margin-bottom: 12px;
+    }
+
+    .cart-mini-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+    }
+
+    .cart-checkout-btn {
+        min-height: 42px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--pricing-primary), #1d4ed8);
+        color: #fff;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+    }
+
+        .cart-checkout-btn:hover {
+            color: #fff;
+        }
+
+    .cart-clear-btn {
+        min-height: 42px;
+        border-radius: 999px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 900;
+        padding: 0 14px;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .pricing-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .pricing-hero-inner {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-summary {
+            width: 100%;
+        }
+
+        .pricing-helper-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .pricing-page {
+            padding-top: 16px;
+        }
+
+        .pricing-grid {
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .pricing-hero {
+            padding: 20px;
+            border-radius: 24px;
+        }
+
+        .hero-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .hero-btn {
+            width: 100%;
+        }
+
+        .pricing-card-inner {
+            padding: 20px;
+        }
+
+        .package-short {
+            min-height: auto;
         }
 
         .floating-cart {
-            bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            font-size: 1.5rem;
+            right: 16px;
+            bottom: 16px;
+            width: 58px;
+            height: 58px;
+            font-size: 1.42rem;
+        }
+
+        .cart-mini-panel {
+            right: 14px;
+            bottom: 86px;
+        }
+    }
+
+    @@media (max-width: 420px) {
+        .pricing-hero {
+            padding: 18px;
+        }
+
+        .premium-badge {
+            width: 100%;
+            justify-content: center;
+            text-align: center;
+            white-space: normal;
+        }
+
+        .pricing-top {
+            flex-direction: column;
+        }
+
+        .package-type-pill {
+            width: 100%;
+            justify-content: center;
         }
     }
 </style>
 
-<div class="container my-5">
-    <div class="pricing-header shadow-sm animate__animated animate__fadeInDown">
-        <span class="badge bg-dark text-white px-4 py-2 rounded-pill fw-bold mb-3 fs-6">DỊCH VỤ PREMIUM BẤT ĐỘNG SẢN KHÁNH HÒA</span>
-        <h1 class="fw-black text-dark mb-3" style="font-weight: 900; font-size: clamp(2rem, 5vw, 3rem);">Tiếp Cận Khách Hàng Nhanh Chóng</h1>
-        <p class="text-muted fs-5" style="max-width: 600px; margin: 0 auto;">Nâng cấp tin đăng của bạn ngay hôm nay để chốt sale nhanh chóng hơn.</p>
-    </div>
-
-    <div class="row g-4 justify-content-center position-relative z-1">
-        @foreach (var pkg in Model)
-        {
-            string themeClass = "theme-basic";
-            string iconClass = "bi-box-seam";
-            if (pkg.PackageType == "Kim Cương") { themeClass = "theme-diamond"; iconClass = "bi-gem"; }
-            else if (pkg.PackageType == "Vàng") { themeClass = "theme-gold"; iconClass = "bi-star-fill"; }
-            else if (pkg.PackageType == "Bạc") { themeClass = "theme-silver"; iconClass = "bi-shield-check"; }
-
-            <div class="col-lg-4 col-md-6 animate__animated animate__fadeInUp">
-                <div class="pricing-card @themeClass">
-                    @if (pkg.PackageType != "Tin Thường")
-                    {
-                        <div class="badge-ribbon shadow-sm">@pkg.PackageType</div>
-                    }
-
-                    <div class="icon-box"><i class="bi @iconClass"></i></div>
-
-                    <h3 class="fw-bold mb-2 text-dark">@pkg.PackageName</h3>
-                    <div class="pricing-price">
-                        @(pkg.Price == 0 ? "Miễn phí" : pkg.Price.ToString("N0")) <span>VNĐ</span>
+<div class="container">
+    <div class="pricing-page">
+        <section class="pricing-hero">
+            <div class="pricing-hero-inner">
+                <div>
+                    <div class="premium-badge">
+                        <i class="bi bi-lightning-charge-fill"></i>
+                        Dịch vụ đăng tin BĐS Khánh Hòa
                     </div>
 
-                    <ul class="pricing-features">
-                        <li><i class="bi bi-check-circle-fill"></i> Hiển thị liên tục trong <strong>@pkg.DurationDays ngày</strong></li>
-                        <li><i class="bi bi-check-circle-fill"></i> Mức độ ưu tiên hiển thị: <strong>Top @pkg.PriorityLevel</strong></li>
-                        @if (!string.IsNullOrEmpty(pkg.Description))
-                        {
-                            foreach (var line in pkg.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                            {
-                                <li><i class="bi bi-check-circle-fill"></i> @line</li>
-                            }
-                        }
-                    </ul>
+                    <h1 class="pricing-title">
+                        Nâng cấp tin đăng để tiếp cận khách hàng nhanh hơn
+                    </h1>
 
-                    <!-- Thay đổi thẻ <a> thành <button> tích hợp JS -->
-                    <button type="button" onclick="addToCart(@pkg.PackageID, '@pkg.PackageName')" class="btn btn-buy shadow-sm text-center">
-                        <i class="bi bi-cart-plus me-2"></i> @(pkg.Price == 0 ? "Thêm miễn phí" : "Thêm vào giỏ")
-                    </button>
+                    <p class="pricing-subtitle">
+                        Chọn gói phù hợp để tăng độ ưu tiên hiển thị, nổi bật tin đăng và quản lý lượt đăng hiệu quả hơn.
+                    </p>
 
-                    @if (pkg.Price > 0)
-                    {
-                        <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn btn-outline-dark mt-2 fw-bold" style="border-radius: 16px; padding: 12px;">
-                            Thanh toán ngay
+                    <div class="hero-actions">
+                        <a href="#pricingList" class="hero-btn hero-btn-primary">
+                            <i class="bi bi-tags-fill"></i>
+                            Xem bảng giá
                         </a>
-                    }
+
+                        <a href="/Payment/History" class="hero-btn hero-btn-light">
+                            <i class="bi bi-clock-history"></i>
+                            Lịch sử giao dịch
+                        </a>
+                    </div>
+                </div>
+
+                <div class="hero-summary">
+                    <div class="hero-summary-icon">
+                        <i class="bi bi-gem"></i>
+                    </div>
+
+                    <div class="hero-summary-label">Gợi ý nổi bật</div>
+
+                    <div class="hero-summary-value">
+                        @(diamond?.PackageName ?? "Gói Kim Cương")
+                    </div>
+
+                    <div class="hero-summary-desc">
+                        Tin mới dùng gói Kim Cương được hỗ trợ duyệt tự động và ưu tiên hiển thị cao.
+                    </div>
                 </div>
             </div>
-        }
+        </section>
+
+        <section class="pricing-helper-grid">
+            <div class="helper-card">
+                <div class="helper-icon">
+                    <i class="bi bi-rocket-takeoff-fill"></i>
+                </div>
+                <div>
+                    <h3 class="helper-title">Tăng tốc tiếp cận</h3>
+                    <p class="helper-desc">Gói ưu tiên giúp tin đăng nổi bật hơn trong danh sách tìm kiếm.</p>
+                </div>
+            </div>
+
+            <div class="helper-card">
+                <div class="helper-icon">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <div>
+                    <h3 class="helper-title">Quản lý minh bạch</h3>
+                    <p class="helper-desc">Mỗi lượt mua đều được ghi nhận trong lịch sử giao dịch và hóa đơn.</p>
+                </div>
+            </div>
+
+            <div class="helper-card">
+                <div class="helper-icon">
+                    <i class="bi bi-cart-check-fill"></i>
+                </div>
+                <div>
+                    <h3 class="helper-title">Mua nhiều gói dễ dàng</h3>
+                    <p class="helper-desc">Thêm nhiều gói vào giỏ, sau đó thanh toán một lần nhanh gọn.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="pricingList" class="pricing-grid">
+            @if (!packages.Any())
+            {
+                <div class="empty-pricing">
+                    <div class="empty-pricing-icon">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+
+                    <h3 class="fw-black text-dark mb-2">Chưa có gói dịch vụ</h3>
+                    <p class="text-muted fw-semibold mb-0">
+                        Hiện hệ thống chưa cấu hình bảng giá. Vui lòng quay lại sau.
+                    </p>
+                </div>
+            }
+            else
+            {
+                foreach (var pkg in packages)
+                {
+                    string themeClass = ThemeClass(pkg.PackageType);
+                    string iconClass = IconClass(pkg.PackageType);
+                    string shortText = PackageShortText(pkg.PackageType);
+                    bool isDiamond = pkg.PackageType == "Kim Cương";
+                    bool isFree = pkg.Price <= 0;
+
+                    <article class="pricing-card @themeClass">
+                        @if (isDiamond)
+                        {
+                            <div class="popular-ribbon">
+                                Nổi bật
+                            </div>
+                        }
+
+                        <div class="pricing-card-inner">
+                            <div class="pricing-top">
+                                <div class="icon-box">
+                                    <i class="bi @iconClass"></i>
+                                </div>
+
+                                <span class="package-type-pill">
+                                    <i class="bi bi-award-fill"></i>
+                                    @(string.IsNullOrWhiteSpace(pkg.PackageType) ? "Dịch vụ" : pkg.PackageType)
+                                </span>
+                            </div>
+
+                            <h3 class="package-name">@pkg.PackageName</h3>
+
+                            <p class="package-short">
+                                @shortText
+                            </p>
+
+                            <div class="pricing-price">
+                                <span class="price-main">@FormatMoney(pkg.Price)</span>
+                                @if (!isFree)
+                                {
+                                    <span class="price-unit">/ gói</span>
+                                }
+                            </div>
+
+                            <ul class="pricing-features">
+                                <li>
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span>
+                                        Hiển thị liên tục trong
+                                        <span class="feature-strong">@pkg.DurationDays ngày</span>
+                                    </span>
+                                </li>
+
+                                <li>
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span>
+                                        Mức ưu tiên hiển thị:
+                                        <span class="feature-strong">Top @pkg.PriorityLevel</span>
+                                    </span>
+                                </li>
+
+                                @if (pkg.PackageType == "Kim Cương")
+                                {
+                                    <li>
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <span>
+                                            Tin đăng mới được hỗ trợ
+                                            <span class="feature-strong">duyệt tự động</span>
+                                        </span>
+                                    </li>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(pkg.Description))
+                                {
+                                    foreach (var line in pkg.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                                    {
+                                        <li>
+                                            <i class="bi bi-check-circle-fill"></i>
+                                            <span>@line.Trim()</span>
+                                        </li>
+                                    }
+                                }
+                            </ul>
+
+                            <div class="pricing-actions">
+                                <button type="button"
+                                        onclick="addToCart(@pkg.PackageID, '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(pkg.PackageName))')"
+                                        class="btn-buy">
+                                    <i class="bi bi-cart-plus-fill"></i>
+                                    @(isFree ? "Thêm gói miễn phí" : "Thêm vào giỏ")
+                                </button>
+
+                                @if (!isFree)
+                                {
+                                    <a href="/Payment/Checkout?packageId=@pkg.PackageID" class="btn-pay-now">
+                                        <i class="bi bi-credit-card-fill"></i>
+                                        Thanh toán ngay
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            }
+        </section>
     </div>
 </div>
 
-<!-- Nút Floating Cart góc phải dưới -->
-<a href="/Payment/Checkout" class="floating-cart" id="floatingCart">
-    <i class="bi bi-bag-heart"></i>
+<div class="cart-mini-panel" id="cartMiniPanel">
+    <h5 class="cart-mini-title">
+        <i class="bi bi-bag-heart-fill text-primary me-1"></i>
+        Giỏ gói dịch vụ
+    </h5>
+    <p class="cart-mini-desc" id="cartMiniDesc">
+        Bạn đang có 0 gói trong giỏ.
+    </p>
+
+    <div class="cart-mini-actions">
+        <a href="/Payment/Checkout" class="cart-checkout-btn">
+            Thanh toán
+        </a>
+
+        <button type="button" class="cart-clear-btn" onclick="clearCart()">
+            Xóa
+        </button>
+    </div>
+</div>
+
+<a href="/Payment/Checkout" class="floating-cart" id="floatingCart" title="Xem giỏ hàng">
+    <i class="bi bi-bag-heart-fill"></i>
     <span class="cart-badge" id="cartBadgeCount">0</span>
 </a>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        // Lấy giỏ hàng từ LocalStorage
-        let bdsCart = JSON.parse(localStorage.getItem('bds_cart')) || [];
+        let bdsCart = [];
+
+        try {
+            bdsCart = JSON.parse(localStorage.getItem('bds_cart')) || [];
+        } catch {
+            bdsCart = [];
+            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+        }
+
+        function saveCart() {
+            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+        }
+
+        function getCartCount() {
+            return bdsCart.reduce((sum, item) => sum + Number(item.Quantity || 0), 0);
+        }
 
         function updateCartUI() {
-            const count = bdsCart.reduce((sum, item) => sum + item.Quantity, 0);
+            const count = getCartCount();
             const cartElement = document.getElementById('floatingCart');
             const badgeElement = document.getElementById('cartBadgeCount');
+            const miniPanel = document.getElementById('cartMiniPanel');
+            const miniDesc = document.getElementById('cartMiniDesc');
 
             badgeElement.innerText = count;
+            miniDesc.innerText = count > 0
+                ? `Bạn đang có ${count} gói trong giỏ.`
+                : 'Bạn đang có 0 gói trong giỏ.';
+
             if (count > 0) {
                 cartElement.style.display = 'flex';
-                // Thêm hiệu ứng nảy nhẹ khi cập nhật
-                cartElement.classList.remove('animate__bounceIn');
-                void cartElement.offsetWidth; // trigger reflow
-                cartElement.classList.add('animate__animated', 'animate__bounceIn');
             } else {
                 cartElement.style.display = 'none';
+                miniPanel.classList.remove('show');
             }
         }
 
         function addToCart(pkgId, pkgName) {
-            let item = bdsCart.find(x => x.PackageId === pkgId);
+            pkgId = Number(pkgId);
+
+            let item = bdsCart.find(x => Number(x.PackageId) === pkgId);
+
             if (item) {
-                item.Quantity++;
+                item.Quantity = Number(item.Quantity || 0) + 1;
             } else {
-                bdsCart.push({ PackageId: pkgId, Quantity: 1 });
+                bdsCart.push({
+                    PackageId: pkgId,
+                    Quantity: 1
+                });
             }
 
-            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+            saveCart();
             updateCartUI();
 
-            // Hiển thị thông báo góc màn hình
             Swal.fire({
                 toast: true,
                 position: 'top-end',
                 icon: 'success',
-                title: `Đã thêm gói ${pkgName}!`,
+                title: `Đã thêm ${pkgName} vào giỏ`,
                 showConfirmButton: false,
-                timer: 2000,
+                timer: 2200,
                 timerProgressBar: true,
-                customClass: { popup: 'rounded-4' }
+                customClass: {
+                    popup: 'rounded-4'
+                }
             });
         }
 
-        // Khởi tạo hiển thị lúc mới load trang
-        updateCartUI();
+        function clearCart() {
+            if (!bdsCart.length) {
+                updateCartUI();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Xóa giỏ hàng?',
+                text: 'Toàn bộ gói dịch vụ trong giỏ sẽ được xóa.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Xóa giỏ',
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#94a3b8',
+                customClass: {
+                    confirmButton: 'rounded-pill px-4',
+                    cancelButton: 'rounded-pill px-4'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    bdsCart = [];
+                    saveCart();
+                    updateCartUI();
+
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Đã xóa giỏ hàng',
+                        showConfirmButton: false,
+                        timer: 1800
+                    });
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            updateCartUI();
+
+            const cartElement = document.getElementById('floatingCart');
+            const miniPanel = document.getElementById('cartMiniPanel');
+
+            cartElement.addEventListener('mouseenter', function () {
+                if (getCartCount() > 0) {
+                    miniPanel.classList.add('show');
+                }
+            });
+
+            miniPanel.addEventListener('mouseleave', function () {
+                miniPanel.classList.remove('show');
+            });
+        });
     </script>
 }

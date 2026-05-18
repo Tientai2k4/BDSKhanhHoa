@@ -21,12 +21,22 @@
     string customerInitial = string.IsNullOrWhiteSpace(Model.Name)
         ? "K"
         : Model.Name.Substring(0, 1).ToUpper();
+
+    string returnUrl = Url.Action("Index", "MemberProject") ?? "/MemberProject/Index";
+
+    bool isClosed = Model.LeadStatus == "Resolved"
+                 || Model.LeadStatus == "Invalid"
+                 || Model.LeadStatus == "Đã chốt"
+                 || Model.LeadStatus == "Không hợp lệ";
 }
 
 @functions {
-    public string GetLeadStatusText(string? status)
+    public string LeadStatusText(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return "Khách mới";
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Khách mới";
+        }
 
         return status.Trim() switch
         {
@@ -42,9 +52,12 @@
         };
     }
 
-    public string GetAppointmentStatusText(string? status)
+    public string AppointmentStatusText(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return "Chờ xác nhận";
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Chờ xác nhận";
+        }
 
         return status.Trim() switch
         {
@@ -62,6 +75,11 @@
             "Khách không đến" => "Khách không đến",
             _ => status.Trim()
         };
+    }
+
+    public string SafeText(string? value, string fallback = "Chưa cập nhật")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
     }
 }
 
@@ -81,8 +99,18 @@
             --his-shadow: 0 16px 38px rgba(15, 23, 42, .07);
         }
 
+        .his-page {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
         .his-top-actions {
-            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .his-grid {
@@ -148,6 +176,10 @@
             text-transform: uppercase;
         }
 
+        .his-info-block {
+            margin-bottom: 18px;
+        }
+
         .his-info-label {
             font-size: .74rem;
             text-transform: uppercase;
@@ -166,10 +198,6 @@
             font-weight: 800;
             line-height: 1.55;
             word-break: break-word;
-        }
-
-        .his-info-block {
-            margin-bottom: 18px;
         }
 
         .his-panel {
@@ -296,197 +324,248 @@
             font-weight: 900;
         }
 
-        @@media (max-width: 1199.98px) {
-            .his-grid {
-                grid-template-columns: 1fr;
-            }
+        .his-empty {
+            border-radius: 20px;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            padding: 30px;
+            text-align: center;
+            color: var(--his-muted);
+            font-weight: 650;
+        }
 
-            .his-card {
-                position: static;
-            }
+        @@media (max-width: 1199.98px) {
+            .his-grid
+
+        {
+            grid-template-columns: 1fr;
+        }
+
+        .his-card {
+            position: static;
+        }
+
         }
 
         @@media (max-width: 575.98px) {
-            .his-card,
-            .his-panel {
-                border-radius: 20px;
-                padding: 18px;
-            }
+            .his-card, .his-panel
 
-            .btn-his-light {
-                width: 100%;
-            }
+        {
+            border-radius: 20px;
+            padding: 18px;
+        }
 
-            .his-timeline {
-                padding-left: 30px;
-            }
+        .btn-his-light {
+            width: 100%;
+            justify-content: center;
+        }
 
-            .his-dot {
-                left: -30px;
-            }
+        .his-timeline {
+            padding-left: 30px;
+        }
+
+        .his-dot {
+            left: -30px;
+        }
+
         }
     </style>
 }
 
-<div class="his-top-actions">
-    <a href="@Url.Action("Index", "MemberProject")" class="btn btn-his-light">
-        <i class="bi bi-arrow-left-circle-fill text-primary me-1"></i>
-        Quay lại phễu khách hàng
-    </a>
-</div>
+<div class="his-page">
+    <div class="his-top-actions">
+        <a href="@returnUrl" class="btn btn-his-light">
+            <i class="bi bi-arrow-left-circle-fill text-primary me-1"></i>
+            Quay lại phễu khách hàng
+        </a>
 
-<div class="his-grid">
-    <aside class="his-card">
-        <div class="his-profile-head">
-            <div class="his-avatar">@customerInitial</div>
+        @if (!isClosed)
+        {
+            <a href="@Url.Action("EditLead", "MemberProject", new { id = Model.LeadID, returnUrl = returnUrl })" class="btn btn-primary rounded-pill fw-bold px-4">
+                <i class="bi bi-pencil-square me-1"></i>
+                Chăm sóc khách hàng
+            </a>
+        }
+        else
+        {
+            <button type="button" class="btn btn-light border rounded-pill fw-bold px-4" disabled>
+                <i class="bi bi-lock-fill me-1"></i>
+                Hồ sơ đã khóa
+            </button>
+        }
+    </div>
 
-            <h2 class="his-name">@Model.Name</h2>
+    <div class="his-grid">
+        <aside class="his-card">
+            <div class="his-profile-head">
+                <div class="his-avatar">@customerInitial</div>
 
-            <span class="his-status">
-                @GetLeadStatusText(Model.LeadStatus)
-            </span>
-        </div>
+                <h2 class="his-name">@Model.Name</h2>
 
-        <div class="his-info-block">
-            <div class="his-info-label">Số điện thoại</div>
+                <span class="his-status">
+                    @LeadStatusText(Model.LeadStatus)
+                </span>
+            </div>
 
-            <div class="his-info-value d-flex align-items-center justify-content-between gap-2">
-                <span>@Model.Phone</span>
+            <div class="his-info-block">
+                <div class="his-info-label">Số điện thoại</div>
 
-                <a href="tel:@Model.Phone" class="btn btn-success rounded-circle flex-shrink-0" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
-                    <i class="bi bi-telephone-fill"></i>
+                <div class="his-info-value d-flex align-items-center justify-content-between gap-2">
+                    <span>@SafeText(Model.Phone)</span>
+
+                    <a href="tel:@Model.Phone" class="btn btn-success rounded-circle flex-shrink-0" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-telephone-fill"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="his-info-block">
+                <div class="his-info-label">Email liên hệ</div>
+                <div class="his-info-value">
+                    @(string.IsNullOrWhiteSpace(Model.Email) ? "Chưa cung cấp" : Model.Email)
+                </div>
+            </div>
+
+            <div class="his-info-block">
+                <div class="his-info-label">Dự án quan tâm</div>
+                <div class="his-info-value text-primary">
+                    <i class="bi bi-building-fill me-1"></i>
+                    @SafeText(Model.Project?.ProjectName, "Không rõ dự án")
+                </div>
+            </div>
+
+            <div class="his-info-block">
+                <div class="his-info-label">Nhu cầu ban đầu</div>
+                <div class="his-info-value">
+                    @(string.IsNullOrWhiteSpace(Model.Message) ? "Khách chưa để lại nội dung chi tiết." : Model.Message)
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 mt-4">
+                @if (Model.Project != null)
+                {
+                    <a href="/Project/Details/@Model.ProjectID" target="_blank" class="btn btn-his-light">
+                        <i class="bi bi-eye-fill text-primary me-1"></i>
+                        Xem dự án công khai
+                    </a>
+                }
+
+                <a href="tel:@Model.Phone" class="btn btn-success rounded-pill fw-bold">
+                    <i class="bi bi-telephone-outbound-fill me-1"></i>
+                    Gọi khách
                 </a>
             </div>
-        </div>
+        </aside>
 
-        <div class="his-info-block">
-            <div class="his-info-label">Email liên hệ</div>
-            <div class="his-info-value">
-                @(string.IsNullOrWhiteSpace(Model.Email) ? "Chưa cung cấp" : Model.Email)
-            </div>
-        </div>
+        <main>
+            <section class="his-panel">
+                <h2 class="his-panel-title">
+                    <i class="bi bi-activity text-primary me-2"></i>
+                    Dòng thời gian chăm sóc
+                </h2>
 
-        <div class="his-info-block">
-            <div class="his-info-label">Dự án quan tâm</div>
-            <div class="his-info-value text-primary">
-                <i class="bi bi-building-fill me-1"></i>
-                @(Model.Project?.ProjectName ?? "Chưa xác định")
-            </div>
-        </div>
+                <p class="his-panel-subtitle">
+                    Tổng hợp ghi chú CRM, lịch hẹn xem dự án và thông tin phát sinh trong quá trình chăm sóc khách hàng.
+                </p>
 
-        <div class="his-info-block">
-            <div class="his-info-label">Thời điểm tiếp nhận</div>
-            <div class="his-info-value">
-                @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
-            </div>
-        </div>
-
-        <a href="@Url.Action("EditLead", "MemberProject", new { id = Model.LeadID })" class="btn btn-primary w-100 rounded-pill fw-bold py-2">
-            <i class="bi bi-pencil-square me-1"></i>
-            Cập nhật hồ sơ
-        </a>
-    </aside>
-
-    <section class="his-panel">
-        <h1 class="his-panel-title">
-            <i class="bi bi-clock-history text-primary me-1"></i>
-            Lịch sử tương tác 360
-        </h1>
-
-        <p class="his-panel-subtitle">
-            Tổng hợp ghi chú chăm sóc, lịch hẹn thực địa và thông tin khách gửi ban đầu.
-        </p>
-
-        <div class="his-timeline">
-            @if (noteLines.Any())
-            {
-                foreach (var line in noteLines)
-                {
+                <div class="his-timeline">
                     <div class="his-item">
-                        <div class="his-dot note">
-                            <i class="bi bi-journal-check"></i>
+                        <div class="his-dot start">
+                            <i class="bi bi-person-plus-fill"></i>
                         </div>
 
                         <div class="his-content">
-                            <div class="his-date" style="background:#fffbeb;color:#b45309;">
-                                <i class="bi bi-pencil-square"></i>
-                                Nhật ký CRM
+                            <div class="his-date">
+                                <i class="bi bi-clock"></i>
+                                @Model.CreatedAt.ToString("HH:mm dd/MM/yyyy")
                             </div>
 
-                            <div class="his-title">Ghi chú chăm sóc khách hàng</div>
-
-                            <p class="his-desc">@line</p>
-                        </div>
-                    </div>
-                }
-            }
-
-            @if (historyAppointments.Any())
-            {
-                foreach (var appt in historyAppointments.OrderByDescending(x => x.AppointmentDate))
-                {
-                    <div class="his-item">
-                        <div class="his-dot appointment">
-                            <i class="bi bi-calendar-check"></i>
-                        </div>
-
-                        <div class="his-content" style="background:#f5f3ff;border-color:#ddd6fe;">
-                            <div class="his-date" style="background:#ede9fe;color:#6d28d9;">
-                                <i class="bi bi-calendar-event-fill"></i>
-                                Tạo lúc @appt.CreatedAt.ToString("dd/MM/yyyy")
-                            </div>
-
-                            <div class="his-title">
-                                Lịch xem dự án: @appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")
-                            </div>
+                            <div class="his-title">Khách hàng gửi yêu cầu tư vấn</div>
 
                             <p class="his-desc">
-                                Nhân viên phụ trách:
-                                <strong>@(string.IsNullOrWhiteSpace(appt.AssignedStaffName) ? "Chưa phân công" : appt.AssignedStaffName)</strong>
+                                Khách hàng @Model.Name đã gửi yêu cầu tư vấn cho dự án @SafeText(Model.Project?.ProjectName, "không rõ dự án").
                             </p>
-
-                            @if (!string.IsNullOrWhiteSpace(appt.Note))
-                            {
-                                <p class="his-desc mt-2">
-                                    Ghi chú điều phối: @appt.Note
-                                </p>
-                            }
-
-                            <div class="mt-3">
-                                <span class="his-badge">
-                                    <i class="bi bi-info-circle-fill"></i>
-                                    @GetAppointmentStatusText(appt.Status)
-                                </span>
-                            </div>
                         </div>
                     </div>
-                }
-            }
 
-            <div class="his-item">
-                <div class="his-dot start">
-                    <i class="bi bi-flag-fill"></i>
+                    @if (historyAppointments.Any())
+                    {
+                        foreach (var ap in historyAppointments)
+                        {
+                            <div class="his-item">
+                                <div class="his-dot appointment">
+                                    <i class="bi bi-calendar-event-fill"></i>
+                                </div>
+
+                                <div class="his-content">
+                                    <div class="his-date">
+                                        <i class="bi bi-calendar2-check"></i>
+                                        @ap.AppointmentDate.ToString("HH:mm dd/MM/yyyy")
+                                    </div>
+
+                                    <div class="his-title">
+                                        Lịch xem dự án - @AppointmentStatusText(ap.Status)
+                                    </div>
+
+                                    <p class="his-desc">
+                                        Nhân viên phụ trách: @SafeText(ap.AssignedStaffName, "Chưa cập nhật")
+                                        @if (!string.IsNullOrWhiteSpace(ap.MeetingLocation))
+                                        {
+                                            <text>
+                                                Địa điểm: @ap.MeetingLocation
+                                            </text>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(ap.Note))
+                                        {
+                                            <text>
+                                                Ghi chú: @ap.Note
+                                            </text>
+                                        }
+                                    </p>
+
+                                    <div class="mt-2">
+                                        <span class="his-badge">
+                                            <i class="bi bi-info-circle"></i>
+                                            @AppointmentStatusText(ap.Status)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    @if (noteLines.Any())
+                    {
+                        foreach (var line in noteLines)
+                        {
+                            <div class="his-item">
+                                <div class="his-dot note">
+                                    <i class="bi bi-journal-text"></i>
+                                </div>
+
+                                <div class="his-content">
+                                    <div class="his-date">
+                                        <i class="bi bi-pencil-square"></i>
+                                        Nhật ký CRM
+                                    </div>
+
+                                    <div class="his-title">Ghi chú chăm sóc</div>
+
+                                    <p class="his-desc">@line</p>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    @if (!historyAppointments.Any() && !noteLines.Any())
+                    {
+                        <div class="his-empty">
+                            <i class="bi bi-journal-x fs-1 d-block mb-3 text-muted"></i>
+                            Chưa có lịch sử chăm sóc nào ngoài yêu cầu tư vấn ban đầu.
+                        </div>
+                    }
                 </div>
-
-                <div class="his-content" style="background:#ecfdf5;border-color:#bbf7d0;">
-                    <div class="his-date" style="background:#dcfce7;color:#047857;">
-                        <i class="bi bi-globe"></i>
-                        Tiếp nhận từ website
-                    </div>
-
-                    <div class="his-title">
-                        Khách hàng gửi yêu cầu tư vấn
-                    </div>
-
-                    <p class="his-desc">
-                        Thời điểm: <strong>@Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</strong>
-                    </p>
-
-                    <div class="mt-3 p-3 bg-white rounded-4 border">
-                        “@(string.IsNullOrWhiteSpace(Model.Message) ? "Khách hàng gửi yêu cầu tư vấn nhưng không để lại lời nhắn chi tiết." : Model.Message)”
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+            </section>
+        </main>
+    </div>
 </div>

@@ -81,7 +81,7 @@ namespace BDSKhanhHoa.Models
 
         [ForeignKey("AreaID")]
         public virtual Area? Area { get; set; }
-
+        public int Views { get; set; } = 0;
         [ForeignKey("WardID")]
         public virtual Ward? Ward { get; set; }
     }

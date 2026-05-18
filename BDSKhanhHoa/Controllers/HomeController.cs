@@ -88,16 +88,26 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.FavoritedIds = favoritedIds;
 
             // ---------------------------------------------------------
-            // 1. TIN TRANG CHỦ: VIP CAO NHẤT TRƯỚC, TRONG CÙNG VIP THÌ TIN MỚI NHẤT TRƯỚC
-            // PriorityLevel càng nhỏ càng cao:
-            // Kim Cương 1 -> Vàng 2 -> Bạc 3 -> Đồng 4 -> Tin Thường 5 -> Không gói 9999
+            // 1. TIN TRANG CHỦ: CHIA RÕ MUA BÁN / CHO THUÊ
+            // Tab "Tất cả" chỉ lấy 8 tin: 4 mua bán + 4 cho thuê
+            // Tab "Mua bán" và "Cho thuê" vẫn có đủ dữ liệu để lọc
             // ---------------------------------------------------------
-            var properties = await _context.Properties
+            var basePropertyQuery = _context.Properties
                 .AsNoTracking()
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Include(p => p.PropertyType)
                 .Include(p => p.PostServicePackage)
-                .Where(p => p.Status == "Approved" && p.IsDeleted == false)
+                .Where(p => p.Status == "Approved" && p.IsDeleted == false);
+
+            var featuredBuyProperties = await basePropertyQuery
+                .Where(p =>
+                    p.PropertyType != null &&
+                    (
+                        p.PropertyType.ParentID == 1 ||
+                        p.TypeID == 1 ||
+                        EF.Functions.Like(p.PropertyType.TypeName, "%Bán%") ||
+                        EF.Functions.Like(p.PropertyType.TypeName, "%Mua%")
+                    ))
                 .OrderBy(p =>
                     p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
                         ? 9999
@@ -106,6 +116,74 @@ namespace BDSKhanhHoa.Controllers
                 .ThenByDescending(p => p.PropertyID)
                 .Take(24)
                 .ToListAsync();
+
+            var featuredRentProperties = await basePropertyQuery
+                .Where(p =>
+                    p.PropertyType != null &&
+                    (
+                        p.PropertyType.ParentID == 2 ||
+                        p.TypeID == 2 ||
+                        EF.Functions.Like(p.PropertyType.TypeName, "%Thuê%") ||
+                        EF.Functions.Like(p.PropertyType.TypeName, "%Trọ%")
+                    ))
+                .OrderBy(p =>
+                    p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
+                        ? 9999
+                        : p.PostServicePackage.PriorityLevel)
+                .ThenByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.PropertyID)
+                .Take(24)
+                .ToListAsync();
+            // Tab Tất cả: 32 tin, gồm 16 mua bán trước + 16 cho thuê sau
+            // Desktop 4 cột: 16 tin = 4 hàng mua bán, 16 tin = 4 hàng cho thuê
+            var homeAllBuyProperties = featuredBuyProperties
+                .Take(16)
+                .ToList();
+
+            var homeAllRentProperties = featuredRentProperties
+                .Take(16)
+                .ToList();
+
+            var homeAllProperties = new List<Property>();
+
+            homeAllProperties.AddRange(homeAllBuyProperties);
+            homeAllProperties.AddRange(homeAllRentProperties);
+
+            ViewBag.HomeAllPropertyIds = homeAllProperties
+                .Select(p => p.PropertyID)
+                .ToList();
+
+            // Model trả về đúng thứ tự:
+            // 1. 16 tin bán
+            // 2. 16 tin thuê
+            // 3. Các tin bán còn lại
+            // 4. Các tin thuê còn lại
+            var addedPropertyIds = new HashSet<int>();
+            var properties = new List<Property>();
+
+            foreach (var item in homeAllProperties)
+            {
+                if (addedPropertyIds.Add(item.PropertyID))
+                {
+                    properties.Add(item);
+                }
+            }
+
+            foreach (var item in featuredBuyProperties)
+            {
+                if (addedPropertyIds.Add(item.PropertyID))
+                {
+                    properties.Add(item);
+                }
+            }
+
+            foreach (var item in featuredRentProperties)
+            {
+                if (addedPropertyIds.Add(item.PropertyID))
+                {
+                    properties.Add(item);
+                }
+            }
 
             // ---------------------------------------------------------
             // 2. DỰ ÁN NỔI BẬT

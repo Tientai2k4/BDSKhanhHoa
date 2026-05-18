@@ -1,7 +1,7 @@
 ﻿@model BDSKhanhHoa.Models.ProjectLead
 
 @{
-    ViewData["Title"] = "Cập nhật khách hàng";
+    ViewData["Title"] = "Chăm sóc khách hàng";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
     string returnUrl = ViewBag.ReturnUrl as string ?? Url.Action("Index", "MemberProject") ?? "/MemberProject/Index";
@@ -11,15 +11,23 @@
                  || Model.LeadStatus == "Đã chốt"
                  || Model.LeadStatus == "Không hợp lệ";
 
+    var activeAppointments = ViewBag.ActiveAppointments as List<BDSKhanhHoa.Models.Appointment>
+        ?? new List<BDSKhanhHoa.Models.Appointment>();
+
+    bool hasActiveAppointment = activeAppointments.Any();
+
     string customerInitial = string.IsNullOrWhiteSpace(Model.Name)
         ? "K"
         : Model.Name.Substring(0, 1).ToUpper();
 }
 
 @functions {
-    public string GetLeadStatusText(string? status)
+    public string LeadStatusText(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return "Khách mới";
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Khách mới";
+        }
 
         return status.Trim() switch
         {
@@ -35,11 +43,9 @@
         };
     }
 
-    public string GetLeadStatusClass(string? status)
+    public string LeadStatusClass(string? status)
     {
-        string text = GetLeadStatusText(status);
-
-        return text switch
+        return LeadStatusText(status) switch
         {
             "Khách mới" => "status-new",
             "Đang chăm sóc" => "status-contacted",
@@ -47,6 +53,11 @@
             "Không hợp lệ" => "status-invalid",
             _ => "status-unknown"
         };
+    }
+
+    public string SafeText(string? value, string fallback = "Chưa cập nhật")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
     }
 }
 
@@ -67,12 +78,17 @@
             --lead-shadow: 0 16px 38px rgba(15, 23, 42, .07);
         }
 
+        .lead-page {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
         .lead-top-actions {
             display: flex;
             justify-content: space-between;
             gap: 12px;
             align-items: center;
-            margin-bottom: 18px;
             flex-wrap: wrap;
         }
 
@@ -163,7 +179,8 @@
             margin-top: 20px;
         }
 
-        .lead-info-label {
+        .lead-info-label,
+        .lead-label {
             font-size: .74rem;
             text-transform: uppercase;
             letter-spacing: .07em;
@@ -207,15 +224,6 @@
             color: #fff;
             background: var(--lead-primary);
             flex-shrink: 0;
-        }
-
-        .lead-label {
-            font-size: .76rem;
-            text-transform: uppercase;
-            letter-spacing: .07em;
-            color: #475569;
-            font-weight: 950;
-            margin-bottom: 8px;
         }
 
         .lead-input {
@@ -285,7 +293,6 @@
         .lead-alert {
             padding: 18px;
             border-left: 5px solid var(--lead-danger);
-            margin-bottom: 22px;
         }
 
         .schedule-panel {
@@ -309,147 +316,211 @@
             line-height: 1.6;
         }
 
-        @@media (max-width: 1199.98px) {
-            .lead-grid {
-                grid-template-columns: 1fr;
-            }
+        .active-appointment-box {
+            border-radius: 18px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+            padding: 14px 16px;
+            font-weight: 750;
+            line-height: 1.55;
+        }
 
-            .lead-card {
-                position: static;
-            }
+        @@media (max-width: 1199.98px) {
+            .lead-grid
+
+        {
+            grid-template-columns: 1fr;
+        }
+
+        .lead-card {
+            position: static;
+        }
+
         }
 
         @@media (max-width: 575.98px) {
-            .lead-card,
-            .lead-panel,
-            .lead-alert {
-                border-radius: 20px;
-                padding: 18px;
-            }
+            .lead-card, .lead-panel, .lead-alert
 
-            .lead-top-actions .btn {
-                width: 100%;
-            }
+        {
+            border-radius: 20px;
+            padding: 18px;
+        }
 
-            .btn-lead-primary,
-            .btn-lead-dark {
-                width: 100%;
-            }
+        .lead-top-actions .btn,
+        .lead-panel .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
         }
     </style>
 }
 
-<div class="lead-top-actions">
-    <a href="@returnUrl" class="btn btn-lead-light">
-        <i class="bi bi-arrow-left-circle-fill text-primary me-1"></i>
-        Quay lại phễu khách hàng
-    </a>
+<div class="lead-page">
+    <div class="lead-top-actions">
+        <a href="@returnUrl" class="btn btn-lead-light">
+            <i class="bi bi-arrow-left-circle-fill text-primary me-1"></i>
+            Quay lại phễu khách hàng
+        </a>
 
-    <a href="@Url.Action("LeadHistory", "MemberProject", new { id = Model.LeadID })" class="btn btn-lead-light">
-        <i class="bi bi-clock-history text-success me-1"></i>
-        Xem hồ sơ 360
-    </a>
-</div>
-
-@if (isClosed)
-{
-    <div class="lead-alert">
-        <div class="d-flex gap-3 align-items-start">
-            <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-danger text-white flex-shrink-0" style="width:44px;height:44px;">
-                <i class="bi bi-lock-fill fs-5"></i>
-            </div>
-
-            <div>
-                <h5 class="fw-bold text-danger mb-1">Hồ sơ khách hàng đã đóng</h5>
-                <p class="mb-0 text-dark">
-                    Khách hàng đã chốt hoặc bị đánh dấu không hợp lệ. Hệ thống khóa thao tác chỉnh sửa và không cho tạo lịch hẹn mới để bảo toàn lịch sử CRM.
-                </p>
-            </div>
-        </div>
+        <a href="@Url.Action("LeadHistory", "MemberProject", new { id = Model.LeadID })" class="btn btn-lead-light">
+            <i class="bi bi-clock-history text-success me-1"></i>
+            Xem hồ sơ 360
+        </a>
     </div>
-}
 
-<div class="lead-grid">
-    <aside class="lead-card">
-        <div class="lead-avatar">@customerInitial</div>
+    @if (isClosed)
+    {
+        <div class="lead-alert">
+            <div class="d-flex gap-3 align-items-start">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-danger text-white flex-shrink-0" style="width:44px;height:44px;">
+                    <i class="bi bi-lock-fill fs-5"></i>
+                </div>
 
-        <h2 class="lead-name">@Model.Name</h2>
-
-        <div class="text-center">
-            <span class="lead-status @GetLeadStatusClass(Model.LeadStatus)">
-                <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
-                @GetLeadStatusText(Model.LeadStatus)
-            </span>
-        </div>
-
-        <div class="lead-info-block">
-            <div class="lead-info-label">Số điện thoại</div>
-            <div class="lead-info-value d-flex justify-content-between align-items-center gap-2">
-                <span>@Model.Phone</span>
-                <a href="tel:@Model.Phone" class="btn btn-success rounded-circle flex-shrink-0" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;">
-                    <i class="bi bi-telephone-outbound-fill"></i>
-                </a>
+                <div>
+                    <h5 class="fw-bold text-danger mb-1">Hồ sơ khách hàng đã đóng</h5>
+                    <p class="mb-0 text-dark">
+                        Khách hàng đã chốt hoặc bị đánh dấu không hợp lệ. Hệ thống khóa thao tác chỉnh sửa và không cho tạo lịch hẹn mới để bảo toàn lịch sử CRM.
+                    </p>
+                </div>
             </div>
         </div>
+    }
 
-        <div class="lead-info-block">
-            <div class="lead-info-label">Email</div>
-            <div class="lead-info-value">
-                <i class="bi bi-envelope-fill text-primary me-1"></i>
-                @(string.IsNullOrWhiteSpace(Model.Email) ? "Chưa cung cấp" : Model.Email)
-            </div>
-        </div>
+    <div class="lead-grid">
+        <aside class="lead-card">
+            <div class="lead-avatar">@customerInitial</div>
 
-        <div class="lead-info-block">
-            <div class="lead-info-label">Dự án quan tâm</div>
-            <div class="lead-info-value text-primary">
-                <i class="bi bi-building-fill me-1"></i>
-                @(Model.Project?.ProjectName ?? "Chưa xác định")
-            </div>
-        </div>
+            <h2 class="lead-name">@Model.Name</h2>
 
-        <div class="lead-info-block">
-            <div class="lead-info-label">Nội dung khách gửi</div>
-            <div class="lead-info-value">
-                “@(string.IsNullOrWhiteSpace(Model.Message) ? "Khách gửi yêu cầu tư vấn và chưa để lại lời nhắn chi tiết." : Model.Message)”
-            </div>
-            <div class="text-end mt-2 text-muted small fw-bold">
-                @Model.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
-            </div>
-        </div>
-    </aside>
-
-    <section>
-        <div class="lead-panel">
-            <div class="lead-panel-title">
-                <span class="lead-title-icon">
-                    <i class="bi bi-person-lines-fill"></i>
+            <div class="text-center">
+                <span class="lead-status @LeadStatusClass(Model.LeadStatus)">
+                    <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                    @LeadStatusText(Model.LeadStatus)
                 </span>
-                <span>Cập nhật tiến độ chăm sóc</span>
             </div>
 
-            <form asp-action="UpdateLeadStatus" asp-controller="MemberProject" method="post">
-                @Html.AntiForgeryToken()
+            <div class="lead-info-block">
+                <div class="lead-info-label">Số điện thoại</div>
+                <div class="lead-info-value d-flex justify-content-between align-items-center gap-2">
+                    <span>@SafeText(Model.Phone)</span>
 
-                <input type="hidden" name="id" value="@Model.LeadID" />
-                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <a href="tel:@Model.Phone" class="btn btn-success rounded-circle flex-shrink-0" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-telephone-outbound-fill"></i>
+                    </a>
+                </div>
+            </div>
 
-                <div class="row g-4">
+            <div class="lead-info-block">
+                <div class="lead-info-label">Email</div>
+                <div class="lead-info-value">
+                    <i class="bi bi-envelope-fill text-primary me-1"></i>
+                    @SafeText(Model.Email, "Chưa cung cấp")
+                </div>
+            </div>
+
+            <div class="lead-info-block">
+                <div class="lead-info-label">Dự án quan tâm</div>
+                <div class="lead-info-value text-primary">
+                    <i class="bi bi-building-fill me-1"></i>
+                    @SafeText(Model.Project?.ProjectName, "Không rõ dự án")
+                </div>
+            </div>
+
+            <div class="lead-info-block">
+                <div class="lead-info-label">Khu vực dự án</div>
+                <div class="lead-info-value">
+                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                    @SafeText(Model.Project?.Ward?.WardName), @SafeText(Model.Project?.Ward?.Area?.AreaName)
+                </div>
+            </div>
+
+            <div class="lead-info-block">
+                <div class="lead-info-label">Ngày gửi yêu cầu</div>
+                <div class="lead-info-value">
+                    <i class="bi bi-clock-history text-secondary me-1"></i>
+                    @Model.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                </div>
+            </div>
+
+            @if (Model.Project != null)
+            {
+                <div class="d-grid gap-2 mt-4">
+                    <a href="/Project/Details/@Model.ProjectID" target="_blank" class="btn btn-lead-light">
+                        <i class="bi bi-eye-fill text-primary me-1"></i>
+                        Xem dự án công khai
+                    </a>
+                </div>
+            }
+        </aside>
+
+        <main>
+            <section class="lead-panel">
+                <div class="lead-panel-title">
+                    <span class="lead-title-icon">
+                        <i class="bi bi-chat-left-text-fill"></i>
+                    </span>
+                    <span>Nhu cầu khách hàng</span>
+                </div>
+
+                <div class="lead-info-value">
+                    @(string.IsNullOrWhiteSpace(Model.Message) ? "Khách chưa để lại nội dung chi tiết." : Model.Message)
+                </div>
+            </section>
+
+            <section class="lead-panel">
+                <div class="lead-panel-title">
+                    <span class="lead-title-icon" style="background:#111827;">
+                        <i class="bi bi-clipboard2-check-fill"></i>
+                    </span>
+                    <span>Cập nhật trạng thái CRM</span>
+                </div>
+
+                <form asp-action="UpdateLeadStatus"
+                      asp-controller="MemberProject"
+                      method="post"
+                      class="row g-4 js-confirm-form"
+                      data-confirm-title="Lưu nhật ký CRM?"
+                      data-confirm-text="Hệ thống sẽ cập nhật trạng thái và ghi lại lịch sử chăm sóc khách hàng."
+                      data-confirm-icon="question"
+                      data-confirm-button="Đồng ý lưu">
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="id" value="@Model.LeadID" />
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+
                     <div class="col-lg-5">
-                        <label class="form-label lead-label">Trạng thái khách hàng</label>
+                        <label class="form-label lead-label">Trạng thái chăm sóc</label>
 
-                        <select name="status" class="form-select lead-input" disabled="@isClosed">
-                            <option value="New" selected="@(Model.LeadStatus == "New")">Khách mới</option>
-                            <option value="Contacted" selected="@(Model.LeadStatus == "Contacted")">Đang chăm sóc</option>
-                            <option value="Resolved" selected="@(Model.LeadStatus == "Resolved")">Đã chốt thành công</option>
-                            <option value="Invalid" selected="@(Model.LeadStatus == "Invalid")">Không hợp lệ / hủy</option>
+                        <select name="status"
+                                id="leadStatusSelect"
+                                class="form-select lead-input"
+                                disabled="@isClosed"
+                                required>
+                            <option value="New" selected="@(Model.LeadStatus == "New" || Model.LeadStatus == "Mới")">
+                                Khách mới
+                            </option>
+
+                            <option value="Contacted" selected="@(Model.LeadStatus == "Contacted" || Model.LeadStatus == "Đã liên hệ")">
+                                Đang chăm sóc
+                            </option>
+
+                            <option value="Resolved" selected="@(Model.LeadStatus == "Resolved" || Model.LeadStatus == "Đã chốt")">
+                                Đã chốt thành công
+                            </option>
+
+                            <option value="Invalid" selected="@(Model.LeadStatus == "Invalid" || Model.LeadStatus == "Không hợp lệ")">
+                                Không hợp lệ / hủy
+                            </option>
                         </select>
 
                         @if (!isClosed)
                         {
                             <div class="lead-note mt-3">
                                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                Khi chọn <strong>Đã chốt</strong> hoặc <strong>Không hợp lệ</strong>, hồ sơ sẽ bị khóa để bảo toàn dữ liệu.
+                                Không được lùi từ <strong>Đang chăm sóc</strong> về <strong>Khách mới</strong>.
+                                Khi chọn <strong>Đã chốt</strong> hoặc <strong>Không hợp lệ</strong>, hồ sơ sẽ bị khóa.
                             </div>
                         }
                     </div>
@@ -458,93 +529,293 @@
                         <label class="form-label lead-label">Ghi chú chăm sóc mới</label>
 
                         <textarea name="note"
+                                  id="leadNoteInput"
                                   class="form-control lead-input"
-                                  placeholder="Ghi lại nội dung cuộc gọi, nhu cầu, ngân sách, thời điểm khách muốn xem dự án..."
+                                  placeholder="Ví dụ: Đã gọi khách, khách quan tâm căn 2PN, ngân sách khoảng 2 tỷ, muốn xem dự án vào cuối tuần..."
                                   disabled="@isClosed"></textarea>
+
+                        <div class="form-text fw-semibold text-muted">
+                            Bắt buộc nhập ghi chú khi chuyển sang Đang chăm sóc, Đã chốt hoặc Không hợp lệ.
+                        </div>
                     </div>
 
-                    <div class="col-12 text-end">
-                        <button type="submit" class="btn btn-lead-dark px-4" disabled="@isClosed">
+                    <div class="col-12 d-flex justify-content-end flex-wrap gap-2">
+                        @if (!isClosed)
+                        {
+                            <button type="button"
+                                    class="btn btn-outline-success rounded-pill fw-bold px-4"
+                                    onclick="openQuickCallModal()">
+                                <i class="bi bi-telephone-outbound-fill me-1"></i>
+                                Ghi nhanh đã gọi
+                            </button>
+                        }
+
+                        <button type="submit"
+                                class="btn btn-lead-dark px-4"
+                                disabled="@isClosed">
                             <i class="bi bi-cloud-arrow-up-fill me-1"></i>
                             Lưu nhật ký CRM
                         </button>
                     </div>
-                </div>
-            </form>
-        </div>
+                </form>
 
-        <div class="lead-panel schedule-panel @(isClosed ? "locked" : "")">
-            <div class="lead-panel-title">
-                <span class="lead-title-icon" style="background:var(--lead-success);">
-                    <i class="bi bi-calendar-plus-fill"></i>
-                </span>
-                <span>Điều phối lịch xem dự án</span>
-            </div>
+                <form id="quickCallForm"
+                      asp-action="QuickCall"
+                      asp-controller="MemberProject"
+                      method="post"
+                      class="d-none">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.LeadID" />
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <input type="hidden" name="note" id="quickCallNote" />
+                </form>
+            </section>
 
-            <p class="text-muted fw-semibold mb-4">
-                Tạo lịch hẹn cho khách hàng và phân công nhân viên thực địa phụ trách đón/giới thiệu dự án.
-            </p>
-
-            <form asp-action="ScheduleSiteVisit" asp-controller="MemberProject" method="post" class="row g-4">
-                @Html.AntiForgeryToken()
-
-                <input type="hidden" name="leadId" value="@Model.LeadID" />
-                <input type="hidden" name="returnUrl" value="@returnUrl" />
-
-                <div class="col-md-6 col-xl-4">
-                    <label class="form-label lead-label">Ngày xem dự án</label>
-                    <input type="date"
-                           name="appointmentDate"
-                           class="form-control lead-input"
-                           min="@DateTime.Now.ToString("yyyy-MM-dd")"
-                           required
-                           disabled="@isClosed" />
+            <section class="lead-panel schedule-panel @(isClosed || hasActiveAppointment ? "locked" : "")">
+                <div class="lead-panel-title">
+                    <span class="lead-title-icon" style="background:#059669;">
+                        <i class="bi bi-calendar2-plus-fill"></i>
+                    </span>
+                    <span>Điều phối lịch xem dự án</span>
                 </div>
 
-                <div class="col-md-6 col-xl-4">
-                    <label class="form-label lead-label">Giờ hẹn</label>
-                    <input type="time"
-                           name="appointmentTime"
-                           class="form-control lead-input"
-                           required
-                           disabled="@isClosed" />
-                </div>
+                @if (hasActiveAppointment && !isClosed)
+                {
+                    <div class="active-appointment-box mb-4">
+                        <i class="bi bi-calendar2-exclamation-fill me-1"></i>
+                        Khách hàng này đang có lịch hẹn mở. Hãy xử lý lịch hiện tại trước khi tạo lịch mới.
 
-                <div class="col-md-12 col-xl-4">
-                    <label class="form-label lead-label">Nhân viên phụ trách</label>
-                    <input type="text"
-                           name="assignedStaffName"
-                           class="form-control lead-input"
-                           placeholder="Ví dụ: Nguyễn Văn A"
-                           required
-                           disabled="@isClosed" />
-                </div>
+                        <div class="mt-2">
+                            @foreach (var ap in activeAppointments)
+                            {
+                                <div>
+                                    <strong>@ap.AppointmentDate.ToString("HH:mm dd/MM/yyyy")</strong>
+                                    - @(string.IsNullOrWhiteSpace(ap.AssignedStaffName) ? "Chưa có nhân viên" : ap.AssignedStaffName)
+                                    - @ap.Status
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
 
-                <div class="col-12">
-                    <label class="form-label lead-label">Email nhân viên</label>
-                    <input type="email"
-                           name="assignedStaffEmail"
-                           class="form-control lead-input"
-                           placeholder="nhanvien@congty.com"
-                           required
-                           disabled="@isClosed" />
-                </div>
+                <form asp-action="ScheduleSiteVisit"
+                      asp-controller="MemberProject"
+                      method="post"
+                      class="row g-4 js-confirm-form"
+                      data-confirm-title="Tạo lịch xem dự án?"
+                      data-confirm-text="Hệ thống sẽ tạo lịch hẹn, kiểm tra chống trùng lịch và lưu lịch sử CRM cho khách hàng."
+                      data-confirm-icon="question"
+                      data-confirm-button="Tạo lịch hẹn">
+                    @Html.AntiForgeryToken()
 
-                <div class="col-12">
-                    <label class="form-label lead-label">Ghi chú điều phối</label>
-                    <textarea name="note"
-                              class="form-control lead-input"
-                              placeholder="Ví dụ: Khách cần xem block A, chuẩn bị bảng giá mới nhất, đón khách tại sảnh chính..."
-                              disabled="@isClosed"></textarea>
-                </div>
+                    <input type="hidden" name="leadId" value="@Model.LeadID" />
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
 
-                <div class="col-12 text-end">
-                    <button type="submit" class="btn btn-lead-primary px-4" disabled="@isClosed">
-                        <i class="bi bi-send-fill me-1"></i>
-                        Tạo lịch hẹn
-                    </button>
-                </div>
-            </form>
-        </div>
-    </section>
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">Ngày xem dự án</label>
+                        <input type="date"
+                               name="appointmentDate"
+                               class="form-control lead-input"
+                               min="@DateTime.Now.ToString("yyyy-MM-dd")"
+                               required
+                               disabled="@(isClosed || hasActiveAppointment)" />
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">Giờ hẹn</label>
+                        <input type="time"
+                               name="appointmentTime"
+                               class="form-control lead-input"
+                               min="07:00"
+                               max="21:00"
+                               required
+                               disabled="@(isClosed || hasActiveAppointment)" />
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">Nhân viên phụ trách</label>
+                        <input type="text"
+                               name="assignedStaffName"
+                               class="form-control lead-input"
+                               placeholder="Ví dụ: Nguyễn Văn A"
+                               maxlength="100"
+                               required
+                               disabled="@(isClosed || hasActiveAppointment)" />
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">SĐT nhân viên</label>
+                        <input type="tel"
+                               name="assignedStaffPhone"
+                               class="form-control lead-input"
+                               placeholder="Ví dụ: 0901234567"
+                               maxlength="20"
+                               disabled="@(isClosed || hasActiveAppointment)" />
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">Email nhân viên</label>
+                        <input type="email"
+                               name="assignedStaffEmail"
+                               class="form-control lead-input"
+                               placeholder="email@congty.com"
+                               maxlength="255"
+                               disabled="@(isClosed || hasActiveAppointment)" />
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <label class="form-label lead-label">Trạng thái tạo lịch</label>
+                        <div class="lead-info-value">
+                            @if (isClosed)
+                            {
+                                <span class="text-danger fw-bold">
+                                    <i class="bi bi-lock-fill me-1"></i>
+                                    Hồ sơ đã khóa
+                                </span>
+                            }
+                            else if (hasActiveAppointment)
+                            {
+                                <span class="text-warning fw-bold">
+                                    <i class="bi bi-hourglass-split me-1"></i>
+                                    Đã có lịch đang mở
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-success fw-bold">
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                    Có thể tạo lịch mới
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label lead-label">Ghi chú điều phối</label>
+                        <textarea name="note"
+                                  class="form-control lead-input"
+                                  placeholder="Ví dụ: Khách đi 2 người, muốn xem pháp lý, ưu tiên khung 9h sáng, cần nhân viên gọi trước 30 phút..."
+                                  disabled="@(isClosed || hasActiveAppointment)"></textarea>
+                    </div>
+
+                    <div class="col-12 text-end">
+                        <button type="submit"
+                                class="btn btn-lead-primary px-4"
+                                disabled="@(isClosed || hasActiveAppointment)">
+                            <i class="bi bi-calendar-plus-fill me-1"></i>
+                            Tạo lịch xem dự án
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
 </div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        function openQuickCallModal() {
+            Swal.fire({
+                title: 'Ghi nhanh cuộc gọi',
+                html: `
+                    <div class="text-start">
+                        <p class="text-muted mb-2">
+                            Nhập ngắn gọn kết quả cuộc gọi để lưu vào lịch sử CRM.
+                        </p>
+                        <div class="alert alert-info rounded-4 mb-0">
+                            Ví dụ: Khách nghe máy, quan tâm dự án, hẹn gọi lại lúc 15h.
+                        </div>
+                    </div>
+                `,
+                input: 'textarea',
+                inputPlaceholder: 'Nhập ghi chú cuộc gọi...',
+                inputAttributes: {
+                    maxlength: 1000
+                },
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-telephone-outbound-fill"></i> Lưu cuộc gọi',
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#059669',
+                cancelButtonColor: '#64748b',
+                customClass: {
+                    popup: 'rounded-4',
+                    input: 'rounded-4',
+                    confirmButton: 'rounded-pill px-4',
+                    cancelButton: 'rounded-pill px-4'
+                },
+                inputValidator: function (value) {
+                    if (!value || value.trim().length < 5) {
+                        return 'Vui lòng nhập ghi chú tối thiểu 5 ký tự.';
+                    }
+                }
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    document.getElementById('quickCallNote').value = result.value.trim();
+                    document.getElementById('quickCallForm').submit();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.js-confirm-form').forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    const statusSelect = form.querySelector('#leadStatusSelect');
+                    const noteInput = form.querySelector('#leadNoteInput');
+
+                    if (statusSelect && noteInput) {
+                        const status = statusSelect.value;
+                        const note = noteInput.value.trim();
+
+                        if ((status === 'Contacted' && note.length < 5) ||
+                            ((status === 'Resolved' || status === 'Invalid') && note.length < 10)) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Thiếu ghi chú CRM',
+                                text: status === 'Contacted'
+                                    ? 'Khi chuyển sang Đang chăm sóc, vui lòng nhập ghi chú tối thiểu 5 ký tự.'
+                                    : 'Khi chốt hoặc hủy hồ sơ, vui lòng nhập ghi chú tối thiểu 10 ký tự.',
+                                confirmButtonColor: '#2563eb'
+                            });
+
+                            return;
+                        }
+                    }
+
+                    if (!form.checkValidity()) {
+                        form.reportValidity();
+                        return;
+                    }
+
+                    const title = form.dataset.confirmTitle || 'Xác nhận thao tác?';
+                    const text = form.dataset.confirmText || 'Bạn có chắc chắn muốn thực hiện thao tác này?';
+                    const icon = form.dataset.confirmIcon || 'question';
+                    const button = form.dataset.confirmButton || 'Đồng ý';
+
+                    Swal.fire({
+                        title: title,
+                        text: text,
+                        icon: icon,
+                        showCancelButton: true,
+                        confirmButtonText: button,
+                        cancelButtonText: 'Hủy',
+                        confirmButtonColor: '#2563eb',
+                        cancelButtonColor: '#64748b',
+                        customClass: {
+                            popup: 'rounded-4',
+                            confirmButton: 'rounded-pill px-4',
+                            cancelButton: 'rounded-pill px-4'
+                        }
+                    }).then(function (result) {
+                        if (result.isConfirmed) {
+                            form.submit();
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+}

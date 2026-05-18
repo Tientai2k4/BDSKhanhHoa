@@ -1,206 +1,512 @@
 ﻿@model IEnumerable<dynamic>
 @{
-    ViewData["Title"] = "Hộp thư & Trò chuyện";
+    ViewData["Title"] = "Hộp thư & Chat tư vấn";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
     int currentUserId = ViewBag.CurrentUserId;
+    string openReceiverId = Convert.ToString(ViewBag.OpenReceiverId ?? "");
+    string openPropertyId = Convert.ToString(ViewBag.OpenPropertyId ?? "");
 }
 
 <style>
-    /* --- BỐ CỤC TỔNG THỂ (SỬA LỖI TRÀN MÀN HÌNH) --- */
-    .chat-container {
-        display: flex;
-        flex-direction: row;
-        height: calc(100vh - 120px);
-        min-height: 500px;
-        background: #fff;
-        border-radius: 16px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    .chat-shell {
+        height: calc(100vh - 128px);
+        min-height: 610px;
+        display: grid;
+        grid-template-columns: 390px minmax(0, 1fr);
+        background: rgba(255, 255, 255, 0.96);
         border: 1px solid #e2e8f0;
-        margin: 20px 0 40px 0;
-        overflow: hidden; /* Khóa chặt không cho phần tử con tràn ra ngoài */
+        border-radius: 24px;
+        box-shadow: 0 22px 60px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
         position: relative;
     }
 
-    /* --- SIDEBAR TRÁI --- */
-    .chat-sidebar {
-        width: 340px;
-        flex-shrink: 0; /* Không bị bóp méo khi màn hình nhỏ */
-        background: #f8fafc;
-        border-right: 1px solid #e2e8f0;
+    .chat-left {
+        min-width: 0;
         display: flex;
         flex-direction: column;
-        z-index: 5;
+        border-right: 1px solid #e2e8f0;
+        background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 36%), #f8fafc;
     }
 
-    .chat-sidebar-header {
-        padding: 20px;
+    .chat-left-head {
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.92);
         border-bottom: 1px solid #e2e8f0;
-        background: #fff;
-        flex-shrink: 0;
+        flex: 0 0 auto;
     }
+
+    .chat-title-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+        .chat-title-line h5 {
+            margin: 0;
+            font-weight: 900;
+            letter-spacing: -0.4px;
+            color: #0f172a;
+        }
+
+    .chat-count {
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+        font-size: 0.78rem;
+        font-weight: 900;
+        padding: 6px 10px;
+        white-space: nowrap;
+    }
+
+    .chat-search-box {
+        position: relative;
+        margin-bottom: 12px;
+    }
+
+        .chat-search-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+
+        .chat-search-box input {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 12px 14px 12px 42px;
+            font-weight: 700;
+            outline: none;
+            color: #0f172a;
+            transition: 0.18s ease;
+        }
+
+            .chat-search-box input:focus {
+                border-color: #93c5fd;
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
+            }
+
+    .chat-filter-row {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+
+        .chat-filter-row::-webkit-scrollbar {
+            display: none;
+        }
+
+    .chat-filter-btn {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 0.78rem;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        white-space: nowrap;
+        transition: 0.18s ease;
+    }
+
+        .chat-filter-btn:hover,
+        .chat-filter-btn.active {
+            color: #2563eb;
+            border-color: #bfdbfe;
+            background: #eff6ff;
+        }
 
     .conversation-list {
         flex: 1;
         overflow-y: auto;
+        padding: 10px;
     }
 
     .conversation-item {
-        padding: 16px 20px;
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
         display: flex;
         gap: 12px;
+        text-align: left;
+        padding: 13px;
+        border-radius: 18px;
         cursor: pointer;
-        transition: 0.2s;
-        border-bottom: 1px solid #f1f5f9;
-        text-decoration: none;
+        transition: 0.18s ease;
         color: #334155;
+        margin-bottom: 8px;
+        position: relative;
     }
 
-        .conversation-item:hover, .conversation-item.active {
-            background: #eff6ff;
+        .conversation-item:hover {
+            background: #ffffff;
+            border-color: #e2e8f0;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
 
         .conversation-item.active {
-            border-left: 4px solid #2563eb;
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            box-shadow: inset 4px 0 0 #2563eb, 0 12px 30px rgba(37, 99, 235, 0.08);
         }
 
-    .cv-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid #e2e8f0;
-        flex-shrink: 0;
+        .conversation-item.unread::after {
+            content: "";
+            position: absolute;
+            right: 14px;
+            top: 14px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #ef4444;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+        }
+
+    .cv-avatar-wrap {
+        width: 52px;
+        height: 52px;
+        flex: 0 0 auto;
+        position: relative;
     }
 
-    /* FIX LỖI TRÀN CHỮ: Thêm min-width: 0 */
+    .cv-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+        object-fit: cover;
+        border: 2px solid #ffffff;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09);
+    }
+
+    .cv-role-dot {
+        position: absolute;
+        right: -2px;
+        bottom: -2px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        color: #ffffff;
+        display: grid;
+        place-items: center;
+        font-size: 0.75rem;
+        border: 2px solid #ffffff;
+    }
+
+        .cv-role-dot.buyer {
+            background: #16a34a;
+        }
+
+        .cv-role-dot.seller {
+            background: #2563eb;
+        }
+
     .cv-info {
         flex: 1;
         min-width: 0;
+    }
+
+    .cv-top {
         display: flex;
-        flex-direction: column;
-        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding-right: 10px;
     }
 
     .cv-name {
-        font-weight: 700;
-        font-size: 0.95rem;
+        font-weight: 900;
         color: #0f172a;
-        margin-bottom: 2px;
+        font-size: 0.93rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cv-badge {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 4px 7px;
+        font-size: 0.65rem;
+        font-weight: 900;
+        border: 1px solid;
+        white-space: nowrap;
+    }
+
+        .cv-badge.ask {
+            color: #15803d;
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+        }
+
+        .cv-badge.reply {
+            color: #1d4ed8;
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .cv-prop,
+    .cv-lastmsg {
+        margin-top: 4px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
     .cv-prop {
-        font-size: 0.75rem;
         color: #2563eb;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-weight: 600;
+        font-size: 0.76rem;
+        font-weight: 800;
     }
 
     .cv-lastmsg {
-        font-size: 0.85rem;
         color: #64748b;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-top: 2px;
+        font-size: 0.82rem;
+        font-weight: 600;
     }
 
-    /* --- KHUNG CHAT PHẢI --- */
-    .chat-window {
-        flex: 1;
+    .cv-time {
+        margin-top: 6px;
+        color: #94a3b8;
+        font-size: 0.72rem;
+        font-weight: 800;
+    }
+
+    .chat-right {
+        min-width: 0;
         display: flex;
         flex-direction: column;
-        min-width: 0; /* FIX LỖI TRÀN MÀN HÌNH DO NỘI DUNG DÀI */
-        background: #fff;
+        background: #ffffff;
         position: relative;
     }
 
+    .empty-chat {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        text-align: center;
+        background: radial-gradient(circle at center, rgba(37, 99, 235, 0.08), transparent 38%), #ffffff;
+    }
+
+    .empty-chat-card {
+        max-width: 430px;
+    }
+
+    .empty-chat-icon {
+        width: 86px;
+        height: 86px;
+        margin: 0 auto 18px;
+        border-radius: 30px;
+        display: grid;
+        place-items: center;
+        background: #eff6ff;
+        color: #2563eb;
+        font-size: 2.8rem;
+        box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12);
+    }
+
+    .active-chat {
+        height: 100%;
+        display: none;
+        flex-direction: column;
+        min-width: 0;
+    }
+
     .chat-header {
-        padding: 15px 25px;
+        flex: 0 0 auto;
+        padding: 16px 20px;
         border-bottom: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.94);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: #fff;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        gap: 16px;
         z-index: 2;
-        flex-shrink: 0;
     }
 
     .btn-back-mobile {
         display: none;
-        background: transparent;
-        border: none;
-        font-size: 1.5rem;
+        border: 0;
+        background: #f1f5f9;
         color: #0f172a;
-        padding-right: 15px;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        font-size: 1.25rem;
+        flex: 0 0 auto;
+    }
+
+    .head-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 17px;
+        object-fit: cover;
+        border: 2px solid #ffffff;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+        flex: 0 0 auto;
+    }
+
+    .head-main {
+        min-width: 0;
+    }
+
+    .head-name {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .head-sub {
+        color: #64748b;
+        font-size: 0.79rem;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .role-status-pill {
+        margin-top: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 900;
+    }
+
+    .head-property {
+        max-width: 310px;
+        text-align: right;
+        min-width: 0;
+    }
+
+    .head-property-title {
+        color: #2563eb;
+        font-size: 0.86rem;
+        font-weight: 900;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .head-property-price {
+        color: #dc2626;
+        font-size: 0.92rem;
+        font-weight: 900;
     }
 
     .chat-messages {
         flex: 1;
-        padding: 25px;
+        min-height: 0;
         overflow-y: auto;
-        background: #f1f5f9;
+        padding: 22px;
         display: flex;
         flex-direction: column;
-        gap: 15px;
+        gap: 14px;
+        background: linear-gradient(rgba(248, 250, 252, 0.94), rgba(248, 250, 252, 0.94)), radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.08), transparent 28%);
     }
 
-    /* --- BUBBLE TIN NHẮN --- */
-    .msg-box {
+    .msg-row {
         display: flex;
-        flex-direction: column;
-        max-width: 75%;
+        gap: 10px;
+        max-width: 78%;
     }
 
-        .msg-box.mine {
+        .msg-row.mine {
             align-self: flex-end;
-            align-items: flex-end;
+            flex-direction: row-reverse;
         }
 
-        .msg-box.theirs {
+        .msg-row.theirs {
             align-self: flex-start;
-            align-items: flex-start;
         }
+
+    .msg-mini-avatar {
+        width: 31px;
+        height: 31px;
+        border-radius: 11px;
+        object-fit: cover;
+        margin-top: 16px;
+        flex: 0 0 auto;
+    }
+
+    .msg-body {
+        min-width: 0;
+    }
+
+    .msg-label {
+        margin-bottom: 4px;
+        color: #64748b;
+        font-size: 0.72rem;
+        font-weight: 900;
+    }
+
+    .msg-row.mine .msg-label {
+        text-align: right;
+        color: #2563eb;
+    }
 
     .msg-bubble {
-        padding: 12px 18px;
-        border-radius: 20px;
-        font-size: 0.95rem;
-        line-height: 1.5;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        word-wrap: break-word;
+        max-width: 100%;
+        padding: 12px 15px;
+        border-radius: 18px;
+        font-size: 0.94rem;
+        line-height: 1.55;
+        font-weight: 600;
+        word-break: break-word;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
     }
 
-    .msg-box.mine .msg-bubble {
-        background: #2563eb;
-        color: #fff;
-        border-bottom-right-radius: 4px;
+    .msg-row.mine .msg-bubble {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #ffffff;
+        border-bottom-right-radius: 6px;
     }
 
-    .msg-box.theirs .msg-bubble {
-        background: #fff;
+    .msg-row.theirs .msg-bubble {
+        background: #ffffff;
         color: #334155;
         border: 1px solid #e2e8f0;
-        border-bottom-left-radius: 4px;
+        border-bottom-left-radius: 6px;
     }
 
     .msg-time {
-        font-size: 0.7rem;
-        color: #94a3b8;
         margin-top: 5px;
+        color: #94a3b8;
+        font-size: 0.7rem;
+        font-weight: 800;
     }
 
-    /* Ảnh & File gửi lên */
+    .msg-row.mine .msg-time {
+        text-align: right;
+    }
+
     .msg-image {
-        max-width: 250px;
-        border-radius: 12px;
+        max-width: min(320px, 70vw);
+        border-radius: 18px;
         cursor: pointer;
-        border: 2px solid #e2e8f0;
+        border: 2px solid #ffffff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
         object-fit: cover;
     }
 
@@ -208,325 +514,521 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        background: #e2e8f0;
-        padding: 10px 15px;
-        border-radius: 12px;
+        border-radius: 16px;
+        padding: 12px 14px;
+        background: #ffffff;
         color: #0f172a;
+        border: 1px solid #e2e8f0;
+        font-weight: 900;
         text-decoration: none;
-        font-weight: bold;
     }
 
-    .msg-box.mine .msg-file {
-        background: rgba(255,255,255,0.2);
-        color: #fff;
+    .msg-row.mine .msg-file {
+        background: rgba(255, 255, 255, 0.18);
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.25);
     }
 
-    /* --- QUICK REPLIES CHIPS --- */
-    .quick-replies-container {
+    .quick-replies {
+        flex: 0 0 auto;
         display: flex;
-        gap: 10px;
-        padding: 12px 20px;
-        background: #fff;
-        border-top: 1px solid #e2e8f0;
+        gap: 9px;
+        padding: 12px 18px;
         overflow-x: auto;
-        white-space: nowrap;
+        background: #ffffff;
+        border-top: 1px solid #e2e8f0;
         scrollbar-width: none;
-        flex-shrink: 0;
     }
 
-        .quick-replies-container::-webkit-scrollbar {
+        .quick-replies::-webkit-scrollbar {
             display: none;
         }
 
     .quick-reply-pill {
-        background: #fff;
+        flex: 0 0 auto;
         border: 1px solid #cbd5e1;
+        background: #ffffff;
         color: #2563eb;
-        font-size: 0.85rem;
-        font-weight: 600;
-        padding: 8px 16px;
-        border-radius: 20px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 900;
         cursor: pointer;
-        transition: 0.2s;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-        flex-shrink: 0;
+        transition: 0.18s ease;
     }
 
         .quick-reply-pill:hover {
             background: #eff6ff;
             border-color: #93c5fd;
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
 
-    /* --- INPUT AREA --- */
+    .file-preview {
+        display: none;
+        flex: 0 0 auto;
+        padding: 10px 18px;
+        background: #eff6ff;
+        border-top: 1px solid #bfdbfe;
+        color: #1e40af;
+        font-size: 0.84rem;
+        font-weight: 900;
+    }
+
     .chat-input-area {
-        padding: 15px 20px;
-        background: #fff;
+        flex: 0 0 auto;
         display: flex;
         align-items: center;
-        gap: 12px;
-        flex-shrink: 0;
+        gap: 10px;
+        padding: 14px 18px;
+        background: #ffffff;
+        border-top: 1px solid #e2e8f0;
     }
+
+    .btn-chat-tool {
+        width: 43px;
+        height: 43px;
+        border: 0;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: 0.18s ease;
+        flex: 0 0 auto;
+    }
+
+        .btn-chat-tool:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
 
     .chat-input {
         flex: 1;
+        min-width: 0;
         border: 1px solid #e2e8f0;
-        border-radius: 25px;
-        padding: 12px 20px;
-        outline: none;
-        transition: 0.3s;
         background: #f8fafc;
+        border-radius: 18px;
+        padding: 12px 15px;
+        font-weight: 700;
+        color: #0f172a;
+        outline: none;
+        transition: 0.18s ease;
     }
 
         .chat-input:focus {
-            border-color: #2563eb;
-            background: #fff;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-    .btn-action {
-        width: 45px;
-        height: 45px;
-        border-radius: 50%;
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
-        cursor: pointer;
-        transition: 0.2s;
-        flex-shrink: 0;
-    }
-
-    .btn-attach {
-        background: #f1f5f9;
-        color: #475569;
-    }
-
-        .btn-attach:hover {
-            background: #e2e8f0;
+            background: #ffffff;
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
         }
 
     .btn-send {
-        background: #2563eb;
-        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #ffffff;
     }
 
         .btn-send:hover {
-            background: #1d4ed8;
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            color: #ffffff;
         }
 
-    #filePreviewContainer {
+    .no-result-box {
         display: none;
-        padding: 10px 25px;
-        background: #eff6ff;
-        border-top: 1px solid #bfdbfe;
-        font-size: 0.85rem;
-        font-weight: bold;
-        color: #1e40af;
-        flex-shrink: 0;
+        padding: 26px;
+        text-align: center;
+        color: #64748b;
+        font-weight: 800;
     }
 
-    .empty-chat {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        color: #94a3b8;
-        background: #f8fafc;
-    }
-
-    /* --- RESPONSIVE MOBILE TỐI ƯU --- */
-    @@media (max-width: 768px) {
-        .chat-container {
-            height: calc(100vh - 80px);
-            margin: 10px 0;
-            border-radius: 12px;
+    @@media (max-width: 991.98px) {
+        .chat-shell {
+            height: calc(100vh - 92px);
+            min-height: 560px;
+            grid-template-columns: 1fr;
+            border-radius: 18px;
         }
 
-        .chat-sidebar {
+        .chat-left {
             width: 100%;
+            border-right: 0;
         }
 
-        .chat-window {
+        .chat-right {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             z-index: 10;
             transform: translateX(100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-            .chat-window.mobile-active {
+            .chat-right.mobile-active {
                 transform: translateX(0);
             }
 
         .btn-back-mobile {
-            display: block;
+            display: grid;
+            place-items: center;
+        }
+
+        .head-property {
+            display: none;
+        }
+
+        .msg-row {
+            max-width: 88%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .chat-shell {
+            height: calc(100vh - 84px);
+            border-radius: 14px;
+        }
+
+        .chat-left-head {
+            padding: 14px;
+        }
+
+        .conversation-list {
+            padding: 8px;
+        }
+
+        .conversation-item {
+            padding: 11px;
+        }
+
+        .chat-header {
+            padding: 12px;
+        }
+
+        .chat-messages {
+            padding: 14px;
+        }
+
+        .msg-mini-avatar {
+            display: none;
+        }
+
+        .msg-row {
+            max-width: 92%;
+        }
+
+        .quick-replies {
+            padding: 10px 12px;
         }
 
         .chat-input-area {
-            padding: 10px 15px;
-            gap: 8px;
+            padding: 10px;
+            gap: 7px;
         }
 
-        .btn-action {
-            width: 40px;
-            height: 40px;
-            font-size: 1rem;
+        .btn-chat-tool {
+            width: 39px;
+            height: 39px;
+            border-radius: 13px;
         }
     }
 </style>
 
-<div class="container px-md-3 px-0">
-    <div class="chat-container">
-
-        <div class="chat-sidebar">
-            <div class="chat-sidebar-header">
-                <h5 class="fw-black mb-0 text-dark"><i class="bi bi-chat-left-dots-fill text-primary me-2"></i>Hộp thư BĐS</h5>
+<div class="chat-shell">
+    <aside class="chat-left">
+        <div class="chat-left-head">
+            <div class="chat-title-line">
+                <h5><i class="bi bi-chat-left-dots-fill text-primary me-2"></i>Hộp thư BĐS</h5>
+                <span class="chat-count">@Model.Count() cuộc trò chuyện</span>
             </div>
-            <div class="conversation-list">
-                @if (!Model.Any())
-                {
-                    <div class="text-center p-4 text-muted small mt-4">
-                        <i class="bi bi-inbox fs-1 opacity-50 mb-2 d-block"></i> Chưa có cuộc hội thoại nào.
-                    </div>
-                }
 
-                @foreach (var msg in Model)
-                {
-                    int partnerId = msg.SenderID == currentUserId ? msg.ReceiverID : msg.SenderID;
-                    var partner = msg.SenderID == currentUserId ? msg.Receiver : msg.Sender;
-                    string partnerName = partner?.FullName ?? partner?.Username;
-                    string propTitle = msg.Property?.Title ?? "Bất động sản đã xóa";
-                    string lastMsg = msg.MessageType == "Text" ? msg.MessageContent : $"[{msg.MessageType}] Đã gửi một tệp đính kèm";
+            <div class="chat-search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="conversationSearch" placeholder="Tìm theo tên, tin đăng, nội dung..." autocomplete="off" />
+            </div>
 
-                    <div class="conversation-item" data-partner="@partnerId" data-prop="@msg.PropertyID" onclick="openChat(@partnerId, @msg.PropertyID, this)">
-                        <img src="@(partner?.Avatar ?? "/images/avatars/default-user.png")" class="cv-avatar">
-                        <div class="cv-info">
-                            <div class="cv-name">@partnerName</div>
-                            <div class="cv-prop"><i class="bi bi-house-door-fill me-1"></i>@propTitle</div>
-                            <div class="cv-lastmsg">@lastMsg</div>
-                        </div>
-                    </div>
-                }
+            <div class="chat-filter-row">
+                <button type="button" class="chat-filter-btn active" data-filter="all"><i class="bi bi-ui-checks-grid"></i>Tất cả</button>
+                <button type="button" class="chat-filter-btn" data-filter="buyer"><i class="bi bi-question-circle"></i>Tôi hỏi</button>
+                <button type="button" class="chat-filter-btn" data-filter="seller"><i class="bi bi-reply-all"></i>Tôi trả lời</button>
+                <button type="button" class="chat-filter-btn" data-filter="unread"><i class="bi bi-bell"></i>Chưa đọc</button>
             </div>
         </div>
 
-        <div class="chat-window" id="mainChatWindow">
+        <div class="conversation-list" id="conversationList">
+            @if (!Model.Any())
+            {
+                <div class="text-center p-4 text-muted small mt-4">
+                    <i class="bi bi-inbox fs-1 opacity-50 mb-2 d-block"></i>
+                    Chưa có cuộc hội thoại nào.
+                </div>
+            }
 
-            <div id="emptyScreen" class="empty-chat">
-                <i class="bi bi-chat-square-heart" style="font-size: 4rem; opacity: 0.3; margin-bottom:15px;"></i>
-                <h5>Chọn một cuộc hội thoại để bắt đầu</h5>
+            @foreach (var msg in Model)
+            {
+                int partnerId = msg.SenderID == currentUserId ? msg.ReceiverID : msg.SenderID;
+                var partner = msg.SenderID == currentUserId ? msg.Receiver : msg.Sender;
+
+                string partnerName = partner?.FullName ?? partner?.Username ?? "Người dùng";
+                string partnerAvatar = partner?.Avatar ?? "/images/avatars/default-user.png";
+                string propTitle = msg.Property?.Title ?? "Bất động sản đã xóa";
+                string lastMsg = msg.MessageType == "Text"
+                ? Convert.ToString(msg.MessageContent)
+                : $"[{msg.MessageType}] Đã gửi một tệp đính kèm";
+
+                bool currentUserIsSeller = msg.Property != null && msg.Property.UserID == currentUserId;
+                bool isUnread = msg.ReceiverID == currentUserId && msg.IsRead == false;
+
+                string roleFilter = currentUserIsSeller ? "seller" : "buyer";
+                string roleLabel = currentUserIsSeller ? "Tôi trả lời" : "Tôi hỏi";
+                string roleIcon = currentUserIsSeller ? "bi-reply-fill" : "bi-question-lg";
+                string roleBadgeClass = currentUserIsSeller ? "reply" : "ask";
+                string roleDotClass = currentUserIsSeller ? "seller" : "buyer";
+
+                string searchText = $"{partnerName} {propTitle} {lastMsg}".ToLower();
+                string createdTime = msg.CreatedAt.ToString("HH:mm dd/MM/yyyy");
+
+                <button type="button"
+                        class="conversation-item @(isUnread ? "unread" : "")"
+                        data-partner="@partnerId"
+                        data-prop="@msg.PropertyID"
+                        data-role="@roleFilter"
+                        data-unread="@(isUnread ? "true" : "false")"
+                        data-search="@searchText"
+                        onclick="openChat(@partnerId, @msg.PropertyID, this)">
+                    <span class="cv-avatar-wrap">
+                        <img src="@partnerAvatar" class="cv-avatar" alt="@partnerName" />
+                        <span class="cv-role-dot @roleDotClass"><i class="bi @roleIcon"></i></span>
+                    </span>
+
+                    <span class="cv-info">
+                        <span class="cv-top">
+                            <span class="cv-name">@partnerName</span>
+                            <span class="cv-badge @roleBadgeClass">@roleLabel</span>
+                        </span>
+
+                        <span class="cv-prop"><i class="bi bi-house-door-fill me-1"></i>@propTitle</span>
+                        <span class="cv-lastmsg">
+                            @if (msg.SenderID == currentUserId)
+                            {
+                                <text>Bạn: </text>
+                            }
+                            @lastMsg
+                        </span>
+                        <span class="cv-time">@createdTime</span>
+                    </span>
+                </button>
+            }
+
+            <div class="no-result-box" id="noConversationResult">
+                <i class="bi bi-search fs-2 d-block mb-2 opacity-50"></i>
+                Không tìm thấy cuộc trò chuyện phù hợp.
             </div>
-
-            <div id="activeChatScreen" style="display:none; height: 100%; flex-direction: column;">
-
-                <div class="chat-header">
-                    <div class="d-flex align-items-center flex-grow-1 min-w-0 gap-3">
-                        <button class="btn-back-mobile flex-shrink-0" onclick="closeChatMobile()"><i class="bi bi-arrow-left"></i></button>
-                        <img id="headAvatar" src="" class="rounded-circle border flex-shrink-0" width="46" height="46" style="object-fit:cover;">
-                        <div style="min-width: 0;">
-                            <h6 id="headName" class="fw-bold mb-0 text-dark text-truncate">Name</h6>
-                            <small id="headPhone" class="text-muted fw-bold text-truncate"></small>
-                        </div>
-                    </div>
-                    <div class="text-end d-none d-md-block ms-3 flex-shrink-0" style="max-width: 250px;">
-                        <div id="headPropTitle" class="fw-bold text-primary text-truncate" style="font-size: 0.85rem;"></div>
-                        <div id="headPropPrice" class="fw-black text-danger"></div>
-                    </div>
-                </div>
-
-                <div class="chat-messages" id="chatBox">
-                </div>
-
-                <div class="quick-replies-container" id="quickRepliesBox">
-                </div>
-
-                <div id="filePreviewContainer">
-                    <i class="bi bi-paperclip"></i> Đã chọn: <span id="fileNameDisplay"></span>
-                    <i class="bi bi-x-circle-fill text-danger ms-3 cursor-pointer fs-5" onclick="clearFile()" style="cursor:pointer; vertical-align: middle;"></i>
-                </div>
-
-                <div class="chat-input-area">
-                    <input type="hidden" id="currentPartnerId">
-                    <input type="hidden" id="currentPropertyId">
-
-                    <button class="btn-action btn-attach" title="Gửi tài liệu" onclick="document.getElementById('fileUpload').click()"><i class="bi bi-paperclip"></i></button>
-                    <input type="file" id="fileUpload" style="display:none" onchange="showFilePreview(this)">
-
-                    <button class="btn-action btn-attach" title="Gửi ảnh" onclick="document.getElementById('imageUpload').click()"><i class="bi bi-image"></i></button>
-                    <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="showFilePreview(this)">
-
-                    <input type="text" id="txtMessage" class="chat-input" placeholder="Nhập tin nhắn..." onkeypress="handleKeyPress(event)" autocomplete="off">
-
-                    <button class="btn-action btn-send" onclick="sendMessage()"><i class="bi bi-send-fill"></i></button>
-                </div>
-            </div>
-
         </div>
-    </div>
+    </aside>
+
+    <section class="chat-right" id="mainChatWindow">
+        <div id="emptyScreen" class="empty-chat">
+            <div class="empty-chat-card">
+                <div class="empty-chat-icon"><i class="bi bi-chat-square-heart"></i></div>
+                <h5 class="fw-black text-dark">Chọn một cuộc trò chuyện</h5>
+                <p class="text-muted fw-semibold mb-0">
+                    Bộ lọc bên trái giúp phân biệt cuộc nào là <b>Tôi hỏi</b> khi bạn là người mua và cuộc nào là <b>Tôi trả lời</b> khi bạn là người bán.
+                </p>
+            </div>
+        </div>
+
+        <div id="activeChatScreen" class="active-chat">
+            <div class="chat-header">
+                <div class="d-flex align-items-center gap-3 min-w-0 flex-grow-1">
+                    <button type="button" class="btn-back-mobile" onclick="closeChatMobile()" aria-label="Quay lại danh sách">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+
+                    <img id="headAvatar" src="/images/avatars/default-user.png" class="head-avatar" alt="Avatar" />
+
+                    <div class="head-main">
+                        <h6 id="headName" class="head-name">Người dùng</h6>
+                        <div id="headPhone" class="head-sub">SĐT: Không công khai</div>
+                        <div id="headRole" class="role-status-pill"><i class="bi bi-info-circle"></i> Đang tải vai trò...</div>
+                    </div>
+                </div>
+
+                <div class="head-property">
+                    <div id="headPropTitle" class="head-property-title"></div>
+                    <div id="headPropPrice" class="head-property-price"></div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatBox"></div>
+
+            <div class="quick-replies" id="quickRepliesBox"></div>
+
+            <div id="filePreviewContainer" class="file-preview">
+                <i class="bi bi-paperclip me-1"></i> Đã chọn: <span id="fileNameDisplay"></span>
+                <button type="button" class="btn btn-sm btn-link text-danger fw-bold p-0 ms-2" onclick="clearFile()">Bỏ chọn</button>
+            </div>
+
+            <div class="chat-input-area">
+                <input type="hidden" id="currentPartnerId" />
+                <input type="hidden" id="currentPropertyId" />
+
+                @Html.AntiForgeryToken()
+
+                <button type="button" class="btn-chat-tool" title="Gửi tài liệu" onclick="document.getElementById('fileUpload').click()">
+                    <i class="bi bi-paperclip"></i>
+                </button>
+                <input type="file" id="fileUpload" style="display:none" onchange="showFilePreview(this)" />
+
+                <button type="button" class="btn-chat-tool" title="Gửi ảnh" onclick="document.getElementById('imageUpload').click()">
+                    <i class="bi bi-image"></i>
+                </button>
+                <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="showFilePreview(this)" />
+
+                <input type="text" id="txtMessage" class="chat-input" placeholder="Nhập tin nhắn tư vấn..." autocomplete="off" onkeydown="handleKeyPress(event)" />
+
+                <button type="button" class="btn-chat-tool btn-send" onclick="sendMessage()" title="Gửi tin">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+        </div>
+    </section>
 </div>
 
 @section Scripts {
     <script>
-        let pollingTimer;
+        let pollingTimer = null;
+        let activeFilter = 'all';
+        let lastRenderedHtml = '';
 
         $(document).ready(function () {
-            var reqReceiver = '@ViewBag.OpenReceiverId';
-            var reqProp = '@ViewBag.OpenPropertyId';
+            bindConversationFilters();
+
+            const reqReceiver = '@openReceiverId';
+            const reqProp = '@openPropertyId';
+
             if (reqReceiver && reqProp) {
-                // Tự động mở chat nếu đi từ trang Chi tiết BĐS
-                openChat(reqReceiver, reqProp, null);
+                const item = $(`.conversation-item[data-partner='${reqReceiver}'][data-prop='${reqProp}']`).get(0);
+                openChat(reqReceiver, reqProp, item || null);
             }
         });
 
-        // ── XỬ LÝ GIAO DIỆN MOBILE ──
-        function closeChatMobile() {
-            $('#mainChatWindow').removeClass('mobile-active');
-            clearInterval(pollingTimer);
-            $('.conversation-item').removeClass('active');
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
         }
 
-        // ── XỬ LÝ FILE PREVIEW ──
+        function bindConversationFilters() {
+            $('.chat-filter-btn').on('click', function () {
+                $('.chat-filter-btn').removeClass('active');
+                $(this).addClass('active');
+                activeFilter = $(this).data('filter');
+                applyConversationFilter();
+            });
+
+            $('#conversationSearch').on('input', applyConversationFilter);
+        }
+
+        function applyConversationFilter() {
+            const keyword = ($('#conversationSearch').val() || '').trim().toLowerCase();
+            let visibleCount = 0;
+
+            $('.conversation-item').each(function () {
+                const $item = $(this);
+                const role = $item.data('role');
+                const unread = String($item.data('unread')) === 'true';
+                const searchText = String($item.data('search') || '');
+
+                const matchFilter =
+                    activeFilter === 'all' ||
+                    activeFilter === role ||
+                    (activeFilter === 'unread' && unread);
+
+                const matchSearch = !keyword || searchText.includes(keyword);
+
+                if (matchFilter && matchSearch) {
+                    $item.show();
+                    visibleCount++;
+                } else {
+                    $item.hide();
+                }
+            });
+
+            $('#noConversationResult').toggle(visibleCount === 0);
+        }
+
+        function closeChatMobile() {
+            $('#mainChatWindow').removeClass('mobile-active');
+            $('.conversation-item').removeClass('active');
+
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+        }
+
         function showFilePreview(input) {
             if (input.files && input.files[0]) {
                 $('#fileNameDisplay').text(input.files[0].name);
-                $('#filePreviewContainer').slideDown();
+                $('#filePreviewContainer').slideDown(140);
                 $('#txtMessage').focus();
+
+                if (input.id === 'fileUpload') {
+                    $('#imageUpload').val('');
+                }
+
+                if (input.id === 'imageUpload') {
+                    $('#fileUpload').val('');
+                }
             }
         }
 
         function clearFile() {
             $('#fileUpload').val('');
             $('#imageUpload').val('');
-            $('#filePreviewContainer').slideUp();
+            $('#filePreviewContainer').slideUp(140);
         }
 
         function handleKeyPress(e) {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         }
 
         function scrollToBottom() {
-            var chatBox = document.getElementById("chatBox");
+            const chatBox = document.getElementById('chatBox');
+            if (!chatBox) return;
+
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // ── QUICK REPLIES LOGIC ──
         function renderQuickReplies(isOwner) {
             const container = $('#quickRepliesBox');
             container.empty();
 
-            // Gợi ý thông minh dựa trên vai trò của người chat
-            let replies = isOwner ?
-                ["Nhà vẫn còn nhé bạn", "Bạn có muốn qua xem trực tiếp không?", "Sổ đỏ pháp lý rõ ràng nhé", "Chốt giá này nhé!", "Gọi trực tiếp cho mình nhé"] :
-                ["Bất động sản này còn không ạ?", "Cho mình xem thêm ảnh sổ đỏ được không?", "Giá này có thương lượng thêm không?", "Mình rất quan tâm, hẹn lịch đi xem nhé!"];
+            const sellerReplies = [
+                'BĐS này hiện vẫn còn nhé bạn',
+                'Bạn muốn xem nhà ngày nào?',
+                'Pháp lý rõ ràng, mình có thể gửi thêm thông tin',
+                'Giá còn thương lượng nhẹ cho khách thiện chí',
+                'Bạn để lại SĐT mình gọi tư vấn nhanh nhé'
+            ];
 
-            replies.forEach(text => {
-                container.append(`<span class="quick-reply-pill" onclick="fillQuickReply('${text}')">${text}</span>`);
+            const buyerReplies = [
+                'Bất động sản này còn không ạ?',
+                'Giá này có thương lượng thêm không?',
+                'Cho mình xin thêm thông tin pháp lý',
+                'Mình muốn hẹn lịch đi xem thực tế',
+                'Vị trí này có gần trung tâm không?'
+            ];
+
+            const replies = isOwner ? sellerReplies : buyerReplies;
+
+            replies.forEach(function (text) {
+                const safeText = escapeHtml(text);
+                container.append(`<button type="button" class="quick-reply-pill" onclick="fillQuickReply('${safeText.replaceAll("'", "\\'")}')">${safeText}</button>`);
             });
         }
 
@@ -535,16 +1037,16 @@
             $('#txtMessage').focus();
         }
 
-        // ── MỞ CUỘC HỘI THOẠI ──
         function openChat(partnerId, propertyId, element) {
             $('.conversation-item').removeClass('active');
 
-            // Nếu người dùng click vào từ List
             if (element) {
-                $(element).addClass('active');
+                $(element).addClass('active').removeClass('unread').attr('data-unread', 'false');
             } else {
-                // Nếu click từ trang chi tiết BĐS, tự động highlight item tương ứng (nếu có)
-                $(`.conversation-item[data-partner='${partnerId}'][data-prop='${propertyId}']`).addClass('active');
+                $(`.conversation-item[data-partner='${partnerId}'][data-prop='${propertyId}']`)
+                    .addClass('active')
+                    .removeClass('unread')
+                    .attr('data-unread', 'false');
             }
 
             $('#currentPartnerId').val(partnerId);
@@ -552,89 +1054,115 @@
 
             $('#emptyScreen').hide();
             $('#activeChatScreen').css('display', 'flex');
-
-            // Trượt màn hình chat ra (Dành cho Mobile)
             $('#mainChatWindow').addClass('mobile-active');
 
-            // 1. Tải Header & Nhận diện vai trò
-            $.get(`/UserMessage/GetChatHeader?partnerId=${partnerId}&propertyId=${propertyId}`, function (data) {
-                $('#headName').text(data.partnerName);
-                $('#headAvatar').attr('src', data.partnerAvatar);
-                $('#headPhone').text(data.partnerPhone || 'SĐT: Không công khai');
-                $('#headPropTitle').text(data.propertyTitle);
-                $('#headPropPrice').text(data.propertyPrice);
+            lastRenderedHtml = '';
+            $('#chatBox').html('<div class="text-center text-muted fw-bold py-4"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải tin nhắn...</div>');
 
-                // Render các nút gợi ý phù hợp
-                renderQuickReplies(data.isOwner);
+            $.get(`/UserMessage/GetChatHeader?partnerId=${partnerId}&propertyId=${propertyId}`, function (data) {
+                $('#headName').text(data.partnerName || 'Người dùng');
+                $('#headAvatar').attr('src', data.partnerAvatar || '/images/avatars/default-user.png');
+                $('#headPhone').text(data.partnerPhone ? `SĐT: ${data.partnerPhone}` : 'SĐT: Không công khai');
+                $('#headPropTitle').text(data.propertyTitle || 'Bất động sản');
+                $('#headPropPrice').text(data.propertyPrice || 'Đang cập nhật');
+                $('#headRole').html(`<i class="bi ${data.roleMode === 'seller' ? 'bi-reply-fill' : 'bi-question-circle-fill'}"></i> ${escapeHtml(data.currentRoleText)}`);
+
+                renderQuickReplies(Boolean(data.isOwner));
             });
 
-            // 2. Load Tin nhắn
-            fetchMessages();
+            fetchMessages(true);
 
-            // 3. Auto-load mỗi 3 giây
             clearInterval(pollingTimer);
-            pollingTimer = setInterval(fetchMessages, 3000);
+            pollingTimer = setInterval(function () {
+                fetchMessages(false);
+            }, 3500);
         }
 
-        function fetchMessages() {
-            let pId = $('#currentPartnerId').val();
-            let propId = $('#currentPropertyId').val();
-            if (!pId || !propId) return;
+        function fetchMessages(forceScroll) {
+            const partnerId = $('#currentPartnerId').val();
+            const propertyId = $('#currentPropertyId').val();
 
-            $.get(`/UserMessage/GetChatHistory?partnerId=${pId}&propertyId=${propId}`, function (messages) {
+            if (!partnerId || !propertyId) return;
+
+            $.get(`/UserMessage/GetChatHistory?partnerId=${partnerId}&propertyId=${propertyId}`, function (messages) {
                 let html = '';
-                messages.forEach(m => {
-                    let cssClass = m.isMine ? "mine" : "theirs";
+
+                messages.forEach(function (m) {
+                    const cssClass = m.isMine ? 'mine' : 'theirs';
+                    const senderAvatar = escapeHtml(m.senderAvatar || '/images/avatars/default-user.png');
+                    const directionText = escapeHtml(m.directionText || (m.isMine ? 'Tôi' : 'Đối phương'));
+                    const timeText = escapeHtml(m.time || '');
+                    const messageType = m.messageType || 'Text';
 
                     let contentHtml = '';
-                    if (m.messageType === 'Text') {
-                        contentHtml = `<div class="msg-bubble">${m.messageContent}</div>`;
-                    } else if (m.messageType === 'Image') {
-                        contentHtml = `<img src="${m.attachmentUrl}" class="msg-image" onclick="window.open('${m.attachmentUrl}', '_blank')">`;
-                    } else if (m.messageType === 'File') {
-                        contentHtml = `<a href="${m.attachmentUrl}" target="_blank" class="msg-file"><i class="bi bi-file-earmark-arrow-down fs-4"></i> Tải tài liệu đính kèm</a>`;
-                    }
 
-                    if (m.messageType !== 'Text' && m.messageContent) {
-                        contentHtml += `<div class="msg-bubble mt-1">${m.messageContent}</div>`;
+                    if (messageType === 'Text') {
+                        contentHtml = `<div class="msg-bubble">${escapeHtml(m.messageContent)}</div>`;
+                    } else if (messageType === 'Image') {
+                        const attachmentUrl = escapeHtml(m.attachmentUrl);
+                        contentHtml = `<img src="${attachmentUrl}" class="msg-image" onclick="window.open('${attachmentUrl}', '_blank')" alt="Ảnh đính kèm" />`;
+
+                        if (m.messageContent) {
+                            contentHtml += `<div class="msg-bubble mt-2">${escapeHtml(m.messageContent)}</div>`;
+                        }
+                    } else {
+                        const attachmentUrl = escapeHtml(m.attachmentUrl);
+                        contentHtml = `<a href="${attachmentUrl}" target="_blank" class="msg-file"><i class="bi bi-file-earmark-arrow-down fs-4"></i><span>Tải tài liệu đính kèm</span></a>`;
+
+                        if (m.messageContent) {
+                            contentHtml += `<div class="msg-bubble mt-2">${escapeHtml(m.messageContent)}</div>`;
+                        }
                     }
 
                     html += `
-                        <div class="msg-box ${cssClass}">
-                            ${contentHtml}
-                            <div class="msg-time">${m.time}</div>
-                        </div>
-                    `;
+                        <div class="msg-row ${cssClass}">
+                            <img src="${senderAvatar}" class="msg-mini-avatar" alt="Avatar" />
+                            <div class="msg-body">
+                                <div class="msg-label">${directionText}</div>
+                                ${contentHtml}
+                                <div class="msg-time">${timeText}</div>
+                            </div>
+                        </div>`;
                 });
 
-                let chatBox = $('#chatBox');
-                // Chặn giật màn hình: Chỉ render lại nếu độ dài HTML mới khác HTML cũ
-                let shouldScroll = chatBox.html().length !== html.length;
+                if (html !== lastRenderedHtml) {
+                    $('#chatBox').html(html || '<div class="text-center text-muted fw-bold py-4">Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện.</div>');
+                    lastRenderedHtml = html;
 
-                if (shouldScroll) {
-                    chatBox.html(html);
-                    scrollToBottom();
+                    if (forceScroll || true) {
+                        scrollToBottom();
+                    }
                 }
             });
         }
 
-        // ── GỬI TIN NHẮN ──
         function sendMessage() {
-            let receiverId = $('#currentPartnerId').val();
-            let propertyId = $('#currentPropertyId').val();
-            let text = $('#txtMessage').val();
-            let fileInput = document.getElementById('fileUpload').files[0];
-            let imageInput = document.getElementById('imageUpload').files[0];
+            const receiverId = $('#currentPartnerId').val();
+            const propertyId = $('#currentPropertyId').val();
+            const text = ($('#txtMessage').val() || '').trim();
 
-            let fileToSend = imageInput || fileInput;
+            const fileInput = document.getElementById('fileUpload').files[0];
+            const imageInput = document.getElementById('imageUpload').files[0];
+            const fileToSend = imageInput || fileInput;
 
-            if (!text.trim() && !fileToSend) return;
+            if (!receiverId || !propertyId) {
+                alert('Bạn chưa chọn cuộc trò chuyện.');
+                return;
+            }
 
-            let fd = new FormData();
+            if (!text && !fileToSend) {
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
             fd.append('receiverId', receiverId);
             fd.append('propertyId', propertyId);
             fd.append('messageContent', text);
-            if (fileToSend) fd.append('attachment', fileToSend);
+
+            if (fileToSend) {
+                fd.append('attachment', fileToSend);
+            }
 
             $('#txtMessage').val('');
             clearFile();
@@ -646,13 +1174,31 @@
                 processData: false,
                 contentType: false,
                 success: function (res) {
-                    if (res.success) {
-                        fetchMessages(); // Buộc tải lại ngay để hiện tin
+                    if (res && res.success) {
+                        fetchMessages(true);
+                        refreshCurrentConversationPreview(text, fileToSend);
                     } else {
-                        alert(res.message);
+                        alert((res && res.message) || 'Không gửi được tin nhắn.');
                     }
+                },
+                error: function () {
+                    alert('Không gửi được tin nhắn. Vui lòng kiểm tra lại kết nối hoặc AntiForgeryToken.');
                 }
             });
+        }
+
+        function refreshCurrentConversationPreview(text, fileToSend) {
+            const partnerId = $('#currentPartnerId').val();
+            const propertyId = $('#currentPropertyId').val();
+
+            const $item = $(`.conversation-item[data-partner='${partnerId}'][data-prop='${propertyId}']`);
+            if (!$item.length) return;
+
+            const preview = text || (fileToSend ? '[File] Đã gửi một tệp đính kèm' : '');
+            $item.find('.cv-lastmsg').text('Bạn: ' + preview);
+
+            const list = $('#conversationList');
+            $item.prependTo(list);
         }
     </script>
 }

@@ -13,23 +13,23 @@ namespace BDSKhanhHoa.Controllers
             _context = context;
         }
 
-        // Định tuyến linh hoạt: /Page/privacy, /Page/faq, /Page/contact...
+        [HttpGet]
         [Route("Page/{pageKey}")]
         public async Task<IActionResult> Index(string pageKey)
         {
-            if (string.IsNullOrEmpty(pageKey))
+            if (string.IsNullOrWhiteSpace(pageKey))
             {
-                return NotFound();
+                return View("NotFound");
             }
 
-            // Truy vấn lấy nội dung trang tĩnh từ Database dựa vào pageKey (URL)
+            pageKey = pageKey.Trim().ToLower();
+
             var page = await _context.StaticPages
                 .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.PageKey.ToLower() == pageKey.ToLower());
+                .FirstOrDefaultAsync(p => p.PageKey.ToLower() == pageKey);
 
             if (page == null)
             {
-                // Nếu không tìm thấy trang tĩnh trong DB, trả về giao diện lỗi 404
                 return View("NotFound");
             }
 

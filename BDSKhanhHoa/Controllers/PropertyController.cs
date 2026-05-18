@@ -23,6 +23,45 @@ namespace BDSKhanhHoa.Controllers
             _auditLogService = auditLogService;
         }
 
+
+        // =====================================================
+        // KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+        // Không cần SQL mới, không cần Model mới.
+        // Chỉ dùng lại Property.Status = Sold / Rented.
+        // =====================================================
+        private static bool IsLockedProperty(Property? property)
+        {
+            return property != null &&
+                   (property.Status == "Sold" || property.Status == "Rented");
+        }
+
+        private static string GetLockedPropertyMessage(Property property)
+        {
+            return property.Status == "Sold"
+                ? "Tin đăng này đã bán nên hệ thống đã khóa toàn bộ thao tác."
+                : "Tin đăng này đã cho thuê nên hệ thống đã khóa toàn bộ thao tác.";
+        }
+        private static string GetPropertyStatusText(string? status)
+        {
+            return status switch
+            {
+                "Approved" => "Đã duyệt",
+                "Pending" => "Chờ duyệt",
+                "Rejected" => "Bị từ chối",
+                "Sold" => "Đã bán",
+                "Rented" => "Đã cho thuê",
+                "Draft" => "Bản nháp",
+                null or "" => "Chưa xác định",
+                _ => status
+            };
+        }
+
+        private static bool IsDiamondPackage(PostServicePackage? package)
+        {
+            return package != null
+                && !string.IsNullOrWhiteSpace(package.PackageType)
+                && package.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+        }
         [AllowAnonymous]
         public IActionResult Index()
         {
@@ -49,24 +88,41 @@ namespace BDSKhanhHoa.Controllers
             return Json(suggestions);
         }
 
-        // ==========================================
-        // 0. TRANG SEARCH CHÍNH (ĐÃ BỔ SUNG AUTO-DOWNGRADE)
-        // ==========================================
         [AllowAnonymous]
         [Route("Property/Search")]
         public async Task<IActionResult> Search(
-       string? transactionType = null, string? keyword = null, int? typeId = null,
-       int? areaId = null, int? wardId = null, decimal? minPrice = null,
-       decimal? maxPrice = null, string? priceRange = null, decimal? minSize = null, decimal? maxSize = null,
-       string? bedrooms = null, string? bathrooms = null, string? direction = null,
-       string? legalStatus = null, string[]? amenities = null, int? packageId = null,
-       string? sortOrder = null, int page = 1)
+           string? transactionType = null,
+           string? keyword = null,
+           int? typeId = null,
+           int? areaId = null,
+           int? wardId = null,
+           decimal? minPrice = null,
+           decimal? maxPrice = null,
+           string? priceRange = null,
+           decimal? minSize = null,
+           decimal? maxSize = null,
+           string? bedrooms = null,
+           string? bathrooms = null,
+           string? direction = null,
+           string? legalStatus = null,
+           string[]? amenities = null,
+           int? packageId = null,
+           string? sortOrder = null,
+           int page = 1)
         {
-            // ---------------------------------------------------------
-            // [THÊM MỚI]: TỰ ĐỘNG HẠ CẤP TIN VIP HẾT HẠN Ở MÀN HÌNH TÌM KIẾM
-            // ---------------------------------------------------------
+            int pageSize = 12;
+            page = Math.Max(1, page);
+
+            transactionType = string.Equals(transactionType, "rent", StringComparison.OrdinalIgnoreCase)
+                ? "rent"
+                : "buy";
+
+            keyword = keyword?.Trim();
+
+            // =====================================================
+            // TỰ ĐỘNG HẠ CẤP VIP HẾT HẠN
+            // =====================================================
             var normalPackage = await _context.PostServicePackages
-                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
 
             if (normalPackage != null)
@@ -81,124 +137,290 @@ namespace BDSKhanhHoa.Controllers
                 {
                     foreach (var prop in expiredVipProperties)
                     {
-                        prop.PackageID = normalPackage.PackageID; // Về Tin Thường
+                        prop.PackageID = normalPackage.PackageID;
                         prop.VipExpiryDate = null;
+                        prop.UpdatedAt = DateTime.Now;
                     }
+
                     await _context.SaveChangesAsync();
                 }
             }
-            // ---------------------------------------------------------
 
-            int pageSize = 12;
-            page = Math.Max(1, page);
+            // =====================================================
+            // LẤY DANH SÁCH LOẠI BĐS
+            // Root: ParentID == null
+            // Con: ParentID != null
+            // Không hard-code TypeID = 1 / 2 nữa
+            // =====================================================
+            var allTypes = await _context.PropertyTypes
+                .AsNoTracking()
+                .Select(t => new
+                {
+                    t.TypeID,
+                    t.TypeName,
+                    t.ParentID
+                })
+                .ToListAsync();
 
-            if (string.IsNullOrEmpty(transactionType)) transactionType = "buy";
-            keyword = keyword?.Trim().ToLower();
+            var rootTypes = allTypes
+                .Where(t => t.ParentID == null)
+                .ToList();
 
-            if (!string.IsNullOrEmpty(priceRange) && !minPrice.HasValue && !maxPrice.HasValue)
+            var buyRoot = rootTypes.FirstOrDefault(t =>
+                !string.IsNullOrWhiteSpace(t.TypeName) &&
+                (
+                    t.TypeName.Contains("bán", StringComparison.OrdinalIgnoreCase) ||
+                    t.TypeName.Contains("mua", StringComparison.OrdinalIgnoreCase) ||
+                    t.TypeName.Contains("mua bán", StringComparison.OrdinalIgnoreCase) ||
+                    t.TypeName.Contains("nhà đất bán", StringComparison.OrdinalIgnoreCase)
+                ));
+
+            var rentRoot = rootTypes.FirstOrDefault(t =>
+                !string.IsNullOrWhiteSpace(t.TypeName) &&
+                (
+                    t.TypeName.Contains("thuê", StringComparison.OrdinalIgnoreCase) ||
+                    t.TypeName.Contains("cho thuê", StringComparison.OrdinalIgnoreCase) ||
+                    t.TypeName.Contains("nhà đất cho thuê", StringComparison.OrdinalIgnoreCase)
+                ));
+
+            // Fallback an toàn nếu dữ liệu cũ đang dùng TypeID 1 / 2
+            int buyRootId = buyRoot?.TypeID ?? 1;
+            int rentRootId = rentRoot?.TypeID ?? 2;
+
+            int selectedRootId = transactionType == "rent" ? rentRootId : buyRootId;
+
+            var selectedChildTypeIds = allTypes
+                .Where(t => t.ParentID == selectedRootId)
+                .Select(t => t.TypeID)
+                .ToList();
+
+            // Nếu có tin đang lưu thẳng TypeID = root thì vẫn cho hiển thị.
+            selectedChildTypeIds.Add(selectedRootId);
+
+            // Nếu typeId từ URL cũ không thuộc tab hiện tại thì bỏ đi.
+            // Ví dụ đang ở tab Cho thuê mà typeId lại là loại con của Mua bán.
+            if (typeId.HasValue && !selectedChildTypeIds.Contains(typeId.Value))
             {
-                var parts = priceRange.Split('-');
+                typeId = null;
+            }
+
+            // =====================================================
+            // XỬ LÝ PRICE RANGE NẾU CÓ
+            // minPrice/maxPrice trên giao diện tính theo TRIỆU
+            // Database lưu theo VNĐ
+            // =====================================================
+            if (!string.IsNullOrWhiteSpace(priceRange) && !minPrice.HasValue && !maxPrice.HasValue)
+            {
+                var parts = priceRange.Split('-', StringSplitOptions.RemoveEmptyEntries);
+
                 if (parts.Length == 2)
                 {
-                    if (decimal.TryParse(parts[0], out decimal pMin)) minPrice = pMin;
-                    if (decimal.TryParse(parts[1], out decimal pMax)) maxPrice = pMax;
+                    if (decimal.TryParse(parts[0], out decimal pMin))
+                    {
+                        minPrice = pMin;
+                    }
+
+                    if (decimal.TryParse(parts[1], out decimal pMax))
+                    {
+                        maxPrice = pMax;
+                    }
                 }
             }
 
+            // =====================================================
+            // QUERY CHÍNH
+            // Chỉ lấy tin Approved, chưa xóa, chưa bán, chưa thuê
+            // Và bắt buộc thuộc đúng nhóm Mua bán / Cho thuê
+            // =====================================================
             var query = _context.Properties
                 .AsNoTracking()
                 .Include(p => p.PropertyType)
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
+                .Include(p => p.Ward)
+                    .ThenInclude(w => w.Area)
                 .Include(p => p.PostServicePackage)
-                .Where(p => p.Status == "Approved" && p.IsDeleted == false)
+                .Where(p => p.Status == "Approved"
+                         && p.IsDeleted == false
+                         && p.PropertyType != null
+                         && selectedChildTypeIds.Contains(p.TypeID))
                 .AsQueryable();
 
-            if (transactionType == "buy")
-                query = query.Where(p => p.PropertyType.ParentID == 1 || p.TypeID == 1);
-            else if (transactionType == "rent")
-                query = query.Where(p => p.PropertyType.ParentID == 2 || p.TypeID == 2);
-
-            if (typeId.HasValue) query = query.Where(p => p.TypeID == typeId);
-            if (areaId.HasValue) query = query.Where(p => p.Ward.AreaID == areaId);
-            if (wardId.HasValue) query = query.Where(p => p.WardID == wardId);
-            if (packageId.HasValue) query = query.Where(p => p.PackageID == packageId);
-
-            if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value * 1000000);
-            if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value * 1000000);
-            if (minSize.HasValue) query = query.Where(p => p.AreaSize >= minSize.Value);
-            if (maxSize.HasValue) query = query.Where(p => p.AreaSize <= maxSize.Value);
-
-            if (!string.IsNullOrEmpty(keyword))
+            if (typeId.HasValue)
             {
-                query = query.Where(p => p.Title.ToLower().Contains(keyword) || p.AddressDetail.ToLower().Contains(keyword));
+                query = query.Where(p => p.TypeID == typeId.Value);
             }
 
-            if (!string.IsNullOrEmpty(direction))
-                query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Hướng nhà" && f.FeatureValue == direction));
+            if (areaId.HasValue)
+            {
+                query = query.Where(p => p.Ward != null && p.Ward.AreaID == areaId.Value);
+            }
 
-            if (!string.IsNullOrEmpty(legalStatus))
-                query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Pháp lý" && f.FeatureValue == legalStatus));
+            if (wardId.HasValue)
+            {
+                query = query.Where(p => p.WardID == wardId.Value);
+            }
 
-            if (!string.IsNullOrEmpty(bedrooms))
+            if (packageId.HasValue)
+            {
+                query = query.Where(p => p.PackageID == packageId.Value);
+            }
+
+            if (minPrice.HasValue && minPrice.Value > 0)
+            {
+                query = query.Where(p => p.Price.HasValue && p.Price.Value >= minPrice.Value * 1000000m);
+            }
+
+            if (maxPrice.HasValue && maxPrice.Value > 0)
+            {
+                query = query.Where(p => p.Price.HasValue && p.Price.Value <= maxPrice.Value * 1000000m);
+            }
+
+            if (minSize.HasValue && minSize.Value > 0)
+            {
+                query = query.Where(p => p.AreaSize.HasValue && p.AreaSize.Value >= minSize.Value);
+            }
+
+            if (maxSize.HasValue && maxSize.Value > 0)
+            {
+                query = query.Where(p => p.AreaSize.HasValue && p.AreaSize.Value <= maxSize.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                string cleanKeyword = keyword.Trim();
+
+                query = query.Where(p =>
+                    p.Title.Contains(cleanKeyword) ||
+                    (p.AddressDetail != null && p.AddressDetail.Contains(cleanKeyword)) ||
+                    (p.Description != null && p.Description.Contains(cleanKeyword)) ||
+                    (p.Project != null && p.Project.ProjectName.Contains(cleanKeyword)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(direction))
+            {
+                query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                    f.PropertyID == p.PropertyID &&
+                    f.FeatureName == "Hướng nhà" &&
+                    f.FeatureValue == direction));
+            }
+
+            if (!string.IsNullOrWhiteSpace(legalStatus))
+            {
+                query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                    f.PropertyID == p.PropertyID &&
+                    f.FeatureName == "Pháp lý" &&
+                    f.FeatureValue == legalStatus));
+            }
+
+            if (!string.IsNullOrWhiteSpace(bedrooms))
             {
                 if (bedrooms == "5")
                 {
                     var highBeds = new[] { "5", "6", "7", "8", "9", "10", "10+", "5+" };
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng ngủ" && highBeds.Contains(f.FeatureValue)));
+
+                    query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                        f.PropertyID == p.PropertyID &&
+                        f.FeatureName == "Phòng ngủ" &&
+                        highBeds.Contains(f.FeatureValue)));
                 }
                 else
                 {
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng ngủ" && f.FeatureValue == bedrooms));
+                    query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                        f.PropertyID == p.PropertyID &&
+                        f.FeatureName == "Phòng ngủ" &&
+                        f.FeatureValue == bedrooms));
                 }
             }
 
-            if (!string.IsNullOrEmpty(bathrooms))
+            if (!string.IsNullOrWhiteSpace(bathrooms))
             {
                 if (bathrooms == "4")
                 {
-                    var highBaths = new[] { "4", "5", "6", "7", "8", "9", "10+", "4+" };
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng vệ sinh" && highBaths.Contains(f.FeatureValue)));
+                    var highBaths = new[] { "4", "5", "6", "7", "8", "9", "10", "10+", "4+" };
+
+                    query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                        f.PropertyID == p.PropertyID &&
+                        f.FeatureName == "Phòng vệ sinh" &&
+                        highBaths.Contains(f.FeatureValue)));
                 }
                 else
                 {
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Phòng vệ sinh" && f.FeatureValue == bathrooms));
+                    query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                        f.PropertyID == p.PropertyID &&
+                        f.FeatureName == "Phòng vệ sinh" &&
+                        f.FeatureValue == bathrooms));
                 }
             }
 
             if (amenities != null && amenities.Any())
             {
-                foreach (var am in amenities)
+                foreach (var amenity in amenities.Where(x => !string.IsNullOrWhiteSpace(x)))
                 {
-                    query = query.Where(p => _context.PropertyFeatures.Any(f => f.PropertyID == p.PropertyID && f.FeatureName == "Tiện ích" && f.FeatureValue.Contains(am)));
+                    string cleanAmenity = amenity.Trim();
+
+                    query = query.Where(p => _context.PropertyFeatures.Any(f =>
+                        f.PropertyID == p.PropertyID &&
+                        f.FeatureName == "Tiện ích" &&
+                        f.FeatureValue.Contains(cleanAmenity)));
                 }
             }
 
-            // SẮP XẾP KHOA HỌC CHUẨN XÁC
+            // =====================================================
+            // SẮP XẾP
+            // VIP luôn ưu tiên trước, sau đó mới theo điều kiện người dùng chọn
+            // =====================================================
             query = sortOrder switch
             {
                 "price_asc" => query
-                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenBy(p => p.Price),
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0
+                        ? p.PostServicePackage.PriorityLevel
+                        : 9999)
+                    .ThenBy(p => p.Price ?? decimal.MaxValue)
+                    .ThenByDescending(p => p.CreatedAt),
 
                 "price_desc" => query
-                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenByDescending(p => p.Price),
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0
+                        ? p.PostServicePackage.PriorityLevel
+                        : 9999)
+                    .ThenByDescending(p => p.Price ?? 0)
+                    .ThenByDescending(p => p.CreatedAt),
+
+                "area_asc" => query
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0
+                        ? p.PostServicePackage.PriorityLevel
+                        : 9999)
+                    .ThenBy(p => p.AreaSize ?? decimal.MaxValue)
+                    .ThenByDescending(p => p.CreatedAt),
 
                 "area_desc" => query
-                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
-                    .ThenByDescending(p => p.AreaSize),
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0
+                        ? p.PostServicePackage.PriorityLevel
+                        : 9999)
+                    .ThenByDescending(p => p.AreaSize ?? 0)
+                    .ThenByDescending(p => p.CreatedAt),
 
                 _ => query
-                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0 ? p.PostServicePackage.PriorityLevel : 9999)
+                    .OrderBy(p => p.PostServicePackage != null && p.PostServicePackage.PriorityLevel > 0
+                        ? p.PostServicePackage.PriorityLevel
+                        : 9999)
                     .ThenByDescending(p => p.CreatedAt)
             };
 
             int totalItems = await query.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
-            if (page > totalPages) page = totalPages;
 
-            var results = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
 
+            var results = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // =====================================================
+            // VIEWBAG
+            // =====================================================
             ViewBag.LatestProjects = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Area)
@@ -209,20 +431,56 @@ namespace BDSKhanhHoa.Controllers
 
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             List<int> favoritedIds = new List<int>();
+
             if (int.TryParse(userIdClaim, out int userIdToken))
             {
                 favoritedIds = await _context.Favorites
+                    .AsNoTracking()
                     .Where(f => f.UserID == userIdToken)
                     .Select(f => f.PropertyID)
                     .ToListAsync();
             }
+
             ViewBag.FavoritedIds = favoritedIds;
 
-            var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
-            ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
-            ViewBag.Areas = await _context.Areas.OrderBy(a => a.AreaName).ToListAsync();
+            var subTypes = allTypes
+                .Where(t => t.ParentID != null)
+                .Select(t => new
+                {
+                    t.TypeID,
+                    t.TypeName,
+                    t.ParentID
+                })
+                .ToList();
 
-            ViewBag.CurrentFilters = new { transactionType, keyword, typeId, areaId, wardId, minPrice, maxPrice, minSize, maxSize, bedrooms, bathrooms, direction, legalStatus, amenities, packageId, sortOrder };
+            ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
+            ViewBag.BuyRootId = buyRootId;
+            ViewBag.RentRootId = rentRootId;
+            ViewBag.Areas = await _context.Areas
+                .AsNoTracking()
+                .OrderBy(a => a.AreaName)
+                .ToListAsync();
+
+            ViewBag.CurrentFilters = new
+            {
+                transactionType,
+                keyword,
+                typeId,
+                areaId,
+                wardId,
+                minPrice,
+                maxPrice,
+                minSize,
+                maxSize,
+                bedrooms,
+                bathrooms,
+                direction,
+                legalStatus,
+                amenities,
+                packageId,
+                sortOrder
+            };
+
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
             ViewBag.TotalItems = totalItems;
@@ -234,6 +492,7 @@ namespace BDSKhanhHoa.Controllers
 
             return View("Search", results);
         }
+
         [AllowAnonymous]
         [Route("BatDongSan/NhaDatBan")]
         public async Task<IActionResult> NhaDatBan()
@@ -297,7 +556,10 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> MarkAsTransacted(int id, string transactionStatus)
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+            if (!int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized();
+            }
 
             if (transactionStatus != "Sold" && transactionStatus != "Rented")
             {
@@ -305,23 +567,45 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("MyAds");
             }
 
-            var property = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId);
+            var property = await _context.Properties
+                .FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId && p.IsDeleted == false);
 
-            if (property != null)
+            if (property == null)
             {
-                property.Status = transactionStatus;
-                property.SoldAt = DateTime.Now;
-                property.UpdatedAt = DateTime.Now;
-
-                await _context.SaveChangesAsync();
-
-                string msg = transactionStatus == "Sold" ? "đã bán" : "đã cho thuê";
-                TempData["Success"] = $"Chúc mừng! Đã ghi nhận bất động sản {msg} thành công.";
+                TempData["Error"] = "Không tìm thấy thông tin bất động sản hoặc bạn không có quyền thao tác.";
+                return RedirectToAction("MyAds");
             }
-            else
+
+            if (IsLockedProperty(property))
             {
-                TempData["Error"] = "Không tìm thấy thông tin bất động sản.";
+                TempData["Error"] = GetLockedPropertyMessage(property);
+                return RedirectToAction("MyAds");
             }
+
+            var oldPriceText = property.Price.HasValue && property.Price.Value > 0
+                ? property.Price.Value.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ"
+                : "Thỏa thuận";
+
+            property.Status = transactionStatus;
+            property.SoldAt = DateTime.Now;
+            property.UpdatedAt = DateTime.Now;
+
+            string doneText = transactionStatus == "Sold" ? "ĐÃ BÁN" : "ĐÃ CHO THUÊ";
+            string historyLine = $"[{doneText} - Giá ghi nhận: {oldPriceText} - Thời gian: {DateTime.Now:dd/MM/yyyy HH:mm}]";
+
+            if (string.IsNullOrWhiteSpace(property.Description))
+            {
+                property.Description = historyLine;
+            }
+            else if (!property.Description.StartsWith("[ĐÃ BÁN") && !property.Description.StartsWith("[ĐÃ CHO THUÊ"))
+            {
+                property.Description = historyLine + Environment.NewLine + Environment.NewLine + property.Description;
+            }
+
+            await _context.SaveChangesAsync();
+
+            string msg = transactionStatus == "Sold" ? "đã bán" : "đã cho thuê";
+            TempData["Success"] = $"Đã ghi nhận bất động sản {msg} thành công. Tin đã được khóa toàn bộ thao tác.";
 
             return RedirectToAction("MyAds");
         }
@@ -600,6 +884,12 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("MyAds");
             }
 
+            if (IsLockedProperty(property))
+            {
+                TempData["Error"] = GetLockedPropertyMessage(property);
+                return RedirectToAction("MyAds");
+            }
+
             ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
             await LoadEditViewBags(property);
 
@@ -613,8 +903,14 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
 
-            var existingProp = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId);
+            var existingProp = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId && p.IsDeleted == false);
             if (existingProp == null) return NotFound();
+
+            if (IsLockedProperty(existingProp))
+            {
+                TempData["Error"] = GetLockedPropertyMessage(existingProp);
+                return RedirectToAction("MyAds");
+            }
 
             if (!ModelState.IsValid)
             {
@@ -683,27 +979,37 @@ namespace BDSKhanhHoa.Controllers
             existingProp.UpdatedAt = DateTime.Now;
 
             var packageToApplyStatus = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
-            bool isDiamondStatus = packageToApplyStatus != null &&
-                                   packageToApplyStatus.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+            bool isDiamondStatus = IsDiamondPackage(packageToApplyStatus);
+
+            // =====================================================
+            // QUY TẮC DUYỆT TIN SAU KHI CHỈNH SỬA
+            // =====================================================
+            // 1. Chỉ đăng mới bằng gói Kim Cương mới được duyệt tự động.
+            // 2. Mọi thao tác chỉnh sửa nội dung, đổi ảnh, đổi vị trí, đổi giá,
+            //    đổi loại BĐS, đổi gói... đều phải quay về Chờ duyệt.
+            // 3. Tránh người dùng đăng tin Kim Cương xong sửa thành tin khác
+            //    để lợi dụng duyệt tự động.
+            // =====================================================
+
+            existingProp.Status = "Pending";
+            existingProp.IsAutoApproved = false;
+            existingProp.ApprovedAt = null;
+            existingProp.RejectionReason = null;
+            existingProp.IsDuplicate = false;
+            existingProp.DuplicateReason = null;
+
+            if (isChangingPackage && packageToApplyStatus != null && packageToApplyStatus.DurationDays > 0)
+            {
+                existingProp.VipExpiryDate = DateTime.Now.AddDays(packageToApplyStatus.DurationDays);
+            }
 
             if (isDiamondStatus)
             {
-                existingProp.Status = "Approved";
-                existingProp.IsAutoApproved = true;
-                existingProp.ApprovedAt = DateTime.Now;
-
-                if (isChangingPackage)
-                {
-                    existingProp.VipExpiryDate = DateTime.Now.AddDays(packageToApplyStatus.DurationDays);
-                }
-
-                TempData["Success"] = "Bạn đang sử dụng gói Kim Cương, tin VIP đã được tự động duyệt lại thành công.";
+                TempData["Success"] = "Đã lưu thay đổi. Vì đây là thao tác chỉnh sửa tin VIP Kim Cương nên tin đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra thủ công.";
             }
             else
             {
-                existingProp.Status = "Pending";
-                existingProp.IsAutoApproved = false;
-                TempData["Success"] = "Đã cập nhật nội dung. Tin đăng của bạn đã được chuyển sang trạng thái CHỜ DUYỆT để Admin kiểm tra.";
+                TempData["Success"] = "Đã lưu thay đổi. Tin đăng của bạn đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra.";
             }
 
             existingProp.IsDuplicate = false;
@@ -820,18 +1126,34 @@ namespace BDSKhanhHoa.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteMyAd(int id)
         {
-            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var property = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId);
-
-            if (property != null)
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim, out int userId))
             {
-                property.IsDeleted = true;
-                property.Status = "Deleted";
-                property.UpdatedAt = DateTime.Now;
-
-                await _context.SaveChangesAsync();
-                TempData["Success"] = "Đã xóa tin đăng thành công!";
+                return Unauthorized();
             }
+
+            var property = await _context.Properties
+                .FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                TempData["Error"] = "Không tìm thấy tin đăng hoặc bạn không có quyền xóa.";
+                return RedirectToAction("MyAds");
+            }
+
+            if (IsLockedProperty(property))
+            {
+                TempData["Error"] = GetLockedPropertyMessage(property);
+                return RedirectToAction("MyAds");
+            }
+
+            property.IsDeleted = true;
+            property.Status = "Deleted";
+            property.UpdatedAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+            TempData["Success"] = "Đã xóa tin đăng thành công!";
+
             return RedirectToAction("MyAds");
         }
 
@@ -853,7 +1175,8 @@ namespace BDSKhanhHoa.Controllers
 
             if (property == null) return RedirectToAction("Search");
 
-            if (property.Status != "Approved" && !isAdminOrStaff && property.UserID != currentUserId)
+            bool isPublicVisibleStatus = property.Status == "Approved" || property.Status == "Sold" || property.Status == "Rented";
+            if (!isPublicVisibleStatus && !isAdminOrStaff && property.UserID != currentUserId)
             {
                 TempData["Error"] = "Tin đăng này đang chờ kiểm duyệt hoặc đã bị ẩn.";
                 return RedirectToAction("Search");
@@ -909,7 +1232,9 @@ namespace BDSKhanhHoa.Controllers
             if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Bạn cần đăng nhập." });
 
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Hành động bị từ chối. Tin đăng chưa được duyệt." });
+            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
+            if (property.Status != "Approved") return Json(new { success = false, message = "Hành động bị từ chối. Tin đăng chưa được duyệt." });
 
             var existingReport = await _context.PropertyReports.FirstOrDefaultAsync(r => r.PropertyID == propertyId && r.ReportedBy == userId && r.Status == "Pending");
             if (existingReport != null) return Json(new { success = false, message = "Bạn đã báo cáo tin này rồi." });
@@ -929,7 +1254,11 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
 
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved")
+            if (property == null)
+                return Json(new { success = false, message = "Không tìm thấy bất động sản." });
+            if (IsLockedProperty(property))
+                return Json(new { success = false, message = GetLockedPropertyMessage(property) });
+            if (property.Status != "Approved")
                 return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
 
             // 1. Lưu lịch hẹn
@@ -971,7 +1300,11 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
 
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved")
+            if (property == null)
+                return Json(new { success = false, message = "Không tìm thấy bất động sản." });
+            if (IsLockedProperty(property))
+                return Json(new { success = false, message = GetLockedPropertyMessage(property) });
+            if (property.Status != "Approved")
                 return Json(new { success = false, message = "Bất động sản này không khả dụng." });
 
             int? senderId = null;
@@ -1018,7 +1351,9 @@ namespace BDSKhanhHoa.Controllers
             if (string.IsNullOrWhiteSpace(content)) return Json(new { success = false, message = "Nội dung trống." });
 
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Không thể bình luận vào tin chưa được duyệt." });
+            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
+            if (property.Status != "Approved") return Json(new { success = false, message = "Không thể bình luận vào tin chưa được duyệt." });
 
             // 1. Lưu bình luận
             _context.Comments.Add(new Comment { PropertyID = propertyId, UserID = userId, Content = content, CreatedAt = DateTime.Now, IsHidden = true });
@@ -1046,11 +1381,14 @@ namespace BDSKhanhHoa.Controllers
             if (senderId == receiverId) return Json(new { success = false, message = "Không thể tự nhắn cho mình." });
 
             var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null || property.Status != "Approved") return Json(new { success = false, message = "Tin đăng chưa duyệt, không thể chat." });
+            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
+            if (property.Status != "Approved") return Json(new { success = false, message = "Tin đăng chưa duyệt, không thể chat." });
 
             _context.UserMessages.Add(new UserMessage { SenderID = senderId, ReceiverID = receiverId, PropertyID = propertyId, MessageContent = messageContent, IsRead = false, CreatedAt = DateTime.Now });
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Tin nhắn đã gửi!" });
         }
+
     }
 }

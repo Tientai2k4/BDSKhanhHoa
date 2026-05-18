@@ -2,88 +2,891 @@
 
 @{
     ViewData["Title"] = Model.Title;
-    Layout = "~/Views/Shared/_Layout.cshtml"; // Đảm bảo trỏ đúng Layout chính của bạn
-}
+    Layout = "~/Views/Shared/_Layout.cshtml";
 
-<div class="container py-5 mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
+    string pageKey = Model.PageKey ?? "";
 
-            <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none text-muted"><i class="bi bi-house-door-fill"></i> Trang chủ</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
-                </ol>
-            </nav>
-
-            <div class="card border-0 shadow-sm rounded-4">
-                <div class="card-body p-4 p-md-5">
-                    <h1 class="fw-bold mb-3" style="color: var(--primary);">@Model.Title</h1>
-
-                    <div class="d-flex align-items-center gap-3 text-muted small mb-4 pb-4 border-bottom">
-                        <span><i class="bi bi-clock-history me-1"></i> Cập nhật lần cuối: @Model.UpdatedAt.ToString("dd/MM/yyyy")</span>
-                        <span><i class="bi bi-shield-check text-success me-1"></i> Đã xác thực bởi BĐS Khánh Hòa</span>
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(Model.Description))
-                    {
-                        <div class="alert alert-light border-start border-4 border-primary rounded-3 mb-4 fs-6 fst-italic text-secondary">
-                            @Model.Description
-                        </div>
-                    }
-
-                    <div class="static-content">
-                        @Html.Raw(Model.Content)
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</div>
-
-<style>
-    /* CSS tinh chỉnh để nội dung từ Quill Editor hiển thị đẹp mắt ở trang Public */
-    .static-content {
-        line-height: 1.8;
-        font-size: 1.05rem;
-        color: #334155;
+    string GetPageIcon(string? key)
+    {
+        return key switch
+        {
+            "faq" => "bi-question-circle-fill",
+            "vip-policy" => "bi-gem",
+            "terms" => "bi-file-earmark-text-fill",
+            "privacy" => "bi-shield-lock-fill",
+            "rules" => "bi-check2-square",
+            "anti-spam" => "bi-shield-fill-exclamation",
+            "ai_knowledge_base" => "bi-cpu-fill",
+            "contact" => "bi-headset",
+            "about" => "bi-info-circle-fill",
+            _ => "bi-file-earmark-richtext-fill"
+        };
     }
 
+    string GetPageTypeText(string? key)
+    {
+        return key switch
+        {
+            "faq" => "Hỏi đáp thường gặp",
+            "vip-policy" => "Bảng giá & gói VIP",
+            "terms" => "Điều khoản dịch vụ",
+            "privacy" => "Chính sách bảo mật",
+            "rules" => "Quy định kiểm duyệt",
+            "anti-spam" => "An toàn & chống lừa đảo",
+            "ai_knowledge_base" => "Dữ liệu hỗ trợ AI",
+            _ => "Thông tin hệ thống"
+        };
+    }
+
+    string GetThemeClass(string? key)
+    {
+        return key switch
+        {
+            "faq" => "theme-orange",
+            "vip-policy" => "theme-vip",
+            "terms" => "theme-indigo",
+            "privacy" => "theme-purple",
+            "rules" => "theme-green",
+            "anti-spam" => "theme-red",
+            "ai_knowledge_base" => "theme-blue",
+            _ => "theme-blue"
+        };
+    }
+
+    bool hasDescription = !string.IsNullOrWhiteSpace(Model.Description);
+}
+
+<style>
+    :root {
+        --page-primary: #2563eb;
+        --page-primary-dark: #1d4ed8;
+        --page-bg: #f4f7fb;
+        --page-card: #ffffff;
+        --page-text: #1e293b;
+        --page-muted: #64748b;
+        --page-border: #e2e8f0;
+        --page-soft: #f8fafc;
+        --page-shadow: 0 24px 70px rgba(15, 23, 42, .08);
+        --page-shadow-sm: 0 12px 32px rgba(15, 23, 42, .06);
+    }
+
+    body {
+        background: var(--page-bg);
+    }
+
+    .static-public-page {
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .10), transparent 360px), radial-gradient(circle at top left, rgba(16, 185, 129, .08), transparent 320px), var(--page-bg);
+        min-height: calc(100vh - 80px);
+        padding: 42px 0 70px;
+    }
+
+    .static-public-container {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 0 18px;
+    }
+
+    .static-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        color: #64748b;
+        font-weight: 750;
+        font-size: .92rem;
+    }
+
+        .static-breadcrumb a {
+            color: #475569;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: .18s ease;
+        }
+
+            .static-breadcrumb a:hover {
+                color: var(--page-primary);
+            }
+
+        .static-breadcrumb .divider {
+            color: #94a3b8;
+        }
+
+        .static-breadcrumb .current {
+            color: #0f172a;
+            max-width: 620px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+    .static-hero-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 34px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .16), transparent 340px), linear-gradient(135deg, #ffffff, #f8fbff);
+        border: 1px solid rgba(148, 163, 184, .25);
+        box-shadow: var(--page-shadow);
+        margin-bottom: 22px;
+    }
+
+        .static-hero-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(37, 99, 235, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(37, 99, 235, .035) 1px, transparent 1px);
+            background-size: 28px 28px;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent);
+            pointer-events: none;
+        }
+
+    .static-hero-inner {
+        position: relative;
+        z-index: 1;
+        padding: 42px 48px 36px;
+    }
+
+    .static-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        font-size: .82rem;
+        font-weight: 900;
+        margin-bottom: 18px;
+    }
+
+    .static-page-title {
+        color: #0f172a;
+        font-size: clamp(2rem, 4vw, 3.45rem);
+        line-height: 1.05;
+        font-weight: 950;
+        letter-spacing: -.06em;
+        margin: 0 0 18px;
+        max-width: 900px;
+    }
+
+    .static-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        color: #64748b;
+        font-size: .92rem;
+        font-weight: 700;
+        margin-bottom: 24px;
+    }
+
+    .static-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.82);
+        border: 1px solid rgba(226, 232, 240, .9);
+    }
+
+    .static-description {
+        position: relative;
+        border-radius: 22px;
+        padding: 20px 22px;
+        background: rgba(255,255,255,.88);
+        border: 1px solid rgba(37, 99, 235, .22);
+        box-shadow: 0 10px 30px rgba(37, 99, 235, .06);
+        color: #475569;
+        font-size: 1.05rem;
+        font-weight: 650;
+        line-height: 1.65;
+        max-width: 900px;
+    }
+
+        .static-description::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 18px;
+            bottom: 18px;
+            width: 5px;
+            border-radius: 999px;
+            background: var(--page-primary);
+        }
+
+    .static-body-card {
+        background: var(--page-card);
+        border: 1px solid rgba(148, 163, 184, .24);
+        border-radius: 34px;
+        box-shadow: var(--page-shadow);
+        overflow: hidden;
+    }
+
+    .static-body-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 270px;
+        gap: 0;
+    }
+
+    .static-content-wrap {
+        min-width: 0;
+        padding: 42px 48px 48px;
+    }
+
+    .static-side {
+        border-left: 1px solid #edf2f7;
+        background: linear-gradient(180deg, #f8fafc, #ffffff);
+        padding: 30px 24px;
+    }
+
+    .side-box {
+        position: sticky;
+        top: 96px;
+    }
+
+    .side-title {
+        color: #0f172a;
+        font-size: .9rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+        margin-bottom: 14px;
+    }
+
+    .side-action {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 46px;
+        border-radius: 16px;
+        padding: 10px 12px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        text-decoration: none;
+        font-weight: 850;
+        margin-bottom: 10px;
+        transition: .18s ease;
+    }
+
+        .side-action:hover {
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+
+    .side-note {
+        margin-top: 16px;
+        padding: 14px;
+        border-radius: 18px;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        color: #047857;
+        font-size: .82rem;
+        font-weight: 750;
+        line-height: 1.45;
+    }
+
+    .static-content {
+        color: var(--page-text);
+        font-size: 1.055rem;
+        line-height: 1.85;
+        font-weight: 500;
+        word-break: break-word;
+    }
+
+        .static-content > *:first-child {
+            margin-top: 0 !important;
+        }
+
+        .static-content > *:last-child {
+            margin-bottom: 0 !important;
+        }
+
+        .static-content h1,
         .static-content h2,
         .static-content h3,
-        .static-content h4 {
+        .static-content h4,
+        .static-content h5,
+        .static-content h6 {
             color: #0f172a;
+            font-weight: 950;
+            letter-spacing: -.025em;
+            line-height: 1.25;
             margin-top: 2rem;
             margin-bottom: 1rem;
-            font-weight: 700;
+        }
+
+        .static-content h1 {
+            font-size: 2.1rem;
+        }
+
+        .static-content h2 {
+            font-size: 1.72rem;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .static-content h3 {
+            font-size: 1.36rem;
+        }
+
+        .static-content h4 {
+            font-size: 1.16rem;
+        }
+
+        .static-content p {
+            margin-bottom: 1.05rem;
+        }
+
+        .static-content strong,
+        .static-content b {
+            color: #0f172a;
+            font-weight: 900;
+        }
+
+        .static-content em {
+            color: #475569;
+        }
+
+        .static-content a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 850;
+            border-bottom: 1px dashed rgba(37, 99, 235, .35);
+        }
+
+            .static-content a:hover {
+                color: #1d4ed8;
+                border-bottom-style: solid;
+            }
+
+        .static-content ul,
+        .static-content ol {
+            margin: 1rem 0 1.35rem;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        .static-content li {
+            position: relative;
+            margin-bottom: .8rem;
+            padding-left: 30px;
+        }
+
+        .static-content ul li::before {
+            content: "";
+            position: absolute;
+            left: 8px;
+            top: .78em;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+        }
+
+        .static-content ol {
+            counter-reset: item-counter;
+        }
+
+            .static-content ol li {
+                counter-increment: item-counter;
+            }
+
+                .static-content ol li::before {
+                    content: counter(item-counter);
+                    position: absolute;
+                    left: 0;
+                    top: .28em;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 999px;
+                    background: #2563eb;
+                    color: #fff;
+                    font-size: .72rem;
+                    font-weight: 900;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+        .static-content blockquote {
+            margin: 1.5rem 0;
+            padding: 18px 20px;
+            border-radius: 22px;
+            border-left: 5px solid #2563eb;
+            background: #eff6ff;
+            color: #334155;
+            font-size: 1.05rem;
+            font-style: italic;
         }
 
         .static-content img {
             max-width: 100%;
             height: auto;
-            border-radius: 12px;
+            border-radius: 22px;
             margin: 1.5rem 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-shadow: 0 18px 40px rgba(15, 23, 42, .12);
+            border: 1px solid #e2e8f0;
         }
 
-        .static-content ul,
-        .static-content ol {
-            margin-bottom: 1.5rem;
-            padding-left: 2rem;
+        .static-content table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1.4rem 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            overflow: hidden;
+            display: block;
+            overflow-x: auto;
+            background: #fff;
         }
 
-        .static-content li {
-            margin-bottom: 0.5rem;
-        }
-
-        .static-content a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-            .static-content a:hover {
-                text-decoration: underline;
+            .static-content table th,
+            .static-content table td {
+                padding: 13px 15px;
+                border-bottom: 1px solid #e2e8f0;
+                vertical-align: top;
+                min-width: 160px;
             }
+
+            .static-content table th {
+                background: #f8fafc;
+                color: #0f172a;
+                font-weight: 950;
+            }
+
+            .static-content table tr:last-child td {
+                border-bottom: 0;
+            }
+
+        .static-content hr {
+            border: 0;
+            height: 1px;
+            background: #e2e8f0;
+            margin: 2rem 0;
+        }
+
+        .static-content code {
+            background: #f1f5f9;
+            color: #1d4ed8;
+            padding: 3px 7px;
+            border-radius: 8px;
+            font-size: .9em;
+            font-weight: 750;
+        }
+
+        .static-content pre {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 18px;
+            border-radius: 20px;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+
+            .static-content pre code {
+                background: transparent;
+                color: inherit;
+                padding: 0;
+                border-radius: 0;
+            }
+
+    .content-footer {
+        margin-top: 38px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .verified-box {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: #047857;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        padding: 9px 14px;
+        font-weight: 850;
+        font-size: .88rem;
+    }
+
+    .back-home-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 9px 16px;
+        border-radius: 999px;
+        background: #2563eb;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 900;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, .22);
+        transition: .18s ease;
+    }
+
+        .back-home-btn:hover {
+            color: #fff;
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+    .theme-orange {
+        --page-primary: #ea580c;
+        --page-primary-dark: #c2410c;
+    }
+
+    .theme-vip {
+        --page-primary: #d97706;
+        --page-primary-dark: #b45309;
+    }
+
+    .theme-indigo {
+        --page-primary: #4f46e5;
+        --page-primary-dark: #4338ca;
+    }
+
+    .theme-purple {
+        --page-primary: #7c3aed;
+        --page-primary-dark: #6d28d9;
+    }
+
+    .theme-green {
+        --page-primary: #059669;
+        --page-primary-dark: #047857;
+    }
+
+    .theme-red {
+        --page-primary: #dc2626;
+        --page-primary-dark: #b91c1c;
+    }
+
+    .theme-blue {
+        --page-primary: #2563eb;
+        --page-primary-dark: #1d4ed8;
+    }
+
+    .theme-orange .static-type-badge,
+    .theme-orange .static-description,
+    .theme-orange .side-action:hover {
+        background: #fff7ed;
+        border-color: #fed7aa;
+        color: #c2410c;
+    }
+
+    .theme-vip .static-type-badge,
+    .theme-vip .static-description,
+    .theme-vip .side-action:hover {
+        background: #fffbeb;
+        border-color: #fde68a;
+        color: #b45309;
+    }
+
+    .theme-green .static-type-badge,
+    .theme-green .static-description,
+    .theme-green .side-action:hover {
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+        color: #047857;
+    }
+
+    .theme-red .static-type-badge,
+    .theme-red .static-description,
+    .theme-red .side-action:hover {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #b91c1c;
+    }
+
+    .theme-purple .static-type-badge,
+    .theme-purple .static-description,
+    .theme-purple .side-action:hover {
+        background: #faf5ff;
+        border-color: #e9d5ff;
+        color: #6d28d9;
+    }
+
+    .theme-indigo .static-type-badge,
+    .theme-indigo .static-description,
+    .theme-indigo .side-action:hover {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        color: #4338ca;
+    }
+
+    .theme-orange .static-description::before,
+    .theme-orange .static-content ul li::before,
+    .theme-orange .static-content ol li::before,
+    .theme-orange .static-content blockquote {
+        border-left-color: #ea580c;
+        background-color: #fff7ed;
+    }
+
+    .theme-vip .static-description::before,
+    .theme-vip .static-content ul li::before,
+    .theme-vip .static-content ol li::before,
+    .theme-vip .static-content blockquote {
+        border-left-color: #d97706;
+        background-color: #fffbeb;
+    }
+
+    @@media (max-width: 991.98px) {
+        .static-public-page {
+            padding: 26px 0 52px;
+        }
+
+        .static-hero-inner {
+            padding: 32px 28px 30px;
+        }
+
+        .static-body-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .static-side {
+            border-left: 0;
+            border-top: 1px solid #edf2f7;
+            padding: 22px 24px;
+        }
+
+        .side-box {
+            position: static;
+        }
+
+        .side-action-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .side-action {
+            margin-bottom: 0;
+        }
+
+        .static-content-wrap {
+            padding: 34px 30px 38px;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .static-public-container {
+            padding: 0 12px;
+        }
+
+        .static-breadcrumb {
+            font-size: .82rem;
+            margin-bottom: 14px;
+        }
+
+            .static-breadcrumb .current {
+                max-width: 260px;
+            }
+
+        .static-hero-card,
+        .static-body-card {
+            border-radius: 24px;
+        }
+
+        .static-hero-inner {
+            padding: 24px 20px;
+        }
+
+        .static-type-badge {
+            min-height: 34px;
+            padding: 7px 11px;
+            font-size: .76rem;
+            margin-bottom: 14px;
+        }
+
+        .static-page-title {
+            font-size: clamp(1.75rem, 10vw, 2.45rem);
+            letter-spacing: -.045em;
+            margin-bottom: 14px;
+        }
+
+        .static-meta {
+            gap: 8px;
+            font-size: .78rem;
+            margin-bottom: 18px;
+        }
+
+        .static-meta-item {
+            width: 100%;
+            justify-content: flex-start;
+            border-radius: 14px;
+            min-height: 38px;
+        }
+
+        .static-description {
+            border-radius: 18px;
+            padding: 16px 17px;
+            font-size: .96rem;
+        }
+
+        .static-content-wrap {
+            padding: 25px 20px 30px;
+        }
+
+        .static-content {
+            font-size: 1rem;
+            line-height: 1.78;
+        }
+
+            .static-content h1 {
+                font-size: 1.65rem;
+            }
+
+            .static-content h2 {
+                font-size: 1.38rem;
+            }
+
+            .static-content h3 {
+                font-size: 1.18rem;
+            }
+
+            .static-content li {
+                padding-left: 26px;
+            }
+
+        .static-side {
+            padding: 20px;
+        }
+
+        .side-action-list {
+            grid-template-columns: 1fr;
+        }
+
+        .content-footer {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .verified-box,
+        .back-home-btn {
+            width: 100%;
+            justify-content: center;
+            border-radius: 16px;
+        }
+    }
 </style>
+
+<div class="static-public-page @GetThemeClass(pageKey)">
+    <div class="static-public-container">
+
+        <nav class="static-breadcrumb" aria-label="breadcrumb">
+            <a href="/">
+                <i class="bi bi-house-door-fill"></i>
+                Trang chủ
+            </a>
+            <span class="divider">/</span>
+            <span class="current">@Model.Title</span>
+        </nav>
+
+        <section class="static-hero-card">
+            <div class="static-hero-inner">
+                <div class="static-type-badge">
+                    <i class="bi @GetPageIcon(pageKey)"></i>
+                    @GetPageTypeText(pageKey)
+                </div>
+
+                <h1 class="static-page-title">@Model.Title</h1>
+
+                <div class="static-meta">
+                    <span class="static-meta-item">
+                        <i class="bi bi-clock-history"></i>
+                        Cập nhật: @Model.UpdatedAt.ToString("dd/MM/yyyy")
+                    </span>
+
+                    <span class="static-meta-item">
+                        <i class="bi bi-shield-check text-success"></i>
+                        Đã xác thực bởi BĐS Khánh Hòa
+                    </span>
+
+                    <span class="static-meta-item">
+                        <i class="bi bi-link-45deg"></i>
+                        /Page/@Model.PageKey
+                    </span>
+                </div>
+
+                @if (hasDescription)
+                {
+                    <div class="static-description">
+                        @Model.Description
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="static-body-card">
+            <div class="static-body-layout">
+                <main class="static-content-wrap">
+                    <article class="static-content">
+                        @Html.Raw(Model.Content)
+                    </article>
+
+                    <div class="content-footer">
+                        <div class="verified-box">
+                            <i class="bi bi-patch-check-fill"></i>
+                            Nội dung được quản trị viên cập nhật
+                        </div>
+
+                        <a href="/" class="back-home-btn">
+                            <i class="bi bi-house-door-fill"></i>
+                            Về trang chủ
+                        </a>
+                    </div>
+                </main>
+
+                <aside class="static-side">
+                    <div class="side-box">
+                        <div class="side-title">Liên kết nhanh</div>
+
+                        <div class="side-action-list">
+                            <a href="/" class="side-action">
+                                <i class="bi bi-house-door-fill text-primary"></i>
+                                <span>Trang chủ</span>
+                            </a>
+
+                            <a href="/Contact" class="side-action">
+                                <i class="bi bi-headset text-success"></i>
+                                <span>Liên hệ hỗ trợ</span>
+                            </a>
+
+                            <a href="/Page/faq" class="side-action">
+                                <i class="bi bi-question-circle-fill text-warning"></i>
+                                <span>Hỏi đáp thường gặp</span>
+                            </a>
+
+                            <a href="/Page/vip-policy" class="side-action">
+                                <i class="bi bi-gem text-danger"></i>
+                                <span>Báo giá đăng tin</span>
+                            </a>
+                        </div>
+
+                        <div class="side-note">
+                            <i class="bi bi-shield-check me-1"></i>
+                            Thông tin trên trang này được dùng làm cơ sở tham khảo chính thức trên hệ thống BĐS Khánh Hòa.
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+    </div>
+</div>

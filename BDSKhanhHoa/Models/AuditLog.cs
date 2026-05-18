@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BDSKhanhHoa.Models
@@ -11,17 +12,34 @@ namespace BDSKhanhHoa.Models
 
         public int UserID { get; set; }
 
+        // Ví dụ:
+        // Admin chỉnh sửa tin đăng
+        // Phê duyệt tin đăng
+        // Từ chối tin đăng
+        // Xóa mềm tin đăng
         [StringLength(255)]
         public string? Action { get; set; }
 
+        // Ví dụ:
+        // Properties
+        // Projects
+        // Users
+        // Authentication
         [StringLength(100)]
         public string? ModuleName { get; set; }
 
+        // Chỉ lưu ngắn gọn đối tượng bị tác động.
+        // Không nhét nội dung dài vào đây để tránh lỗi truncate.
+        // Ví dụ: PropertyID: 152
         [StringLength(255)]
         public string? Target { get; set; }
 
+        // Lưu dữ liệu trước khi thay đổi.
+        // SQL nên là nvarchar(max), không cần StringLength.
         public string? OldValues { get; set; }
 
+        // Lưu dữ liệu sau khi thay đổi.
+        // SQL nên là nvarchar(max), không cần StringLength.
         public string? NewValues { get; set; }
 
         [StringLength(50)]
@@ -35,7 +53,7 @@ namespace BDSKhanhHoa.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        [ForeignKey("UserID")]
+        [ForeignKey(nameof(UserID))]
         public virtual User? User { get; set; }
     }
 }

@@ -12,11 +12,14 @@
     }
 
     .page-title {
-        font-weight: 900;
+        font-weight: 950;
         color: #0f172a;
+        letter-spacing: -.035em;
     }
 
-    .main-card, .preview-card, .guide-card {
+    .main-card,
+    .preview-card,
+    .guide-card {
         border: 0;
         border-radius: 24px;
         box-shadow: 0 12px 32px rgba(15,23,42,.08);
@@ -24,7 +27,7 @@
     }
 
     .field-label {
-        font-weight: 800;
+        font-weight: 850;
         color: #0f172a;
         margin-bottom: 8px;
     }
@@ -149,13 +152,21 @@
             color: #2563eb;
             margin-top: 2px;
         }
+
+    .active-box {
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+        border-radius: 18px;
+        padding: 14px;
+    }
 </style>
 
 <div class="form-page container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
             <h3 class="page-title mb-1">
-                <i class="bi bi-plus-circle-fill text-primary me-2"></i>Tạo gói đăng tin mới
+                <i class="bi bi-plus-circle-fill text-primary me-2"></i>
+                Tạo gói đăng tin mới
             </h3>
             <p class="text-muted mb-0">
                 Chọn phân loại gói, hệ thống sẽ tự gán hạng hiển thị để tránh nhập sai.
@@ -163,7 +174,8 @@
         </div>
 
         <a href="/Admin/PostServicePackages/Index" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4">
-            <i class="bi bi-arrow-left me-1"></i> Trở về danh sách
+            <i class="bi bi-arrow-left me-1"></i>
+            Trở về danh sách
         </a>
     </div>
 
@@ -257,6 +269,24 @@
                                       placeholder="Mô tả ngắn về quyền lợi của gói..."></textarea>
                             <span asp-validation-for="Description" class="text-danger small d-block mt-1"></span>
                         </div>
+
+                        <div class="col-12">
+                            <div class="active-box">
+                                <div class="form-check form-switch">
+                                    <input asp-for="IsActive"
+                                           class="form-check-input"
+                                           type="checkbox"
+                                           role="switch"
+                                           id="activeSwitch" />
+                                    <label class="form-check-label fw-bold text-success" for="activeSwitch">
+                                        Cho phép sử dụng gói này ngay sau khi tạo
+                                    </label>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Nếu tắt, gói sẽ được tạo ở trạng thái ngừng dùng và không nên hiển thị cho người dùng mua/chọn mới.
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <hr class="my-4">
@@ -264,11 +294,12 @@
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                         <div class="small text-muted">
                             <i class="bi bi-info-circle me-1"></i>
-                            Sau khi tạo, gói sẽ xuất hiện trong danh sách mua/chọn gói đăng tin.
+                            Sau khi tạo, gói đang dùng sẽ xuất hiện trong danh sách mua/chọn gói đăng tin.
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-lg fw-bold rounded-pill px-5 shadow-sm">
-                            <i class="bi bi-floppy-fill me-2"></i>Lưu gói mới
+                            <i class="bi bi-floppy-fill me-2"></i>
+                            Lưu gói mới
                         </button>
                     </div>
                 </form>
@@ -285,7 +316,7 @@
                         Tin Thường
                     </div>
                     <h4 class="fw-black text-dark mb-0" style="font-weight:900;" id="previewName">
-                        Tin Thường Miễn Phí
+                        Tin Thường 30 Ngày
                     </h4>
                 </div>
 
@@ -297,7 +328,7 @@
 
                     <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom">
                         <span class="fw-bold text-muted">Thời hạn</span>
-                        <span class="fw-bold text-dark" id="previewDuration">Không hết hạn</span>
+                        <span class="fw-bold text-dark" id="previewDuration">30 ngày</span>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom">
@@ -319,7 +350,8 @@
 
             <div class="guide-card p-4">
                 <h6 class="fw-bold text-dark mb-3">
-                    <i class="bi bi-lightbulb-fill text-warning me-1"></i> Gợi ý sử dụng
+                    <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                    Gợi ý sử dụng
                 </h6>
 
                 <div class="guide-item">
@@ -334,7 +366,7 @@
 
                 <div class="guide-item mb-0">
                     <i class="bi bi-check-circle-fill"></i>
-                    <span><strong>Tin Thường</strong> tự động giá 0, thời hạn 0, hạng 5 thấp nhất.</span>
+                    <span><strong>Ngừng dùng</strong> dùng khi muốn giữ lịch sử nhưng không bán/chọn gói đó nữa.</span>
                 </div>
             </div>
         </div>
@@ -377,11 +409,10 @@
             return new Intl.NumberFormat('vi-VN').format(number) + ' ₫';
         }
 
-              function applyTierDefaults(forceFillText = false) {
+        function applyTierDefaults(forceFillText = false) {
             const tier = getSelectedTier();
             if (!tier) return;
 
-            // Chỉ khóa hạng hiển thị, không khóa giá và thời hạn.
             priorityInput.value = tier.priorityLevel;
 
             priceInput.readOnly = false;
@@ -408,11 +439,11 @@
                 nameInput.value = tier.suggestedPackageName;
             }
 
-            if ((forceFillText || !priceInput.value) && parseInt(priceInput.value || '0') < 0) {
+            if (forceFillText || !priceInput.value) {
                 priceInput.value = tier.suggestedPrice;
             }
 
-            if ((forceFillText || !durationInput.value) && tier.type === 'Tin Thường') {
+            if (forceFillText || !durationInput.value) {
                 durationInput.value = tier.defaultDurationDays;
             }
 
@@ -420,6 +451,7 @@
                 descInput.value = tier.suggestedDescription;
             }
         }
+
         function updatePreview() {
             const tier = getSelectedTier();
 

@@ -1,29 +1,37 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.ProjectLead>
-@using System.Globalization
+@using Microsoft.AspNetCore.Mvc.Rendering
 
 @{
     ViewData["Title"] = "Phễu khách hàng";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
+    var leads = Model?.ToList() ?? new List<BDSKhanhHoa.Models.ProjectLead>();
+
     int currentPage = ViewBag.CurrentPage ?? 1;
     int totalPages = ViewBag.TotalPages ?? 1;
 
     string? currentStatus = ViewBag.CurrentStatus as string;
+    string? currentDateRange = ViewBag.CurrentDateRange as string;
+    string currentKeyword = ViewBag.CurrentKeyword as string ?? "";
     int? currentProjectId = ViewBag.CurrentProjectId is int pid ? pid : null;
-    string keyword = ViewBag.CurrentKeyword as string ?? string.Empty;
 
-    int totalLeads = ViewBag.TotalLeads ?? (Model?.Count() ?? 0);
+    int totalLeads = ViewBag.TotalLeads ?? leads.Count;
     int newLeads = ViewBag.NewLeads ?? 0;
+    int contactedLeads = ViewBag.ContactedLeads ?? 0;
+    int resolvedLeads = ViewBag.ResolvedLeads ?? 0;
     int invalidLeads = ViewBag.InvalidLeads ?? 0;
+    int totalFilteredItems = ViewBag.TotalFilteredItems ?? leads.Count;
 
-    int contactedLeads = Model?.Count(x => x.LeadStatus == "Contacted" || x.LeadStatus == "Đã liên hệ") ?? 0;
-    int resolvedLeads = Model?.Count(x => x.LeadStatus == "Resolved" || x.LeadStatus == "Đã chốt") ?? 0;
+    string currentUrl = Context.Request.Path + Context.Request.QueryString;
 }
 
 @functions {
-    public string GetLeadStatusText(string? status)
+    public string LeadStatusText(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return "Khách mới";
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Khách mới";
+        }
 
         return status.Trim() switch
         {
@@ -39,11 +47,9 @@
         };
     }
 
-    public string GetLeadStatusClass(string? status)
+    public string LeadStatusClass(string? status)
     {
-        string text = GetLeadStatusText(status);
-
-        return text switch
+        return LeadStatusText(status) switch
         {
             "Khách mới" => "crm-status-new",
             "Đang chăm sóc" => "crm-status-contacted",
@@ -51,6 +57,29 @@
             "Không hợp lệ" => "crm-status-invalid",
             _ => "crm-status-unknown"
         };
+    }
+
+    public bool IsClosedLead(string? status)
+    {
+        string text = LeadStatusText(status);
+        return text == "Đã chốt" || text == "Không hợp lệ";
+    }
+
+    public string SafeText(string? value, string fallback = "Chưa cập nhật")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
+
+    public string ShortText(string? value, int max = 90)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Không có ghi chú.";
+        }
+
+        value = value.Trim();
+
+        return value.Length <= max ? value : value.Substring(0, max) + "...";
     }
 }
 
@@ -67,8 +96,14 @@
             --crm-border: #e2e8f0;
             --crm-soft: #f8fafc;
             --crm-card: #ffffff;
-            --crm-radius: 24px;
             --crm-shadow: 0 16px 38px rgba(15, 23, 42, .07);
+            --crm-radius: 24px;
+        }
+
+        .crm-page {
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
         }
 
         .crm-hero,
@@ -76,49 +111,38 @@
         .crm-table-card,
         .crm-empty {
             background: var(--crm-card);
-            border: 1px solid rgba(148, 163, 184, .20);
+            border: 1px solid rgba(148, 163, 184, .22);
             border-radius: var(--crm-radius);
             box-shadow: var(--crm-shadow);
         }
 
         .crm-hero {
-            padding: 26px;
-            margin-bottom: 22px;
-            overflow: hidden;
             position: relative;
+            overflow: hidden;
+            padding: 26px;
+            background: radial-gradient(circle at top right, rgba(37, 99, 235, .14), transparent 320px), linear-gradient(135deg, #ffffff, #f8fbff);
         }
 
-            .crm-hero::after {
-                content: "";
-                position: absolute;
-                width: 260px;
-                height: 260px;
-                right: -110px;
-                top: -130px;
-                border-radius: 999px;
-                background: rgba(37, 99, 235, .09);
-            }
-
         .crm-title {
-            font-size: clamp(1.35rem, 2.4vw, 2rem);
-            font-weight: 950;
             color: var(--crm-dark);
-            margin-bottom: 8px;
+            font-size: clamp(1.45rem, 2.4vw, 2.1rem);
+            font-weight: 950;
             letter-spacing: -.04em;
+            margin-bottom: 8px;
         }
 
         .crm-subtitle {
             color: var(--crm-muted);
             font-weight: 650;
-            margin-bottom: 0;
             line-height: 1.6;
+            margin-bottom: 0;
         }
 
         .crm-quick-actions {
             display: flex;
+            justify-content: flex-end;
             gap: 10px;
             flex-wrap: wrap;
-            justify-content: flex-end;
         }
 
         .crm-chip {
@@ -136,28 +160,30 @@
         }
 
         .crm-stat {
-            min-height: 138px;
+            position: relative;
+            overflow: hidden;
+            min-height: 136px;
             border-radius: 24px;
             padding: 22px;
             color: #fff;
-            position: relative;
-            overflow: hidden;
             box-shadow: 0 16px 32px rgba(15, 23, 42, .12);
         }
 
             .crm-stat::after {
                 content: "";
                 position: absolute;
-                width: 120px;
-                height: 120px;
-                right: -36px;
-                top: -42px;
-                background: rgba(255, 255, 255, .17);
+                width: 128px;
+                height: 128px;
+                right: -40px;
+                top: -48px;
                 border-radius: 999px;
+                background: rgba(255,255,255,.17);
             }
 
         .crm-stat-label {
-            font-size: .77rem;
+            position: relative;
+            z-index: 1;
+            font-size: .76rem;
             font-weight: 950;
             text-transform: uppercase;
             letter-spacing: .08em;
@@ -166,10 +192,21 @@
         }
 
         .crm-stat-value {
-            font-size: 2.65rem;
+            position: relative;
+            z-index: 1;
+            font-size: 2.45rem;
             line-height: 1;
             font-weight: 950;
             letter-spacing: -.05em;
+        }
+
+        .crm-stat-desc {
+            position: relative;
+            z-index: 1;
+            margin-top: 9px;
+            font-size: .78rem;
+            font-weight: 750;
+            opacity: .88;
         }
 
         .crm-blue {
@@ -194,15 +231,15 @@
 
         .crm-filter {
             padding: 22px;
-            margin-bottom: 22px;
         }
 
         .crm-label {
-            font-size: .76rem;
+            display: block;
+            color: #475569;
+            font-size: .74rem;
+            font-weight: 950;
             text-transform: uppercase;
             letter-spacing: .07em;
-            color: #475569;
-            font-weight: 950;
             margin-bottom: 8px;
         }
 
@@ -211,9 +248,9 @@
             border-radius: 16px;
             border: 1px solid #dbe3ef;
             background: #fff;
-            box-shadow: none !important;
-            font-weight: 750;
             color: #1e293b;
+            font-weight: 750;
+            box-shadow: none !important;
         }
 
             .crm-input:focus {
@@ -224,9 +261,9 @@
         .btn-crm-primary {
             min-height: 50px;
             border-radius: 16px;
+            border: 0;
             background: linear-gradient(135deg, var(--crm-primary), var(--crm-primary-dark));
             color: #fff;
-            border: 0;
             font-weight: 950;
             box-shadow: 0 12px 24px rgba(37, 99, 235, .18);
         }
@@ -249,33 +286,57 @@
             overflow: hidden;
         }
 
+        .crm-table-head {
+            padding: 20px 22px;
+            border-bottom: 1px solid var(--crm-border);
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .crm-table-title {
+            color: var(--crm-dark);
+            font-size: 1.05rem;
+            font-weight: 950;
+            margin-bottom: 4px;
+        }
+
+        .crm-table-subtitle {
+            color: var(--crm-muted);
+            font-size: .86rem;
+            font-weight: 650;
+        }
+
         .crm-table thead th {
             background: #f8fafc;
             color: #475569;
-            font-size: .76rem;
+            font-size: .72rem;
             text-transform: uppercase;
             letter-spacing: .07em;
             font-weight: 950;
-            padding: 17px 18px;
+            padding: 15px 16px;
             border-bottom: 1px solid var(--crm-border);
             white-space: nowrap;
         }
 
         .crm-table tbody td {
-            padding: 18px;
+            padding: 16px;
             vertical-align: middle;
             border-bottom: 1px solid #f1f5f9;
         }
 
-        .crm-customer-name {
-            font-weight: 950;
+        .crm-name {
             color: var(--crm-dark);
+            font-weight: 950;
             line-height: 1.4;
         }
 
         .crm-small {
             color: var(--crm-muted);
-            font-size: .87rem;
+            font-size: .84rem;
             font-weight: 650;
             line-height: 1.55;
         }
@@ -291,15 +352,17 @@
             border: 1px solid #bbf7d0;
             font-size: .78rem;
             font-weight: 900;
+            white-space: nowrap;
         }
 
         .crm-message-box {
+            max-width: 360px;
             border-radius: 15px;
             background: #f8fafc;
             border: 1px solid var(--crm-border);
-            padding: 11px 12px;
+            padding: 10px 12px;
             color: #334155;
-            font-size: .86rem;
+            font-size: .84rem;
             line-height: 1.55;
         }
 
@@ -310,7 +373,7 @@
             border: 1px solid #fde68a;
             padding: 9px 11px;
             color: #92400e;
-            font-size: .82rem;
+            font-size: .8rem;
             font-weight: 700;
             line-height: 1.5;
         }
@@ -321,7 +384,7 @@
             gap: 7px;
             padding: 8px 13px;
             border-radius: 999px;
-            font-size: .76rem;
+            font-size: .72rem;
             font-weight: 950;
             text-transform: uppercase;
             letter-spacing: .04em;
@@ -354,9 +417,16 @@
             color: #3730a3;
         }
 
+        .crm-action-wrap {
+            display: inline-flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
         .crm-action-btn {
-            width: 42px;
-            height: 42px;
+            width: 40px;
+            height: 40px;
             border-radius: 14px;
             display: inline-flex;
             align-items: center;
@@ -373,6 +443,12 @@
                 border-color: var(--crm-primary);
             }
 
+            .crm-action-btn.disabled,
+            .crm-action-btn[disabled] {
+                opacity: .45;
+                pointer-events: none;
+            }
+
         .crm-mobile-list {
             display: none;
             background: #f8fafc;
@@ -387,6 +463,19 @@
             padding: 16px;
             margin-bottom: 14px;
         }
+
+        .crm-mobile-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+            margin-top: 14px;
+        }
+
+            .crm-mobile-actions .btn {
+                min-height: 42px;
+                border-radius: 14px;
+                font-weight: 900;
+            }
 
         .crm-pagination .page-link {
             border: 1px solid #dbe3ef;
@@ -412,359 +501,487 @@
             text-align: center;
         }
 
+        .crm-empty-icon {
+            width: 82px;
+            height: 82px;
+            border-radius: 28px;
+            background: #f1f5f9;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.4rem;
+            margin-bottom: 16px;
+        }
+
         @@media (max-width: 991.98px) {
-            .crm-quick-actions {
-                justify-content: flex-start;
-            }
+            .crm-quick-actions
 
-            .desktop-table-wrap {
-                display: none;
-            }
+        {
+            justify-content: flex-start;
+        }
 
-            .crm-mobile-list {
-                display: block;
-            }
+        .desktop-table-wrap {
+            display: none;
+        }
 
-            .crm-stat {
-                min-height: 126px;
-            }
+        .crm-mobile-list {
+            display: block;
+        }
 
-            .crm-stat-value {
-                font-size: 2.2rem;
-            }
+        .crm-stat {
+            min-height: 126px;
+        }
+
+        .crm-stat-value {
+            font-size: 2.15rem;
+        }
+
         }
 
         @@media (max-width: 575.98px) {
-            .crm-hero,
-            .crm-filter,
-            .crm-table-card {
-                border-radius: 20px;
-            }
+            .crm-hero, .crm-filter, .crm-table-card, .crm-empty
 
-            .crm-hero,
-            .crm-filter {
-                padding: 18px;
-            }
+        {
+            border-radius: 20px;
+        }
 
-            .crm-chip,
-            .btn-crm-light,
-            .btn-crm-primary {
-                width: 100%;
-                justify-content: center;
-            }
+        .crm-hero,
+        .crm-filter {
+            padding: 18px;
+        }
+
+        .crm-chip,
+        .btn-crm-light,
+        .btn-crm-primary {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .crm-mobile-actions {
+            grid-template-columns: 1fr;
+        }
+
         }
     </style>
 }
 
-<div class="crm-hero">
-    <div class="row g-4 align-items-center position-relative" style="z-index:1;">
-        <div class="col-xl-7">
-            <h1 class="crm-title">Phễu khách hàng</h1>
-            <p class="crm-subtitle">
-                Theo dõi khách hàng quan tâm dự án, cập nhật trạng thái chăm sóc, điều phối lịch xem và lưu vết lịch sử CRM.
-            </p>
-        </div>
+<div class="crm-page">
+    <section class="crm-hero">
+        <div class="row g-4 align-items-center position-relative" style="z-index:1;">
+            <div class="col-xl-7">
+                <h1 class="crm-title">
+                    <i class="bi bi-funnel-fill text-primary me-2"></i>
+                    Phễu khách hàng
+                </h1>
+                <p class="crm-subtitle">
+                    Theo dõi khách hàng quan tâm dự án, gọi chăm sóc, tạo lịch xem thực tế và lưu vết toàn bộ lịch sử CRM.
+                </p>
+            </div>
 
-        <div class="col-xl-5">
-            <div class="crm-quick-actions">
-                <span class="crm-chip">
-                    <i class="bi bi-people-fill text-primary"></i>
-                    @totalLeads khách hàng
-                </span>
+            <div class="col-xl-5">
+                <div class="crm-quick-actions">
+                    <span class="crm-chip">
+                        <i class="bi bi-people-fill text-primary"></i>
+                        @totalLeads khách hàng
+                    </span>
 
-                <span class="crm-chip">
-                    <i class="bi bi-lightning-charge-fill text-danger"></i>
-                    @newLeads khách mới
-                </span>
+                    <span class="crm-chip">
+                        <i class="bi bi-lightning-charge-fill text-danger"></i>
+                        @newLeads khách mới
+                    </span>
 
-                <a href="@Url.Action("ExportLeadsToCsv", new { projectId = currentProjectId })" class="btn btn-crm-light">
-                    <i class="bi bi-file-earmark-excel-fill text-success me-1"></i>
-                    Xuất Excel/CSV
-                </a>
+                    <a href="@Url.Action("ExportLeadsToCsv", "MemberProject", new { projectId = currentProjectId, status = currentStatus, keyword = currentKeyword })"
+                       class="btn btn-crm-light">
+                        <i class="bi bi-file-earmark-excel-fill text-success me-1"></i>
+                        Xuất CSV
+                    </a>
+                </div>
             </div>
         </div>
-    </div>
-</div>
+    </section>
 
-<div class="row g-3 g-xl-4 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="crm-stat crm-blue">
-            <div class="crm-stat-label">Tổng khách</div>
-            <div class="crm-stat-value">@totalLeads</div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6">
-        <div class="crm-stat crm-red">
-            <div class="crm-stat-label">Khách mới</div>
-            <div class="crm-stat-value">@newLeads</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-md-6">
-        <div class="crm-stat crm-amber">
-            <div class="crm-stat-label">Đang chăm sóc</div>
-            <div class="crm-stat-value">@contactedLeads</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-md-6">
-        <div class="crm-stat crm-green">
-            <div class="crm-stat-label">Đã chốt</div>
-            <div class="crm-stat-value">@resolvedLeads</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-md-6">
-        <div class="crm-stat crm-gray">
-            <div class="crm-stat-label">Không hợp lệ</div>
-            <div class="crm-stat-value">@invalidLeads</div>
-        </div>
-    </div>
-</div>
-
-<div class="crm-filter">
-    <form method="get" asp-action="Index" asp-controller="MemberProject" class="row g-3 align-items-end">
-        <div class="col-xl-4 col-lg-6">
-            <label class="form-label crm-label">Dự án quản lý</label>
-            <select name="projectId" class="form-select crm-input" asp-items="ViewBag.ProjectList">
-                <option value="">Toàn bộ dự án</option>
-            </select>
+    <section class="row g-3 g-xl-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat crm-blue">
+                <div class="crm-stat-label">Tổng khách</div>
+                <div class="crm-stat-value">@totalLeads.ToString("N0")</div>
+                <div class="crm-stat-desc">Tất cả lead dự án</div>
+            </div>
         </div>
 
-        <div class="col-xl-3 col-lg-6">
-            <label class="form-label crm-label">Trạng thái chăm sóc</label>
-            <select name="status" class="form-select crm-input">
-                <option value="">Tất cả trạng thái</option>
-                <option value="New" selected="@(currentStatus == "New")">Khách mới</option>
-                <option value="Contacted" selected="@(currentStatus == "Contacted")">Đang chăm sóc</option>
-                <option value="Resolved" selected="@(currentStatus == "Resolved")">Đã chốt</option>
-                <option value="Invalid" selected="@(currentStatus == "Invalid")">Không hợp lệ</option>
-            </select>
+        <div class="col-xl-3 col-md-6">
+            <div class="crm-stat crm-red">
+                <div class="crm-stat-label">Khách mới</div>
+                <div class="crm-stat-value">@newLeads.ToString("N0")</div>
+                <div class="crm-stat-desc">Cần gọi sớm</div>
+            </div>
         </div>
 
-        <div class="col-xl-4 col-lg-9">
-            <label class="form-label crm-label">Từ khóa</label>
-            <input type="text"
-                   name="keyword"
-                   value="@keyword"
-                   class="form-control crm-input"
-                   placeholder="Tìm tên khách, số điện thoại, email, ghi chú..." />
+        <div class="col-xl-2 col-md-6">
+            <div class="crm-stat crm-amber">
+                <div class="crm-stat-label">Đang chăm sóc</div>
+                <div class="crm-stat-value">@contactedLeads.ToString("N0")</div>
+                <div class="crm-stat-desc">Đang theo dõi</div>
+            </div>
         </div>
 
-        <div class="col-xl-1 col-lg-3 d-grid">
-            <button type="submit" class="btn btn-crm-primary">
-                <i class="bi bi-search"></i>
-                Lọc
-            </button>
+        <div class="col-xl-2 col-md-6">
+            <div class="crm-stat crm-green">
+                <div class="crm-stat-label">Đã chốt</div>
+                <div class="crm-stat-value">@resolvedLeads.ToString("N0")</div>
+                <div class="crm-stat-desc">Thành công</div>
+            </div>
         </div>
-    </form>
-</div>
 
-<div class="crm-table-card">
-    <div class="desktop-table-wrap table-responsive">
-        <table class="table crm-table mb-0 align-middle">
-            <thead>
-                <tr>
-                    <th>Khách hàng</th>
-                    <th>Dự án quan tâm</th>
-                    <th>Nhu cầu & ghi chú</th>
-                    <th>Thời gian</th>
-                    <th>Trạng thái</th>
-                    <th class="text-center">Thao tác</th>
-                </tr>
-            </thead>
+        <div class="col-xl-2 col-md-6">
+            <div class="crm-stat crm-gray">
+                <div class="crm-stat-label">Không hợp lệ</div>
+                <div class="crm-stat-value">@invalidLeads.ToString("N0")</div>
+                <div class="crm-stat-desc">Lead rác / hủy</div>
+            </div>
+        </div>
+    </section>
 
-            <tbody>
-                @if (Model != null && Model.Any())
-                {
-                    foreach (var lead in Model)
+    <section class="crm-filter">
+        <form method="get" asp-action="Index" asp-controller="MemberProject">
+            <div class="row g-3 align-items-end">
+                <div class="col-xl-3 col-lg-6">
+                    <label class="crm-label">Dự án</label>
+                    <select name="projectId" class="form-select crm-input" asp-items="ViewBag.ProjectList">
+                        <option value="">Tất cả dự án</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-2 col-lg-6">
+                    <label class="crm-label">Trạng thái</label>
+                    <select name="status" class="form-select crm-input">
+                        <option value="">Tất cả</option>
+                        <option value="New" selected="@(currentStatus == "New")">Khách mới</option>
+                        <option value="Contacted" selected="@(currentStatus == "Contacted")">Đang chăm sóc</option>
+                        <option value="Resolved" selected="@(currentStatus == "Resolved")">Đã chốt</option>
+                        <option value="Invalid" selected="@(currentStatus == "Invalid")">Không hợp lệ</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-2 col-lg-6">
+                    <label class="crm-label">Thời gian</label>
+                    <select name="daterange" class="form-select crm-input">
+                        <option value="">Tất cả</option>
+                        <option value="today" selected="@(currentDateRange == "today")">Hôm nay</option>
+                        <option value="week" selected="@(currentDateRange == "week")">7 ngày qua</option>
+                        <option value="month" selected="@(currentDateRange == "month")">30 ngày qua</option>
+                        <option value="quarter" selected="@(currentDateRange == "quarter")">3 tháng qua</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-3 col-lg-6">
+                    <label class="crm-label">Từ khóa</label>
+                    <input type="text"
+                           name="keyword"
+                           value="@currentKeyword"
+                           class="form-control crm-input"
+                           placeholder="Tên khách, SĐT, email, tên dự án..." />
+                </div>
+
+                <div class="col-xl-2 col-lg-12">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-crm-primary flex-grow-1">
+                            <i class="bi bi-search me-1"></i>
+                            Lọc
+                        </button>
+
+                        <a href="/MemberProject/Index" class="btn btn-crm-light px-3" title="Đặt lại">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="crm-table-card">
+        <div class="crm-table-head">
+            <div>
+                <div class="crm-table-title">Danh sách khách hàng</div>
+                <div class="crm-table-subtitle">
+                    Đang hiển thị @leads.Count.ToString("N0") / @totalFilteredItems.ToString("N0") kết quả phù hợp.
+                </div>
+            </div>
+
+            <span class="crm-chip">
+                <i class="bi bi-shield-check text-success"></i>
+                Chỉ xem lead thuộc dự án được phân quyền
+            </span>
+        </div>
+
+        <div class="desktop-table-wrap table-responsive">
+            <table class="table crm-table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Khách hàng</th>
+                        <th>Liên hệ</th>
+                        <th>Dự án</th>
+                        <th>Nhu cầu / ghi chú</th>
+                        <th>Trạng thái</th>
+                        <th>Ngày tạo</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (leads.Any())
                     {
-                        string statusText = GetLeadStatusText(lead.LeadStatus);
-                        string statusClass = GetLeadStatusClass(lead.LeadStatus);
+                        foreach (var item in leads)
+                        {
+                            bool rowClosed = IsClosedLead(item.LeadStatus);
 
-                        <tr>
-                            <td>
-                                <div class="crm-customer-name">@lead.Name</div>
-
-                                <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <a href="tel:@lead.Phone" class="crm-contact-pill">
-                                        <i class="bi bi-telephone-fill"></i>
-                                        @lead.Phone
-                                    </a>
-
-                                    @if (!string.IsNullOrWhiteSpace(lead.Email))
-                                    {
-                                        <span class="crm-contact-pill" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">
-                                            <i class="bi bi-envelope-fill"></i>
-                                            Có email
-                                        </span>
-                                    }
-                                </div>
-                            </td>
-
-                            <td>
-                                <div class="fw-bold text-primary">
-                                    @(lead.Project?.ProjectName ?? "Chưa xác định")
-                                </div>
-
-                                <div class="crm-small mt-1">
-                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>
-                                    @(lead.Project?.Ward?.WardName ?? "Đang cập nhật")
-                                </div>
-                            </td>
-
-                            <td style="min-width:280px;">
-                                <div class="crm-message-box">
-                                    <strong>Khách nhắn:</strong>
-                                    @(string.IsNullOrWhiteSpace(lead.Message) ? "Khách để lại số điện thoại và yêu cầu gọi lại." : lead.Message)
-                                </div>
-
-                                @if (!string.IsNullOrWhiteSpace(lead.Note))
-                                {
-                                    <div class="crm-note-box" title="@lead.Note">
-                                        <i class="bi bi-journal-text me-1"></i>
-                                        @(lead.Note.Length > 85 ? lead.Note.Substring(0, 85) + "..." : lead.Note)
+                            <tr>
+                                <td>
+                                    <div class="crm-name">@SafeText(item.Name, "Khách hàng")</div>
+                                    <div class="crm-small">
+                                        <i class="bi bi-clock-history me-1"></i>
+                                        @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
                                     </div>
-                                }
-                            </td>
+                                </td>
 
-                            <td>
-                                <div class="fw-bold text-dark">@lead.CreatedAt.ToString("dd/MM/yyyy")</div>
-                                <div class="crm-small">@lead.CreatedAt.ToString("HH:mm")</div>
-                            </td>
-
-                            <td>
-                                <span class="crm-status @statusClass">
-                                    <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
-                                    @statusText
-                                </span>
-                            </td>
-
-                            <td class="text-center">
-                                <div class="d-inline-flex gap-2">
-                                    <a asp-action="EditLead" asp-route-id="@lead.LeadID" class="crm-action-btn" title="Cập nhật khách hàng / đặt lịch">
-                                        <i class="bi bi-calendar-plus-fill"></i>
+                                <td>
+                                    <a href="tel:@item.Phone" class="crm-contact-pill">
+                                        <i class="bi bi-telephone-fill"></i>
+                                        @SafeText(item.Phone, "Chưa có SĐT")
                                     </a>
 
-                                    <a asp-action="LeadHistory" asp-route-id="@lead.LeadID" class="crm-action-btn" title="Xem hồ sơ 360">
-                                        <i class="bi bi-person-vcard-fill"></i>
-                                    </a>
+                                    <div class="crm-small mt-2">
+                                        <i class="bi bi-envelope me-1"></i>
+                                        @SafeText(item.Email, "Chưa có email")
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <div class="crm-name">@SafeText(item.Project?.ProjectName, "Không rõ dự án")</div>
+                                    <div class="crm-small">
+                                        Mã lead: #@item.LeadID
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <div class="crm-message-box">
+                                        @ShortText(item.Message, 120)
+                                    </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(item.Note))
+                                    {
+                                        <div class="crm-note-box">
+                                            <i class="bi bi-journal-text me-1"></i>
+                                            @ShortText(item.Note, 100)
+                                        </div>
+                                    }
+                                </td>
+
+                                <td>
+                                    <span class="crm-status @LeadStatusClass(item.LeadStatus)">
+                                        <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                                        @LeadStatusText(item.LeadStatus)
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <div class="crm-name">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
+                                    <div class="crm-small">@item.CreatedAt.ToString("HH:mm")</div>
+                                </td>
+
+                                <td class="text-end">
+                                    <div class="crm-action-wrap">
+                                        <a href="tel:@item.Phone"
+                                           class="crm-action-btn"
+                                           title="Gọi khách">
+                                            <i class="bi bi-telephone-outbound-fill"></i>
+                                        </a>
+
+                                        @if (!rowClosed)
+                                        {
+                                            <a href="@Url.Action("EditLead", "MemberProject", new { id = item.LeadID, returnUrl = currentUrl })"
+                                               class="crm-action-btn"
+                                               title="Chăm sóc / tạo lịch">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="crm-action-btn disabled" title="Hồ sơ đã khóa">
+                                                <i class="bi bi-lock-fill"></i>
+                                            </span>
+                                        }
+
+                                        <a href="@Url.Action("LeadHistory", "MemberProject", new { id = item.LeadID })"
+                                           class="crm-action-btn"
+                                           title="Hồ sơ 360">
+                                            <i class="bi bi-clock-history"></i>
+                                        </a>
+
+                                        @if (item.Project != null)
+                                        {
+                                            <a href="/Project/Details/@item.ProjectID"
+                                               target="_blank"
+                                               class="crm-action-btn"
+                                               title="Xem dự án">
+                                                <i class="bi bi-building-fill"></i>
+                                            </a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="crm-empty">
+                                    <div class="crm-empty-icon">
+                                        <i class="bi bi-person-x"></i>
+                                    </div>
+                                    <h5 class="fw-bold text-dark">Chưa có khách hàng phù hợp</h5>
+                                    <div class="text-muted">
+                                        Hãy thử đổi bộ lọc hoặc kiểm tra lại dự án đang được phân quyền.
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                     }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="6">
-                            <div class="crm-empty">
-                                <i class="bi bi-inbox display-1 text-muted opacity-25 d-block mb-3"></i>
-                                <h5 class="fw-bold text-dark">Chưa có khách hàng phù hợp</h5>
-                                <p class="text-muted mb-0">Hãy thử đổi bộ lọc hoặc chọn dự án khác.</p>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                </tbody>
+            </table>
+        </div>
 
-    <div class="crm-mobile-list">
-        @if (Model != null && Model.Any())
-        {
-            foreach (var lead in Model)
+        <div class="crm-mobile-list">
+            @if (leads.Any())
             {
-                string statusText = GetLeadStatusText(lead.LeadStatus);
-                string statusClass = GetLeadStatusClass(lead.LeadStatus);
+                foreach (var item in leads)
+                {
+                    bool rowClosed = IsClosedLead(item.LeadStatus);
 
-                <div class="crm-mobile-card">
-                    <div class="d-flex justify-content-between gap-2 align-items-start">
-                        <div>
-                            <div class="crm-customer-name">@lead.Name</div>
-                            <a href="tel:@lead.Phone" class="crm-contact-pill mt-2">
-                                <i class="bi bi-telephone-fill"></i>
-                                @lead.Phone
-                            </a>
+                    <article class="crm-mobile-card">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                            <div>
+                                <div class="crm-name">@SafeText(item.Name, "Khách hàng")</div>
+                                <div class="crm-small">@SafeText(item.Project?.ProjectName, "Không rõ dự án")</div>
+                            </div>
+
+                            <span class="crm-status @LeadStatusClass(item.LeadStatus)">
+                                @LeadStatusText(item.LeadStatus)
+                            </span>
                         </div>
 
-                        <span class="crm-status @statusClass">
-                            @statusText
-                        </span>
-                    </div>
-
-                    <div class="mt-3 crm-small">
-                        <i class="bi bi-building-fill text-primary me-1"></i>
-                        <strong>@(lead.Project?.ProjectName ?? "Chưa xác định")</strong>
-                    </div>
-
-                    <div class="crm-message-box mt-3">
-                        @(string.IsNullOrWhiteSpace(lead.Message) ? "Khách để lại số điện thoại và yêu cầu gọi lại." : lead.Message)
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(lead.Note))
-                    {
-                        <div class="crm-note-box">
-                            @(lead.Note.Length > 100 ? lead.Note.Substring(0, 100) + "..." : lead.Note)
-                        </div>
-                    }
-
-                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
-                        <div class="crm-small">
-                            @lead.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+                        <div class="crm-message-box mb-2">
+                            <strong>Nhu cầu:</strong> @ShortText(item.Message, 140)
                         </div>
 
-                        <div class="d-flex gap-2">
-                            <a asp-action="EditLead" asp-route-id="@lead.LeadID" class="crm-action-btn">
-                                <i class="bi bi-calendar-plus-fill"></i>
+                        @if (!string.IsNullOrWhiteSpace(item.Note))
+                        {
+                            <div class="crm-note-box">
+                                <i class="bi bi-journal-text me-1"></i>
+                                @ShortText(item.Note, 120)
+                            </div>
+                        }
+
+                        <div class="crm-small mt-3">
+                            <i class="bi bi-clock-history me-1"></i>
+                            Tạo lúc @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                        </div>
+
+                        <div class="crm-mobile-actions">
+                            <a href="tel:@item.Phone" class="btn btn-success">
+                                <i class="bi bi-telephone-outbound-fill me-1"></i>
+                                Gọi khách
                             </a>
 
-                            <a asp-action="LeadHistory" asp-route-id="@lead.LeadID" class="crm-action-btn">
-                                <i class="bi bi-person-vcard-fill"></i>
+                            @if (!rowClosed)
+                            {
+                                <a href="@Url.Action("EditLead", "MemberProject", new { id = item.LeadID, returnUrl = currentUrl })"
+                                   class="btn btn-primary">
+                                    <i class="bi bi-pencil-square me-1"></i>
+                                    Chăm sóc
+                                </a>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-light border" disabled>
+                                    <i class="bi bi-lock-fill me-1"></i>
+                                    Đã khóa
+                                </button>
+                            }
+
+                            <a href="@Url.Action("LeadHistory", "MemberProject", new { id = item.LeadID })"
+                               class="btn btn-light border">
+                                <i class="bi bi-clock-history me-1"></i>
+                                Hồ sơ 360
                             </a>
+
+                            @if (item.Project != null)
+                            {
+                                <a href="/Project/Details/@item.ProjectID"
+                                   target="_blank"
+                                   class="btn btn-light border">
+                                    <i class="bi bi-building-fill me-1"></i>
+                                    Xem dự án
+                                </a>
+                            }
                         </div>
+                    </article>
+                }
+            }
+            else
+            {
+                <div class="crm-empty">
+                    <div class="crm-empty-icon">
+                        <i class="bi bi-person-x"></i>
                     </div>
+                    <h5 class="fw-bold text-dark">Chưa có khách hàng phù hợp</h5>
+                    <div class="text-muted">Hãy thử đổi bộ lọc hoặc kiểm tra lại dự án được phân quyền.</div>
                 </div>
             }
-        }
-        else
+        </div>
+
+        @if (totalPages > 1)
         {
-            <div class="crm-empty">
-                <i class="bi bi-inbox display-1 text-muted opacity-25 d-block mb-3"></i>
-                <h5 class="fw-bold text-dark">Chưa có khách hàng phù hợp</h5>
-                <p class="text-muted mb-0">Hãy thử đổi bộ lọc hoặc chọn dự án khác.</p>
-            </div>
-        }
-    </div>
-
-    @if (totalPages > 1)
-    {
-        <div class="p-4 border-top bg-white">
-            <nav>
-                <ul class="pagination crm-pagination justify-content-center mb-0 flex-wrap">
-                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage - 1, projectId = currentProjectId, status = currentStatus, keyword = keyword })">
-                            <i class="bi bi-chevron-left"></i>
-                        </a>
-                    </li>
-
-                    @for (int i = 1; i <= totalPages; i++)
-                    {
-                        <li class="page-item @(currentPage == i ? "active" : "")">
-                            <a class="page-link" href="@Url.Action("Index", new { page = i, projectId = currentProjectId, status = currentStatus, keyword = keyword })">
-                                @i
+            <div class="p-3 border-top">
+                <nav aria-label="Phân trang lead">
+                    <ul class="pagination crm-pagination justify-content-center flex-wrap mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = currentKeyword, page = currentPage - 1 })">
+                                <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
-                    }
 
-                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage + 1, projectId = currentProjectId, status = currentStatus, keyword = keyword })">
-                            <i class="bi bi-chevron-right"></i>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    }
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <a class="page-link"
+                                       href="@Url.Action("Index", new { projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = currentKeyword, page = i })">
+                                        @i
+                                    </a>
+                                </li>
+                            }
+                            else if (i == currentPage - 3 || i == currentPage + 3)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { projectId = currentProjectId, status = currentStatus, daterange = currentDateRange, keyword = currentKeyword, page = currentPage + 1 })">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </section>
 </div>

@@ -20,7 +20,9 @@ namespace BDSKhanhHoa.Controllers
         private bool TryGetCurrentUserId(out int userId)
         {
             userId = 0;
+
             string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             return int.TryParse(userIdStr, out userId);
         }
 
@@ -46,7 +48,9 @@ namespace BDSKhanhHoa.Controllers
         private static string NormalizeLeadStatus(string? status)
         {
             if (string.IsNullOrWhiteSpace(status))
+            {
                 return "Mới";
+            }
 
             return status.Trim() switch
             {
@@ -67,7 +71,9 @@ namespace BDSKhanhHoa.Controllers
         private static string NormalizeAppointmentStatus(string? status)
         {
             if (string.IsNullOrWhiteSpace(status))
+            {
                 return "Chờ xác nhận";
+            }
 
             return status.Trim() switch
             {
@@ -92,7 +98,9 @@ namespace BDSKhanhHoa.Controllers
         private static string NormalizeSupportStatus(string? status)
         {
             if (string.IsNullOrWhiteSpace(status))
+            {
                 return "Chờ xử lý";
+            }
 
             return status.Trim() switch
             {
@@ -122,6 +130,7 @@ namespace BDSKhanhHoa.Controllers
             if (!await CanAccessBusinessPortalAsync(userId))
             {
                 TempData["Error"] = "Tài khoản của bạn chưa được cấp quyền quản lý dự án.";
+
                 return RedirectToAction("Index", "Home");
             }
 
@@ -134,7 +143,8 @@ namespace BDSKhanhHoa.Controllers
                 .Include(p => p.Area)
                 .Include(p => p.Ward)
                 .Where(p => p.OwnerUserID == userId && !p.IsDeleted)
-                .OrderByDescending(p => p.CreatedAt)
+                .OrderByDescending(p => p.Views)
+                .ThenByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
             var projectIds = projects
@@ -208,24 +218,59 @@ namespace BDSKhanhHoa.Controllers
                 .GroupBy(x => x.ProjectID)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            var newLeadMap = leads
+                .Where(x => NormalizeLeadStatus(x.LeadStatus) == "Mới")
+                .GroupBy(x => x.ProjectID)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var resolvedLeadMap = leads
+                .Where(x => NormalizeLeadStatus(x.LeadStatus) == "Đã chốt")
+                .GroupBy(x => x.ProjectID)
+                .ToDictionary(g => g.Key, g => g.Count());
+
             var appointmentMap = appointments
                 .Where(x => x.ProjectID.HasValue)
                 .GroupBy(x => x.ProjectID!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            var viewMap = propertiesLinkedToProjects
+            var completedAppointmentMap = appointments
+                .Where(x =>
+                    x.ProjectID.HasValue &&
+                    NormalizeAppointmentStatus(x.Status) == "Đã hoàn tất")
+                .GroupBy(x => x.ProjectID!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var projectViewMap = projects
+                .ToDictionary(p => p.ProjectID, p => p.Views);
+
+            var propertyViewMap = propertiesLinkedToProjects
                 .Where(x => x.ProjectID.HasValue)
                 .GroupBy(x => x.ProjectID!.Value)
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.Views ?? 0));
+
+            var totalViewMap = projects
+                .ToDictionary(
+                    p => p.ProjectID,
+                    p => p.Views + (propertyViewMap.ContainsKey(p.ProjectID) ? propertyViewMap[p.ProjectID] : 0));
+
+            var propertyCountMap = propertiesLinkedToProjects
+                .Where(x => x.ProjectID.HasValue)
+                .GroupBy(x => x.ProjectID!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             var supportMap = supportTickets
                 .Where(x => x.ProjectID.HasValue)
                 .GroupBy(x => x.ProjectID!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            int totalProjectViews = projects.Sum(p => p.Views);
+            int totalPropertyViews = propertiesLinkedToProjects.Sum(p => p.Views ?? 0);
+            int totalViews = totalProjectViews + totalPropertyViews;
+
             ViewBag.BusinessName = businessProfile?.BusinessName ?? "Doanh nghiệp đối tác";
 
             ViewBag.TotalProjects = projects.Count;
+
             ViewBag.TotalLeads = leads.Count;
             ViewBag.NewLeads = newLeads;
             ViewBag.ContactedLeads = contactedLeads;
@@ -238,15 +283,28 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.CompletedAppointments = completedAppointments;
             ViewBag.CancelledAppointments = cancelledAppointments;
 
-            ViewBag.TotalViews = propertiesLinkedToProjects.Sum(p => p.Views ?? 0);
+            ViewBag.TotalProjectViews = totalProjectViews;
+            ViewBag.TotalPropertyViews = totalPropertyViews;
+            ViewBag.TotalViews = totalViews;
+
+            ViewBag.TotalProperties = propertiesLinkedToProjects.Count;
 
             ViewBag.TotalSupportTickets = supportTickets.Count;
             ViewBag.OpenSupportTickets = openSupportTickets;
             ViewBag.ClosedSupportTickets = closedSupportTickets;
 
             ViewBag.LeadMap = leadMap;
+            ViewBag.NewLeadMap = newLeadMap;
+            ViewBag.ResolvedLeadMap = resolvedLeadMap;
+
             ViewBag.AppointmentMap = appointmentMap;
-            ViewBag.ViewMap = viewMap;
+            ViewBag.CompletedAppointmentMap = completedAppointmentMap;
+
+            ViewBag.ProjectViewMap = projectViewMap;
+            ViewBag.PropertyViewMap = propertyViewMap;
+            ViewBag.TotalViewMap = totalViewMap;
+
+            ViewBag.PropertyCountMap = propertyCountMap;
             ViewBag.SupportMap = supportMap;
 
             return View(projects);

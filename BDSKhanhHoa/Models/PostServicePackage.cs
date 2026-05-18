@@ -11,7 +11,7 @@ namespace BDSKhanhHoa.Models
 
         [Required(ErrorMessage = "Vui lòng chọn phân loại gói.")]
         [Display(Name = "Phân loại gói")]
-        [StringLength(50)]
+        [StringLength(50, ErrorMessage = "Phân loại gói không được vượt quá 50 ký tự.")]
         public string PackageType { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Vui lòng nhập tên hiển thị của gói.")]
@@ -25,7 +25,7 @@ namespace BDSKhanhHoa.Models
         public decimal Price { get; set; }
 
         [Required(ErrorMessage = "Vui lòng nhập thời hạn sử dụng.")]
-        [Range(0, 3650, ErrorMessage = "Thời hạn không hợp lệ. Tin thường dùng 0 ngày, gói VIP phải lớn hơn 0 ngày.")]
+        [Range(0, 3650, ErrorMessage = "Thời hạn không hợp lệ. Tin thường có thể dùng 0 ngày, gói VIP phải lớn hơn 0 ngày.")]
         [Display(Name = "Thời hạn sử dụng")]
         public int DurationDays { get; set; }
 
@@ -37,5 +37,8 @@ namespace BDSKhanhHoa.Models
         [Display(Name = "Mô tả đặc quyền")]
         [StringLength(500, ErrorMessage = "Mô tả không được vượt quá 500 ký tự.")]
         public string? Description { get; set; }
+
+        [Display(Name = "Đang sử dụng")]
+        public bool IsActive { get; set; } = true;
     }
 }

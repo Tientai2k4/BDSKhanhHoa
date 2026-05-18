@@ -4,6 +4,7 @@
     ViewData["Title"] = "Trang Chủ - Bất Động Sản Khánh Hòa";
     var banners = ViewBag.Banners as List<Banner>;
     var favoritedIds = ViewBag.FavoritedIds as List<int> ?? new List<int>(); // Nhận danh sách tin đã lưu
+    var homeAllPropertyIds = ViewBag.HomeAllPropertyIds as List<int> ?? new List<int>();
 }
 
 <style>
@@ -1936,7 +1937,7 @@
                 <select class="sfield" style="width:auto; padding:0 14px; height:40px; font-size:0.83rem;" onchange="filterByType(this.value)" id="propTypeFilter">
                     <option value="">Tất cả loại</option>
                 </select>
-                <select class="sfield" id="sortSelect" style="width:auto; padding:0 14px; height:40px; font-size:0.83rem;" onchange="sortProperties(this.value)">
+                <select class="sfield" id="sortSelect" style="width:auto; padding:0 14px; height:40px; font-size:0.83rem;" onchange="applyPropertyFilters()">
                     <option value="newest">Sắp xếp: Mới nhất</option>
                     <option value="price_asc">Giá thấp → cao</option>
                     <option value="price_desc">Giá cao → thấp</option>
@@ -2014,11 +2015,26 @@
                     : "Thỏa thuận";
 
                     string typeName = item.PropertyType?.TypeName?.ToLower() ?? "";
-                    bool isRent = typeName.Contains("thuê") || typeName.Contains("trọ");
+                    int? parentTypeId = item.PropertyType?.ParentID;
+
+                    bool isRent =
+                    parentTypeId == 2 ||
+                    item.TypeID == 2 ||
+                    typeName.Contains("thuê") ||
+                    typeName.Contains("thue") ||
+                    typeName.Contains("trọ") ||
+                    typeName.Contains("tro");
+
+                    bool isBuy =
+                    parentTypeId == 1 ||
+                    item.TypeID == 1 ||
+                    typeName.Contains("bán") ||
+                    typeName.Contains("ban") ||
+                    typeName.Contains("mua");
+
                     string propMode = isRent ? "rent" : "buy";
                     string transTagClass = isRent ? "tag-rent" : "tag-buy";
                     string transTagText = isRent ? "Cho Thuê" : "Bán";
-
                     decimal rawPrice = item.Price ?? 0;
 
                     // Dùng yyyyMMddHHmmss để JS sort chính xác, tránh DateTime.Ticks quá lớn gây sai số trên JavaScript.
@@ -2029,10 +2045,12 @@
 
                     <div class="col-xl-3 col-lg-4 col-md-6 col-12 prop-item"
                          data-mode="@propMode"
+                         data-home-all="@(homeAllPropertyIds.Contains(item.PropertyID) ? "1" : "0")"
                          data-typeid="@item.TypeID"
                          data-priority="@packagePriority"
                          data-price="@rawPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                          data-date="@sortDate">
+
                         <a href="/Property/Details/@item.PropertyID" class="text-decoration-none d-block h-100">
                             <div class="prop-card @tierClass">
                                 <div class="prop-img-wrap">
@@ -2701,40 +2719,77 @@
             } catch(e) { console.error(e); }
         }
 
+            let currentPropertyMode = 'all';
+
         function filterProps(mode, btn) {
+            currentPropertyMode = mode || 'all';
+
             document.querySelectorAll('.prop-tab').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
 
-            document.getElementById('propTypeFilter').value = "";
+            if (btn) {
+                btn.classList.add('active');
+            }
 
-            document.querySelectorAll('.prop-item').forEach(item => {
-                if (mode === 'all') {
-                    item.style.display = 'block';
-                } else {
-                    item.style.display = item.getAttribute('data-mode') === mode ? 'block' : 'none';
-                }
-            });
+            const typeFilter = document.getElementById('propTypeFilter');
 
-            const currentSort = document.getElementById('sortSelect').value;
-            sortProperties(currentSort);
+            if (typeFilter) {
+                typeFilter.value = "";
+            }
+
+            applyPropertyFilters();
         }
 
         function filterByType(typeId) {
-            const activeTabMode = document.querySelector('.prop-tab.active').getAttribute('onclick').match(/'([^']+)'/)[1];
+            applyPropertyFilters();
+        }
+
+            function applyPropertyFilters() {
+            const typeFilter = document.getElementById('propTypeFilter');
+            const sortSelect = document.getElementById('sortSelect');
+
+            const selectedTypeId = typeFilter ? typeFilter.value : "";
+            let visibleCount = 0;
+
+            // Chỉ sort khi đang ở tab Mua bán hoặc Cho thuê.
+            // Tab Tất cả tuyệt đối không sort, để giữ đúng 16 bán trước + 16 thuê sau.
+            if (currentPropertyMode !== 'all') {
+                sortProperties(sortSelect ? sortSelect.value : 'newest');
+            } else {
+                restoreHomeAllOrder();
+            }
 
             document.querySelectorAll('.prop-item').forEach(item => {
-                const itemMode = item.getAttribute('data-mode');
-                const itemType = item.getAttribute('data-typeid');
+                const itemMode = item.getAttribute('data-mode') || '';
+                const itemType = item.getAttribute('data-typeid') || '';
+                const isHomeAll = item.getAttribute('data-home-all') === '1';
 
-                const matchMode = (activeTabMode === 'all') || (itemMode === activeTabMode);
-                const matchType = (typeId === "") || (itemType === typeId);
+                let matchMode = false;
 
-                item.style.display = (matchMode && matchType) ? 'block' : 'none';
+                if (currentPropertyMode === 'all') {
+                    matchMode = isHomeAll;
+                } else {
+                    matchMode = itemMode === currentPropertyMode;
+                }
+
+                const matchType =
+                    selectedTypeId === "" ||
+                    itemType === selectedTypeId;
+
+                if (matchMode && matchType) {
+                    item.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
             });
 
-            const currentSort = document.getElementById('sortSelect').value;
-            sortProperties(currentSort);
+            const emptyBox = document.getElementById('propEmptyState');
+
+            if (emptyBox) {
+                emptyBox.classList.toggle('d-none', visibleCount > 0);
+            }
         }
+
 
         // ─── Counter animation ───────────────────────────────
         function animateCounters() {
@@ -2758,12 +2813,21 @@
             obs.observe(statsBar);
         }
 
-      
-        document.addEventListener('DOMContentLoaded', () => {
+
+             document.addEventListener('DOMContentLoaded', () => {
             setMode('buy');
+
+            currentPropertyMode = 'all';
+            applyPropertyFilters();
+
+            const allTab = document.querySelector('.prop-tab');
+            if (allTab) {
+                document.querySelectorAll('.prop-tab').forEach(b => b.classList.remove('active'));
+                allTab.classList.add('active');
+            }
         });
 
-        function sortProperties(sortType) {
+                function sortProperties(sortType) {
             const grid = document.getElementById('propGrid');
             if (!grid) return;
 
@@ -2773,12 +2837,10 @@
                 const priorityA = Number(a.dataset.priority || 9999);
                 const priorityB = Number(b.dataset.priority || 9999);
 
-                // Lớp ưu tiên cao nhất: VIP cao hơn luôn đứng trước.
                 if (priorityA !== priorityB) {
                     return priorityA - priorityB;
                 }
 
-                // Cùng một hạng VIP mới xét theo lựa chọn sort.
                 if (sortType === 'price_asc') {
                     return Number(a.dataset.price || 0) - Number(b.dataset.price || 0);
                 }
@@ -2787,17 +2849,38 @@
                     return Number(b.dataset.price || 0) - Number(a.dataset.price || 0);
                 }
 
-                // Mặc định: trong cùng hạng VIP, tin mới nhất đứng trước.
                 return Number(b.dataset.date || 0) - Number(a.dataset.date || 0);
             });
 
             items.forEach(item => grid.appendChild(item));
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const sortSelect = document.getElementById('sortSelect');
-            sortProperties(sortSelect ? sortSelect.value : 'newest');
-        });
+                function restoreHomeAllOrder() {
+            const grid = document.getElementById('propGrid');
+            if (!grid) return;
+
+            const items = Array.from(grid.querySelectorAll('.prop-item'));
+
+            const homeBuyItems = items.filter(item =>
+                item.getAttribute('data-home-all') === '1' &&
+                item.getAttribute('data-mode') === 'buy'
+            );
+
+            const homeRentItems = items.filter(item =>
+                item.getAttribute('data-home-all') === '1' &&
+                item.getAttribute('data-mode') === 'rent'
+            );
+
+            const otherItems = items.filter(item =>
+                item.getAttribute('data-home-all') !== '1'
+            );
+
+            homeBuyItems.forEach(item => grid.appendChild(item));
+            homeRentItems.forEach(item => grid.appendChild(item));
+            otherItems.forEach(item => grid.appendChild(item));
+        }
+
+    
              (function () {
             const branches = ['Tý', 'Sửu', 'Dần', 'Mão', 'Thìn', 'Tỵ', 'Ngọ', 'Mùi', 'Thân', 'Dậu', 'Tuất', 'Hợi'];
 

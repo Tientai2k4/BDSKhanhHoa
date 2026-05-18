@@ -12,11 +12,14 @@
     }
 
     .page-title {
-        font-weight: 900;
+        font-weight: 950;
         color: #0f172a;
+        letter-spacing: -.035em;
     }
 
-    .main-card, .preview-card, .guide-card {
+    .main-card,
+    .preview-card,
+    .guide-card {
         border: 0;
         border-radius: 24px;
         box-shadow: 0 12px 32px rgba(15,23,42,.08);
@@ -24,7 +27,7 @@
     }
 
     .field-label {
-        font-weight: 800;
+        font-weight: 850;
         color: #0f172a;
         margin-bottom: 8px;
     }
@@ -149,21 +152,38 @@
             color: #f59e0b;
             margin-top: 2px;
         }
+
+    .active-box {
+        border-radius: 18px;
+        padding: 14px;
+    }
+
+        .active-box.is-active {
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+        }
+
+        .active-box.is-inactive {
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+        }
 </style>
 
 <div class="form-page container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
             <h3 class="page-title mb-1">
-                <i class="bi bi-pencil-square text-warning me-2"></i>Chỉnh sửa gói đăng tin
+                <i class="bi bi-pencil-square text-warning me-2"></i>
+                Chỉnh sửa gói đăng tin
             </h3>
             <p class="text-muted mb-0">
-                Khi đổi phân loại gói, hệ thống sẽ tự cập nhật lại hạng hiển thị cho đúng thứ tự.
+                Có thể sửa thông tin, giá, thời hạn hoặc chuyển trạng thái đang dùng/ngừng dùng.
             </p>
         </div>
 
         <a href="/Admin/PostServicePackages/Index" class="btn btn-light border shadow-sm fw-bold rounded-pill px-4">
-            <i class="bi bi-arrow-left me-1"></i> Trở về danh sách
+            <i class="bi bi-arrow-left me-1"></i>
+            Trở về danh sách
         </a>
     </div>
 
@@ -256,6 +276,27 @@
                                       id="descInput"></textarea>
                             <span asp-validation-for="Description" class="text-danger small d-block mt-1"></span>
                         </div>
+
+                        <div class="col-12">
+                            <div class="active-box @(Model.IsActive ? "is-active" : "is-inactive")" id="activeBox">
+                                <div class="form-check form-switch">
+                                    <input asp-for="IsActive"
+                                           class="form-check-input"
+                                           type="checkbox"
+                                           role="switch"
+                                           id="activeSwitch" />
+                                    <label class="form-check-label fw-bold @(Model.IsActive ? "text-success" : "text-danger")" for="activeSwitch" id="activeLabel">
+                                        @(Model.IsActive ? "Gói đang được sử dụng" : "Gói đang ngừng dùng")
+                                    </label>
+                                </div>
+
+                                <div class="small text-muted mt-1" id="activeHint">
+                                    @(Model.IsActive
+                                                                        ? "Gói đang dùng có thể được hiển thị để người dùng mua hoặc chọn mới."
+                                                                        : "Gói ngừng dùng vẫn giữ lịch sử giao dịch và tin cũ, nhưng không nên cho mua/chọn mới.")
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <hr class="my-4">
@@ -263,11 +304,12 @@
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                         <div class="small text-muted">
                             <i class="bi bi-exclamation-circle me-1"></i>
-                            Nếu gói đang được tin đăng sử dụng, thay đổi này sẽ ảnh hưởng cách hiển thị của các tin đó.
+                            Nếu gói đang được tin đăng sử dụng, thay đổi này có thể ảnh hưởng cách hiển thị của các tin đó.
                         </div>
 
                         <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-pill px-5 shadow-sm text-dark">
-                            <i class="bi bi-floppy-fill me-2"></i>Lưu thay đổi
+                            <i class="bi bi-floppy-fill me-2"></i>
+                            Lưu thay đổi
                         </button>
                     </div>
                 </form>
@@ -289,6 +331,13 @@
                 </div>
 
                 <div class="p-4">
+                    <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom">
+                        <span class="fw-bold text-muted">Trạng thái</span>
+                        <span class="badge rounded-pill px-3 py-2 @(Model.IsActive ? "bg-success-subtle text-success border border-success-subtle" : "bg-danger-subtle text-danger border border-danger-subtle")" id="previewStatus">
+                            @(Model.IsActive ? "Đang dùng" : "Ngừng dùng")
+                        </span>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom">
                         <span class="fw-bold text-muted">Giá</span>
                         <span class="fs-4 fw-black @(Model.Price == 0 ? "text-success" : "text-danger")" style="font-weight:900;" id="previewPrice">
@@ -322,7 +371,8 @@
 
             <div class="guide-card p-4">
                 <h6 class="fw-bold text-dark mb-3">
-                    <i class="bi bi-info-circle-fill text-warning me-1"></i> Lưu ý
+                    <i class="bi bi-info-circle-fill text-warning me-1"></i>
+                    Lưu ý
                 </h6>
 
                 <div class="guide-item">
@@ -332,7 +382,7 @@
 
                 <div class="guide-item">
                     <i class="bi bi-check-circle-fill"></i>
-                    <span>Tin thường luôn là hạng 5, giá 0 và thời hạn 0.</span>
+                    <span>Gói đã phát sinh giao dịch thì không nên xóa, hãy ngừng dùng.</span>
                 </div>
 
                 <div class="guide-item mb-0">
@@ -356,10 +406,15 @@
         const durationInput = document.getElementById('durationInput');
         const priorityInput = document.getElementById('priorityInput');
         const descInput = document.getElementById('descInput');
+        const activeSwitch = document.getElementById('activeSwitch');
 
         const priceHint = document.getElementById('priceHint');
         const durationHint = document.getElementById('durationHint');
         const durationAddon = document.getElementById('durationAddon');
+
+        const activeBox = document.getElementById('activeBox');
+        const activeLabel = document.getElementById('activeLabel');
+        const activeHint = document.getElementById('activeHint');
 
         const previewCard = document.getElementById('previewCard');
         const previewIcon = document.getElementById('previewIcon');
@@ -369,6 +424,7 @@
         const previewDuration = document.getElementById('previewDuration');
         const previewPriority = document.getElementById('previewPriority');
         const previewDesc = document.getElementById('previewDesc');
+        const previewStatus = document.getElementById('previewStatus');
 
         function getSelectedTier() {
             return tierOptions.find(x => x.type === tierSelect.value) || null;
@@ -380,11 +436,10 @@
             return new Intl.NumberFormat('vi-VN').format(number) + ' ₫';
         }
 
-               function applyTierDefaults(forceFillText = false) {
+        function applyTierDefaults(forceFillText = false) {
             const tier = getSelectedTier();
             if (!tier) return;
 
-            // Chỉ khóa hạng hiển thị, không khóa giá và thời hạn.
             priorityInput.value = tier.priorityLevel;
 
             priceInput.readOnly = false;
@@ -411,18 +466,33 @@
                 nameInput.value = tier.suggestedPackageName;
             }
 
-            if ((forceFillText || !priceInput.value) && parseInt(priceInput.value || '0') < 0) {
-                priceInput.value = tier.suggestedPrice;
-            }
-
-            if ((forceFillText || !durationInput.value) && tier.type === 'Tin Thường') {
-                durationInput.value = tier.defaultDurationDays;
-            }
-
             if (forceFillText || !descInput.value.trim()) {
                 descInput.value = tier.suggestedDescription;
             }
         }
+
+        function updateActiveUI() {
+            if (activeSwitch.checked) {
+                activeBox.classList.remove('is-inactive');
+                activeBox.classList.add('is-active');
+                activeLabel.className = 'form-check-label fw-bold text-success';
+                activeLabel.innerText = 'Gói đang được sử dụng';
+                activeHint.innerText = 'Gói đang dùng có thể được hiển thị để người dùng mua hoặc chọn mới.';
+
+                previewStatus.className = 'badge rounded-pill px-3 py-2 bg-success-subtle text-success border border-success-subtle';
+                previewStatus.innerText = 'Đang dùng';
+            } else {
+                activeBox.classList.remove('is-active');
+                activeBox.classList.add('is-inactive');
+                activeLabel.className = 'form-check-label fw-bold text-danger';
+                activeLabel.innerText = 'Gói đang ngừng dùng';
+                activeHint.innerText = 'Gói ngừng dùng vẫn giữ lịch sử giao dịch và tin cũ, nhưng không nên cho mua/chọn mới.';
+
+                previewStatus.className = 'badge rounded-pill px-3 py-2 bg-danger-subtle text-danger border border-danger-subtle';
+                previewStatus.innerText = 'Ngừng dùng';
+            }
+        }
+
         function updatePreview() {
             const tier = getSelectedTier();
 
@@ -435,6 +505,7 @@
                 previewDesc.innerText = descInput.value || 'Chưa có mô tả.';
                 previewPrice.innerText = formatMoney(priceInput.value);
                 previewDuration.innerText = (durationInput.value || 0) + ' ngày';
+                updateActiveUI();
                 return;
             }
 
@@ -453,6 +524,8 @@
 
             const duration = parseInt(durationInput.value || '0');
             previewDuration.innerText = duration === 0 ? 'Không hết hạn' : duration + ' ngày';
+
+            updateActiveUI();
         }
 
         tierSelect.addEventListener('change', function () {
@@ -463,6 +536,8 @@
         [nameInput, priceInput, durationInput, priorityInput, descInput].forEach(el => {
             el.addEventListener('input', updatePreview);
         });
+
+        activeSwitch.addEventListener('change', updatePreview);
 
         document.addEventListener('DOMContentLoaded', function () {
             applyTierDefaults(false);

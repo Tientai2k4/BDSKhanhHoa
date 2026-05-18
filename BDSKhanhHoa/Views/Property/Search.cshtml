@@ -1,23 +1,35 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
 @using System.Linq
+@using System.Text.Json
 
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
 
     var filters = ViewBag.CurrentFilters;
-    string transactionType = filters?.transactionType ?? "buy";
+
+    string transactionType = Convert.ToString(filters?.transactionType) == "rent" ? "rent" : "buy";
     bool isBuy = transactionType == "buy";
 
-    var currentAmenities = (filters?.amenities as string[]) ?? Array.Empty<string>();
-
-    int totalItems = ViewBag.TotalItems != null ? (int)ViewBag.TotalItems : 0;
-    int totalPages = ViewBag.TotalPages != null ? (int)ViewBag.TotalPages : 1;
-    int currentPage = ViewBag.CurrentPage != null ? (int)ViewBag.CurrentPage : 1;
+    int totalItems = ViewBag.TotalItems != null ? Convert.ToInt32(ViewBag.TotalItems) : 0;
+    int totalPages = ViewBag.TotalPages != null ? Convert.ToInt32(ViewBag.TotalPages) : 1;
+    int currentPage = ViewBag.CurrentPage != null ? Convert.ToInt32(ViewBag.CurrentPage) : 1;
 
     string subTypesJson = ViewBag.SubTypesJson ?? "[]";
 
+    int buyRootId = ViewBag.BuyRootId != null ? Convert.ToInt32(ViewBag.BuyRootId) : 1;
+    int rentRootId = ViewBag.RentRootId != null ? Convert.ToInt32(ViewBag.RentRootId) : 2;
+
+    string currentTypeId = filters?.typeId != null ? Convert.ToString(filters.typeId) : "";
+    string currentAreaId = filters?.areaId != null ? Convert.ToString(filters.areaId) : "";
+    string currentWardId = filters?.wardId != null ? Convert.ToString(filters.wardId) : "";
+    string currentSort = filters?.sortOrder != null ? Convert.ToString(filters.sortOrder) : "";
+    string currentKeyword = filters?.keyword != null ? Convert.ToString(filters.keyword) : "";
+
+    var currentAmenities = (filters?.amenities as string[]) ?? Array.Empty<string>();
+
     decimal priceMinLimit = 0m;
     decimal priceMaxLimit = ViewBag.PriceMaxLimit != null ? Convert.ToDecimal(ViewBag.PriceMaxLimit) : 50000m;
+
     decimal areaMinLimit = 0m;
     decimal areaMaxLimit = ViewBag.AreaMaxLimit != null ? Convert.ToDecimal(ViewBag.AreaMaxLimit) : 1000m;
 
@@ -27,443 +39,367 @@
     decimal currentMinArea = filters?.minSize != null ? Convert.ToDecimal(filters.minSize) : areaMinLimit;
     decimal currentMaxArea = filters?.maxSize != null ? Convert.ToDecimal(filters.maxSize) : areaMaxLimit;
 
-    ViewData["Title"] = transactionType == "rent" ? "Cho thuê Bất động sản Khánh Hòa" : "Mua bán Bất động sản Khánh Hòa";
+    ViewData["Title"] = transactionType == "rent"
+        ? "Cho thuê bất động sản Khánh Hòa"
+        : "Mua bán bất động sản Khánh Hòa";
 }
 
 @functions {
-    public string FormatRangeLabel(decimal value) => value >= 1000m ? $"{(value / 1000m):0.##} Tỷ" : $"{value:0.##} Triệu";
-    public string FormatAreaLabel(decimal value) => $"{value:0.##} m²";
+    public string FormatPrice(decimal value)
+    {
+        if (value >= 1000m)
+        {
+            return $"{(value / 1000m):0.##} tỷ";
+        }
+
+        return $"{value:0.##} triệu";
+    }
+
+    public string FormatArea(decimal value)
+    {
+        return $"{value:0.##} m²";
+    }
 }
 
 <style>
     :root {
-        --page-bg: #f6f8fc;
-        --surface: #ffffff;
-        --border: #e5e7eb;
-        --text: #0f172a;
-        --muted: #64748b;
-        --primary: #2563eb;
-        --primary-2: #1d4ed8;
-        --danger: #dc2626;
-        --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.05);
-        --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08);
-        --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
-        --transition: all .25s cubic-bezier(.4, 0, .2, 1);
-    }
-
-    html {
-        scroll-behavior: smooth;
+        --bds-bg: #f5f7fb;
+        --bds-card: #ffffff;
+        --bds-text: #0f172a;
+        --bds-muted: #64748b;
+        --bds-border: #e5e7eb;
+        --bds-primary: #2563eb;
+        --bds-primary-dark: #1d4ed8;
+        --bds-red: #ef4444;
+        --bds-green: #10b981;
+        --bds-shadow-sm: 0 4px 14px rgba(15, 23, 42, .06);
+        --bds-shadow-md: 0 14px 34px rgba(15, 23, 42, .10);
+        --bds-radius: 22px;
     }
 
     body {
-        background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28%), radial-gradient(circle at top right, rgba(249, 115, 22, 0.05), transparent 24%), var(--page-bg);
-        color: var(--text);
-        overflow-x: hidden;
+        background: radial-gradient(circle at top left, rgba(37,99,235,.08), transparent 28%), radial-gradient(circle at top right, rgba(16,185,129,.07), transparent 24%), var(--bds-bg);
     }
 
-    .page-shell {
-        padding: 18px 0 34px;
+    .search-page {
+        padding: 18px 0 40px;
     }
 
-    .page-layout {
-        margin-top: 0;
-    }
-
-    /* ---- STICKY SIDEBAR ---- */
-    @@media (min-width: 992px) {
-        .filter-wrapper {
-            position: sticky;
-            top: 92px; /* Phụ thuộc vào chiều cao của Navbar trên trang web của bạn */
-            z-index: 10;
-            height: calc(100vh - 110px);
-            overflow-y: auto;
-            border-radius: 24px;
-        }
-
-            .filter-wrapper::-webkit-scrollbar {
-                width: 6px;
-            }
-
-            .filter-wrapper::-webkit-scrollbar-thumb {
-                background-color: #cbd5e1;
-                border-radius: 10px;
-            }
-
-        .col-lg-3 {
-            align-self: start;
-        }
-        /* Quan trọng để Sticky hoạt động trong flexbox */
-    }
-
-    .filter-card {
-        background: rgba(255,255,255,.94);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(229,231,235,.9);
-        border-radius: 24px;
-        box-shadow: var(--shadow-md);
+    .filter-shell {
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(229,231,235,.95);
+        border-radius: var(--bds-radius);
+        box-shadow: var(--bds-shadow-md);
         overflow: hidden;
     }
 
-    .filter-head {
-        padding: 18px 18px 14px;
-        border-bottom: 1px solid rgba(229,231,235,.75);
-        background: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,.96));
+    .filter-header {
+        padding: 16px 16px 14px;
+        border-bottom: 1px solid var(--bds-border);
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
     }
 
     .filter-title {
         margin: 0;
         font-size: 1rem;
         font-weight: 900;
-        letter-spacing: -.03em;
-        color: var(--text);
+        color: var(--bds-text);
     }
 
-    .filter-body {
-        padding: 18px;
-    }
-
-    /* Auto Suggest Dropdown */
-    .suggest-box {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 0 0 14px 14px;
-        box-shadow: var(--shadow-lg);
-        z-index: 50;
-        display: none;
-        max-height: 250px;
-        overflow-y: auto;
-    }
-
-    .suggest-item {
-        padding: 10px 14px;
-        font-size: 0.9rem;
-        cursor: pointer;
-        border-bottom: 1px solid #f1f5f9;
-        transition: background 0.2s;
-        color: var(--text);
+    .filter-subtitle {
+        margin-top: 3px;
+        font-size: .84rem;
+        color: var(--bds-muted);
         font-weight: 600;
     }
 
-        .suggest-item:hover {
-            background: #eef2ff;
-            color: var(--primary);
-        }
-
-        .suggest-item:last-child {
-            border-bottom: none;
-        }
-
-    /* UI Các bộ lọc khác */
-    .segmented-control {
-        display: flex;
-        gap: 10px;
-        background: #eef2ff;
-        padding: 6px;
-        border-radius: 18px;
-        margin-bottom: 18px;
+    .filter-body {
+        padding: 16px;
     }
 
-    .segmented-item {
-        flex: 1;
-        border: 0;
-        border-radius: 14px;
-        padding: 11px 10px;
-        background: transparent;
-        color: #475569;
-        font-weight: 800;
-        transition: var(--transition);
-    }
-
-        .segmented-item.active {
-            background: linear-gradient(135deg, var(--primary), var(--primary-2));
-            color: #fff;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, .22);
-        }
-
-    .field {
-        margin-bottom: 16px;
+    .filter-group {
+        margin-bottom: 14px;
         position: relative;
     }
 
-        .field label {
-            display: block;
-            font-size: .92rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 8px;
-        }
-
-    .soft-input, .soft-select {
-        border-radius: 14px !important;
-        border: 1px solid var(--border) !important;
-        background: #fbfdff !important;
-        padding: 12px 14px !important;
-        box-shadow: none !important;
-        transition: var(--transition);
+    .filter-label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: .88rem;
+        font-weight: 800;
+        color: var(--bds-text);
     }
 
-        .soft-input:focus, .soft-select:focus {
-            border-color: rgba(37, 99, 235, .38) !important;
-            box-shadow: 0 0 0 .25rem rgba(37, 99, 235, .10) !important;
-            background: #fff !important;
+    .soft-input,
+    .soft-select {
+        width: 100%;
+        border: 1px solid var(--bds-border) !important;
+        border-radius: 15px !important;
+        background: #ffffff !important;
+        padding: 11px 13px !important;
+        font-size: .94rem;
+        font-weight: 650;
+        color: var(--bds-text) !important;
+        box-shadow: none !important;
+    }
+
+        .soft-input:focus,
+        .soft-select:focus {
+            border-color: rgba(37,99,235,.45) !important;
+            box-shadow: 0 0 0 .22rem rgba(37,99,235,.11) !important;
         }
 
-    .range-box {
-        background: #fff;
-        border: 1px solid var(--border);
+    .mode-tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 6px;
         border-radius: 18px;
-        padding: 14px;
-        box-shadow: var(--shadow-sm);
+        background: #eef2ff;
+        margin-bottom: 15px;
+    }
+
+    .mode-tab {
+        border: 0;
+        border-radius: 14px;
+        padding: 11px 8px;
+        font-size: .92rem;
+        font-weight: 900;
+        color: #475569;
+        background: transparent;
+        transition: all .22s ease;
+    }
+
+        .mode-tab.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--bds-primary), var(--bds-primary-dark));
+            box-shadow: 0 8px 20px rgba(37,99,235,.22);
+        }
+
+    .range-card {
+        border: 1px solid var(--bds-border);
+        border-radius: 17px;
+        background: #ffffff;
+        padding: 12px;
+        box-shadow: var(--bds-shadow-sm);
     }
 
     .range-values {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        gap: 10px;
+        gap: 8px;
         margin-bottom: 10px;
-        font-size: .86rem;
-        color: var(--muted);
-        font-weight: 700;
-        flex-wrap: wrap;
+        font-size: .82rem;
+        font-weight: 800;
+        color: var(--bds-muted);
     }
 
         .range-values strong {
-            color: var(--text);
-            font-weight: 900;
+            color: var(--bds-text);
         }
 
-    .range-slider {
+    .double-range {
         position: relative;
-        height: 42px;
-        margin-top: 4px;
+        height: 34px;
     }
 
-        .range-slider input[type="range"] {
+        .double-range input[type="range"] {
             position: absolute;
-            left: 0;
-            top: 10px;
+            inset: 0;
             width: 100%;
-            height: 22px;
+            height: 34px;
+            margin: 0;
+            background: transparent;
             pointer-events: none;
             appearance: none;
-            background: transparent;
-            margin: 0;
-            padding: 0;
-            outline: none;
         }
 
-            .range-slider input[type="range"]::-webkit-slider-runnable-track {
-                height: 8px;
+            .double-range input[type="range"]::-webkit-slider-thumb {
+                appearance: none;
+                width: 21px;
+                height: 21px;
+                border-radius: 50%;
+                background: #ffffff;
+                border: 4px solid var(--bds-primary);
+                box-shadow: 0 6px 14px rgba(37,99,235,.26);
+                cursor: pointer;
+                pointer-events: auto;
+                position: relative;
+                z-index: 3;
+            }
+
+            .double-range input[type="range"]::-webkit-slider-runnable-track {
+                height: 7px;
                 border-radius: 999px;
                 background: transparent;
             }
 
-            .range-slider input[type="range"]::-webkit-slider-thumb {
-                pointer-events: auto;
-                appearance: none;
-                width: 22px;
-                height: 22px;
-                border-radius: 50%;
-                background: #fff;
-                border: 4px solid var(--primary);
-                box-shadow: 0 6px 16px rgba(37, 99, 235, .22);
-                cursor: pointer;
-                margin-top: -7px;
-                position: relative;
-                z-index: 2;
-            }
-
-    .range-track {
+    .range-line {
         position: absolute;
         left: 0;
         right: 0;
-        top: 17px;
-        height: 8px;
+        top: 14px;
+        height: 7px;
         border-radius: 999px;
-        background: linear-gradient(90deg, #e2e8f0 0%, #e2e8f0 100%);
+        background: #e2e8f0;
         pointer-events: none;
     }
 
-    .pill-grid {
+    .pill-list {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
     }
 
-        .pill-grid .btn-check:checked + .pill-btn {
-            background: linear-gradient(135deg, var(--primary), var(--primary-2));
-            color: #fff;
+        .pill-list .btn-check:checked + .pill-item {
+            color: #ffffff;
             border-color: transparent;
-            box-shadow: 0 8px 16px rgba(37, 99, 235, .18);
+            background: linear-gradient(135deg, var(--bds-primary), var(--bds-primary-dark));
+            box-shadow: 0 8px 18px rgba(37,99,235,.18);
         }
 
-    .pill-btn {
-        border-radius: 999px !important;
-        border: 1px solid var(--border);
-        background: #fff;
+    .pill-item {
+        border: 1px solid var(--bds-border);
+        border-radius: 999px;
+        background: #ffffff;
+        padding: 8px 12px;
+        font-size: .86rem;
+        font-weight: 800;
         color: #334155;
-        font-weight: 700;
-        font-size: .9rem;
-        padding: 9px 13px;
         cursor: pointer;
-        transition: var(--transition);
+        transition: all .2s ease;
     }
 
-        .pill-btn:hover {
-            transform: translateY(-1px);
-            border-color: rgba(37, 99, 235, .20);
-            box-shadow: var(--shadow-sm);
-        }
-
-    .amenity-list {
+    .amenity-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin: 0;
+        grid-template-columns: 1fr;
+        gap: 8px;
         padding: 0;
+        margin: 0;
         list-style: none;
     }
 
-    .amenity-item {
-        border: 1px solid var(--border);
+    .amenity-box {
+        border: 1px solid var(--bds-border);
         border-radius: 14px;
-        background: #fff;
-        padding: 10px 12px;
-        transition: var(--transition);
-        box-shadow: var(--shadow-sm);
+        background: #ffffff;
+        padding: 9px 11px;
     }
 
-        .amenity-item:hover {
-            transform: translateY(-1px);
-            border-color: rgba(37, 99, 235, .18);
-            box-shadow: var(--shadow-md);
+        .amenity-box.active {
+            border-color: rgba(37,99,235,.38);
+            background: rgba(37,99,235,.07);
         }
 
     .amenity-label {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 9px;
         margin: 0;
         cursor: pointer;
-        font-size: .9rem;
-        font-weight: 700;
+        font-size: .87rem;
+        font-weight: 800;
         color: #334155;
-        user-select: none;
     }
 
         .amenity-label input {
             width: 16px;
             height: 16px;
-            margin: 0;
-            accent-color: var(--primary);
-            flex: 0 0 auto;
+            accent-color: var(--bds-primary);
         }
 
-    .amenity-item.is-checked {
-        border-color: rgba(37, 99, 235, .3);
-        background: linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.03));
-        color: var(--primary-2);
-    }
-
-    .action-group {
+    .filter-actions {
         display: grid;
-        gap: 10px;
-        margin-top: 18px;
+        grid-template-columns: 1fr;
+        gap: 9px;
+        margin-top: 15px;
     }
 
-    .action-secondary {
-        border-radius: 16px;
-        padding: 12px 16px;
-        font-weight: 800;
-        border: 1px solid var(--border);
-        background: #fff;
+    .btn-clear-filter {
+        border: 1px solid var(--bds-border);
+        background: #ffffff;
         color: #475569;
-        transition: var(--transition);
+        border-radius: 15px;
+        padding: 11px 14px;
+        font-weight: 900;
     }
 
-        .action-secondary:hover {
-            transform: translateY(-1px);
-            border-color: rgba(249, 115, 22, .25);
-            box-shadow: var(--shadow-sm);
-        }
+    .btn-apply-mobile {
+        border: 0;
+        background: linear-gradient(135deg, var(--bds-primary), var(--bds-primary-dark));
+        color: #ffffff;
+        border-radius: 15px;
+        padding: 12px 14px;
+        font-weight: 900;
+    }
 
-    /* Results UI */
-    .results-shell {
-        background: transparent;
+    .result-card {
         position: relative;
-        min-height: 500px;
-    }
-
-    .results-card {
-        background: rgba(255,255,255,.92);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(229,231,235,.9);
-        border-radius: 24px;
-        box-shadow: var(--shadow-sm);
+        background: rgba(255,255,255,.94);
+        border: 1px solid rgba(229,231,235,.95);
+        border-radius: var(--bds-radius);
+        box-shadow: var(--bds-shadow-sm);
         padding: 16px;
+        min-height: 520px;
     }
 
-    .results-top {
+    .result-top {
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
         gap: 14px;
         flex-wrap: wrap;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
     }
 
-    .results-title {
+    .result-title {
         margin: 0;
-        font-weight: 900;
-        letter-spacing: -.03em;
-        color: var(--text);
-        font-size: 1.25rem;
+        font-size: 1.35rem;
+        font-weight: 950;
+        letter-spacing: -.035em;
+        color: var(--bds-text);
     }
 
-    .results-meta {
-        color: var(--muted);
-        font-size: .95rem;
+    .result-meta {
         margin: 4px 0 0;
+        color: var(--bds-muted);
+        font-weight: 650;
     }
 
-    .sort-wrap {
-        min-width: 220px;
+    .sort-box {
+        min-width: 235px;
     }
 
-        .sort-wrap .form-select {
-            border-radius: 14px;
-            border: 1px solid var(--border);
-            padding: 11px 14px;
-            font-weight: 700;
-            background-color: #fff;
-            box-shadow: var(--shadow-sm);
-            cursor: pointer;
-        }
+    .mobile-filter-btn {
+        width: 100%;
+        border: 0;
+        border-radius: 18px;
+        padding: 13px 16px;
+        color: #ffffff;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--bds-primary), var(--bds-primary-dark));
+        box-shadow: 0 12px 26px rgba(37,99,235,.22);
+    }
 
-    /* Loader Overlay */
     #loadingOverlay {
         position: absolute;
         inset: 0;
-        background: rgba(255,255,255,0.7);
-        z-index: 10;
+        z-index: 20;
         display: none;
         align-items: center;
         justify-content: center;
-        border-radius: 24px;
+        border-radius: var(--bds-radius);
+        background: rgba(255,255,255,.72);
+        backdrop-filter: blur(3px);
     }
 
     .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid var(--border);
-        border-top-color: var(--primary);
+        width: 42px;
+        height: 42px;
         border-radius: 50%;
-        animation: spin 0.8s linear infinite;
+        border: 4px solid #e2e8f0;
+        border-top-color: var(--bds-primary);
+        animation: spin .75s linear infinite;
     }
 
     @@keyframes spin {
@@ -472,31 +408,26 @@
         }
     }
 
-    /* Property Card UI */
-    .property-grid {
-        margin-top: 18px;
-    }
-
     .property-card {
-        height: 100%;
-        border: 1px solid rgba(229,231,235,.9);
-        border-radius: 22px;
-        overflow: hidden;
-        background: #fff;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition);
         position: relative;
+        height: 100%;
+        overflow: hidden;
+        border: 1px solid rgba(229,231,235,.95);
+        border-radius: 22px;
+        background: #ffffff;
+        box-shadow: var(--bds-shadow-sm);
+        transition: all .24s ease;
     }
 
         .property-card:hover {
-            transform: translateY(-6px);
-            box-shadow: var(--shadow-lg);
-            border-color: rgba(37,99,235,.18);
+            transform: translateY(-5px);
+            box-shadow: var(--bds-shadow-md);
+            border-color: rgba(37,99,235,.25);
         }
 
     .property-media {
         position: relative;
-        aspect-ratio: 16/10;
+        aspect-ratio: 16 / 10;
         overflow: hidden;
         background: #e2e8f0;
     }
@@ -505,141 +436,128 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scale(1.001);
-            transition: transform .45s ease;
+            transition: transform .4s ease;
         }
 
     .property-card:hover .property-media img {
-        transform: scale(1.04);
+        transform: scale(1.045);
     }
 
     .property-overlay {
         position: absolute;
         inset: 0;
-        background: linear-gradient(180deg, transparent 20%, rgba(15,23,42,.18) 100%);
-        pointer-events: none;
+        background: linear-gradient(180deg, rgba(15,23,42,0) 35%, rgba(15,23,42,.24) 100%);
     }
 
     .property-badge {
         position: absolute;
-        top: 12px;
-        left: 12px;
-        z-index: 2;
+        left: 11px;
+        top: 11px;
+        z-index: 3;
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        padding: 6px 12px;
-        border-radius: 100px;
-        font-size: .75rem;
-        font-weight: 800;
-        letter-spacing: .02em;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: .72rem;
+        font-weight: 900;
         text-transform: uppercase;
-        box-shadow: var(--shadow-sm);
+        box-shadow: 0 8px 16px rgba(15,23,42,.12);
     }
 
     .badge-diamond {
-        background: linear-gradient(135deg, #00c6ff, #0072ff);
-        color: #fff;
-        box-shadow: 0 4px 12px rgba(0,114,255,0.3);
+        color: #ffffff;
+        background: linear-gradient(135deg, #06b6d4, #2563eb);
     }
 
     .badge-gold {
+        color: #ffffff;
         background: linear-gradient(135deg, #f59e0b, #ea580c);
-        color: #fff;
-        box-shadow: 0 4px 12px rgba(245,158,11,0.3);
     }
 
     .badge-silver {
-        background: linear-gradient(135deg, #cbd5e1, #64748b);
-        color: #fff;
+        color: #ffffff;
+        background: linear-gradient(135deg, #94a3b8, #475569);
     }
 
     .badge-bronze {
-        background: linear-gradient(135deg, #fcd34d, #d97706);
-        color: #fff;
+        color: #ffffff;
+        background: linear-gradient(135deg, #d97706, #92400e);
     }
 
     .badge-normal {
-        background: rgba(255,255,255,0.95);
-        color: #64748b;
-        border: 1px solid #e2e8f0;
+        color: #475569;
+        background: rgba(255,255,255,.96);
+        border: 1px solid rgba(226,232,240,.9);
+    }
+
+    .prop-trans-tag {
+        position: absolute;
+        right: 11px;
+        bottom: 11px;
+        z-index: 3;
+        border-radius: 9px;
+        padding: 6px 10px;
+        font-size: .72rem;
+        font-weight: 950;
+        color: #ffffff;
+        letter-spacing: .04em;
+        box-shadow: 0 8px 16px rgba(15,23,42,.14);
+    }
+
+    .tag-buy {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .tag-rent {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
     }
 
     .prop-fav {
         position: absolute;
-        top: 12px;
-        right: 12px;
-        width: 34px;
-        height: 34px;
-        background: rgba(255,255,255,0.95);
-        border-radius: 50%;
-        display: flex;
+        top: 11px;
+        right: 11px;
+        z-index: 5;
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: none;
-        cursor: pointer;
-        z-index: 5;
-        transition: var(--transition);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255,255,255,.96);
+        color: #64748b;
+        box-shadow: 0 8px 18px rgba(15,23,42,.12);
+        transition: all .2s ease;
     }
 
         .prop-fav:hover {
-            background: #fff;
-            transform: scale(1.1);
+            transform: scale(1.08);
         }
 
-        .prop-fav i {
-            font-size: 0.9rem;
-            color: var(--muted);
-        }
-
-        .prop-fav.active i, .prop-fav:hover i {
-            color: #dc2626;
-        }
-    /* Active (Đã lưu) sẽ có tim đỏ */
-
-    .prop-trans-tag {
-        position: absolute;
-        bottom: 12px;
-        right: 12px;
-        font-size: 0.7rem;
-        font-weight: 800;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        padding: 5px 12px;
-        border-radius: 6px;
-        z-index: 5;
-        color: #fff;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
-
-    .tag-buy {
-        background: #ea4335;
-    }
-
-    .tag-rent {
-        background: #3b82f6;
-    }
+            .prop-fav.active i,
+            .prop-fav:hover i {
+                color: #ef4444;
+            }
 
     .property-body {
-        padding: 16px;
+        padding: 15px;
     }
 
     .property-price {
-        font-size: 1.15rem;
-        font-weight: 900;
-        color: var(--danger);
-        line-height: 1.2;
-        margin-bottom: 8px;
+        margin-bottom: 7px;
+        color: var(--bds-red);
+        font-size: 1.13rem;
+        font-weight: 950;
     }
 
     .property-title {
-        font-size: 1rem;
-        font-weight: 800;
-        line-height: 1.4;
-        color: var(--text);
         min-height: 44px;
-        margin-bottom: 12px;
+        margin: 0 0 12px;
+        color: var(--bds-text);
+        font-size: 1rem;
+        font-weight: 900;
+        line-height: 1.38;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -648,330 +566,375 @@
 
     .property-meta {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        gap: 10px;
+        justify-content: space-between;
+        gap: 9px;
         padding-top: 12px;
-        border-top: 1px solid rgba(229,231,235,.85);
-        color: var(--muted);
-        font-size: .85rem;
-        font-weight: 700;
+        border-top: 1px solid var(--bds-border);
+        color: var(--bds-muted);
+        font-size: .84rem;
+        font-weight: 750;
     }
 
         .property-meta span {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             min-width: 0;
-        }
-
-        .property-meta .text-truncate {
-            max-width: 50%;
-        }
-
-    .pagination-wrap {
-        margin-top: 32px;
-    }
-
-    .pagination {
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .page-item .page-link {
-        border: 1px solid var(--border);
-        border-radius: 14px !important;
-        color: #334155;
-        font-weight: 700;
-        min-width: 42px;
-        text-align: center;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition);
-    }
-
-    .page-item.active .page-link {
-        background: linear-gradient(135deg, var(--primary), var(--primary-2));
-        color: #fff;
-        border-color: transparent;
-    }
-
-    .page-item .page-link:hover {
-        transform: translateY(-1px);
-        border-color: rgba(37,99,235,.22);
-        box-shadow: var(--shadow-md);
-    }
-
-    .empty-state {
-        background: rgba(255,255,255,.94);
-        border: 1px solid rgba(229,231,235,.9);
-        border-radius: 26px;
-        padding: 52px 20px;
-        box-shadow: var(--shadow-sm);
-    }
-
-        .empty-state img {
-            width: 160px;
-            max-width: 100%;
-            opacity: .7;
-            margin-bottom: 16px;
-        }
-
-    /* Dự án nổi bật */
-    .project-card {
-        border-radius: var(--r-lg);
-        overflow: hidden;
-        background: var(--surface);
-        box-shadow: var(--shadow-md);
-        transition: var(--transition);
-        text-decoration: none;
-        display: block;
-        border: 1px solid var(--border);
-    }
-
-        .project-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-lg);
-        }
-
-    .project-img-wrap {
-        position: relative;
-        height: 180px;
-        overflow: hidden;
-    }
-
-        .project-img-wrap img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.4s ease;
-        }
-
-    .project-card:hover .project-img-wrap img {
-        transform: scale(1.05);
-    }
-
-    .project-body {
-        padding: 16px;
-    }
-
-    .project-investor {
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--muted);
-        text-transform: uppercase;
-        margin-bottom: 6px;
-    }
-
-    .project-name {
-        font-family: 'Playfair Display',serif;
-        font-size: 1.1rem;
-        font-weight: 800;
-        color: var(--text);
-        margin-bottom: 8px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .project-loc {
-        font-size: 0.85rem;
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 600;
-    }
-
-    @@media (max-width: 991.98px) {
-        .page-shell {
-            padding-top: 12px;
-        }
-
-        .results-card {
-            padding: 14px;
         }
 
         .property-meta .text-truncate {
             max-width: 55%;
         }
 
-        .amenity-list {
-            grid-template-columns: 1fr;
+    .pagination-wrap {
+        margin-top: 26px;
+    }
+
+    .pagination {
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
+    .page-item .page-link {
+        min-width: 40px;
+        border: 1px solid var(--bds-border);
+        border-radius: 13px !important;
+        color: #334155;
+        font-weight: 900;
+        box-shadow: var(--bds-shadow-sm);
+    }
+
+    .page-item.active .page-link {
+        color: #ffffff;
+        border-color: transparent;
+        background: linear-gradient(135deg, var(--bds-primary), var(--bds-primary-dark));
+    }
+
+    .empty-state {
+        border: 1px solid var(--bds-border);
+        border-radius: 24px;
+        background: #ffffff;
+        padding: 48px 20px;
+        box-shadow: var(--bds-shadow-sm);
+    }
+
+        .empty-state img {
+            width: 148px;
+            max-width: 100%;
+            opacity: .72;
+            margin-bottom: 14px;
         }
 
-        .sort-wrap {
+    .suggest-box {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        display: none;
+        max-height: 240px;
+        overflow-y: auto;
+        border: 1px solid var(--bds-border);
+        border-radius: 0 0 15px 15px;
+        background: #ffffff;
+        box-shadow: var(--bds-shadow-md);
+    }
+
+    .suggest-item {
+        padding: 10px 13px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: .9rem;
+        font-weight: 750;
+        color: var(--bds-text);
+        cursor: pointer;
+    }
+
+        .suggest-item:hover {
+            color: var(--bds-primary);
+            background: #eef2ff;
+        }
+
+    @@media (min-width: 992px) {
+        .filter-sticky {
+            position: sticky;
+            top: 92px;
+            max-height: calc(100vh - 110px);
+            overflow-y: auto;
+            border-radius: var(--bds-radius);
+        }
+
+            .filter-sticky::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .filter-sticky::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 999px;
+            }
+    }
+
+    @@media (max-width: 991.98px) {
+        .search-page {
+            padding-top: 12px;
+        }
+
+        .result-card {
+            padding: 13px;
+        }
+
+        .result-title {
+            font-size: 1.15rem;
+        }
+
+        .sort-box {
             width: 100%;
+            min-width: 100%;
         }
     }
 </style>
 
-<div class="container page-shell">
-    <div class="row g-4 page-layout">
-
-        <!-- Khối Offcanvas bộ lọc -->
+<div class="container search-page">
+    <div class="row g-4">
         <div class="col-lg-3">
-            <div class="filter-wrapper">
+            <div class="filter-sticky">
                 <div class="offcanvas-lg offcanvas-start" tabindex="-1" id="filterPanel" aria-labelledby="filterPanelLabel">
                     <div class="offcanvas-header d-lg-none border-bottom">
-                        <h5 class="offcanvas-title fw-bold" id="filterPanelLabel"><i class="bi bi-sliders2 text-primary me-2"></i>Bộ lọc tìm kiếm</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#filterPanel" aria-label="Close"></button>
+                        <h5 class="offcanvas-title fw-bold" id="filterPanelLabel">
+                            <i class="bi bi-sliders2 text-primary me-2"></i>
+                            Bộ lọc tìm kiếm
+                        </h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="offcanvas"
+                                data-bs-target="#filterPanel"
+                                aria-label="Đóng"></button>
                     </div>
 
                     <div class="offcanvas-body p-0">
-                        <div class="filter-card">
-                            <div class="filter-head d-none d-lg-block">
-                                <h3 class="filter-title"><i class="bi bi-sliders2 text-primary me-2"></i>Bộ lọc nâng cao</h3>
-                                <div class="text-muted small mt-1">Lọc tự động không cần load lại trang</div>
+                        <div class="filter-shell">
+                            <div class="filter-header d-none d-lg-block">
+                                <h3 class="filter-title">
+                                    <i class="bi bi-sliders2 text-primary me-2"></i>
+                                    Bộ lọc bất động sản
+                                </h3>
+                                <div class="filter-subtitle">
+                                    Lọc đúng nhóm mua bán / cho thuê
+                                </div>
                             </div>
 
                             <div class="filter-body">
-                                <form id="filterForm" action="/Property/Search" method="get" onsubmit="event.preventDefault(); triggerFilter();">
+                                <form id="filterForm" action="/Property/Search" method="get">
                                     <input type="hidden" name="transactionType" id="transTypeInput" value="@transactionType" />
                                     <input type="hidden" name="page" id="pageInput" value="@currentPage" />
-                                    <input type="hidden" name="sortOrder" id="sortInput" value="@(filters?.sortOrder ?? "")" />
+                                    <input type="hidden" name="sortOrder" id="sortInput" value="@currentSort" />
 
-                                    <div class="segmented-control">
-                                        <button type="button" class="segmented-item @(isBuy ? "active" : "")" data-trans="buy">
-                                            <i class="bi bi-house me-1"></i>Mua bán
+                                    <div class="mode-tabs">
+                                        <button type="button"
+                                                class="mode-tab @(isBuy ? "active" : "")"
+                                                data-trans="buy">
+                                            <i class="bi bi-house-door me-1"></i>
+                                            Mua bán
                                         </button>
-                                        <button type="button" class="segmented-item @(!isBuy ? "active" : "")" data-trans="rent">
-                                            <i class="bi bi-key me-1"></i>Cho thuê
+
+                                        <button type="button"
+                                                class="mode-tab @(!isBuy ? "active" : "")"
+                                                data-trans="rent">
+                                            <i class="bi bi-key me-1"></i>
+                                            Cho thuê
                                         </button>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="keywordInput">Từ khóa</label>
-                                        <input type="text" id="keywordInput" name="keyword" class="form-control soft-input" placeholder="Tiêu đề, địa chỉ, dự án..." value="@(filters?.keyword ?? "")" autocomplete="off" />
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="keywordInput">Từ khóa</label>
+                                        <input type="text"
+                                               id="keywordInput"
+                                               name="keyword"
+                                               class="form-control soft-input"
+                                               placeholder="Nhập tên tin, địa chỉ, dự án..."
+                                               value="@currentKeyword"
+                                               autocomplete="off" />
                                         <div id="suggestBox" class="suggest-box"></div>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="subTypeSelect">Loại bất động sản</label>
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="subTypeSelect">Loại bất động sản</label>
                                         <select name="typeId" id="subTypeSelect" class="form-select soft-select">
                                             <option value="">Tất cả loại hình</option>
                                         </select>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="areaSelect">Khu vực</label>
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="areaSelect">Khu vực</label>
                                         <select name="areaId" id="areaSelect" class="form-select soft-select">
                                             <option value="">Toàn tỉnh Khánh Hòa</option>
-                                            @foreach (var a in ViewBag.Areas)
+                                            @foreach (var area in ViewBag.Areas)
                                             {
-                                                <option value="@a.AreaID" selected="@(filters?.areaId != null && Convert.ToString(filters.areaId) == Convert.ToString(a.AreaID) ? "selected" : null)">@a.AreaName</option>
+                                                <option value="@area.AreaID" selected="@(currentAreaId == Convert.ToString(area.AreaID) ? "selected" : null)">
+                                                    @area.AreaName
+                                                </option>
                                             }
                                         </select>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="wardSelect">Phường / Xã</label>
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="wardSelect">Phường / Xã</label>
                                         <select name="wardId" id="wardSelect" class="form-select soft-select">
                                             <option value="">Tất cả Phường / Xã</option>
-                                            @if (filters?.wardId != null)
+                                            @if (!string.IsNullOrWhiteSpace(currentWardId))
                                             {
-                                                <option value="@filters.wardId" selected>Đang chọn</option>
+                                                <option value="@currentWardId" selected>Đang chọn</option>
                                             }
                                         </select>
                                     </div>
 
-                                    <div class="field">
-                                        <label>Mức giá</label>
-                                        <div class="range-box">
+                                    <div class="filter-group">
+                                        <label class="filter-label">Mức giá</label>
+                                        <div class="range-card">
                                             <div class="range-values">
-                                                <span>Từ: <strong id="priceMinLabel">@FormatRangeLabel(currentMinPrice)</strong></span>
-                                                <span>Đến: <strong id="priceMaxLabel">@FormatRangeLabel(currentMaxPrice)</strong></span>
+                                                <span>Từ: <strong id="priceMinLabel">@FormatPrice(currentMinPrice)</strong></span>
+                                                <span>Đến: <strong id="priceMaxLabel">@FormatPrice(currentMaxPrice)</strong></span>
                                             </div>
-                                            <div class="range-slider">
-                                                <input type="range" id="priceMinRange" name="minPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMinPrice" />
-                                                <input type="range" id="priceMaxRange" name="maxPrice" min="@priceMinLimit" max="@priceMaxLimit" step="10" value="@currentMaxPrice" />
-                                                <div class="range-track" id="priceTrack"></div>
+
+                                            <div class="double-range">
+                                                <div class="range-line" id="priceTrack"></div>
+
+                                                <input type="range"
+                                                       id="priceMinRange"
+                                                       name="minPrice"
+                                                       min="@priceMinLimit"
+                                                       max="@priceMaxLimit"
+                                                       step="10"
+                                                       value="@currentMinPrice" />
+
+                                                <input type="range"
+                                                       id="priceMaxRange"
+                                                       name="maxPrice"
+                                                       min="@priceMinLimit"
+                                                       max="@priceMaxLimit"
+                                                       step="10"
+                                                       value="@currentMaxPrice" />
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div class="field">
-                                        <label>Diện tích (m²)</label>
-                                        <div class="range-box">
+                                    <div class="filter-group">
+                                        <label class="filter-label">Diện tích</label>
+                                        <div class="range-card">
                                             <div class="range-values">
-                                                <span>Từ: <strong id="areaMinLabel">@FormatAreaLabel(currentMinArea)</strong></span>
-                                                <span>Đến: <strong id="areaMaxLabel">@FormatAreaLabel(currentMaxArea)</strong></span>
+                                                <span>Từ: <strong id="areaMinLabel">@FormatArea(currentMinArea)</strong></span>
+                                                <span>Đến: <strong id="areaMaxLabel">@FormatArea(currentMaxArea)</strong></span>
                                             </div>
-                                            <div class="range-slider">
-                                                <input type="range" id="areaMinRange" name="minSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMinArea" />
-                                                <input type="range" id="areaMaxRange" name="maxSize" min="@areaMinLimit" max="@areaMaxLimit" step="1" value="@currentMaxArea" />
-                                                <div class="range-track" id="areaTrack"></div>
+
+                                            <div class="double-range">
+                                                <div class="range-line" id="areaTrack"></div>
+
+                                                <input type="range"
+                                                       id="areaMinRange"
+                                                       name="minSize"
+                                                       min="@areaMinLimit"
+                                                       max="@areaMaxLimit"
+                                                       step="1"
+                                                       value="@currentMinArea" />
+
+                                                <input type="range"
+                                                       id="areaMaxRange"
+                                                       name="maxSize"
+                                                       min="@areaMinLimit"
+                                                       max="@areaMaxLimit"
+                                                       step="1"
+                                                       value="@currentMaxArea" />
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div class="field">
-                                        <label>Phòng ngủ</label>
-                                        <div class="pill-grid">
+                                    <div class="filter-group">
+                                        <label class="filter-label">Phòng ngủ</label>
+                                        <div class="pill-list">
                                             @foreach (var n in new[] { "1", "2", "3", "4", "5" })
                                             {
-                                                var checkedBedroom = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
-                                                <div>
-                                                    <input class="btn-check" type="radio" name="bedrooms" id="bed_@n" value="@n" @(checkedBedroom ? "checked" : "") />
-                                                    <label class="pill-btn" for="bed_@n">@(n == "5" ? "5+" : n)</label>
-                                                </div>
+                                                string id = "bed_" + n;
+                                                bool isChecked = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
+
+                                                <input class="btn-check" type="radio" name="bedrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
+                                                <label class="pill-item" for="@id">@(n == "5" ? "5+" : n)</label>
                                             }
                                         </div>
                                     </div>
 
-                                    <div class="field">
-                                        <label>Phòng tắm</label>
-                                        <div class="pill-grid">
+                                    <div class="filter-group">
+                                        <label class="filter-label">Phòng tắm</label>
+                                        <div class="pill-list">
                                             @foreach (var n in new[] { "1", "2", "3", "4" })
                                             {
-                                                var checkedBathroom = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
-                                                <div>
-                                                    <input class="btn-check" type="radio" name="bathrooms" id="bath_@n" value="@n" @(checkedBathroom ? "checked" : "") />
-                                                    <label class="pill-btn" for="bath_@n">@(n == "4" ? "4+" : n)</label>
-                                                </div>
+                                                string id = "bath_" + n;
+                                                bool isChecked = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
+
+                                                <input class="btn-check" type="radio" name="bathrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
+                                                <label class="pill-item" for="@id">@(n == "4" ? "4+" : n)</label>
                                             }
                                         </div>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="directionSelect">Hướng nhà</label>
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="directionSelect">Hướng nhà</label>
                                         <select name="direction" id="directionSelect" class="form-select soft-select">
                                             <option value="">Tất cả hướng</option>
                                             @foreach (var direction in new[] { "Đông", "Đông Nam", "Nam", "Tây Nam", "Tây", "Tây Bắc", "Bắc", "Đông Bắc" })
                                             {
-                                                <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">@direction</option>
+                                                <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">
+                                                    @direction
+                                                </option>
                                             }
                                         </select>
                                     </div>
 
-                                    <div class="field">
-                                        <label for="legalStatusSelect">Pháp lý</label>
+                                    <div class="filter-group">
+                                        <label class="filter-label" for="legalStatusSelect">Pháp lý</label>
                                         <select name="legalStatus" id="legalStatusSelect" class="form-select soft-select">
-                                            <option value="">Tất cả</option>
-                                            @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Hợp đồng mua bán" })
+                                            <option value="">Tất cả pháp lý</option>
+                                            @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Đang chờ sổ", "Hợp đồng mua bán" })
                                             {
-                                                <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">@legal</option>
+                                                <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">
+                                                    @legal
+                                                </option>
                                             }
                                         </select>
                                     </div>
 
-                                    <div class="field">
-                                        <label>Tiện ích (Bắt buộc thỏa mãn tất cả ô được chọn)</label>
-                                        <ul class="amenity-list">
-                                            @foreach (var am in new[] { "Gần chợ", "Gần trường học", "Gần bệnh viện", "Có thang máy", "Hồ bơi", "Gym", "An ninh 24/7", "Ban công", "Bãi đỗ xe", "Sân vườn", "Công viên", "Siêu thị" })
+                                    <div class="filter-group">
+                                        <label class="filter-label">Tiện ích</label>
+
+                                        <ul class="amenity-grid">
+                                            @foreach (var item in new[] { "Gần biển", "Gần chợ", "Gần trường học", "Hẻm xe hơi", "Có gara", "Nội thất", "Thang máy", "Hồ bơi" })
                                             {
-                                                var checkedAmenity = currentAmenities.Contains(am);
-                                                <li class="amenity-item @(checkedAmenity ? "is-checked" : "")">
-                                                    <label class="amenity-label">
-                                                        <input type="checkbox" name="amenities" value="@am" @(checkedAmenity ? "checked" : "") />
-                                                        <span>@am</span>
+                                                bool checkedAmenity = currentAmenities.Contains(item);
+                                                string id = "amenity_" + item.Replace(" ", "_").Replace("ầ", "a").Replace("ư", "u");
+
+                                                <li class="amenity-box @(checkedAmenity ? "active" : "")">
+                                                    <label class="amenity-label" for="@id">
+                                                        <input type="checkbox"
+                                                               name="amenities"
+                                                               id="@id"
+                                                               value="@item"
+                                                               @(checkedAmenity ? "checked" : "") />
+                                                        <span>@item</span>
                                                     </label>
                                                 </li>
                                             }
                                         </ul>
                                     </div>
 
-                                    <div class="action-group">
-                                        <button type="button" onclick="resetFilters()" class="action-secondary text-center text-decoration-none"><i class="bi bi-arrow-counterclockwise me-2"></i>Xóa bộ lọc</button>
+                                    <div class="filter-actions">
+                                        <button type="button" class="btn-clear-filter" onclick="resetFilters()">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                            Xóa bộ lọc
+                                        </button>
+
+                                        <button type="button" class="btn-apply-mobile d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#filterPanel">
+                                            <i class="bi bi-check2-circle me-1"></i>
+                                            Xem kết quả
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -981,318 +944,478 @@
             </div>
         </div>
 
-        <!-- Khối kết quả -->
-        <div class="col-lg-9 results-shell">
-
-            <!-- NÚT MỞ BỘ LỌC DÀNH CHO MOBILE RẤT TO VÀ HIỆN ĐẠI -->
+        <div class="col-lg-9">
             <div class="d-lg-none mb-3">
-                <button class="btn w-100 fw-bold py-3 d-flex align-items-center justify-content-center gap-2"
-                        style="background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border-radius: 16px; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);"
+                <button class="mobile-filter-btn"
                         type="button"
                         data-bs-toggle="offcanvas"
                         data-bs-target="#filterPanel"
                         aria-controls="filterPanel">
-                    <i class="bi bi-sliders2 fs-5"></i>
-                    <span style="font-size: 1.05rem;">Mở Bộ Lọc Nâng Cao</span>
+                    <i class="bi bi-sliders2 me-2"></i>
+                    Mở bộ lọc tìm kiếm
                 </button>
             </div>
 
-        
-
-            <div class="results-card">
+            <div class="result-card">
                 <div id="loadingOverlay">
                     <div class="spinner"></div>
                 </div>
 
-                <div class="results-top">
+                <div class="result-top">
                     <div>
-                        <h2 class="results-title">@ViewData["Title"]</h2>
-                        <p class="results-meta mb-0">
-                            Đang hiển thị <strong class="text-primary" id="totalItemsCountUI">@totalItems</strong> kết quả phù hợp.
+                        <h1 class="result-title" id="resultTitle">
+                            @ViewData["Title"]
+                        </h1>
+
+                        <p class="result-meta">
+                            Có <strong class="text-primary" id="totalItemsCountUI">@totalItems</strong> kết quả phù hợp.
                         </p>
                     </div>
 
-                    <div class="d-flex align-items-center gap-2 flex-wrap w-100-mobile">
-                        <div class="sort-wrap">
-                            <label class="form-label fw-bold text-secondary mb-2 d-none d-md-block" style="font-size:0.85rem">Sắp xếp theo</label>
-                            <select id="sortSelect" class="form-select text-dark">
-                                <option value="" selected="@(string.IsNullOrEmpty(filters?.sortOrder) ? "selected" : null)">Tin Mới nhất (VIP ưu tiên)</option>
-                                <option value="price_asc" selected="@(Convert.ToString(filters?.sortOrder) == "price_asc" ? "selected" : null)">Giá Tăng dần (VIP ưu tiên)</option>
-                                <option value="price_desc" selected="@(Convert.ToString(filters?.sortOrder) == "price_desc" ? "selected" : null)">Giá Giảm dần (VIP ưu tiên)</option>
-                                <option value="area_desc" selected="@(Convert.ToString(filters?.sortOrder) == "area_desc" ? "selected" : null)">Diện tích lớn nhất (VIP ưu tiên)</option>
-                            </select>
-                        </div>
+                    <div class="sort-box">
+                        <select id="sortSelect" class="form-select soft-select">
+                            <option value="" selected="@(string.IsNullOrWhiteSpace(currentSort) ? "selected" : null)">Tin mới nhất, VIP ưu tiên</option>
+                            <option value="price_asc" selected="@(currentSort == "price_asc" ? "selected" : null)">Giá tăng dần</option>
+                            <option value="price_desc" selected="@(currentSort == "price_desc" ? "selected" : null)">Giá giảm dần</option>
+                            <option value="area_asc" selected="@(currentSort == "area_asc" ? "selected" : null)">Diện tích tăng dần</option>
+                            <option value="area_desc" selected="@(currentSort == "area_desc" ? "selected" : null)">Diện tích giảm dần</option>
+                        </select>
                     </div>
                 </div>
 
-                <!-- Khu vực Partial View sẽ được Render thay thế bằng AJAX -->
                 <div id="partialRenderArea">
-                    <partial name="_PropertyGridPartial" model="Model" />
+                    @await Html.PartialAsync("_PropertyGridPartial", Model)
                 </div>
-
             </div>
         </div>
     </div>
 </div>
 
-@section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        const subTypesData = @Html.Raw(string.IsNullOrWhiteSpace(subTypesJson) ? "[]" : subTypesJson);
-        const initialTransaction = '@transactionType';
-        const initialTypeId = '@(filters?.typeId ?? "")';
-        const initialAreaId = '@(filters?.areaId ?? "")';
-        const initialWardId = '@(filters?.wardId ?? "")';
+<script>
+    const subTypes = @Html.Raw(string.IsNullOrWhiteSpace(subTypesJson) ? "[]" : subTypesJson);
 
-        const filterForm = document.getElementById('filterForm');
-        const transTypeInput = document.getElementById('transTypeInput');
-        const pageInput = document.getElementById('pageInput');
-        const sortInput = document.getElementById('sortInput');
+    const buyRootId = Number('@buyRootId');
+    const rentRootId = Number('@rentRootId');
 
-        const subTypeSelect = document.getElementById('subTypeSelect');
-        const areaSelect = document.getElementById('areaSelect');
-        const wardSelect = document.getElementById('wardSelect');
-        const sortSelect = document.getElementById('sortSelect');
+    const initialTransaction = '@transactionType';
+    const initialTypeId = '@currentTypeId';
+    const initialAreaId = '@currentAreaId';
+    const initialWardId = '@currentWardId';
 
-        // =====================================
-        // LOGIC LƯU TIN (TRÁI TIM) - BẰNG AJAX
-        // =====================================
-        async function toggleFav(propertyId, btnElement) {
+    const filterForm = document.getElementById('filterForm');
+    const transTypeInput = document.getElementById('transTypeInput');
+    const pageInput = document.getElementById('pageInput');
+    const sortInput = document.getElementById('sortInput');
+
+    const subTypeSelect = document.getElementById('subTypeSelect');
+    const areaSelect = document.getElementById('areaSelect');
+    const wardSelect = document.getElementById('wardSelect');
+    const sortSelect = document.getElementById('sortSelect');
+
+    const priceMinRange = document.getElementById('priceMinRange');
+    const priceMaxRange = document.getElementById('priceMaxRange');
+    const priceMinLabel = document.getElementById('priceMinLabel');
+    const priceMaxLabel = document.getElementById('priceMaxLabel');
+    const priceTrack = document.getElementById('priceTrack');
+
+    const areaMinRange = document.getElementById('areaMinRange');
+    const areaMaxRange = document.getElementById('areaMaxRange');
+    const areaMinLabel = document.getElementById('areaMinLabel');
+    const areaMaxLabel = document.getElementById('areaMaxLabel');
+    const areaTrack = document.getElementById('areaTrack');
+
+    const suggestBox = document.getElementById('suggestBox');
+    const keywordInput = document.getElementById('keywordInput');
+
+    let filterTimer = null;
+    let suggestTimer = null;
+
+    function getRootIdByTransaction(transaction) {
+        return transaction === 'rent' ? rentRootId : buyRootId;
+    }
+
+    function formatPrice(value) {
+        const numberValue = Number(value);
+
+        if (numberValue >= 1000) {
+            return (numberValue / 1000).toLocaleString('vi-VN', {
+                maximumFractionDigits: 2
+            }) + ' tỷ';
+        }
+
+        return numberValue.toLocaleString('vi-VN', {
+            maximumFractionDigits: 0
+        }) + ' triệu';
+    }
+
+    function formatArea(value) {
+        return Number(value).toLocaleString('vi-VN', {
+            maximumFractionDigits: 0
+        }) + ' m²';
+    }
+
+    function updateRange(minInput, maxInput, minLabel, maxLabel, track, formatter) {
+        let minValue = Number(minInput.value);
+        let maxValue = Number(maxInput.value);
+
+        const minLimit = Number(minInput.min);
+        const maxLimit = Number(minInput.max);
+        const gap = Number(minInput.step || 1);
+
+        if (minValue > maxValue - gap) {
+            minValue = maxValue - gap;
+            minInput.value = minValue;
+        }
+
+        if (maxValue < minValue + gap) {
+            maxValue = minValue + gap;
+            maxInput.value = maxValue;
+        }
+
+        minLabel.innerText = formatter(minInput.value);
+        maxLabel.innerText = formatter(maxInput.value);
+
+        const left = ((Number(minInput.value) - minLimit) / (maxLimit - minLimit)) * 100;
+        const right = ((Number(maxInput.value) - minLimit) / (maxLimit - minLimit)) * 100;
+
+        track.style.background = `linear-gradient(
+            90deg,
+            #e2e8f0 0%,
+            #e2e8f0 ${left}%,
+            #2563eb ${left}%,
+            #2563eb ${right}%,
+            #e2e8f0 ${right}%,
+            #e2e8f0 100%
+        )`;
+    }
+
+    function updateAllRanges() {
+        updateRange(priceMinRange, priceMaxRange, priceMinLabel, priceMaxLabel, priceTrack, formatPrice);
+        updateRange(areaMinRange, areaMaxRange, areaMinLabel, areaMaxLabel, areaTrack, formatArea);
+    }
+
+    function fillSubTypes(transaction, selectedTypeId) {
+        const rootId = getRootIdByTransaction(transaction);
+
+        subTypeSelect.innerHTML = '<option value="">Tất cả loại hình</option>';
+
+        const filtered = subTypes.filter(x => Number(x.ParentID) === rootId);
+
+        filtered.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.TypeID;
+            option.textContent = item.TypeName;
+
+            if (selectedTypeId && String(item.TypeID) === String(selectedTypeId)) {
+                option.selected = true;
+            }
+
+            subTypeSelect.appendChild(option);
+        });
+    }
+
+    function setActiveTransactionButton(transaction) {
+        document.querySelectorAll('.mode-tab').forEach(button => {
+            button.classList.toggle('active', button.dataset.trans === transaction);
+        });
+
+        const title = document.getElementById('resultTitle');
+
+        if (title) {
+            title.innerText = transaction === 'rent'
+                ? 'Cho thuê bất động sản Khánh Hòa'
+                : 'Mua bán bất động sản Khánh Hòa';
+        }
+    }
+
+    function buildRequestUrl() {
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams(formData);
+
+        params.set('transactionType', transTypeInput.value);
+        params.set('sortOrder', sortSelect.value || '');
+        params.set('page', pageInput.value || '1');
+
+        if (!params.get('typeId')) {
+            params.delete('typeId');
+        }
+
+        if (!params.get('areaId')) {
+            params.delete('areaId');
+        }
+
+        if (!params.get('wardId')) {
+            params.delete('wardId');
+        }
+
+        if (!params.get('keyword')) {
+            params.delete('keyword');
+        }
+
+        return '/Property/Search?' + params.toString();
+    }
+
+    async function triggerFilter(delay = 450) {
+        clearTimeout(filterTimer);
+
+        filterTimer = setTimeout(async () => {
+            const overlay = document.getElementById('loadingOverlay');
+            const url = buildRequestUrl();
+
+            if (overlay) {
+                overlay.style.display = 'flex';
+            }
+
+            history.pushState(null, '', url);
+
             try {
-                const response = await fetch('/Home/ToggleFavorite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `propertyId=${propertyId}`
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 });
 
-                const result = await response.json();
+                const html = await response.text();
 
-                if (result.success) {
-                    const icon = btnElement.querySelector('i');
-                    if (result.isSaved) {
-                        btnElement.classList.add('active');
-                        Swal.fire({ icon: 'success', title: 'Đã lưu', text: 'Bất động sản đã được lưu vào danh sách yêu thích!', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
-                    } else {
-                        btnElement.classList.remove('active');
-                        Swal.fire({ icon: 'info', title: 'Đã bỏ lưu', text: 'Đã xóa khỏi danh sách yêu thích.', timer: 1500, showConfirmButton: false, toast: true, position: 'top-end' });
-                    }
-                } else {
-                    Swal.fire({ icon: 'warning', title: 'Chưa đăng nhập', text: result.message, showConfirmButton: true, confirmButtonText: 'Đăng nhập ngay' }).then((res) => {
-                        if(res.isConfirmed) { window.location.href = '/Account/Login'; }
-                    });
+                document.getElementById('partialRenderArea').innerHTML = html;
+
+                const hiddenTotal = document.getElementById('hiddenTotalCount');
+                const totalUi = document.getElementById('totalItemsCountUI');
+
+                if (hiddenTotal && totalUi) {
+                    totalUi.innerText = hiddenTotal.innerText;
                 }
             } catch (error) {
-                console.error("Lỗi khi lưu tin:", error);
-            }
-        }
-
-        // =====================================
-        // LOGIC LỌC TỰ ĐỘNG KHÔNG CẦN NÚT (AJAX)
-        // =====================================
-        let filterTimeout;
-        function triggerFilter() {
-            clearTimeout(filterTimeout);
-            filterTimeout = setTimeout(async () => {
-                const overlay = document.getElementById('loadingOverlay');
-                if(overlay) overlay.style.display = 'flex'; // Hiện spinner
-
-                const formData = new FormData(filterForm);
-                const params = new URLSearchParams(formData);
-                // Bắt buộc đẩy giá trị Sort đang chọn vào request
-                params.set('sortOrder', sortSelect.value);
-
-                const url = '/Property/Search?' + params.toString();
-                history.pushState(null, '', url); // Cập nhật URL trên thanh địa chỉ
-
-                try {
-                    const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const html = await response.text();
-
-                    // Đổ HTML Partial lấy được vào vùng chứa
-                    document.getElementById('partialRenderArea').innerHTML = html;
-
-                    // Cập nhật con số đếm kết quả ở phía trên
-                    const newTotalElement = document.getElementById('hiddenTotalCount');
-                    if(newTotalElement) {
-                        document.getElementById('totalItemsCountUI').innerText = newTotalElement.innerText;
-                    }
-                } catch (e) {
-                    console.error("Lỗi filter: ", e);
-                } finally {
-                    if(overlay) overlay.style.display = 'none'; // Tắt spinner
+                console.error('Lỗi lọc bất động sản:', error);
+            } finally {
+                if (overlay) {
+                    overlay.style.display = 'none';
                 }
-            }, 600); // Đợi 600ms user ngừng thao tác mới gửi Request (Chống giật lag)
+            }
+        }, delay);
+    }
+
+    function submitPage(pageNumber) {
+        pageInput.value = pageNumber;
+        triggerFilter(0);
+
+        window.scrollTo({
+            top: 150,
+            behavior: 'smooth'
+        });
+    }
+
+    function resetFilters() {
+        transTypeInput.value = 'buy';
+        pageInput.value = '1';
+        sortSelect.value = '';
+        sortInput.value = '';
+
+        filterForm.reset();
+
+        transTypeInput.value = 'buy';
+        pageInput.value = '1';
+
+        setActiveTransactionButton('buy');
+        fillSubTypes('buy', '');
+
+        document.querySelectorAll('.amenity-box').forEach(box => {
+            box.classList.remove('active');
+        });
+
+        updateAllRanges();
+        triggerFilter(0);
+    }
+
+    async function loadWardsByArea(areaId, selectedWardId) {
+        if (!wardSelect) {
+            return;
         }
 
-        // Gắn sự kiện Change/Input cho toàn bộ Form
-        filterForm.querySelectorAll('input, select').forEach(el => {
-            if(el.type === 'text' || el.type === 'range') {
-                el.addEventListener('input', triggerFilter); // Kéo slider / Gõ text
+        wardSelect.innerHTML = '<option value="">Tất cả Phường / Xã</option>';
+
+        if (!areaId) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/Location/GetWardsByArea?areaId=' + encodeURIComponent(areaId));
+
+            if (!response.ok) {
+                return;
+            }
+
+            const wards = await response.json();
+
+            wards.forEach(ward => {
+                const option = document.createElement('option');
+
+                option.value = ward.wardID || ward.WardID || ward.id;
+                option.textContent = ward.wardName || ward.WardName || ward.name;
+
+                if (selectedWardId && String(option.value) === String(selectedWardId)) {
+                    option.selected = true;
+                }
+
+                wardSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.warn('Không tải được danh sách phường/xã:', error);
+        }
+    }
+
+    async function toggleFav(propertyId, btnElement) {
+        try {
+            const response = await fetch('/Home/ToggleFavorite', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `propertyId=${propertyId}`
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                const icon = btnElement.querySelector('i');
+
+                if (result.isSaved) {
+                    btnElement.classList.add('active');
+                    icon.className = 'bi bi-heart-fill text-danger';
+                } else {
+                    btnElement.classList.remove('active');
+                    icon.className = 'bi bi-heart';
+                }
             } else {
-                el.addEventListener('change', triggerFilter); // Checkbox / Dropdown
+                alert(result.message || 'Bạn cần đăng nhập để lưu tin.');
+            }
+        } catch (error) {
+            console.error('Lỗi lưu tin:', error);
+        }
+    }
+
+    function bindEvents() {
+        document.querySelectorAll('.mode-tab').forEach(button => {
+            button.addEventListener('click', () => {
+                const transaction = button.dataset.trans;
+
+                transTypeInput.value = transaction;
+                pageInput.value = '1';
+
+                // Rất quan trọng:
+                // Đổi Mua bán / Cho thuê thì phải xóa loại cũ.
+                // Nếu không, typeId của bán sẽ đi qua thuê gây sai kết quả.
+                fillSubTypes(transaction, '');
+                subTypeSelect.value = '';
+
+                setActiveTransactionButton(transaction);
+                triggerFilter(0);
+            });
+        });
+
+        filterForm.querySelectorAll('input, select').forEach(element => {
+            if (element.id === 'transTypeInput' || element.id === 'pageInput' || element.id === 'sortInput') {
+                return;
+            }
+
+            if (element.type === 'range' || element.type === 'text') {
+                element.addEventListener('input', () => {
+                    pageInput.value = '1';
+                    updateAllRanges();
+                    triggerFilter();
+                });
+            } else {
+                element.addEventListener('change', () => {
+                    pageInput.value = '1';
+                    triggerFilter();
+                });
             }
         });
 
         if (sortSelect) {
             sortSelect.addEventListener('change', () => {
-                pageInput.value = 1; // Sắp xếp lại thì quay về trang 1
-                triggerFilter();
+                pageInput.value = '1';
+                sortInput.value = sortSelect.value;
+                triggerFilter(0);
             });
         }
 
-        // Checkbox đổi màu UI
-        document.querySelectorAll('.amenity-item input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', function() {
-                this.closest('.amenity-item').classList.toggle('is-checked', this.checked);
+        if (areaSelect) {
+            areaSelect.addEventListener('change', async () => {
+                pageInput.value = '1';
+                await loadWardsByArea(areaSelect.value, '');
+                triggerFilter(0);
+            });
+        }
+
+        document.querySelectorAll('.amenity-box input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                this.closest('.amenity-box').classList.toggle('active', this.checked);
             });
         });
 
-        function submitPage(pageNum) {
-            pageInput.value = pageNum;
-            triggerFilter();
-            window.scrollTo({ top: 200, behavior: 'smooth' }); // Tự cuộn lên đầu danh sách
-        }
+        if (keywordInput) {
+            keywordInput.addEventListener('input', () => {
+                clearTimeout(suggestTimer);
 
-        function resetFilters() {
-            window.location.href = '/Property/Search?transactionType=' + transTypeInput.value;
-        }
+                const keyword = keywordInput.value.trim();
 
-        // =====================================
-        // AUTO SUGGESTION BOX (TÌM KIẾM ĐỀ XUẤT)
-        // =====================================
-        const keywordInput = document.getElementById('keywordInput');
-        const suggestBox = document.getElementById('suggestBox');
+                if (keyword.length < 2) {
+                    suggestBox.style.display = 'none';
+                    suggestBox.innerHTML = '';
+                    return;
+                }
 
-        keywordInput.addEventListener('input', async function() {
-            const kw = this.value.trim();
-            if(kw.length < 2) { suggestBox.style.display = 'none'; return; }
+                suggestTimer = setTimeout(async () => {
+                    try {
+                        const response = await fetch('/Property/Suggest?keyword=' + encodeURIComponent(keyword));
+                        const data = await response.json();
 
-            try {
-                const res = await fetch(`/Property/Suggest?keyword=${encodeURIComponent(kw)}`);
-                const data = await res.json();
+                        suggestBox.innerHTML = '';
 
-                if(data && data.length > 0) {
-                    suggestBox.innerHTML = data.map(d => `<div class="suggest-item" onclick="selectSuggest(this)">${d}</div>`).join('');
-                    suggestBox.style.display = 'block';
-                } else {
+                        if (!data || data.length === 0) {
+                            suggestBox.style.display = 'none';
+                            return;
+                        }
+
+                        data.forEach(text => {
+                            const item = document.createElement('div');
+                            item.className = 'suggest-item';
+                            item.textContent = text;
+
+                            item.addEventListener('click', () => {
+                                keywordInput.value = text;
+                                suggestBox.style.display = 'none';
+                                pageInput.value = '1';
+                                triggerFilter(0);
+                            });
+
+                            suggestBox.appendChild(item);
+                        });
+
+                        suggestBox.style.display = 'block';
+                    } catch (error) {
+                        suggestBox.style.display = 'none';
+                    }
+                }, 250);
+            });
+
+            document.addEventListener('click', event => {
+                if (!keywordInput.contains(event.target) && !suggestBox.contains(event.target)) {
                     suggestBox.style.display = 'none';
                 }
-            } catch(e) {}
-        });
-
-        // Ẩn Suggest Box khi click ra ngoài
-        document.addEventListener('click', function(e) {
-            if (e.target !== keywordInput && e.target !== suggestBox) {
-                suggestBox.style.display = 'none';
-            }
-        });
-
-        function selectSuggest(el) {
-            keywordInput.value = el.innerText;
-            suggestBox.style.display = 'none';
-            triggerFilter();
-        }
-
-        // =====================================
-        // LOGIC RANGE SLIDER & UI CƠ BẢN
-        // =====================================
-        function syncSliderUI(minRange, maxRange, minLabel, maxLabel, trackEl, limitMin, limitMax, formatter) {
-            let minVal = parseFloat(minRange.value);
-            let maxVal = parseFloat(maxRange.value);
-
-            if (minVal > maxVal) {
-                let temp = minVal;
-                minVal = maxVal;
-                maxVal = temp;
-                minRange.value = minVal;
-                maxRange.value = maxVal;
-            }
-
-            minLabel.innerText = formatter(minVal);
-            maxLabel.innerText = formatter(maxVal);
-
-            let percent1 = ((minVal - limitMin) / (limitMax - limitMin)) * 100;
-            let percent2 = ((maxVal - limitMin) / (limitMax - limitMin)) * 100;
-            trackEl.style.background = `linear-gradient(to right, #e2e8f0 ${percent1}% , var(--primary) ${percent1}% , var(--primary) ${percent2}%, #e2e8f0 ${percent2}%)`;
-        }
-
-        function initDualSlider(prefix, limitMin, limitMax, formatter) {
-            const minRange = document.getElementById(`${prefix}MinRange`);
-            const maxRange = document.getElementById(`${prefix}MaxRange`);
-            const minLabel = document.getElementById(`${prefix}MinLabel`);
-            const maxLabel = document.getElementById(`${prefix}MaxLabel`);
-            const trackEl = document.getElementById(`${prefix}Track`);
-
-            if(!minRange) return;
-
-            const update = () => syncSliderUI(minRange, maxRange, minLabel, maxLabel, trackEl, limitMin, limitMax, formatter);
-            minRange.addEventListener("input", update);
-            maxRange.addEventListener("input", update);
-            update();
-        }
-
-        function formatMoneyLabel(val) { return val >= 1000 ? `${(val / 1000).toFixed(2).replace(/\.?0+$/, '')} Tỷ` : `${val} Triệu`; }
-        function formatAreaLabel(val) { return `${val} m²`; }
-
-        function renderSubTypes(transactionType, selectedTypeId) {
-            const parentId = transactionType === 'buy' ? 1 : 2;
-            const list = subTypesData.filter(x => String(x.ParentID) === String(parentId));
-
-            subTypeSelect.innerHTML = '<option value="">Tất cả loại hình</option>';
-            list.forEach(x => {
-                const opt = document.createElement('option');
-                opt.value = x.TypeID;
-                opt.textContent = x.TypeName;
-                if (String(x.TypeID) === String(selectedTypeId)) opt.selected = true;
-                subTypeSelect.appendChild(opt);
             });
         }
+    }
 
-        async function loadWards(areaId, selectedWardId) {
-            wardSelect.innerHTML = '<option value="">Đang tải...</option>';
-            if (!areaId) {
-                wardSelect.innerHTML = '<option value="">Tất cả Phường / Xã</option>';
-                return;
-            }
-            try {
-                const response = await fetch(`/Home/GetWardsByArea?areaId=${encodeURIComponent(areaId)}`);
-                const data = await response.json();
-                wardSelect.innerHTML = '<option value="">Tất cả Phường / Xã</option>';
-                data.forEach(w => {
-                    const opt = document.createElement('option');
-                    opt.value = w.wardId;
-                    opt.textContent = w.wardName;
-                    if (String(w.wardId) === String(selectedWardId)) opt.selected = true;
-                    wardSelect.appendChild(opt);
-                });
-            } catch (error) { wardSelect.innerHTML = '<option value="">Lỗi tải phường/xã</option>'; }
+    document.addEventListener('DOMContentLoaded', async () => {
+        fillSubTypes(initialTransaction, initialTypeId);
+        setActiveTransactionButton(initialTransaction);
+        updateAllRanges();
+        bindEvents();
+
+        if (initialAreaId) {
+            await loadWardsByArea(initialAreaId, initialWardId);
         }
-
-        function setTransaction(type) {
-            transTypeInput.value = type;
-            pageInput.value = 1;
-            document.querySelectorAll('[data-trans]').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.trans === type);
-            });
-            renderSubTypes(type, subTypeSelect.value || initialTypeId);
-            triggerFilter();
-        }
-
-        document.querySelectorAll('[data-trans]').forEach(btn => {
-            btn.addEventListener('click', function () { setTransaction(this.dataset.trans); });
-        });
-
-        areaSelect.addEventListener('change', async function () {
-            pageInput.value = 1;
-            await loadWards(this.value, '');
-        });
-
-        document.addEventListener('DOMContentLoaded', async function () {
-            renderSubTypes(initialTransaction, initialTypeId);
-            await loadWards(initialAreaId, initialWardId);
-
-            initDualSlider('price', @priceMinLimit, @priceMaxLimit, formatMoneyLabel);
-            initDualSlider('area', @areaMinLimit, @areaMaxLimit, formatAreaLabel);
-        });
-    </script>
-}
+    });
+</script>

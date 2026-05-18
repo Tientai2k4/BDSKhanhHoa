@@ -1,10 +1,19 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PostServicePackage>
 
 @{
-    ViewData["Title"] = "Quản lý Gói đăng tin";
+    ViewData["Title"] = "Quản lý gói đăng tin";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
-    string GetTierClass(string type)
+    string currentStatus = ViewBag.Status as string ?? "all";
+    string keyword = ViewBag.Keyword as string ?? "";
+
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int activeCount = ViewBag.ActiveCount ?? 0;
+    int inactiveCount = ViewBag.InactiveCount ?? 0;
+    int usedInPropertiesCount = ViewBag.UsedInPropertiesCount ?? 0;
+    int usedInTransactionsCount = ViewBag.UsedInTransactionsCount ?? 0;
+
+    string GetTierClass(string? type)
     {
         return type switch
         {
@@ -16,7 +25,7 @@
         };
     }
 
-    string GetIconClass(string type)
+    string GetIconClass(string? type)
     {
         return type switch
         {
@@ -48,25 +57,83 @@
         min-height: calc(100vh - 80px);
     }
 
+    .package-hero,
+    .help-card,
+    .filter-card,
+    .pkg-table-card,
+    .stat-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .22);
+        border-radius: 24px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, .06);
+    }
+
+    .package-hero {
+        padding: 22px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .14), transparent 300px), linear-gradient(135deg, #ffffff, #f8fbff);
+    }
+
     .page-title {
-        font-weight: 900;
+        font-weight: 950;
         color: #0f172a;
+        letter-spacing: -.035em;
+        margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+        color: #64748b;
+        font-weight: 600;
+        margin-bottom: 0;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .stat-card {
+        padding: 16px;
+        min-height: 104px;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: .75rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .055em;
+        margin-bottom: 8px;
+    }
+
+    .stat-value {
+        color: #0f172a;
+        font-size: 1.65rem;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .stat-desc {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 600;
+        margin-top: 8px;
     }
 
     .help-card {
-        border: 1px solid #dbeafe;
+        padding: 16px;
         background: linear-gradient(135deg, #eff6ff, #ffffff);
-        border-radius: 20px;
+        border-color: #bfdbfe;
     }
 
     .help-step {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 10px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        background: rgba(255,255,255,.75);
-        border: 1px solid rgba(191,219,254,.75);
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .78);
+        border: 1px solid rgba(191, 219, 254, .78);
         height: 100%;
     }
 
@@ -83,6 +150,30 @@
             flex-shrink: 0;
         }
 
+    .filter-card {
+        padding: 16px;
+    }
+
+    .soft-input {
+        min-height: 46px;
+        border-radius: 14px;
+        border: 1px solid #dbe4ef;
+        background: #f8fafc;
+        font-weight: 700;
+        color: #0f172a;
+        box-shadow: none !important;
+    }
+
+        .soft-input:focus {
+            border-color: #93c5fd;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
+        }
+
+    .pkg-table-card {
+        overflow: hidden;
+    }
+
     .pkg-row {
         transition: .2s ease;
         border-left: 5px solid transparent;
@@ -90,17 +181,21 @@
 
         .pkg-row:hover {
             background: #f8fafc;
-            transform: translateX(4px);
+        }
+
+        .pkg-row.inactive-row {
+            opacity: .68;
+            background: #f8fafc;
         }
 
     .tier-icon {
-        width: 52px;
-        height: 52px;
+        width: 54px;
+        height: 54px;
         border-radius: 18px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.35rem;
+        font-size: 1.4rem;
         box-shadow: 0 10px 24px rgba(15,23,42,.08);
         flex-shrink: 0;
     }
@@ -152,8 +247,16 @@
     }
 
     .tier-name {
-        font-weight: 900;
+        font-weight: 950;
         color: #0f172a;
+        line-height: 1.25;
+    }
+
+    .desc-line {
+        max-width: 390px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .rank-badge {
@@ -165,197 +268,462 @@
         border-radius: 14px;
         background: #0f172a;
         color: #fff;
-        font-weight: 900;
+        font-weight: 950;
         font-size: 1rem;
     }
 
     .rank-note {
-        font-size: .8rem;
+        font-size: .78rem;
         color: #64748b;
         font-weight: 700;
     }
 
     .price-text {
-        font-weight: 900;
-        font-size: 1.1rem;
+        font-weight: 950;
+        font-size: 1.05rem;
+        white-space: nowrap;
     }
 
-    .desc-line {
-        max-width: 360px;
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 5px 11px;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 900;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    }
+
+    .status-active {
+        background: #dcfce7;
+        color: #047857;
+        border: 1px solid #86efac;
+    }
+
+    .status-inactive {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .action-wrap {
+        display: inline-flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .action-btn {
+        min-height: 35px;
+        border-radius: 12px;
+        font-weight: 850;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .stat-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
     }
 
     @@media (max-width: 768px) {
+        .stat-grid {
+            grid-template-columns: 1fr;
+        }
+
         .desc-line {
             max-width: 230px;
+        }
+
+        .action-wrap {
+            justify-content: flex-start;
         }
     }
 </style>
 
 <div class="package-page container-fluid py-4">
-    <div class="row align-items-center mb-4 g-3">
-        <div class="col-lg-8">
-            <h3 class="page-title mb-1">
-                <i class="bi bi-tags-fill text-primary me-2"></i>Quản lý gói đăng tin
-            </h3>
-            <p class="text-muted mb-0">
-                Thứ tự hiển thị được tính theo hạng: Kim Cương đứng đầu, sau đó Vàng, Bạc, Đồng và cuối cùng là Tin Thường.
-            </p>
-        </div>
-        <div class="col-lg-4 text-lg-end">
-            <a href="/Admin/PostServicePackages/Create" class="btn btn-primary fw-bold rounded-pill px-4 py-2 shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Tạo gói mới
-            </a>
-        </div>
-    </div>
+    <section class="package-hero mb-3">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-8">
+                <h3 class="page-title">
+                    <i class="bi bi-tags-fill text-primary me-2"></i>
+                    Quản lý gói đăng tin
+                </h3>
+                <p class="page-subtitle">
+                    Quản lý bảng giá, thứ hạng VIP, trạng thái đang dùng/ngừng dùng và bảo toàn lịch sử giao dịch.
+                </p>
+            </div>
 
-    <div class="help-card p-3 p-md-4 mb-4">
+            <div class="col-lg-4 text-lg-end">
+                <a href="/Admin/PostServicePackages/Create" class="btn btn-primary fw-bold rounded-pill px-4 py-2 shadow-sm">
+                    <i class="bi bi-plus-circle me-1"></i>
+                    Tạo gói mới
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="stat-grid mb-3">
+        <div class="stat-card">
+            <div class="stat-label">
+                <i class="bi bi-collection me-1 text-primary"></i>
+                Tổng gói
+            </div>
+            <div class="stat-value">@totalCount.ToString("N0")</div>
+            <div class="stat-desc">Tất cả gói trong hệ thống</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">
+                <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                Đang dùng
+            </div>
+            <div class="stat-value text-success">@activeCount.ToString("N0")</div>
+            <div class="stat-desc">Được phép mua/chọn mới</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">
+                <i class="bi bi-pause-circle-fill me-1 text-danger"></i>
+                Ngừng dùng
+            </div>
+            <div class="stat-value text-danger">@inactiveCount.ToString("N0")</div>
+            <div class="stat-desc">Ẩn khỏi lựa chọn mới</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">
+                <i class="bi bi-house-check-fill me-1 text-info"></i>
+                Có tin dùng
+            </div>
+            <div class="stat-value">@usedInPropertiesCount.ToString("N0")</div>
+            <div class="stat-desc">Số gói đã gắn vào tin</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">
+                <i class="bi bi-receipt-cutoff me-1 text-warning"></i>
+                Có giao dịch
+            </div>
+            <div class="stat-value">@usedInTransactionsCount.ToString("N0")</div>
+            <div class="stat-desc">Số gói đã phát sinh thanh toán</div>
+        </div>
+    </section>
+
+    <section class="help-card mb-3">
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="help-step">
                     <span class="num">1</span>
                     <div>
-                        <div class="fw-bold text-dark">Hạng càng nhỏ càng cao</div>
-                        <div class="small text-muted">Hạng 1 là Kim Cương, Hạng 5 là Tin Thường.</div>
+                        <div class="fw-bold text-dark">Không xóa gói đã phát sinh dữ liệu</div>
+                        <div class="small text-muted">Gói đã có giao dịch hoặc tin đăng thì nên ngừng dùng, không xóa cứng.</div>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-4">
                 <div class="help-step">
                     <span class="num">2</span>
                     <div>
-                        <div class="fw-bold text-dark">Không nhập tay ưu tiên</div>
-                        <div class="small text-muted">Chọn loại gói, hệ thống tự gán PriorityLevel.</div>
+                        <div class="fw-bold text-dark">Ngừng dùng là cách an toàn</div>
+                        <div class="small text-muted">Gói cũ không còn cho mua/chọn mới nhưng vẫn giữ lịch sử hóa đơn.</div>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-4">
                 <div class="help-step">
                     <span class="num">3</span>
                     <div>
-                        <div class="fw-bold text-dark">Tin thường luôn cuối</div>
-                        <div class="small text-muted">Tin thường là gói không VIP, có thể miễn phí hoặc có phí.</div>
+                        <div class="fw-bold text-dark">Có thể mở lại bất kỳ lúc nào</div>
+                        <div class="small text-muted">Nếu cần bán lại gói cũ, Admin bấm Mở lại để kích hoạt.</div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+    <section class="filter-card mb-3">
+        <form method="get" action="/Admin/PostServicePackages/Index" class="row g-3 align-items-end">
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label small fw-bold text-muted text-uppercase">Trạng thái</label>
+                <select name="status" class="form-select soft-input">
+                    <option value="all" selected="@(currentStatus == "all")">Tất cả gói</option>
+                    <option value="active" selected="@(currentStatus == "active")">Đang dùng</option>
+                    <option value="inactive" selected="@(currentStatus == "inactive")">Ngừng dùng</option>
+                </select>
+            </div>
+
+            <div class="col-lg-7 col-md-6">
+                <label class="form-label small fw-bold text-muted text-uppercase">Tìm kiếm</label>
+                <input type="text"
+                       name="keyword"
+                       value="@keyword"
+                       class="form-control soft-input"
+                       placeholder="Nhập tên gói, loại gói hoặc mô tả..." />
+            </div>
+
+            <div class="col-lg-2">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-dark fw-bold rounded-3 flex-grow-1" style="min-height:46px;">
+                        <i class="bi bi-funnel-fill me-1"></i>
+                        Lọc
+                    </button>
+
+                    <a href="/Admin/PostServicePackages/Index" class="btn btn-light border fw-bold rounded-3 d-flex align-items-center justify-content-center" style="width:50px;min-height:46px;">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="pkg-table-card bg-white">
         <div class="table-responsive">
             <table class="table align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Gói đăng tin</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Trạng thái</th>
                         <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Thời hạn</th>
                         <th class="py-3 text-secondary small text-uppercase fw-bold text-end">Giá</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hạng hiển thị</th>
+                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hạng</th>
                         <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Thao tác</th>
                     </tr>
                 </thead>
+
                 <tbody>
-                    @if (!Model.Any())
+                    @if (Model == null || !Model.Any())
                     {
                         <tr>
-                            <td colspan="5" class="text-center py-5">
+                            <td colspan="6" class="text-center py-5">
                                 <i class="bi bi-box-seam display-3 d-block text-muted opacity-25 mb-3"></i>
                                 <h6 class="fw-bold text-dark mb-1">Chưa có gói đăng tin nào</h6>
-                                <p class="small text-muted mb-0">Bạn có thể tạo gói Tin Thường miễn phí hoặc có phí, sau đó tạo thêm các gói VIP.</p>
+                                <p class="small text-muted mb-0">Bạn có thể tạo gói Tin Thường hoặc các gói VIP mới.</p>
                             </td>
                         </tr>
                     }
-
-                    @foreach (var item in Model)
+                    else
                     {
-                        var tierClass = GetTierClass(item.PackageType);
-                        var iconClass = GetIconClass(item.PackageType);
-                        var isNormal = item.PackageType == "Tin Thường";
+                        foreach (var item in Model)
+                        {
+                            var tierClass = GetTierClass(item.PackageType);
+                            var iconClass = GetIconClass(item.PackageType);
+                            var isNormal = item.PackageType == "Tin Thường";
 
-                        <tr class="pkg-row @tierClass">
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="tier-icon">
-                                        <i class="bi @iconClass"></i>
-                                    </div>
-                                    <div>
-                                        <div class="tier-name">@item.PackageName</div>
-                                        <div class="small fw-bold @(isNormal ? "text-secondary" : "text-primary")">
-                                            @(isNormal ? "Tin thường" : "VIP " + item.PackageType)
+                            <tr class="pkg-row @tierClass @(item.IsActive ? "" : "inactive-row")">
+                                <td class="ps-4 py-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="tier-icon">
+                                            <i class="bi @iconClass"></i>
                                         </div>
-                                        @if (!string.IsNullOrWhiteSpace(item.Description))
-                                        {
-                                            <div class="small text-muted desc-line" title="@item.Description">
-                                                @item.Description
+
+                                        <div>
+                                            <div class="tier-name">@item.PackageName</div>
+
+                                            <div class="small fw-bold @(isNormal ? "text-secondary" : "text-primary")">
+                                                @(isNormal ? "Tin thường" : "VIP " + item.PackageType)
                                             </div>
-                                        }
+
+                                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                                            {
+                                                <div class="small text-muted desc-line" title="@item.Description">
+                                                    @item.Description
+                                                </div>
+                                            }
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
+                                </td>
 
-                            <td class="py-3 text-center">
-                                <span class="badge bg-light text-dark border px-3 py-2">
-                                    <i class="bi bi-calendar-event text-primary me-1"></i>
-                                    @(item.DurationDays == 0 ? "Không hết hạn" : item.DurationDays + " ngày")
-                                </span>
-                            </td>
+                                <td class="py-3 text-center">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="status-pill status-active">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                            Đang dùng
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-pill status-inactive">
+                                            <i class="bi bi-pause-circle-fill"></i>
+                                            Ngừng dùng
+                                        </span>
+                                    }
+                                </td>
 
-                            <td class="py-3 text-end">
-                                <span class="price-text @(item.Price == 0 ? "text-success" : "text-danger")">
-                                    @(item.Price == 0 ? "Miễn phí" : item.Price.ToString("N0") + " ₫")
-                                </span>
-                            </td>
+                                <td class="py-3 text-center">
+                                    <span class="badge bg-light text-dark border px-3 py-2">
+                                        <i class="bi bi-calendar-event text-primary me-1"></i>
+                                        @(item.DurationDays == 0 ? "Không hết hạn" : item.DurationDays + " ngày")
+                                    </span>
+                                </td>
 
-                            <td class="py-3 text-center">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span class="rank-badge">@item.PriorityLevel</span>
-                                    <span class="rank-note mt-1">@GetPriorityText(item.PriorityLevel)</span>
-                                </div>
-                            </td>
+                                <td class="py-3 text-end">
+                                    <span class="price-text @(item.Price == 0 ? "text-success" : "text-danger")">
+                                        @(item.Price == 0 ? "Miễn phí" : item.Price.ToString("N0") + " ₫")
+                                    </span>
+                                </td>
 
-                            <td class="text-end pe-4 py-3">
-                                <div class="d-inline-flex gap-2">
-                                    <a href="/Admin/PostServicePackages/Edit/@item.PackageID"
-                                       class="btn btn-sm btn-light border text-primary rounded-3 fw-bold">
-                                        <i class="bi bi-pencil-square me-1"></i>Sửa
-                                    </a>
+                                <td class="py-3 text-center">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <span class="rank-badge">@item.PriorityLevel</span>
+                                        <span class="rank-note mt-1">@GetPriorityText(item.PriorityLevel)</span>
+                                    </div>
+                                </td>
 
-                                    <form id="deleteForm-@item.PackageID"
-                                          action="/Admin/PostServicePackages/Delete"
-                                          method="post"
-                                          class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@item.PackageID" />
-                                        <button type="button"
-                                                class="btn btn-sm btn-light border text-danger rounded-3 fw-bold"
-                                                onclick="confirmDelete(@item.PackageID)">
-                                            <i class="bi bi-trash3-fill"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
+                                <td class="text-end pe-4 py-3">
+                                    <div class="action-wrap">
+                                        <a href="/Admin/PostServicePackages/Edit/@item.PackageID"
+                                           class="btn btn-sm btn-light border text-primary action-btn">
+                                            <i class="bi bi-pencil-square"></i>
+                                            Sửa
+                                        </a>
+
+                                        @if (item.IsActive)
+                                        {
+                                            <form id="deactivateForm-@item.PackageID"
+                                                  action="/Admin/PostServicePackages/Deactivate"
+                                                  method="post"
+                                                  class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.PackageID" />
+                                                <button type="button"
+                                                        class="btn btn-sm btn-light border text-warning action-btn"
+                                                        onclick="confirmDeactivate(@item.PackageID, '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(item.PackageName))')">
+                                                    <i class="bi bi-pause-circle-fill"></i>
+                                                    Ngừng
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <form id="activateForm-@item.PackageID"
+                                                  action="/Admin/PostServicePackages/Activate"
+                                                  method="post"
+                                                  class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.PackageID" />
+                                                <button type="button"
+                                                        class="btn btn-sm btn-light border text-success action-btn"
+                                                        onclick="confirmActivate(@item.PackageID, '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(item.PackageName))')">
+                                                    <i class="bi bi-play-circle-fill"></i>
+                                                    Mở lại
+                                                </button>
+                                            </form>
+                                        }
+
+                                        <form id="deleteForm-@item.PackageID"
+                                              action="/Admin/PostServicePackages/Delete"
+                                              method="post"
+                                              class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.PackageID" />
+                                            <button type="button"
+                                                    class="btn btn-sm btn-light border text-danger action-btn"
+                                                    onclick="confirmDelete(@item.PackageID, '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(item.PackageName))')">
+                                                <i class="bi bi-trash3-fill"></i>
+                                                Xóa
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        function confirmDelete(id) {
+        function confirmDeactivate(id, name) {
+            Swal.fire({
+                title: 'Ngừng dùng gói này?',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-2">
+                            Gói <strong>${name}</strong> sẽ chuyển sang trạng thái <strong>Ngừng dùng</strong>.
+                        </p>
+                        <div class="alert alert-warning rounded-4 mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            Gói này sẽ không còn nên hiển thị để người dùng mua hoặc chọn mới.
+                            Lịch sử giao dịch, hóa đơn và tin cũ vẫn được giữ nguyên.
+                        </div>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-pause-circle"></i> Ngừng dùng',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deactivateForm-' + id).submit();
+                }
+            });
+        }
+
+        function confirmActivate(id, name) {
+            Swal.fire({
+                title: 'Mở lại gói này?',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-2">
+                            Gói <strong>${name}</strong> sẽ được mở lại.
+                        </p>
+                        <div class="alert alert-success rounded-4 mb-0">
+                            <i class="bi bi-check-circle-fill me-1"></i>
+                            Sau khi mở lại, gói có thể được hiển thị để người dùng mua hoặc chọn mới.
+                        </div>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#16a34a',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="bi bi-play-circle"></i> Mở lại',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('activateForm-' + id).submit();
+                }
+            });
+        }
+
+        function confirmDelete(id, name) {
             Swal.fire({
                 title: 'Xóa gói đăng tin?',
-                text: 'Không thể xóa nếu đang có tin bất động sản sử dụng gói này.',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-2">
+                            Bạn đang yêu cầu xóa gói <strong>${name}</strong>.
+                        </p>
+                        <div class="alert alert-warning rounded-4 mb-2">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            Hệ thống chỉ cho xóa khi gói chưa từng có tin đăng, giao dịch, hóa đơn hoặc lịch sử thanh toán.
+                        </div>
+                        <div class="alert alert-info rounded-4 mb-0">
+                            Nếu gói đã từng được sử dụng, hãy dùng chức năng <strong>Ngừng dùng</strong> thay vì xóa.
+                        </div>
+                    </div>
+                `,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: '<i class="bi bi-trash3"></i> Đồng ý xóa',
+                confirmButtonText: '<i class="bi bi-trash3"></i> Kiểm tra và xóa',
                 cancelButtonText: 'Hủy'
             }).then((result) => {
                 if (result.isConfirmed) {
@@ -371,9 +739,10 @@
                         toast: true,
                         position: 'top-end',
                         icon: 'success',
-                        title: '@Html.Raw(TempData["Success"])',
+                        title: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(TempData["Success"]?.ToString() ?? ""))',
                         showConfirmButton: false,
-                        timer: 3000
+                        timer: 3600,
+                        timerProgressBar: true
                     });
                 </text>
         }
@@ -384,7 +753,9 @@
                     Swal.fire({
                         icon: 'error',
                         title: 'Không thể thực hiện',
-                        text: '@Html.Raw(TempData["Error"])'
+                        text: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(TempData["Error"]?.ToString() ?? ""))',
+                        confirmButtonText: 'Đã hiểu',
+                        confirmButtonColor: '#2563eb'
                     });
                 </text>
         }

@@ -149,6 +149,12 @@
 
     string mainImage = galleryImages.FirstOrDefault() ?? "/images/no-image.jpg";
     var totalImages = galleryImages.Count;
+
+    bool isLockedProperty = Model.Status == "Sold" || Model.Status == "Rented";
+    string lockedTitle = Model.Status == "Sold" ? "TIN ĐÃ BÁN" : "TIN ĐÃ CHO THUÊ";
+    string lockedMessage = Model.Status == "Sold"
+        ? "Bất động sản này đã bán thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa."
+        : "Bất động sản này đã cho thuê thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.";
 }
 
 <meta name="chatbot-property-title" content="@Model.Title" />
@@ -1192,8 +1198,6 @@
             grid-template-columns: minmax(0, 1fr) 330px;
             gap: 18px;
         }
-
-   
     }
 
     @@media (max-width: 991.98px) {
@@ -1204,8 +1208,6 @@
         .pd-contact-sticky {
             position: static;
         }
-
-       
     }
 
     @@media (max-width: 767.98px) {
@@ -1218,7 +1220,7 @@
             padding-right: 10px;
         }
 
-    
+
 
         .pd-gallery,
         .pd-card,
@@ -1336,7 +1338,7 @@
             margin-top: 10px !important;
         }
 
-      
+
 
         .pd-gallery-badges {
             left: 10px;
@@ -1467,6 +1469,74 @@
             height: 58px;
         }
     }
+
+
+    /* =====================================================
+           KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+        ===================================================== */
+    .pd-locked-alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 18px;
+        margin-bottom: 18px;
+        border-radius: 22px;
+        border: 1px solid #fecaca;
+        background: linear-gradient(135deg, #fff1f2, #fef2f2);
+        color: #7f1d1d;
+        box-shadow: 0 14px 30px rgba(239, 68, 68, .08);
+    }
+
+    .pd-locked-alert-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        flex-shrink: 0;
+        box-shadow: 0 12px 24px rgba(220, 38, 38, .22);
+    }
+
+    .pd-locked-alert-title {
+        font-size: 1.08rem;
+        font-weight: 950;
+        color: #991b1b;
+        margin-bottom: 5px;
+    }
+
+    .pd-locked-alert-desc {
+        font-size: .92rem;
+        line-height: 1.7;
+        font-weight: 750;
+    }
+
+    .pd-locked-small-box {
+        border: 1px solid #fecaca;
+        background: #fff1f2;
+        color: #991b1b;
+        border-radius: 16px;
+        padding: 13px 14px;
+        font-size: .86rem;
+        font-weight: 800;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    .pd-locked-disabled {
+        pointer-events: none !important;
+        cursor: not-allowed !important;
+        opacity: .45 !important;
+        filter: grayscale(1);
+    }
+
+    .pd-locked-badge {
+        background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+    }
+
 </style>
 
 <div class="pd-breadcrumb">
@@ -1487,6 +1557,23 @@
 
 <div class="pd-page">
     <div class="container my-4">
+        @if (isLockedProperty)
+        {
+            <div class="pd-locked-alert">
+                <div class="pd-locked-alert-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                <div>
+                    <div class="pd-locked-alert-title">@lockedTitle</div>
+                    <div class="pd-locked-alert-desc">
+                        @lockedMessage
+                        @if (Model.SoldAt.HasValue)
+                        {
+                            <span> Thời gian ghi nhận: <strong>@FormatDateTime(Model.SoldAt)</strong>.</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (Model.Status == "Pending" && (isAdminOrStaff || isOwner))
         {
             <div class="pd-status-alert">
@@ -1510,10 +1597,20 @@
                             </span>
                         }
 
-                        <span class="pd-badge pd-badge-type">
-                            <i class="bi bi-tag-fill"></i>
-                            @(isRent ? "Cho thuê" : "Bán")
-                        </span>
+                        @if (isLockedProperty)
+                        {
+                            <span class="pd-badge pd-locked-badge">
+                                <i class="bi bi-lock-fill"></i>
+                                @lockedTitle
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="pd-badge pd-badge-type">
+                                <i class="bi bi-tag-fill"></i>
+                                @(isRent ? "Cho thuê" : "Bán")
+                            </span>
+                        }
                     </div>
 
                     <img id="heroImg"
@@ -1557,7 +1654,7 @@
                     </div>
                 }
 
-   
+
 
                 <section class="pd-card">
                     <div class="pd-card-body">
@@ -1570,7 +1667,7 @@
                                 </div>
                             </div>
 
-                            @if (isOwner)
+                            @if (isOwner && !isLockedProperty)
                             {
                                 <a href="/Property/Edit/@Model.PropertyID" class="pd-edit-btn">
                                     <i class="bi bi-pencil-square"></i>
@@ -1972,10 +2069,18 @@
                         </div>
 
                         <div class="pd-contact-body">
+                            @if (isLockedProperty)
+                            {
+                                <div class="pd-locked-small-box">
+                                    <i class="bi bi-lock-fill me-1"></i>
+                                    Tin đã hoàn tất giao dịch. Mọi chức năng liên hệ, chat, đặt lịch, lưu tin, báo cáo và bình luận đã bị khóa.
+                                </div>
+                            }
+
                             @if (isAuthenticated)
                             {
                                 <div class="pd-phone-box" id="phoneBox">
-                                    <button type="button" class="pd-phone-reveal" id="btnReveal">
+                                    <button type="button" class="pd-phone-reveal @(isLockedProperty ? "pd-locked-disabled" : "")" id="btnReveal">
                                         <i class="bi bi-telephone-fill"></i>
                                         <span id="phoneText">
                                             @(!string.IsNullOrWhiteSpace(Model.User?.Phone)
@@ -1994,7 +2099,7 @@
                                     <div class="pd-social-row @((!string.IsNullOrWhiteSpace(zaloLink) && !string.IsNullOrWhiteSpace(fbLink)) ? "" : "one")">
                                         @if (!string.IsNullOrWhiteSpace(zaloLink))
                                         {
-                                            <a href="@zaloLink" target="_blank" class="pd-social-btn pd-zalo">
+                                            <a href="@zaloLink" target="_blank" class="pd-social-btn pd-zalo @(isLockedProperty ? "pd-locked-disabled" : "")">
                                                 <i class="bi bi-chat-dots-fill"></i>
                                                 Zalo
                                             </a>
@@ -2002,7 +2107,7 @@
 
                                         @if (!string.IsNullOrWhiteSpace(fbLink))
                                         {
-                                            <a href="@fbLink" target="_blank" class="pd-social-btn pd-facebook">
+                                            <a href="@fbLink" target="_blank" class="pd-social-btn pd-facebook @(isLockedProperty ? "pd-locked-disabled" : "")">
                                                 <i class="bi bi-facebook"></i>
                                                 Facebook
                                             </a>
@@ -2022,8 +2127,8 @@
                                         </div>
 
                                         <div class="pd-social-row">
-                                            <button type="button" class="pd-social-btn pd-zalo">Zalo</button>
-                                            <button type="button" class="pd-social-btn pd-facebook">Facebook</button>
+                                            <button type="button" class="pd-social-btn pd-zalo @(isLockedProperty ? "pd-locked-disabled" : "")">Zalo</button>
+                                            <button type="button" class="pd-social-btn pd-facebook @(isLockedProperty ? "pd-locked-disabled" : "")">Facebook</button>
                                         </div>
                                     </div>
 
@@ -2048,7 +2153,7 @@
                                 else
                                 {
                                     <button type="button"
-                                            class="pd-main-action pd-action-consult"
+                                            class="pd-main-action pd-action-consult @(isLockedProperty ? "pd-locked-disabled" : "")"
                                             data-bs-toggle="modal"
                                             data-bs-target="#consultationModal">
                                         <i class="bi bi-headset fs-5"></i>
@@ -2058,13 +2163,13 @@
                                     @if (!isOwner)
                                     {
                                         <a href="/UserMessage/Index?receiverId=@Model.UserID&propertyId=@Model.PropertyID"
-                                           class="pd-main-action pd-action-chat">
+                                           class="pd-main-action pd-action-chat @(isLockedProperty ? "pd-locked-disabled" : "")">
                                             <i class="bi bi-chat-dots-fill fs-5"></i>
                                             Chat trực tiếp ngay
                                         </a>
 
                                         <button type="button"
-                                                class="pd-main-action pd-action-appt"
+                                                class="pd-main-action pd-action-appt @(isLockedProperty ? "pd-locked-disabled" : "")"
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#appointmentModal">
                                             <i class="bi bi-calendar-check-fill fs-5"></i>
@@ -2076,7 +2181,7 @@
 
                             <div class="pd-util-row">
                                 <button type="button"
-                                        class="pd-util-btn @(ViewBag.IsFavorited ? "saved" : "")"
+                                        class="pd-util-btn @(ViewBag.IsFavorited ? "saved" : "") @(isLockedProperty ? "pd-locked-disabled" : "")"
                                         id="btnFav"
                                         data-id="@Model.PropertyID">
                                     <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
@@ -2090,7 +2195,7 @@
                                     <span>Chia sẻ</span>
                                 </button>
 
-                                <button type="button" class="pd-util-btn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                <button type="button" class="pd-util-btn @(isLockedProperty ? "pd-locked-disabled" : "")" data-bs-toggle="modal" data-bs-target="#reportModal">
                                     <i class="bi bi-flag"></i>
                                     <span>Báo cáo</span>
                                 </button>
@@ -2140,15 +2245,15 @@
     </div>
 </div>
 
-@if (Model.Status != "Pending" && !isOwner)
+@if (Model.Status != "Pending" && !isOwner && !isLockedProperty)
 {
     <div class="pd-mobile-contact-bar">
-        <button type="button" class="pd-main-action pd-action-consult" data-bs-toggle="modal" data-bs-target="#consultationModal">
+        <button type="button" class="pd-main-action pd-action-consult @(isLockedProperty ? "pd-locked-disabled" : "")" data-bs-toggle="modal" data-bs-target="#consultationModal">
             <i class="bi bi-headset"></i>
             Tư vấn
         </button>
 
-        <button type="button" class="pd-main-action pd-action-appt" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+        <button type="button" class="pd-main-action pd-action-appt @(isLockedProperty ? "pd-locked-disabled" : "")" data-bs-toggle="modal" data-bs-target="#appointmentModal">
             <i class="bi bi-calendar-check-fill"></i>
             Xem nhà
         </button>
@@ -2370,6 +2475,19 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
+
+        const isLockedProperty = @Json.Serialize(isLockedProperty);
+
+        function guardLockedAction() {
+            if (!isLockedProperty) return false;
+            Swal.fire({
+                icon: 'warning',
+                title: '@lockedTitle',
+                text: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(lockedMessage)),
+                confirmButtonColor: 'var(--pd-danger)'
+            });
+            return true;
+        }
         function showToast(msg, icon = 'success') {
             Swal.fire({
                 toast: true,
@@ -2389,6 +2507,7 @@
         }
 
         function toggleReplyForm(commentId) {
+            if (guardLockedAction()) return;
             const formBox = document.getElementById('replyForm_' + commentId);
             if (!formBox) return;
 
@@ -2603,6 +2722,7 @@
         }
 
         document.getElementById('btnFav')?.addEventListener('click', async function () {
+            if (guardLockedAction()) return;
             try {
                 const res = await fetch('/Favorite/ToggleFavorite', {
                     method: 'POST',
@@ -2643,6 +2763,7 @@
         });
 
         document.getElementById('btnReport')?.addEventListener('click', async function () {
+            if (guardLockedAction()) return;
             const fd = new FormData();
 
             fd.append('propertyId', '@Model.PropertyID');
@@ -2655,6 +2776,7 @@
         });
 
         document.getElementById('btnAppt')?.addEventListener('click', async function () {
+            if (guardLockedAction()) return;
             const name = document.getElementById('apptName').value.trim();
             const phone = document.getElementById('apptPhone').value.trim();
             const loc = document.getElementById('apptLocation').value.trim();
@@ -2692,6 +2814,7 @@
         });
 
         document.getElementById('btnConsult')?.addEventListener('click', async function () {
+            if (guardLockedAction()) return;
             const name = document.getElementById('csName').value.trim();
             const phone = document.getElementById('csPhone').value.trim();
 
@@ -2719,6 +2842,7 @@
         });
 
         document.getElementById('btnComment')?.addEventListener('click', async function () {
+            if (guardLockedAction()) return;
             const content = document.getElementById('commentContent').value.trim();
 
             if (!content) {

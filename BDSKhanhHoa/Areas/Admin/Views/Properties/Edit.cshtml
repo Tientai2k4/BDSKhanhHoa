@@ -1,0 +1,639 @@
+﻿@model BDSKhanhHoa.Models.Property
+
+@{
+    ViewData["Title"] = "Admin chỉnh sửa tin đăng";
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    var parentTypes = ViewBag.ParentTypes as List<BDSKhanhHoa.Models.PropertyType> ?? new List<BDSKhanhHoa.Models.PropertyType>();
+    var areas = ViewBag.Areas as List<BDSKhanhHoa.Models.Area> ?? new List<BDSKhanhHoa.Models.Area>();
+    var wards = ViewBag.Wards as List<BDSKhanhHoa.Models.Ward> ?? new List<BDSKhanhHoa.Models.Ward>();
+    var packages = ViewBag.Packages as List<BDSKhanhHoa.Models.PostServicePackage> ?? new List<BDSKhanhHoa.Models.PostServicePackage>();
+    int currentAreaID = ViewBag.CurrentAreaID is int aid ? aid : 0;
+}
+
+@functions {
+    public string StatusText(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "Đang hiển thị",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Bị từ chối",
+            "Sold" => "Đã bán",
+            "Rented" => "Đã cho thuê",
+            "Deleted" => "Đã xóa",
+            _ => string.IsNullOrWhiteSpace(status) ? "Chưa xác định" : status
+        };
+    }
+
+    public string FormatPrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0)
+        {
+            return "Thỏa thuận";
+        }
+
+        return price.Value.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ";
+    }
+}
+
+<style>
+    :root {
+        --edit-primary: #2563eb;
+        --edit-warning: #f59e0b;
+        --edit-danger: #dc2626;
+        --edit-success: #059669;
+        --edit-dark: #0f172a;
+        --edit-text: #334155;
+        --edit-muted: #64748b;
+        --edit-border: #e2e8f0;
+        --edit-soft: #f8fafc;
+        --edit-card: #ffffff;
+        --edit-radius: 18px;
+        --edit-shadow: 0 14px 35px rgba(15, 23, 42, .07);
+    }
+
+    .admin-edit-page {
+        padding: 22px;
+        background: #f6f8fb;
+        min-height: calc(100vh - 80px);
+    }
+
+    .edit-hero,
+    .edit-card,
+    .side-card {
+        background: var(--edit-card);
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: var(--edit-radius);
+        box-shadow: var(--edit-shadow);
+    }
+
+    .edit-hero {
+        padding: 20px 22px;
+        margin-bottom: 16px;
+        background: radial-gradient(circle at top right, rgba(245, 158, 11, .16), transparent 280px), #ffffff;
+    }
+
+    .edit-title {
+        font-size: clamp(1.2rem, 1.7vw, 1.7rem);
+        font-weight: 900;
+        color: var(--edit-dark);
+        margin: 0 0 6px;
+        letter-spacing: -.025em;
+    }
+
+    .edit-subtitle {
+        color: var(--edit-muted);
+        font-size: .92rem;
+        font-weight: 600;
+        margin: 0;
+        line-height: 1.55;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: #fffbeb;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        font-size: .78rem;
+        font-weight: 850;
+    }
+
+    .edit-card {
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+
+    .edit-card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #edf2f7;
+        background: #ffffff;
+    }
+
+    .edit-card-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        background: #eff6ff;
+        color: var(--edit-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        flex-shrink: 0;
+    }
+
+    .edit-card-title {
+        margin: 0;
+        font-weight: 900;
+        color: var(--edit-dark);
+        font-size: 1rem;
+    }
+
+    .edit-card-note {
+        margin: 2px 0 0;
+        color: var(--edit-muted);
+        font-size: .78rem;
+        font-weight: 600;
+    }
+
+    .edit-card-body {
+        padding: 18px;
+    }
+
+    .admin-edit-page .form-label {
+        font-weight: 850;
+        color: #1e293b;
+        margin-bottom: 7px;
+    }
+
+    .admin-edit-page .form-control,
+    .admin-edit-page .form-select {
+        border: 1px solid #dbe4ef;
+        border-radius: 14px;
+        min-height: 45px;
+        background: #f8fafc;
+        color: #0f172a;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+    .admin-edit-page textarea.form-control {
+        min-height: 170px;
+        line-height: 1.65;
+    }
+
+    .admin-edit-page .form-control:focus,
+    .admin-edit-page .form-select:focus {
+        border-color: #93c5fd;
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
+    }
+
+    .side-card {
+        position: sticky;
+        top: 18px;
+        padding: 18px;
+    }
+
+    .property-img {
+        width: 100%;
+        height: 220px;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 1px solid var(--edit-border);
+        background: #f1f5f9;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px dashed #e2e8f0;
+        font-size: .86rem;
+    }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+    .info-label {
+        color: #64748b;
+        font-weight: 750;
+    }
+
+    .info-value {
+        color: #0f172a;
+        font-weight: 850;
+        text-align: right;
+    }
+
+    .package-admin-box {
+        border: 1px solid #fde68a;
+        background: linear-gradient(135deg, #fffbeb, #ffffff);
+        border-radius: 16px;
+        padding: 14px;
+    }
+
+        .package-admin-box .form-label {
+            font-weight: 900;
+            color: #7c2d12;
+        }
+
+    .package-select-admin {
+        background: #fff !important;
+        border-color: #facc15 !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+    }
+    .warning-box {
+        border: 1px solid #fde68a;
+        background: #fffbeb;
+        color: #92400e;
+        border-radius: 16px;
+        padding: 13px 14px;
+        font-size: .85rem;
+        font-weight: 650;
+        line-height: 1.55;
+    }
+
+    .btn-save-admin {
+        min-height: 48px;
+        border-radius: 999px;
+        font-weight: 900;
+        box-shadow: 0 12px 25px rgba(37, 99, 235, .18);
+    }
+
+    .btn-back-admin {
+        min-height: 46px;
+        border-radius: 999px;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 991.98px) {
+        .admin-edit-page {
+            padding: 14px;
+        }
+
+        .side-card {
+            position: static;
+        }
+
+        .property-img {
+            height: 190px;
+        }
+    }
+</style>
+
+<div class="admin-edit-page">
+    <section class="edit-hero">
+        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3">
+            <div>
+                <h1 class="edit-title">
+                    <i class="bi bi-pencil-square text-warning me-2"></i>
+                    Admin chỉnh sửa tin đăng
+                </h1>
+                <p class="edit-subtitle">
+                    Chỉ chỉnh sửa các lỗi cần thiết để kiểm duyệt nội dung. Tất cả thao tác sẽ được ghi lịch sử quản trị.
+                </p>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <span class="status-pill">
+                    <i class="bi bi-activity"></i>
+                    @StatusText(Model.Status)
+                </span>
+
+                <a href="/Admin/Properties/Index" class="btn btn-light border btn-back-admin px-4">
+                    <i class="bi bi-arrow-left me-1"></i>
+                    Quay lại
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <form action="/Admin/Properties/Edit" method="post">
+        @Html.AntiForgeryToken()
+
+        <input type="hidden" name="PropertyID" value="@Model.PropertyID" />
+
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <section class="edit-card">
+                    <div class="edit-card-head">
+                        <div class="edit-card-icon">
+                            <i class="bi bi-card-text"></i>
+                        </div>
+                        <div>
+                            <h5 class="edit-card-title">Thông tin chính</h5>
+                            <p class="edit-card-note">Tiêu đề, mô tả, loại bất động sản và vị trí hiển thị.</p>
+                        </div>
+                    </div>
+
+                    <div class="edit-card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Tiêu đề tin đăng <span class="text-danger">*</span></label>
+                                <input type="text"
+                                       name="Title"
+                                       value="@Model.Title"
+                                       class="form-control"
+                                       maxlength="255"
+                                       required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Hình thức giao dịch</label>
+                                <select id="parentTypeSelect" class="form-select" onchange="filterSubTypes(this.value)">
+                                    <option value="">-- Chọn hình thức --</option>
+                                    @foreach (var parent in parentTypes)
+                                    {
+                                        bool selected = Model.PropertyType?.ParentID == parent.TypeID || Model.TypeID == parent.TypeID;
+                                        <option value="@parent.TypeID" selected="@selected">@parent.TypeName</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Loại bất động sản <span class="text-danger">*</span></label>
+                                <select name="TypeID" id="subTypeSelect" class="form-select" required>
+                                    <option value="@Model.TypeID">@Model.PropertyType?.TypeName</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Khu vực <span class="text-danger">*</span></label>
+                                <select id="areaSelect" class="form-select" onchange="loadWards(this.value)" required>
+                                    <option value="">-- Chọn khu vực --</option>
+                                    @foreach (var area in areas)
+                                    {
+                                        <option value="@area.AreaID" selected="@(area.AreaID == currentAreaID)">
+                                            @area.AreaName
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Phường / Xã <span class="text-danger">*</span></label>
+                                <select name="WardID" id="wardSelect" class="form-select" required>
+                                    <option value="">-- Chọn phường / xã --</option>
+                                    @foreach (var ward in wards.Where(w => w.AreaID == currentAreaID))
+                                    {
+                                        <option value="@ward.WardID" selected="@(ward.WardID == Model.WardID)">
+                                            @ward.WardName
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Địa chỉ chi tiết</label>
+                                <input type="text"
+                                       name="AddressDetail"
+                                       value="@Model.AddressDetail"
+                                       class="form-control"
+                                       maxlength="255" />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Mô tả chi tiết <span class="text-danger">*</span></label>
+                                <textarea name="Description"
+                                          class="form-control"
+                                          required>@Model.Description</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="edit-card">
+                    <div class="edit-card-head">
+                        <div class="edit-card-icon">
+                            <i class="bi bi-rulers"></i>
+                        </div>
+                        <div>
+                            <h5 class="edit-card-title">Giá & thông số</h5>
+                            <p class="edit-card-note">Admin chỉ sửa khi phát hiện nhập sai hoặc sai định dạng.</p>
+                        </div>
+                    </div>
+
+                    <div class="edit-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Giá</label>
+                                <input type="number"
+                                       name="Price"
+                                       value="@Model.Price"
+                                       class="form-control"
+                                       min="0"
+                                       step="1000"
+                                       placeholder="Để trống nếu thỏa thuận" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Diện tích</label>
+                                <input type="number"
+                                       name="AreaSize"
+                                       value="@Model.AreaSize"
+                                       class="form-control"
+                                       min="0"
+                                       step="0.01"
+                                       placeholder="m²" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Chiều ngang</label>
+                                <input type="number"
+                                       name="Width"
+                                       value="@Model.Width"
+                                       class="form-control"
+                                       min="0"
+                                       step="0.01"
+                                       placeholder="m" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Chiều dài</label>
+                                <input type="number"
+                                       name="Length"
+                                       value="@Model.Length"
+                                       class="form-control"
+                                       min="0"
+                                       step="0.01"
+                                       placeholder="m" />
+                            </div>
+
+                         
+
+                            <div class="col-12">
+                                <label class="form-label">Ghi chú chỉnh sửa của Admin</label>
+                                <textarea name="AdminEditNote"
+                                          class="form-control"
+                                          rows="4"
+                                          placeholder="Ví dụ: Chuẩn hóa tiêu đề, sửa khu vực bị chọn sai, điều chỉnh định dạng giá..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="col-lg-4">
+                <aside class="side-card">
+                    <img src="@(string.IsNullOrWhiteSpace(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
+                         class="property-img mb-3"
+                         alt="@Model.Title"
+                         onerror="this.src='/images/no-image.jpg'" />
+
+                    <div class="warning-box mb-3">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Admin chỉ nên chỉnh sửa lỗi cần thiết. Không nên thay đổi bản chất tin đăng nếu chưa có căn cứ rõ ràng.
+                    </div>
+                    <div class="package-admin-box mb-3">
+                        <label class="form-label d-flex align-items-center justify-content-between mb-2">
+                            <span>
+                                <i class="bi bi-gem text-warning me-1"></i>
+                                Gói tin áp dụng
+                            </span>
+                            <span class="text-danger">*</span>
+                        </label>
+
+                        @if (packages.Any())
+                        {
+                            <select name="PackageID" class="form-select package-select-admin" required>
+                                @foreach (var package in packages)
+                                {
+                                    var packagePrice = package.Price > 0
+                                    ? package.Price.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ"
+                                    : "Miễn phí";
+
+                                    <option value="@package.PackageID" selected="@(package.PackageID == Model.PackageID)">
+                                        @package.PackageName - @package.PackageType - @packagePrice
+                                    </option>
+                                }
+                            </select>
+
+                            <div class="small text-muted fw-semibold mt-2">
+                                Đổi gói tin tại đây nếu Admin cần điều chỉnh quyền ưu tiên hiển thị.
+                            </div>
+                        }
+                        else
+                        {
+                            <input type="hidden" name="PackageID" value="@Model.PackageID" />
+
+                            <div class="alert alert-warning small rounded-4 mb-0">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                Chưa tải được danh sách gói tin. Hệ thống sẽ giữ nguyên gói hiện tại.
+                            </div>
+                        }
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Mã tin</span>
+                        <span class="info-value">#@Model.PropertyID</span>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">Người đăng</span>
+                        <span class="info-value">@(Model.User?.FullName ?? "Không rõ")</span>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">SĐT</span>
+                        <span class="info-value">@(Model.User?.Phone ?? "Chưa có")</span>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">Trạng thái</span>
+                        <span class="info-value">@StatusText(Model.Status)</span>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">Giá hiện tại</span>
+                        <span class="info-value">@FormatPrice(Model.Price)</span>
+                    </div>
+
+                    <div class="info-row">
+                        <span class="info-label">Ngày đăng</span>
+                        <span class="info-value">@Model.CreatedAt.ToString("dd/MM/yyyy")</span>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary btn-save-admin">
+                            <i class="bi bi-save2-fill me-1"></i>
+                            Lưu chỉnh sửa
+                        </button>
+
+                        <a href="/Property/Details/@Model.PropertyID"
+                           target="_blank"
+                           class="btn btn-outline-info btn-back-admin">
+                            <i class="bi bi-eye-fill me-1"></i>
+                            Xem tin ngoài website
+                        </a>
+
+                        <a href="/Admin/Properties/Index"
+                           class="btn btn-light border btn-back-admin">
+                            Hủy bỏ
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        const subTypes = @Html.Raw(ViewBag.SubTypesJson ?? "[]");
+        const currentTypeId = @Model.TypeID;
+        const currentWardId = @Model.WardID;
+
+        function filterSubTypes(parentId) {
+            const select = document.getElementById('subTypeSelect');
+            select.innerHTML = '<option value="">-- Chọn loại bất động sản --</option>';
+
+            if (!parentId) {
+                return;
+            }
+
+            const filtered = subTypes.filter(x => String(x.ParentID) === String(parentId));
+
+            filtered.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.TypeID;
+                option.textContent = item.TypeName;
+
+                if (Number(item.TypeID) === Number(currentTypeId)) {
+                    option.selected = true;
+                }
+
+                select.appendChild(option);
+            });
+        }
+
+        function loadWards(areaId) {
+            const wardSelect = document.getElementById('wardSelect');
+            wardSelect.innerHTML = '<option value="">Đang tải...</option>';
+
+            if (!areaId) {
+                wardSelect.innerHTML = '<option value="">-- Chọn khu vực trước --</option>';
+                return;
+            }
+
+            fetch('/Admin/Properties/GetWardsByArea?areaId=' + encodeURIComponent(areaId))
+                .then(response => response.json())
+                .then(data => {
+                    wardSelect.innerHTML = '<option value="">-- Chọn phường / xã --</option>';
+
+                    data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.wardID;
+                        option.textContent = item.wardName;
+
+                        if (Number(item.wardID) === Number(currentWardId)) {
+                            option.selected = true;
+                        }
+
+                        wardSelect.appendChild(option);
+                    });
+                })
+                .catch(() => {
+                    wardSelect.innerHTML = '<option value="">Không tải được phường / xã</option>';
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const parentSelect = document.getElementById('parentTypeSelect');
+            if (parentSelect && parentSelect.value) {
+                filterSubTypes(parentSelect.value);
+            }
+        });
+    </script>
+}

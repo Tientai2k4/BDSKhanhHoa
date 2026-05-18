@@ -1,7 +1,35 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Property>
 @using BDSKhanhHoa.Models
 @using System.Globalization
+@functions {
+    private string HienThiTrangThai(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "Đã duyệt",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Bị từ chối",
+            "Sold" => "Đã bán",
+            "Rented" => "Đã cho thuê",
+            "Draft" => "Bản nháp",
+            null or "" => "Chưa xác định",
+            _ => status
+        };
+    }
 
+    private string BadgeTrangThai(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "bg-success-subtle text-success border border-success-subtle",
+            "Pending" => "bg-warning-subtle text-warning border border-warning-subtle",
+            "Rejected" => "bg-danger-subtle text-danger border border-danger-subtle",
+            "Sold" => "bg-secondary-subtle text-secondary border border-secondary-subtle",
+            "Rented" => "bg-info-subtle text-info border border-info-subtle",
+            _ => "bg-light text-muted border"
+        };
+    }
+}
 @functions {
     private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
 
@@ -80,6 +108,19 @@
             "Rented" => "status-rented",
             _ => "status-unknown"
         };
+    }
+
+
+    private bool IsLockedStatus(string? status)
+    {
+        return status == "Sold" || status == "Rented";
+    }
+
+    private string GetLockedStatusText(string? status)
+    {
+        return status == "Sold"
+            ? "Tin này đã bán, hệ thống đã khóa toàn bộ thao tác."
+            : "Tin này đã cho thuê, hệ thống đã khóa toàn bộ thao tác.";
     }
 
     private string GetPackageClass(string? packageName, string? packageType)
@@ -1020,12 +1061,58 @@
             padding: 34px 14px;
         }
     }
+
+
+    /* =====================================================
+           KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+        ===================================================== */
+    .myads-locked-row {
+        opacity: .86;
+    }
+
+        .myads-locked-row td {
+            background: #f8fafc !important;
+        }
+
+    .myads-locked-ribbon {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid #fecaca;
+        background: linear-gradient(135deg, #fff1f2, #fef2f2);
+        color: #991b1b;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .myads-action-disabled {
+        opacity: .42 !important;
+        filter: grayscale(1);
+        pointer-events: none !important;
+        cursor: not-allowed !important;
+    }
+
+    .myads-locked-note {
+        min-width: 180px;
+        border: 1px solid #fecaca;
+        background: #fff1f2;
+        color: #991b1b;
+        border-radius: 12px;
+        padding: 9px 10px;
+        font-size: .75rem;
+        font-weight: 850;
+        line-height: 1.45;
+        text-align: left;
+    }
+
 </style>
 
 <div class="myads-page">
     <div class="myads-topbar">
         <div class="myads-title-wrap">
-          
         </div>
 
         <a href="/Property/Create" class="myads-create-btn">
@@ -1135,7 +1222,7 @@
                             var typeName = item.PropertyType?.TypeName ?? "Chưa phân loại";
                             var isSale = IsSaleProperty(item);
                             var isRent = IsRentProperty(item);
-                            var isTransacted = item.Status == "Sold" || item.Status == "Rented";
+                            var isTransacted = IsLockedStatus(item.Status);
 
                             var searchText = $"{item.PropertyID} {item.Title} {status} {GetStatusText(status)} {packageName} {packageType} {typeName} {FormatPrice(item.Price)}".ToLowerInvariant();
 
@@ -1145,7 +1232,8 @@
                                 vipDaysLeft = (item.VipExpiryDate.Value.Date - DateTime.Now.Date).Days;
                             }
 
-                            <tr data-row="property"
+                            <tr class="@(isTransacted ? "myads-locked-row" : "")"
+                                data-row="property"
                                 data-status="@status"
                                 data-search="@searchText">
                                 <td class="myads-main-cell" data-label="Tin đăng">
@@ -1231,6 +1319,15 @@
                                                     <strong>Cảnh báo trùng tin:</strong> @item.DuplicateReason
                                                 </div>
                                             }
+
+
+                                            @if (isTransacted)
+                                            {
+                                                <div class="myads-locked-ribbon">
+                                                    <i class="bi bi-shield-lock-fill"></i>
+                                                    <span>@GetLockedStatusText(item.Status)</span>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
                                 </td>
@@ -1308,6 +1405,14 @@
 
                                 <td class="text-md-center" data-label="Thao tác">
                                     <div class="myads-actions">
+                                        @if (isTransacted)
+                                        {
+                                            <div class="myads-locked-note">
+                                                <i class="bi bi-lock-fill me-1"></i>
+                                                Đã khóa sửa, xóa, đánh dấu giao dịch và mọi thao tác khác. Chỉ vào xem chi tiết để đọc cảnh báo.
+                                            </div>
+                                        }
+
                                         <a href="/Property/Details/@item.PropertyID"
                                            target="_blank"
                                            class="myads-action-btn btn-view"
@@ -1318,14 +1423,14 @@
                                         </a>
 
                                         <a href="/Property/Edit/@item.PropertyID"
-                                           class="myads-action-btn btn-edit"
+                                           class="myads-action-btn btn-edit @(isTransacted ? "myads-action-disabled" : "")"
                                            title="Chỉnh sửa hoặc nâng cấp gói tin"
                                            data-bs-toggle="tooltip">
                                             <i class="bi bi-pencil-square"></i>
                                             <span>Sửa</span>
                                         </a>
 
-                                        @if (item.Status == "Approved")
+                                        @if (item.Status == "Approved" && !isTransacted)
                                         {
                                             @if (isSale || (!isSale && !isRent))
                                             {
@@ -1372,12 +1477,12 @@
                                               action="/Property/DeleteMyAd"
                                               method="post"
                                               class="m-0"
-                                              onsubmit="return confirmDelete(this);">
+                                              onsubmit="@(isTransacted ? "return false;" : "return confirmDelete(this);")">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@item.PropertyID" />
 
                                             <button type="submit"
-                                                    class="myads-action-btn btn-delete"
+                                                    class="myads-action-btn btn-delete @(isTransacted ? "myads-action-disabled" : "")"
                                                     title="Gỡ tin đăng"
                                                     data-bs-toggle="tooltip">
                                                 <i class="bi bi-trash3-fill"></i>

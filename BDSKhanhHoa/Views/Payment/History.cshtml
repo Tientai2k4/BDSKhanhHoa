@@ -1,209 +1,960 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Transaction>
+
 @{
     ViewData["Title"] = "Lịch sử giao dịch";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 
-    // Gom nhóm các transaction theo OrderCode (BaseCode - chuỗi trước dấu _)
-    var groupedTransactions = Model.GroupBy(t => t.TransactionCode.Contains("_") ? t.TransactionCode.Split('_')[0] : t.TransactionCode)
-                                   .OrderByDescending(g => g.First().CreatedAt)
-                                   .ToList();
+    var transactions = Model ?? Enumerable.Empty<BDSKhanhHoa.Models.Transaction>();
+
+    var groupedTransactions = transactions
+        .Where(t => !string.IsNullOrWhiteSpace(t.TransactionCode))
+        .GroupBy(t => t.TransactionCode.Contains("_") ? t.TransactionCode.Split('_')[0] : t.TransactionCode)
+        .OrderByDescending(g => g.First().CreatedAt)
+        .ToList();
+
+    int totalOrders = groupedTransactions.Count;
+    int successOrders = groupedTransactions.Count(g =>
+        string.Equals(g.First().Status, "Success", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(g.First().Status, "Completed", StringComparison.OrdinalIgnoreCase));
+
+    int pendingOrders = groupedTransactions.Count(g =>
+        string.Equals(g.First().Status, "Pending", StringComparison.OrdinalIgnoreCase));
+
+    decimal totalPaid = groupedTransactions
+        .Where(g =>
+            string.Equals(g.First().Status, "Success", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(g.First().Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        .Sum(g => g.Sum(x => x.Amount));
+
+    string currentStatus = ViewBag.Status as string ?? "All";
+    string fromDate = ViewBag.FromDate as string ?? "";
+    string toDate = ViewBag.ToDate as string ?? "";
+}
+
+@functions {
+    public string StatusText(string? status)
+    {
+        return status switch
+        {
+            "Success" => "Thành công",
+            "Completed" => "Hoàn tất",
+            "Pending" => "Đang chờ",
+            "Failed" => "Thất bại",
+            "Cancelled" => "Đã hủy",
+            null or "" => "Chưa xác định",
+            _ => status
+        };
+    }
+
+    public string StatusClass(string? status)
+    {
+        return status switch
+        {
+            "Success" => "status-success",
+            "Completed" => "status-success",
+            "Pending" => "status-pending",
+            "Failed" => "status-danger",
+            "Cancelled" => "status-muted",
+            _ => "status-muted"
+        };
+    }
+
+    public string StatusIcon(string? status)
+    {
+        return status switch
+        {
+            "Success" => "bi-check-circle-fill",
+            "Completed" => "bi-check-circle-fill",
+            "Pending" => "bi-hourglass-split",
+            "Failed" => "bi-x-circle-fill",
+            "Cancelled" => "bi-slash-circle-fill",
+            _ => "bi-info-circle-fill"
+        };
+    }
+
+    public string PaymentText(string? method)
+    {
+        return method switch
+        {
+            "BankTransfer" => "Chuyển khoản ngân hàng",
+            "Momo" => "Ví MoMo",
+            "VNPay" => "VNPay",
+            "Cash" => "Tiền mặt",
+            "System Gift" => "Hệ thống tặng",
+            null or "" => "Chưa xác định",
+            _ => method
+        };
+    }
 }
 
 <style>
-    .history-container {
-        background: #ffffff;
-        border-radius: 24px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.03);
-        padding: 40px;
-        margin-top: 40px;
-        margin-bottom: 60px;
+    :root {
+        --history-primary: #2563eb;
+        --history-primary-soft: #eff6ff;
+        --history-success: #059669;
+        --history-success-soft: #ecfdf5;
+        --history-warning: #d97706;
+        --history-warning-soft: #fffbeb;
+        --history-danger: #dc2626;
+        --history-danger-soft: #fef2f2;
+        --history-dark: #0f172a;
+        --history-text: #334155;
+        --history-muted: #64748b;
+        --history-border: #e2e8f0;
+        --history-soft: #f8fafc;
+        --history-card: #ffffff;
+        --history-radius: 22px;
+        --history-shadow: 0 16px 42px rgba(15, 23, 42, .07);
+        --history-shadow-sm: 0 8px 24px rgba(15, 23, 42, .055);
     }
 
-    .filter-card {
-        background: #f8fafc;
-        border-radius: 16px;
-        padding: 20px;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 30px;
+    .history-page {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 28px 0 60px;
+    }
+
+    .history-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 28px;
+        padding: 28px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .17), transparent 330px), linear-gradient(135deg, #ffffff, #f8fbff);
+        border: 1px solid rgba(148, 163, 184, .24);
+        box-shadow: var(--history-shadow-sm);
+        margin-bottom: 18px;
+    }
+
+    .history-hero-inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+    }
+
+    .history-hero-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-width: 0;
+    }
+
+    .history-hero-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, var(--history-primary), #60a5fa);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.85rem;
+        box-shadow: 0 16px 32px rgba(37, 99, 235, .24);
+        flex-shrink: 0;
+    }
+
+    .history-title {
+        margin: 0;
+        color: var(--history-dark);
+        font-size: clamp(1.35rem, 2.2vw, 2.15rem);
+        font-weight: 950;
+        letter-spacing: -.04em;
+        line-height: 1.14;
+    }
+
+    .history-subtitle {
+        margin: 7px 0 0;
+        color: var(--history-muted);
+        font-size: .95rem;
+        font-weight: 600;
+        line-height: 1.55;
+    }
+
+    .history-buy-btn {
+        min-height: 48px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 11px 20px;
+        font-weight: 900;
+        border: 0;
+        color: #fff;
+        background: linear-gradient(135deg, var(--history-primary), #1d4ed8);
+        box-shadow: 0 14px 28px rgba(37, 99, 235, .22);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: .2s ease;
+    }
+
+        .history-buy-btn:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 18px 34px rgba(37, 99, 235, .28);
+        }
+
+    .history-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .history-stat-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .23);
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: var(--history-shadow-sm);
+        min-height: 104px;
+    }
+
+    .history-stat-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--history-muted);
+        font-size: .78rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+        margin-bottom: 10px;
+    }
+
+    .history-stat-value {
+        color: var(--history-dark);
+        font-size: clamp(1.28rem, 2.1vw, 1.75rem);
+        font-weight: 950;
+        letter-spacing: -.035em;
+        line-height: 1;
+    }
+
+    .history-stat-desc {
+        margin-top: 7px;
+        color: var(--history-muted);
+        font-size: .78rem;
+        font-weight: 650;
+    }
+
+    .history-filter-card {
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .23);
+        border-radius: 22px;
+        padding: 16px;
+        box-shadow: var(--history-shadow-sm);
+        margin-bottom: 18px;
+    }
+
+        .history-filter-card .form-label {
+            color: #475569;
+            font-weight: 850;
+            font-size: .78rem;
+            margin-bottom: 7px;
+        }
+
+        .history-filter-card .form-select,
+        .history-filter-card .form-control {
+            min-height: 46px;
+            border-radius: 14px;
+            border: 1px solid #dbe4ef;
+            background-color: #f8fafc;
+            font-weight: 700;
+            color: #0f172a;
+            box-shadow: none !important;
+        }
+
+            .history-filter-card .form-select:focus,
+            .history-filter-card .form-control:focus {
+                border-color: #93c5fd;
+                background-color: #fff;
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
+            }
+
+    .history-filter-btn,
+    .history-reset-btn {
+        min-height: 46px;
+        border-radius: 14px;
+        font-weight: 900;
+    }
+
+    .history-reset-btn {
+        width: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .history-list {
+        display: grid;
+        gap: 14px;
     }
 
     .order-card {
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        margin-bottom: 20px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .24);
+        border-radius: 22px;
         overflow: hidden;
-        transition: 0.3s;
+        box-shadow: var(--history-shadow-sm);
+        transition: .2s ease;
     }
 
         .order-card:hover {
-            border-color: #cbd5e1;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.04);
+            transform: translateY(-1px);
+            box-shadow: var(--history-shadow);
+            border-color: rgba(37, 99, 235, .22);
         }
 
     .order-header {
-        background: #f8fafc;
-        padding: 20px 25px;
-        display: flex;
-        justify-content: space-between;
+        padding: 18px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 15px;
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .08), transparent 260px), #ffffff;
+        border-bottom: 1px solid #edf2f7;
     }
 
+    .order-code-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .order-code-label {
+        color: var(--history-muted);
+        font-size: .78rem;
+        font-weight: 850;
+    }
+
+    .order-code {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #0f172a;
+        border: 1px solid #e2e8f0;
+        font-size: .86rem;
+        font-weight: 950;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        max-width: 100%;
+        word-break: break-word;
+    }
+
+    .order-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        color: var(--history-muted);
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+        .order-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+    .order-side {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .order-total {
+        text-align: right;
+        min-width: 120px;
+    }
+
+    .order-total-label {
+        display: block;
+        color: var(--history-muted);
+        font-size: .72rem;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+        margin-bottom: 3px;
+    }
+
+    .order-total-value {
+        display: block;
+        color: var(--history-danger);
+        font-size: 1.16rem;
+        font-weight: 950;
+        letter-spacing: -.025em;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .status-success {
+        background: #dcfce7;
+        color: #047857;
+        border: 1px solid #86efac;
+    }
+
+    .status-pending {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    .status-danger {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .status-muted {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+    }
+
+    .collapse-toggle {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: .2s ease;
+    }
+
+        .collapse-toggle:hover {
+            background: #f8fafc;
+            color: var(--history-primary);
+            border-color: #bfdbfe;
+        }
+
     .order-body {
-        padding: 0 25px 25px 25px;
+        padding: 18px;
+    }
+
+    .order-section-title {
+        color: #0f172a;
+        font-size: .82rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        margin-bottom: 10px;
+    }
+
+    .order-items {
+        display: grid;
+        gap: 8px;
     }
 
     .item-row {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        padding: 15px 0;
-        border-bottom: 1px dashed #e2e8f0;
+        gap: 12px;
+        padding: 13px;
+        border-radius: 16px;
+        background: #f8fafc;
+        border: 1px solid #edf2f7;
     }
 
-        .item-row:last-child {
-            border-bottom: none;
-        }
+    .item-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
 
-    .badge-modern {
-        padding: 8px 16px;
-        font-weight: bold;
-        border-radius: 50rem;
+    .item-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 15px;
+        background: var(--history-primary-soft);
+        color: var(--history-primary);
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        font-size: 0.85rem;
+        justify-content: center;
+        font-size: 1.22rem;
+        flex-shrink: 0;
     }
 
-    .badge-success {
-        background: #d1fae5;
-        color: #059669;
-        border: 1px solid #a7f3d0;
+    .item-name {
+        color: #0f172a;
+        font-size: .95rem;
+        font-weight: 900;
+        margin: 0 0 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .badge-warning {
-        background: #fef3c7;
-        color: #d97706;
-        border: 1px solid #fde68a;
+    .item-desc {
+        color: var(--history-muted);
+        font-size: .78rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .item-price {
+        color: #0f172a;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .order-footer {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid #edf2f7;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .invoice-btn,
+    .receipt-btn {
+        min-height: 40px;
+        border-radius: 999px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 8px 15px;
+        text-decoration: none;
+    }
+
+    .invoice-btn {
+        color: #0f172a;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+    }
+
+        .invoice-btn:hover {
+            color: var(--history-primary);
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .receipt-btn {
+        color: #fff;
+        background: linear-gradient(135deg, var(--history-primary), #1d4ed8);
+        border: 0;
+        box-shadow: 0 10px 22px rgba(37, 99, 235, .18);
+    }
+
+        .receipt-btn:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+    .empty-card {
+        background: #fff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 24px;
+        padding: 48px 18px;
+        text-align: center;
+        box-shadow: var(--history-shadow-sm);
+    }
+
+    .empty-icon {
+        width: 78px;
+        height: 78px;
+        border-radius: 26px;
+        margin: 0 auto 14px;
+        background: #f1f5f9;
+        color: #94a3b8;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.15rem;
+    }
+
+    .empty-title {
+        color: #0f172a;
+        font-size: 1.18rem;
+        font-weight: 950;
+        margin-bottom: 7px;
+    }
+
+    .empty-desc {
+        color: var(--history-muted);
+        font-weight: 650;
+        margin-bottom: 18px;
+    }
+
+    @@media (max-width: 991.98px) {
+        .history-page {
+            padding-top: 18px;
+        }
+
+        .history-hero-inner {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .history-buy-btn {
+            width: 100%;
+        }
+
+        .history-stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .order-header {
+            grid-template-columns: 1fr;
+        }
+
+        .order-side {
+            justify-content: space-between;
+        }
+
+        .order-total {
+            text-align: left;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .history-page {
+            padding: 14px 0 40px;
+        }
+
+        .history-hero {
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .history-hero-left {
+            align-items: flex-start;
+        }
+
+        .history-hero-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 18px;
+            font-size: 1.42rem;
+        }
+
+        .history-subtitle {
+            font-size: .86rem;
+        }
+
+        .history-stat-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .history-filter-card {
+            padding: 14px;
+        }
+
+        .history-reset-btn {
+            width: 100%;
+        }
+
+        .order-header,
+        .order-body {
+            padding: 14px;
+        }
+
+        .order-side {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .status-pill,
+        .collapse-toggle {
+            width: 100%;
+        }
+
+        .item-row {
+            grid-template-columns: 1fr;
+            align-items: flex-start;
+        }
+
+        .item-name {
+            white-space: normal;
+        }
+
+        .item-price {
+            padding-left: 56px;
+        }
+
+        .order-footer {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .invoice-btn,
+        .receipt-btn {
+            width: 100%;
+        }
     }
 </style>
 
 <div class="container">
-    <div class="history-container animate__animated animate__fadeIn">
-        <div class="d-flex flex-wrap justify-content-between align-items-end mb-4">
-            <div>
-                <h2 class="fw-black text-dark mb-2" style="letter-spacing: -1px;"><i class="bi bi-clock-history text-primary me-2"></i> Lịch sử đơn hàng</h2>
-                <p class="text-muted mb-0">Quản lý và theo dõi các gói dịch vụ bạn đã thanh toán</p>
-            </div>
-            <a href="/Package/Buy" class="btn btn-primary btn-lg rounded-pill fw-bold px-4 shadow-sm mt-3 mt-md-0"><i class="bi bi-plus-circle me-2"></i> Đăng ký thêm</a>
-        </div>
+    <div class="history-page">
+        <section class="history-hero">
+            <div class="history-hero-inner">
+                <div class="history-hero-left">
+                    <div class="history-hero-icon">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
 
-        <div class="filter-card">
+                    <div>
+                        <h1 class="history-title">Lịch sử giao dịch</h1>
+                        <p class="history-subtitle">
+                            Theo dõi đơn hàng, trạng thái thanh toán, hóa đơn và các gói dịch vụ đã mua.
+                        </p>
+                    </div>
+                </div>
+
+                <a href="/Package/Buy" class="history-buy-btn">
+                    <i class="bi bi-plus-circle-fill"></i>
+                    Đăng ký thêm gói
+                </a>
+            </div>
+        </section>
+
+        <section class="history-stat-grid">
+            <div class="history-stat-card">
+                <div class="history-stat-label">
+                    <i class="bi bi-receipt-cutoff text-primary"></i>
+                    Tổng đơn
+                </div>
+                <div class="history-stat-value">@totalOrders</div>
+                <div class="history-stat-desc">Tất cả đơn hàng của bạn</div>
+            </div>
+
+            <div class="history-stat-card">
+                <div class="history-stat-label">
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                    Thành công
+                </div>
+                <div class="history-stat-value">@successOrders</div>
+                <div class="history-stat-desc">Đơn đã thanh toán</div>
+            </div>
+
+            <div class="history-stat-card">
+                <div class="history-stat-label">
+                    <i class="bi bi-hourglass-split text-warning"></i>
+                    Đang chờ
+                </div>
+                <div class="history-stat-value">@pendingOrders</div>
+                <div class="history-stat-desc">Cần hoàn tất thanh toán</div>
+            </div>
+
+            <div class="history-stat-card">
+                <div class="history-stat-label">
+                    <i class="bi bi-wallet2 text-danger"></i>
+                    Đã thanh toán
+                </div>
+                <div class="history-stat-value">@totalPaid.ToString("N0") đ</div>
+                <div class="history-stat-desc">Tổng tiền đơn thành công</div>
+            </div>
+        </section>
+
+        <section class="history-filter-card">
             <form method="get" action="/Payment/History" class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label text-muted small fw-bold">Trạng thái</label>
-                    <select name="status" class="form-select form-select-lg border-0 shadow-sm rounded-3">
-                        <option value="All" selected="@(ViewBag.Status == "All")">Tất cả trạng thái</option>
-                        <option value="Success" selected="@(ViewBag.Status == "Success")">Thành công</option>
-                        <option value="Pending" selected="@(ViewBag.Status == "Pending")">Đang chờ</option>
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-activity me-1"></i>
+                        Trạng thái
+                    </label>
+                    <select name="status" class="form-select">
+                        <option value="All" selected="@(currentStatus == "All")">Tất cả trạng thái</option>
+                        <option value="Success" selected="@(currentStatus == "Success")">Thành công</option>
+                        <option value="Pending" selected="@(currentStatus == "Pending")">Đang chờ</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted small fw-bold">Từ ngày</label>
-                    <input type="date" name="fromDate" value="@ViewBag.FromDate" class="form-control form-control-lg border-0 shadow-sm rounded-3" />
+
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-calendar-minus me-1"></i>
+                        Từ ngày
+                    </label>
+                    <input type="date" name="fromDate" value="@fromDate" class="form-control" />
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label text-muted small fw-bold">Đến ngày</label>
-                    <input type="date" name="toDate" value="@ViewBag.ToDate" class="form-control form-control-lg border-0 shadow-sm rounded-3" />
+
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-calendar-plus me-1"></i>
+                        Đến ngày
+                    </label>
+                    <input type="date" name="toDate" value="@toDate" class="form-control" />
                 </div>
-                <div class="col-md-3 d-flex gap-2">
-                    <button type="submit" class="btn btn-dark btn-lg flex-grow-1 rounded-3 fw-bold"><i class="bi bi-funnel"></i> Lọc</button>
-                    <a href="/Payment/History" class="btn btn-light btn-lg rounded-3 border"><i class="bi bi-arrow-counterclockwise"></i></a>
+
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label d-none d-md-block">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-dark history-filter-btn flex-grow-1">
+                            <i class="bi bi-funnel-fill me-1"></i>
+                            Lọc
+                        </button>
+
+                        <a href="/Payment/History" class="btn btn-light border history-reset-btn" title="Xóa bộ lọc">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </a>
+                    </div>
                 </div>
             </form>
-        </div>
+        </section>
 
-        <div>
-            @if (!groupedTransactions.Any())
-            {
-                <div class="text-center py-5 bg-light rounded-4 border border-dashed">
-                    <i class="bi bi-receipt display-1 text-black-50 opacity-25 mb-3"></i>
-                    <h4 class="fw-bold text-dark">Không tìm thấy đơn hàng nào!</h4>
-                    <p class="text-muted">Chưa có giao dịch hoặc không khớp với bộ lọc của bạn.</p>
+        @if (!groupedTransactions.Any())
+        {
+            <section class="empty-card">
+                <div class="empty-icon">
+                    <i class="bi bi-receipt"></i>
                 </div>
-            }
-            else
-            {
-                foreach (var group in groupedTransactions)
+
+                <h3 class="empty-title">Không tìm thấy đơn hàng</h3>
+                <p class="empty-desc">
+                    Chưa có giao dịch nào hoặc bộ lọc hiện tại không có kết quả phù hợp.
+                </p>
+
+                <a href="/Package/Buy" class="history-buy-btn d-inline-flex">
+                    <i class="bi bi-bag-plus-fill"></i>
+                    Xem bảng giá dịch vụ
+                </a>
+            </section>
+        }
+        else
+        {
+            <section class="history-list">
+                @foreach (var group in groupedTransactions)
                 {
                     var firstItem = group.First();
                     var totalOrderAmount = group.Sum(x => x.Amount);
                     var orderStatus = firstItem.Status;
                     string orderCode = group.Key;
+                    string collapseId = "collapse_" + orderCode.Replace("-", "_").Replace(".", "_").Replace(" ", "_").Replace("/", "_");
 
-                    <div class="order-card">
+                    <article class="order-card">
                         <div class="order-header">
                             <div>
-                                <span class="d-block text-muted small mb-1">Mã Đơn: <strong class="text-dark font-monospace fs-6">@orderCode</strong></span>
-                                <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i> @firstItem.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
-                                <span class="ms-3 text-muted small"><i class="bi bi-credit-card-2-front me-1"></i> @firstItem.PaymentMethod</span>
+                                <div class="order-code-line">
+                                    <span class="order-code-label">Mã đơn</span>
+                                    <span class="order-code">
+                                        <i class="bi bi-hash"></i>
+                                        @orderCode
+                                    </span>
+                                </div>
+
+                                <div class="order-meta">
+                                    <span>
+                                        <i class="bi bi-calendar3"></i>
+                                        @firstItem.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+                                    </span>
+
+                                    <span>
+                                        <i class="bi bi-credit-card-2-front"></i>
+                                        @PaymentText(firstItem.PaymentMethod)
+                                    </span>
+
+                                    <span>
+                                        <i class="bi bi-box-seam"></i>
+                                        @group.Count() sản phẩm
+                                    </span>
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center gap-4">
-                                <div class="text-end">
-                                    <span class="d-block text-muted small mb-1">Tổng tiền</span>
-                                    <strong class="text-danger fs-5 fw-black">@totalOrderAmount.ToString("N0") đ</strong>
+
+                            <div class="order-side">
+                                <div class="order-total">
+                                    <span class="order-total-label">Tổng tiền</span>
+                                    <span class="order-total-value">@totalOrderAmount.ToString("N0") đ</span>
                                 </div>
-                                <div>
-                                    @if (orderStatus == "Success" || orderStatus == "Completed")
-                                    {
-                                        <span class="badge-modern badge-success"><i class="bi bi-check-circle-fill"></i> Thành công</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge-modern badge-warning"><div class="spinner-grow spinner-grow-sm me-1" role="status"></div> Đang chờ</span>
-                                    }
-                                </div>
-                                <button class="btn btn-sm btn-light border rounded-circle" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_@orderCode" style="width: 35px; height: 35px;"><i class="bi bi-chevron-down"></i></button>
+
+                                <span class="status-pill @StatusClass(orderStatus)">
+                                    <i class="bi @StatusIcon(orderStatus)"></i>
+                                    @StatusText(orderStatus)
+                                </span>
+
+                                <button class="collapse-toggle"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#@collapseId"
+                                        aria-expanded="true"
+                                        aria-controls="@collapseId"
+                                        title="Ẩn / hiện chi tiết">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
                             </div>
                         </div>
 
-                        <div class="collapse show" id="collapse_@orderCode">
-                            <div class="order-body border-top mt-2 pt-2">
-                                <h6 class="fw-bold text-dark mt-3 mb-2 small text-uppercase">Chi tiết sản phẩm</h6>
-                                @foreach (var item in group)
-                                {
-                                    <div class="item-row">
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-primary bg-opacity-10 text-primary rounded-3 p-3 me-3"><i class="bi bi-box-seam fs-5"></i></div>
-                                            <div>
-                                                <h6 class="fw-bold text-dark mb-1">@item.Package?.PackageName</h6>
-                                                <span class="text-muted small">Mua @item.Quantity lượt hiển thị</span>
+                        <div class="collapse show" id="@collapseId">
+                            <div class="order-body">
+                                <h6 class="order-section-title">
+                                    <i class="bi bi-list-check me-1"></i>
+                                    Chi tiết gói dịch vụ
+                                </h6>
+
+                                <div class="order-items">
+                                    @foreach (var item in group)
+                                    {
+                                        <div class="item-row">
+                                            <div class="item-left">
+                                                <div class="item-icon">
+                                                    <i class="bi bi-box-seam"></i>
+                                                </div>
+
+                                                <div class="min-w-0">
+                                                    <h6 class="item-name">@(item.Package?.PackageName ?? "Gói dịch vụ")</h6>
+                                                    <p class="item-desc">
+                                                        Mua @item.Quantity lượt
+                                                        @if (!string.IsNullOrWhiteSpace(item.Package?.PackageType))
+                                                        {
+                                                            <span> • @item.Package.PackageType</span>
+                                                        }
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div class="item-price">
+                                                @item.Amount.ToString("N0") đ
                                             </div>
                                         </div>
-                                        <strong class="text-dark">@item.Amount.ToString("N0") đ</strong>
-                                    </div>
-                                }
+                                    }
+                                </div>
 
-                                <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                    <a href="/Payment/Invoice?baseCode=@orderCode" class="btn btn-outline-dark btn-sm fw-bold px-4 py-2 rounded-pill shadow-sm">
-                                        <i class="bi bi-printer me-1"></i> Xem hóa đơn
+                                <div class="order-footer">
+                                    <a href="/Payment/Invoice?baseCode=@orderCode" class="invoice-btn">
+                                        <i class="bi bi-printer-fill"></i>
+                                        Xem hóa đơn
                                     </a>
 
                                     @if (orderStatus == "Pending" && firstItem.PaymentMethod == "BankTransfer")
                                     {
-                                        <div class="text-end">
-                                            <a href="/Payment/TransferInfo?baseCode=@orderCode&amount=@totalOrderAmount" class="btn btn-primary btn-sm fw-bold py-2 rounded-pill px-4 shadow-sm">
-                                                <i class="bi bi-upload me-1"></i> Gửi biên lai lại
-                                            </a>
-                                        </div>
+                                        <a href="/Payment/TransferInfo?baseCode=@orderCode&amount=@totalOrderAmount" class="receipt-btn">
+                                            <i class="bi bi-upload"></i>
+                                            Gửi lại biên lai
+                                        </a>
                                     }
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </article>
                 }
-            }
-        </div>
+            </section>
+        }
     </div>
 </div>

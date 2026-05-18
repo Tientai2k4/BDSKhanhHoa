@@ -1,147 +1,243 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Consultation>
 
 @{
-    ViewData["Title"] = "Quản lý Khách hàng (Leads CRM)";
+    ViewData["Title"] = "Quản lý khách tư vấn";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 
-    var totalLeads = ViewBag.TotalLeads ?? 0;
-    var newLeads = ViewBag.NewLeads ?? 0;
-    var contactedLeads = ViewBag.ContactedLeads ?? 0;
-    var responseRate = totalLeads > 0 ? (contactedLeads * 100 / totalLeads) : 0;
+    int totalLeads = Convert.ToInt32(ViewBag.TotalLeads ?? 0);
+    int newLeads = Convert.ToInt32(ViewBag.NewLeads ?? 0);
+    int contactedLeads = Convert.ToInt32(ViewBag.ContactedLeads ?? 0);
+    int closedLeads = Convert.ToInt32(ViewBag.ClosedLeads ?? 0);
+    int spamLeads = Convert.ToInt32(ViewBag.SpamLeads ?? 0);
+    int cancelledLeads = Convert.ToInt32(ViewBag.CancelledLeads ?? 0);
+
+    int processedLeads = contactedLeads + closedLeads;
+    int responseRate = totalLeads > 0 ? (processedLeads * 100 / totalLeads) : 0;
 
     string searchString = ViewBag.SearchString as string ?? "";
     string statusFilter = ViewBag.StatusFilter as string ?? "All";
+
+    string GetStatusClass(string? status)
+    {
+        return status switch
+        {
+            "New" => "st-new",
+            "Contacted" => "st-contacted",
+            "Closed" => "st-closed",
+            "Spam" => "st-spam",
+            "Cancelled" => "st-cancelled",
+            _ => "st-new"
+        };
+    }
+
+    string GetStatusText(string? status)
+    {
+        return status switch
+        {
+            "New" => "Mới gửi",
+            "Contacted" => "Đã liên hệ",
+            "Closed" => "Đã chốt",
+            "Spam" => "Spam/Rác",
+            "Cancelled" => "Khách hủy",
+            _ => "Mới gửi"
+        };
+    }
+
+    string GetStatusIcon(string? status)
+    {
+        return status switch
+        {
+            "New" => "bi-lightning-charge-fill",
+            "Contacted" => "bi-telephone-inbound-fill",
+            "Closed" => "bi-check-circle-fill",
+            "Spam" => "bi-shield-x",
+            "Cancelled" => "bi-x-circle-fill",
+            _ => "bi-lightning-charge-fill"
+        };
+    }
+
+    bool CanDelete(string? status)
+    {
+        return status == "Spam" || status == "Cancelled";
+    }
+
+    bool IsLocked(string? status)
+    {
+        return status == "Closed" || status == "Spam" || status == "Cancelled";
+    }
 }
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
 <style>
-    :root {
-        --glass-bg: rgba(255, 255, 255, 0.96);
-        --p-color: #2563eb;
+    .crm-page {
+        --crm-primary: #2563eb;
+        --crm-primary-dark: #1d4ed8;
+        --crm-success: #16a34a;
+        --crm-danger: #dc2626;
+        --crm-warning: #f59e0b;
+        --crm-dark: #0f172a;
+        --crm-muted: #64748b;
+        --crm-soft: #f8fafc;
+        --crm-border: #e2e8f0;
+        --crm-radius: 22px;
     }
 
-    .stat-card-glow {
-        transition: all 0.3s ease;
-        border: 1px solid rgba(255,255,255,0.1);
+    .crm-hero {
+        background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.20), transparent 28%), linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #2563eb 100%);
+        border-radius: 28px;
+        padding: 26px;
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
     }
 
-    .stat-card-glow:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        .crm-hero:after {
+            content: "";
+            width: 180px;
+            height: 180px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            position: absolute;
+            right: -60px;
+            top: -70px;
+        }
+
+    .crm-hero-title {
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        margin-bottom: 6px;
     }
 
-    .lead-table thead th {
-        background-color: #f8fafc;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 1px;
-        color: #64748b;
-        border-top: none;
-        padding: 18px 16px;
+    .crm-hero-sub {
+        color: rgba(255,255,255,0.78);
+        max-width: 760px;
     }
 
-    .lead-row {
-        transition: all 0.2s ease;
-        border-bottom: 1px solid #f1f5f9;
+    .crm-stat-card {
+        border: 1px solid rgba(226, 232, 240, 0.75);
+        background: #fff;
+        border-radius: var(--crm-radius);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+        transition: 0.22s ease;
+        height: 100%;
     }
 
-    .lead-row td {
-        padding: 18px 16px;
-        vertical-align: middle;
-    }
+        .crm-stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.10);
+        }
 
-    .lead-row:hover {
-        background-color: #f8fafc !important;
-    }
-
-    .status-pill {
-        padding: 6px 14px;
-        font-weight: 800;
-        font-size: 0.75rem;
-        border-radius: 50px;
+    .crm-stat-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        justify-content: center;
+        font-size: 1.35rem;
+    }
+
+    .crm-stat-value {
+        font-size: 1.85rem;
+        font-weight: 950;
+        color: var(--crm-dark);
+        line-height: 1;
+    }
+
+    .crm-stat-label {
+        color: var(--crm-muted);
+        font-weight: 800;
+        text-transform: uppercase;
+        font-size: 0.74rem;
+        letter-spacing: 0.05em;
+    }
+
+    .crm-filter-card,
+    .crm-list-card {
+        border: 1px solid var(--crm-border);
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
+        overflow: hidden;
+    }
+
+    .crm-search-input {
+        border: 1px solid var(--crm-border);
+        border-radius: 18px;
+        overflow: hidden;
+        background: #fff;
+        transition: 0.2s ease;
+    }
+
+        .crm-search-input:focus-within {
+            border-color: rgba(37, 99, 235, 0.55);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
+        }
+
+        .crm-search-input .input-group-text,
+        .crm-search-input .form-control {
+            border: 0;
+            background: #fff;
+        }
+
+    .crm-table thead th {
+        background: #f8fafc;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.72rem;
+        font-weight: 900;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 16px;
         white-space: nowrap;
     }
 
-    .st-new {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fecaca;
+    .crm-table tbody td {
+        padding: 18px 16px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
     }
 
-    .st-contacted {
-        background: #eff6ff;
-        color: #2563eb;
-        border: 1px solid #bfdbfe;
+    .crm-table tbody tr {
+        transition: 0.18s ease;
     }
 
-    .st-closed {
-        background: #f0fdf4;
-        color: #16a34a;
-        border: 1px solid #bbf7d0;
-    }
+        .crm-table tbody tr:hover {
+            background: #f8fafc;
+        }
 
-    .st-spam {
-        background: #f1f5f9;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-    }
-
-    .btn-action {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
+    .customer-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(37,99,235,0.15), rgba(14,165,233,0.12));
+        color: #1d4ed8;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid #e2e8f0;
-        background: #fff;
-        color: #475569;
-        transition: 0.2s;
+        font-weight: 950;
+        flex: 0 0 auto;
     }
 
-    .btn-action:hover {
-        background: #f1f5f9;
-        color: var(--p-color);
-        border-color: #cbd5e1;
+    .source-link {
+        color: #0f172a;
+        text-decoration: none;
+        font-weight: 850;
+        display: inline-block;
+        max-width: 240px;
     }
 
-    /* ====== FIX MODAL NỀN ĐEN ====== */
-    #crmModal {
-        z-index: 3000 !important;
-    }
+        .source-link:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
 
-    .modal-backdrop {
-        display: none !important;
-    }
-
-    body.modal-open {
-        overflow: auto !important;
-        padding-right: 0 !important;
-    }
-
-    #crmModal .modal-content {
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
-    }
-
-    #crmModal .modal-header {
-        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-    }
-
-    #crmModal .modal-body {
-        background: #f8fafc;
-    }
-
-    #crmModal .form-control,
-    #crmModal .form-select {
-        border-color: #dbe4ee;
-    }
-
-    #crmModal .form-control:focus,
-    #crmModal .form-select:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 0.15rem rgba(37, 99, 235, 0.12);
+    .truncate-1 {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .truncate-2 {
@@ -151,106 +247,294 @@
         overflow: hidden;
     }
 
-    .truncate-1 {
-        overflow: hidden;
-        text-overflow: ellipsis;
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 999px;
+        padding: 7px 13px;
+        font-size: 0.76rem;
+        font-weight: 950;
+        border: 1px solid transparent;
         white-space: nowrap;
+    }
+
+    .st-new {
+        background: #fff7ed;
+        color: #ea580c;
+        border-color: #fed7aa;
+    }
+
+    .st-contacted {
+        background: #eff6ff;
+        color: #2563eb;
+        border-color: #bfdbfe;
+    }
+
+    .st-closed {
+        background: #f0fdf4;
+        color: #16a34a;
+        border-color: #bbf7d0;
+    }
+
+    .st-spam {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+    }
+
+    .st-cancelled {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+    .crm-action-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: 0.18s ease;
+    }
+
+        .crm-action-btn:hover:not(:disabled) {
+            background: #eff6ff;
+            color: #2563eb;
+            border-color: #bfdbfe;
+            transform: translateY(-1px);
+        }
+
+        .crm-action-btn.danger:hover:not(:disabled) {
+            background: #fef2f2;
+            color: #dc2626;
+            border-color: #fecaca;
+        }
+
+        .crm-action-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+    .mobile-lead-card {
+        display: none;
+    }
+
+    /*
+            FIX QUAN TRỌNG:
+            Không để backdrop che lên modal.
+            Layout của bạn có sidebar/header z-index riêng, nên dùng backdrop mặc định dễ làm modal bị mờ và không thao tác được.
+        */
+    #crmModal {
+        z-index: 99999 !important;
+    }
+
+        #crmModal .modal-dialog {
+            z-index: 100000 !important;
+            pointer-events: auto !important;
+        }
+
+        #crmModal .modal-content {
+            border-radius: 26px;
+            border: 0;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
+        #crmModal .modal-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #2563eb 100%);
+        }
+
+        #crmModal .modal-body {
+            background: #f8fafc;
+        }
+
+    .modal-backdrop {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    body.modal-open {
+        overflow: auto !important;
+        padding-right: 0 !important;
+    }
+
+    .swal2-container {
+        z-index: 120000 !important;
+    }
+
+    .lead-info-box {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        padding: 18px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    }
+
+    .note-box {
+        border-radius: 18px;
+        padding: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+    }
+
+    .locked-box {
+        display: none;
+        border-radius: 18px;
+        padding: 14px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+        font-weight: 800;
+    }
+
+    @@media (max-width: 991.98px) {
+        .crm-hero {
+            padding: 22px;
+            border-radius: 24px;
+        }
+
+        .desktop-table-wrap {
+            display: none;
+        }
+
+        .mobile-lead-card {
+            display: block;
+        }
+
+        .mobile-card-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 22px;
+            background: #fff;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.055);
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .source-link {
+            max-width: 100%;
+        }
     }
 </style>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<div class="container-fluid px-0 crm-page">
+    <div class="crm-hero mb-4">
+        <div class="position-relative" style="z-index:2;">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="badge bg-white text-primary rounded-pill px-3 py-2 fw-bold">
+                    <i class="bi bi-headset me-1"></i> CRM tư vấn
+                </span>
+                <span class="badge bg-success bg-opacity-25 text-white rounded-pill px-3 py-2 fw-bold">
+                    Tự động nhận khách
+                </span>
+            </div>
 
-<div class="container-fluid px-0">
-    <!-- Header Thống kê -->
-    <div class="row g-3 mb-4 animate__animated animate__fadeIn">
-        <div class="col-6 col-lg-3">
-            <div class="card bg-primary text-white border-0 shadow-sm rounded-4 h-100 stat-card-glow">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="mb-1 small fw-bold text-uppercase">Tổng số Lead</p>
-                            <h2 class="fw-black mb-0">@totalLeads</h2>
-                        </div>
-                        <i class="bi bi-people fs-1 opacity-25"></i>
+            <h2 class="crm-hero-title">Quản lý khách hàng cần tư vấn</h2>
+
+            <p class="crm-hero-sub mb-0">
+                Theo dõi toàn bộ khách quan tâm tin đăng/dự án, cập nhật trạng thái gọi điện, ghi chú chăm sóc và khóa các lead đã hủy để tránh xử lý sai.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3">
+            <div class="crm-stat-card p-3">
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <div class="crm-stat-label">Tổng lead</div>
+                        <div class="crm-stat-value mt-2">@totalLeads</div>
+                    </div>
+                    <div class="crm-stat-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="bi bi-people-fill"></i>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-6 col-lg-3">
-            <div class="card bg-danger text-white border-0 shadow-sm rounded-4 h-100 stat-card-glow">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="mb-1 small fw-bold text-uppercase">Khách Mới</p>
-                            <h2 class="fw-black mb-0">@newLeads</h2>
-                        </div>
-                        <i class="bi bi-patch-exclamation fs-1 opacity-25"></i>
+        <div class="col-6 col-xl-3">
+            <div class="crm-stat-card p-3">
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <div class="crm-stat-label">Mới gửi</div>
+                        <div class="crm-stat-value mt-2">@newLeads</div>
+                    </div>
+                    <div class="crm-stat-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-lightning-charge-fill"></i>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-6 col-lg-3">
-            <div class="card bg-success text-white border-0 shadow-sm rounded-4 h-100 stat-card-glow">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="mb-1 small fw-bold text-uppercase">Đã Xử Lý</p>
-                            <h2 class="fw-black mb-0">@contactedLeads</h2>
-                        </div>
-                        <i class="bi bi-headset fs-1 opacity-25"></i>
+        <div class="col-6 col-xl-3">
+            <div class="crm-stat-card p-3">
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <div class="crm-stat-label">Đã xử lý</div>
+                        <div class="crm-stat-value mt-2">@processedLeads</div>
+                    </div>
+                    <div class="crm-stat-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-check2-circle"></i>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-6 col-lg-3">
-            <div class="card bg-dark text-white border-0 shadow-sm rounded-4 h-100 stat-card-glow">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <p class="mb-1 small fw-bold text-uppercase">Tỷ lệ Phản hồi</p>
-                            <h2 class="fw-black mb-0">@responseRate%</h2>
-                        </div>
-                        <i class="bi bi-graph-up-arrow fs-1 opacity-25"></i>
+        <div class="col-6 col-xl-3">
+            <div class="crm-stat-card p-3">
+                <div class="d-flex justify-content-between gap-3">
+                    <div>
+                        <div class="crm-stat-label">Tỷ lệ phản hồi</div>
+                        <div class="crm-stat-value mt-2">@responseRate%</div>
+                    </div>
+                    <div class="crm-stat-icon bg-dark bg-opacity-10 text-dark">
+                        <i class="bi bi-graph-up-arrow"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bộ lọc & Tìm kiếm -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-body p-4">
-            <form method="get" action="/Consultations/Index" class="row g-3">
-                <div class="col-lg-5 col-md-12">
-                    <div class="input-group input-group-lg border rounded-3 overflow-hidden">
-                        <span class="input-group-text bg-white border-0">
+    <div class="crm-filter-card mb-4">
+        <div class="p-3 p-lg-4">
+            <form method="get" action="/Consultations/Index" class="row g-3 align-items-center">
+                <div class="col-lg-5">
+                    <div class="input-group input-group-lg crm-search-input">
+                        <span class="input-group-text">
                             <i class="bi bi-search text-primary"></i>
                         </span>
                         <input type="text"
                                name="searchString"
-                               class="form-control border-0 bg-white fs-6"
-                               placeholder="Tên khách hàng, SĐT hoặc BĐS..."
-                               value="@searchString">
+                               class="form-control fs-6"
+                               placeholder="Tìm tên khách, SĐT, email, lời nhắn, tin đăng..."
+                               value="@searchString" />
                     </div>
                 </div>
 
-                <div class="col-lg-3 col-6">
-                    <select name="statusFilter" class="form-select form-select-lg border-secondary-subtle rounded-3 fw-bold text-muted fs-6">
+                <div class="col-lg-3 col-12">
+                    <select name="statusFilter" class="form-select form-select-lg rounded-4 fs-6 fw-bold border">
                         <option value="All" selected="@(statusFilter == "All")">Tất cả trạng thái</option>
                         <option value="New" selected="@(statusFilter == "New")">Mới gửi</option>
                         <option value="Contacted" selected="@(statusFilter == "Contacted")">Đã liên hệ</option>
-                        <option value="Closed" selected="@(statusFilter == "Closed")">Đã chốt (Thành công)</option>
-                        <option value="Spam" selected="@(statusFilter == "Spam")">Rác / Không liên hệ được</option>
+                        <option value="Closed" selected="@(statusFilter == "Closed")">Đã chốt</option>
+                        <option value="Spam" selected="@(statusFilter == "Spam")">Spam / Lead rác</option>
                         <option value="Cancelled" selected="@(statusFilter == "Cancelled")">Khách đã hủy</option>
                     </select>
                 </div>
 
-                <div class="col-lg-4 col-6 d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg rounded-3 w-100 fw-bold shadow-sm fs-6">Tra cứu</button>
-                    <a href="/Consultations/Index" class="btn btn-light btn-lg rounded-3 border fw-bold text-secondary d-flex align-items-center justify-content-center">
+                <div class="col-lg-4 col-12 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-4 fw-bold w-100">
+                        <i class="bi bi-funnel-fill me-1"></i> Lọc dữ liệu
+                    </button>
+                    <a href="/Consultations/Index" class="btn btn-light btn-lg rounded-4 fw-bold border px-4">
                         <i class="bi bi-arrow-clockwise"></i>
                     </a>
                 </div>
@@ -258,198 +542,350 @@
         </div>
     </div>
 
-    <!-- Danh sách -->
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-        <div class="card-header bg-white py-4 border-bottom d-flex align-items-center">
-            <h5 class="mb-0 fw-black text-dark text-uppercase">
-                <i class="bi bi-funnel-fill text-warning me-2"></i>
-                Danh sách Khách hàng tiềm năng (Leads)
-            </h5>
+    <div class="crm-list-card">
+        <div class="p-3 p-lg-4 border-bottom bg-white">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="fw-black mb-1">
+                        <i class="bi bi-list-check text-primary me-2"></i>Danh sách khách hàng tiềm năng
+                    </h5>
+                    <div class="text-muted small">
+                        Lead mới được ưu tiên hiển thị trước. Lead đã chốt, Spam hoặc khách đã hủy sẽ bị khóa xử lý.
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge rounded-pill bg-warning bg-opacity-10 text-warning px-3 py-2">Mới: @newLeads</span>
+                    <span class="badge rounded-pill bg-success bg-opacity-10 text-success px-3 py-2">Chốt: @closedLeads</span>
+                    <span class="badge rounded-pill bg-danger bg-opacity-10 text-danger px-3 py-2">Hủy: @cancelledLeads</span>
+                </div>
+            </div>
         </div>
 
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table lead-table mb-0">
-                    <thead>
-                        <tr>
-                            <th class="ps-4">Khách hàng</th>
-                            <th>Nguồn (BĐS / Dự án)</th>
-                            <th>Lời nhắn & Ghi chú</th>
-                            <th>Trạng thái</th>
-                            <th class="text-center pe-4">Công cụ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model != null && Model.Any())
+        <div class="desktop-table-wrap table-responsive">
+            <table class="table crm-table mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-4">Khách hàng</th>
+                        <th>Nguồn quan tâm</th>
+                        <th>Lời nhắn / ghi chú</th>
+                        <th>Trạng thái</th>
+                        <th class="text-center pe-4">Thao tác</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
                         {
-                            foreach (var item in Model)
-                            {
-                                string stClass = "st-new";
-                                string stText = "Mới";
+                            bool locked = IsLocked(item.Status);
+                            bool canDelete = CanDelete(item.Status);
 
-                                switch (item.Status)
-                                {
-                                    case "Contacted":
-                                        stClass = "st-contacted";
-                                        stText = "Đã gọi";
-                                        break;
-                                    case "Closed":
-                                        stClass = "st-closed";
-                                        stText = "Hoàn tất";
-                                        break;
-                                    case "Spam":
-                                        stClass = "st-spam";
-                                        stText = "Rác/Ảo";
-                                        break;
-                                    case "Cancelled":
-                                        stClass = "st-spam";
-                                        stText = "Khách hủy";
-                                        break;
-                                }
+                            string customerInitial = !string.IsNullOrWhiteSpace(item.FullName)
+                            ? item.FullName.Trim().Substring(0, 1).ToUpper()
+                            : "K";
 
-                                <tr id="row-@item.ConsultID" class="lead-row">
-                                    <td class="ps-4">
-                                        <div class="d-flex align-items-center gap-3">
-                                            <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 45px; height: 45px;">
-                                                @((!string.IsNullOrEmpty(item.FullName) ? item.FullName.Substring(0, 1).ToUpper() : "K"))
+                            <tr id="row-@item.ConsultID">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="customer-avatar">@customerInitial</div>
+
+                                        <div class="min-w-0">
+                                            <div class="fw-black text-dark truncate-1" style="max-width:210px;">
+                                                @(string.IsNullOrWhiteSpace(item.FullName) ? "Khách hàng" : item.FullName)
                                             </div>
-                                            <div>
-                                                <span class="fw-bold text-dark fs-6 d-block">@(item.FullName ?? "Khách vãng lai")</span>
-                                                <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
-                                                    <a href="tel:@item.Phone" class="text-success text-decoration-none small fw-bold">
-                                                        <i class="bi bi-telephone-fill"></i> @item.Phone
-                                                    </a>
-                                                    <span class="text-muted small">· @item.CreatedAt.ToString("dd/MM/yy HH:mm")</span>
-                                                </div>
+
+                                            <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                                                <a href="tel:@item.Phone" class="text-success text-decoration-none small fw-bold">
+                                                    <i class="bi bi-telephone-fill"></i> @item.Phone
+                                                </a>
+                                                <span class="text-muted small">· @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</span>
                                             </div>
                                         </div>
-                                    </td>
+                                    </div>
+                                </td>
 
-                                    <td>
-                                        @if (item.Property != null)
-                                        {
-                                            <a href="/Property/Details/@item.PropertyID"
-                                               class="text-primary text-decoration-none fw-bold small d-inline-block truncate-1"
-                                               style="max-width:200px;"
-                                               target="_blank">
-                                                @item.Property.Title
-                                            </a>
-                                            <br />
-                                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2 mt-1">Nhà đất</span>
-                                        }
-                                        else if (item.Project != null)
-                                        {
-                                            <a href="/Project/Details/@item.ProjectID"
-                                               class="text-info text-decoration-none fw-bold small d-inline-block truncate-1"
-                                               style="max-width:200px;"
-                                               target="_blank">
-                                                @item.Project.ProjectName
-                                            </a>
-                                            <br />
-                                            <span class="badge bg-info bg-opacity-10 text-info rounded-pill px-2 mt-1">Dự án</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted fst-italic">Nguồn đã xóa</span>
-                                        }
-                                    </td>
-
-                                    <td>
-                                        <div class="text-dark small d-inline-block truncate-2 fw-medium" style="max-width: 250px;">
-                                            <i class="bi bi-chat-left-text text-muted me-1"></i>
-                                            @(string.IsNullOrEmpty(item.Note) ? "Không có lời nhắn" : item.Note)
+                                <td>
+                                    @if (item.Property != null)
+                                    {
+                                        <a href="/Property/Details/@item.PropertyID" class="source-link truncate-1" target="_blank">
+                                            @item.Property.Title
+                                        </a>
+                                        <div class="mt-1">
+                                            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary">Nhà đất</span>
                                         </div>
-                                        @if (!string.IsNullOrEmpty(item.SellerNote))
-                                        {
-                                            <div class="text-warning-emphasis small truncate-2 mt-1" style="max-width: 250px;">
-                                                <i class="bi bi-pencil-square me-1"></i> @item.SellerNote
-                                            </div>
-                                        }
-                                    </td>
+                                    }
+                                    else if (item.Project != null)
+                                    {
+                                        <a href="/Project/Details/@item.ProjectID" class="source-link truncate-1" target="_blank">
+                                            @item.Project.ProjectName
+                                        </a>
+                                        <div class="mt-1">
+                                            <span class="badge rounded-pill bg-info bg-opacity-10 text-info">Dự án</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">Nguồn đã bị xóa</span>
+                                    }
+                                </td>
 
-                                    <td>
-                                        <span class="status-pill @stClass">@stText</span>
-                                    </td>
+                                <td>
+                                    <div class="small fw-medium text-dark truncate-2" style="max-width:310px;">
+                                        <i class="bi bi-chat-left-text text-muted me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(item.Note) ? "Khách không để lại lời nhắn." : item.Note)
+                                    </div>
 
-                                    <td class="text-center pe-4">
-                                        <div class="d-flex justify-content-center gap-2">
-                                            <button type="button" class="btn-action text-primary" onclick="openCRMModal(@item.ConsultID)" title="Xử lý CRM">
-                                                <i class="bi bi-pencil-square"></i>
+                                    @if (!string.IsNullOrWhiteSpace(item.SellerNote))
+                                    {
+                                        <div class="small text-warning-emphasis fw-semibold truncate-2 mt-1" style="max-width:310px;">
+                                            <i class="bi bi-pencil-square me-1"></i>@item.SellerNote
+                                        </div>
+                                    }
+                                </td>
+
+                                <td>
+                                    <span class="status-pill @GetStatusClass(item.Status)">
+                                        <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
+                                    </span>
+                                </td>
+
+                                <td class="text-center pe-4">
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <button type="button"
+                                                class="crm-action-btn"
+                                                onclick="openCRMModal(@item.ConsultID)"
+                                                title="Xem / xử lý lead">
+                                            <i class="bi @(locked ? "bi-eye-fill" : "bi-pencil-square")"></i>
+                                        </button>
+
+                                        <form class="m-0" id="frmDel-@item.ConsultID">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button"
+                                                    class="crm-action-btn danger"
+                                                    onclick="deleteLead(@item.ConsultID)"
+                                                    title="Chỉ xóa lead spam hoặc đã hủy"
+                                                    disabled="@(!canDelete)">
+                                                <i class="bi bi-trash3"></i>
                                             </button>
-
-                                            <form class="m-0" id="frmDel-@item.ConsultID">
-                                                @Html.AntiForgeryToken()
-                                                <button type="button" class="btn-action text-danger" onclick="deleteLead(@item.ConsultID)" title="Xóa rác">
-                                                    <i class="bi bi-trash3"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="5" class="text-center py-5">
-                                    <i class="bi bi-headset fs-1 d-block mb-3 text-muted opacity-25"></i>
-                                    <h5 class="fw-bold text-dark">Chưa có khách hàng nào</h5>
-                                    <p class="text-muted">Danh sách Leads của bạn hiện đang trống.</p>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         }
-                    </tbody>
-                </table>
-            </div>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <i class="bi bi-inbox display-4 text-muted opacity-50"></i>
+                                <h5 class="fw-black mt-3 mb-1">Chưa có yêu cầu tư vấn nào</h5>
+                                <p class="text-muted mb-0">Khi khách gửi tư vấn từ tin đăng hoặc dự án, lead sẽ xuất hiện tại đây.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
-            @if (ViewBag.TotalPages > 1)
+        <div class="mobile-lead-card p-3">
+            @if (Model != null && Model.Any())
             {
-                <div class="p-4 border-top">
-                    <nav class="d-flex justify-content-center">
-                        <ul class="pagination mb-0 flex-wrap">
-                            @for (int i = 1; i <= ViewBag.TotalPages; i++)
-                            {
-                                <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
-                                    <a class="page-link shadow-sm border-0 rounded-3 mx-1 @(ViewBag.CurrentPage == i ? "bg-primary text-white" : "text-dark bg-light")"
-                                       href="/Consultations/Index?page=@i&searchString=@Uri.EscapeDataString(searchString)&statusFilter=@statusFilter">
-                                        @i
+                foreach (var item in Model)
+                {
+                    bool locked = IsLocked(item.Status);
+                    bool canDelete = CanDelete(item.Status);
+
+                    string customerInitial = !string.IsNullOrWhiteSpace(item.FullName)
+                    ? item.FullName.Trim().Substring(0, 1).ToUpper()
+                    : "K";
+
+                    <div class="mobile-card-item" id="mobile-row-@item.ConsultID">
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                            <div class="d-flex gap-3 min-w-0">
+                                <div class="customer-avatar">@customerInitial</div>
+
+                                <div class="min-w-0">
+                                    <div class="fw-black text-dark truncate-1">
+                                        @(string.IsNullOrWhiteSpace(item.FullName) ? "Khách hàng" : item.FullName)
+                                    </div>
+                                    <a href="tel:@item.Phone" class="text-success text-decoration-none small fw-bold">
+                                        <i class="bi bi-telephone-fill"></i> @item.Phone
                                     </a>
-                                </li>
+                                </div>
+                            </div>
+
+                            <span class="status-pill @GetStatusClass(item.Status)">
+                                <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
+                            </span>
+                        </div>
+
+                        <div class="mb-3">
+                            @if (item.Property != null)
+                            {
+                                <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary mb-2">Nhà đất</span>
+                                <a href="/Property/Details/@item.PropertyID" class="source-link d-block" target="_blank">
+                                    @item.Property.Title
+                                </a>
                             }
-                        </ul>
-                    </nav>
+                            else if (item.Project != null)
+                            {
+                                <span class="badge rounded-pill bg-info bg-opacity-10 text-info mb-2">Dự án</span>
+                                <a href="/Project/Details/@item.ProjectID" class="source-link d-block" target="_blank">
+                                    @item.Project.ProjectName
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Nguồn đã bị xóa</span>
+                            }
+                        </div>
+
+                        <div class="bg-light rounded-4 border p-3 mb-3">
+                            <div class="small text-muted fw-bold mb-1">Lời nhắn</div>
+                            <div class="small text-dark">
+                                @(string.IsNullOrWhiteSpace(item.Note) ? "Khách không để lại lời nhắn." : item.Note)
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(item.SellerNote))
+                        {
+                            <div class="bg-warning bg-opacity-10 rounded-4 border border-warning border-opacity-25 p-3 mb-3">
+                                <div class="small text-warning-emphasis fw-bold mb-1">Ghi chú của bạn</div>
+                                <div class="small text-dark">@item.SellerNote</div>
+                            </div>
+                        }
+
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <div class="small text-muted fw-bold">
+                                @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-primary btn-sm rounded-pill fw-bold px-3" onclick="openCRMModal(@item.ConsultID)">
+                                    <i class="bi @(locked ? "bi-eye-fill" : "bi-pencil-square") me-1"></i>@(locked ? "Xem" : "Xử lý")
+                                </button>
+
+                                <form class="m-0" id="frmDelMobile-@item.ConsultID">
+                                    @Html.AntiForgeryToken()
+                                    <button type="button"
+                                            class="btn btn-outline-danger btn-sm rounded-pill fw-bold px-3"
+                                            onclick="deleteLead(@item.ConsultID)"
+                                            disabled="@(!canDelete)">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-4 text-muted opacity-50"></i>
+                    <h5 class="fw-black mt-3 mb-1">Chưa có yêu cầu tư vấn nào</h5>
+                    <p class="text-muted mb-0">Lead mới sẽ xuất hiện tại đây.</p>
                 </div>
             }
         </div>
+
+        @if (Convert.ToInt32(ViewBag.TotalPages ?? 1) > 1)
+        {
+            <div class="p-4 border-top bg-white">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination mb-0 flex-wrap gap-1">
+                        @for (int i = 1; i <= Convert.ToInt32(ViewBag.TotalPages); i++)
+                        {
+                            <li class="page-item @(Convert.ToInt32(ViewBag.CurrentPage) == i ? "active" : "")">
+                                <a class="page-link rounded-3 border-0 shadow-sm @(Convert.ToInt32(ViewBag.CurrentPage) == i ? "bg-primary text-white" : "bg-light text-dark")"
+                                   href="/Consultations/Index?page=@i&searchString=@Uri.EscapeDataString(searchString)&statusFilter=@statusFilter">
+                                    @i
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            </div>
+        }
     </div>
 </div>
 
-<!-- CRM MODAL -->
-<div class="modal fade" id="crmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="false" data-bs-keyboard="true">
+<div class="modal fade"
+     id="crmModal"
+     tabindex="-1"
+     aria-hidden="true"
+     data-bs-backdrop="false"
+     data-bs-keyboard="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 rounded-4">
-            <div class="modal-header text-white border-0 py-3 rounded-top-4">
-                <h5 class="modal-title fw-bold">
-                    <i class="bi bi-person-lines-fill me-2"></i>Chăm sóc khách hàng
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+        <div class="modal-content">
+            <div class="modal-header text-white border-0 px-4 py-3">
+                <div>
+                    <h5 class="modal-title fw-black mb-0">
+                        <i class="bi bi-person-lines-fill me-2"></i>Chi tiết chăm sóc khách hàng
+                    </h5>
+                    <div class="small text-white-50">Cập nhật trạng thái đúng với thực tế xử lý.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" onclick="closeCRMModal()" aria-label="Đóng"></button>
             </div>
 
-            <div class="modal-body p-4">
-                <div class="bg-white p-3 rounded-4 border shadow-sm mb-4">
-                    <h5 id="md-name" class="fw-bold text-primary mb-1">Khách Hàng</h5>
-                    <div class="d-flex gap-3 mb-2 flex-wrap">
-                        <a href="#" id="md-phone" class="fw-bold text-success text-decoration-none">
-                            <i class="bi bi-telephone-fill"></i> <span></span>
-                        </a>
-                        <span id="md-email" class="text-muted fw-medium">
-                            <i class="bi bi-envelope"></i> <span></span>
-                        </span>
+            <div class="modal-body p-3 p-lg-4">
+                <div class="lead-info-box mb-3">
+                    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                        <div>
+                            <h5 id="md-name" class="fw-black text-primary mb-1">Khách hàng</h5>
+                            <div class="d-flex flex-wrap gap-3">
+                                <a href="#" id="md-phone" class="fw-bold text-success text-decoration-none">
+                                    <i class="bi bi-telephone-fill"></i> <span></span>
+                                </a>
+                                <span id="md-email" class="text-muted fw-semibold">
+                                    <i class="bi bi-envelope"></i> <span></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="text-lg-end">
+                            <span id="md-current-status" class="status-pill st-new">
+                                <i class="bi bi-lightning-charge-fill"></i>Mới gửi
+                            </span>
+                        </div>
                     </div>
-                    <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3">
-                        <span class="d-block fw-bold text-warning-emphasis mb-1" style="font-size:0.8rem;">LỜI NHẮN TỪ KHÁCH:</span>
-                        <div id="md-note" class="text-dark fw-medium fst-italic"></div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="bg-light border rounded-4 p-3 h-100">
+                                <div class="small text-muted fw-bold">Nguồn quan tâm</div>
+                                <div id="md-source" class="fw-black text-dark mt-1"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="bg-light border rounded-4 p-3 h-100">
+                                <div class="small text-muted fw-bold">Ngày gửi</div>
+                                <div id="md-created" class="fw-bold text-dark mt-1"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="bg-light border rounded-4 p-3 h-100">
+                                <div class="small text-muted fw-bold">Cập nhật</div>
+                                <div id="md-updated" class="fw-bold text-dark mt-1"></div>
+                            </div>
+                        </div>
                     </div>
+
+                    <div class="note-box">
+                        <div class="small fw-black text-warning-emphasis mb-1">
+                            <i class="bi bi-chat-left-quote me-1"></i>Lời nhắn từ khách
+                        </div>
+                        <div id="md-note" class="text-dark fw-medium"></div>
+                    </div>
+                </div>
+
+                <div id="lockedBox" class="locked-box mb-3">
+                    <i class="bi bi-lock-fill me-1"></i>
+                    Khách đã hủy yêu cầu. Lead này bị khóa xử lý để tránh gọi nhầm hoặc cập nhật sai.
                 </div>
 
                 <form id="frmUpdateLead" method="post" action="/Consultations/SellerUpdateStatus">
@@ -457,26 +893,34 @@
                     <input type="hidden" name="id" id="md-id" />
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold text-dark">Trạng thái chăm sóc <span class="text-danger">*</span></label>
-                        <select name="newStatus" id="md-status-select" class="form-select form-select-lg border rounded-3 fw-bold bg-white shadow-sm" required>
-                            <option value="New">🚩 Mới (Chưa gọi)</option>
-                            <option value="Contacted">📞 Đã gọi / Đang theo dõi</option>
-                            <option value="Closed">✅ Chốt thành công</option>
-                            <option value="Spam">✖️ Khách ảo / Spam</option>
-                            <option value="Cancelled">🚫 Khách đã hủy</option>
+                        <label class="form-label fw-black text-dark">
+                            Trạng thái chăm sóc <span class="text-danger">*</span>
+                        </label>
+                        <select name="newStatus" id="md-status-select" class="form-select form-select-lg rounded-4 fw-bold" required>
+                            <option value="New">⚡ Mới gửi - chưa gọi</option>
+                            <option value="Contacted">📞 Đã gọi / đang theo dõi</option>
+                            <option value="Closed">✅ Đã chốt / hoàn tất</option>
+                            <option value="Spam">🛡️ Spam / sai số / không liên hệ được</option>
                         </select>
+                        <div class="form-text">
+                            Người bán không tự đặt trạng thái “Khách hủy”. Trạng thái này chỉ sinh ra khi người mua tự rút yêu cầu.
+                        </div>
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label fw-bold text-dark">Ghi chú của bạn (Lịch sử làm việc)</label>
-                        <textarea name="sellerNote" id="md-sellerNote" class="form-control border rounded-3 shadow-sm bg-white" rows="4" placeholder="Ví dụ: Khách bảo cuối tuần qua xem nhà, nhớ gọi lại..."></textarea>
+                        <label class="form-label fw-black text-dark">Ghi chú chăm sóc</label>
+                        <textarea name="sellerNote"
+                                  id="md-sellerNote"
+                                  class="form-control rounded-4"
+                                  rows="5"
+                                  placeholder="Ví dụ: Đã gọi 2 lần chưa nghe máy. Khách hẹn 9h sáng mai gọi lại. Khách quan tâm giá và pháp lý..."></textarea>
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg rounded-pill fw-bold shadow-sm">
-                            Cập nhật & Lưu hệ thống
+                        <button type="submit" id="btnSaveLead" class="btn btn-primary btn-lg rounded-pill fw-black">
+                            <i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc
                         </button>
-                        <button type="button" class="btn btn-light border rounded-pill fw-bold" data-bs-dismiss="modal">
+                        <button type="button" class="btn btn-light border btn-lg rounded-pill fw-bold" onclick="closeCRMModal()">
                             Đóng cửa sổ
                         </button>
                     </div>
@@ -488,11 +932,23 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         let crmModalInstance = null;
 
+        function cleanupModalOverlay() {
+            document.querySelectorAll('.modal-backdrop').forEach(function (el) {
+                el.remove();
+            });
+
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+
         function getCrmModal() {
             const el = document.getElementById('crmModal');
+
             if (!crmModalInstance) {
                 crmModalInstance = new bootstrap.Modal(el, {
                     backdrop: false,
@@ -500,11 +956,116 @@
                     focus: true
                 });
             }
+
             return crmModalInstance;
         }
 
-        function setModalLoadingState(isLoading) {
-            const btn = document.querySelector('#frmUpdateLead button[type="submit"]');
+        function closeCRMModal() {
+            const modal = getCrmModal();
+            modal.hide();
+
+            setTimeout(function () {
+                cleanupModalOverlay();
+            }, 150);
+        }
+
+        function getStatusView(status) {
+            switch (status) {
+                case 'Contacted':
+                    return { cls: 'st-contacted', icon: 'bi-telephone-inbound-fill', text: 'Đã liên hệ' };
+                case 'Closed':
+                    return { cls: 'st-closed', icon: 'bi-check-circle-fill', text: 'Đã chốt' };
+                case 'Spam':
+                    return { cls: 'st-spam', icon: 'bi-shield-x', text: 'Spam/Rác' };
+                case 'Cancelled':
+                    return { cls: 'st-cancelled', icon: 'bi-x-circle-fill', text: 'Khách hủy' };
+                default:
+                    return { cls: 'st-new', icon: 'bi-lightning-charge-fill', text: 'Mới gửi' };
+            }
+        }
+                function resetStatusOptions() {
+            const statusSelect = document.getElementById('md-status-select');
+
+            if (!statusSelect) return;
+
+            Array.from(statusSelect.options).forEach(function (option) {
+                option.disabled = false;
+                option.hidden = false;
+            });
+        }
+
+        function applyStatusTransitionRules(currentStatus) {
+            const statusSelect = document.getElementById('md-status-select');
+            const sellerNote = document.getElementById('md-sellerNote');
+            const saveBtn = document.getElementById('btnSaveLead');
+            const lockedBox = document.getElementById('lockedBox');
+
+            if (!statusSelect || !sellerNote || !saveBtn || !lockedBox) return;
+
+            resetStatusOptions();
+
+            statusSelect.disabled = false;
+            sellerNote.disabled = false;
+            saveBtn.disabled = false;
+            lockedBox.style.display = 'none';
+
+            saveBtn.innerHTML = '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
+
+            if (currentStatus === 'Cancelled') {
+                lockedBox.style.display = 'block';
+                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Khách đã hủy yêu cầu. Lead này bị khóa xử lý, chỉ được xem lại.';
+                statusSelect.disabled = true;
+                sellerNote.disabled = true;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã khóa xử lý';
+                return;
+            }
+
+            if (currentStatus === 'Closed') {
+                lockedBox.style.display = 'block';
+                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã chốt thành công. Không được lùi hoặc chuyển trạng thái khác.';
+                statusSelect.disabled = true;
+                sellerNote.disabled = true;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Lead đã chốt - đã khóa';
+                return;
+            }
+
+            if (currentStatus === 'Spam') {
+                lockedBox.style.display = 'block';
+                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã được đánh dấu Spam/Rác. Không được lùi hoặc chuyển trạng thái khác.';
+                statusSelect.disabled = true;
+                sellerNote.disabled = true;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-shield-x me-1"></i>Lead Spam - đã khóa';
+                return;
+            }
+
+            if (currentStatus === 'Contacted') {
+                const newOption = statusSelect.querySelector('option[value="New"]');
+
+                if (newOption) {
+                    newOption.disabled = true;
+                    newOption.hidden = true;
+                }
+
+                statusSelect.value = 'Contacted';
+                return;
+            }
+
+            if (currentStatus === 'New') {
+                const closedOption = statusSelect.querySelector('option[value="Closed"]');
+
+                if (closedOption) {
+                    closedOption.disabled = true;
+                    closedOption.hidden = true;
+                }
+
+                statusSelect.value = 'New';
+            }
+        }
+        function setSaveButtonLoading(isLoading) {
+            const btn = document.getElementById('btnSaveLead');
             if (!btn) return;
 
             if (isLoading) {
@@ -512,114 +1073,147 @@
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
                 btn.disabled = true;
             } else {
-                btn.innerHTML = btn.dataset.originalHtml || 'Cập nhật & Lưu hệ thống';
+                btn.innerHTML = btn.dataset.originalHtml || '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
                 btn.disabled = false;
             }
         }
 
         function openCRMModal(id) {
+            cleanupModalOverlay();
+
             Swal.fire({
-                title: 'Đang tải...',
+                title: 'Đang tải lead...',
                 allowOutsideClick: false,
                 allowEscapeKey: false,
-                didOpen: () => Swal.showLoading()
+                didOpen: function () {
+                    Swal.showLoading();
+                }
             });
 
-            fetch(`/Consultations/GetDetails/${id}`, {
+            fetch(`/Consultations/GetDetails?id=${id}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' }
             })
-            .then(res => res.json())
-            .then(data => {
-                Swal.close();
+                .then(function (res) {
+                    return res.json();
+                })
+                .then(function (data) {
+                    Swal.close();
+                    cleanupModalOverlay();
 
-                if (!data.success) {
-                    Swal.fire('Lỗi', data.message || 'Không tải được dữ liệu', 'error');
-                    return;
-                }
+                    if (!data.success) {
+                        Swal.fire('Không thể mở lead', data.message || 'Không tải được dữ liệu.', 'error');
+                        return;
+                    }
 
-                const d = data.data;
+                    const d = data.data;
+                    const statusView = getStatusView(d.status);
 
-                document.getElementById('md-id').value = d.id || '';
-                document.getElementById('md-name').innerText = d.fullName || 'Khách Hàng';
+                    document.getElementById('md-id').value = d.id || '';
+                    document.getElementById('md-name').innerText = d.fullName || 'Khách hàng';
 
-                const phoneLink = document.getElementById('md-phone');
-                phoneLink.href = d.phone ? ('tel:' + d.phone) : '#';
-                phoneLink.querySelector('span').innerText = d.phone || '';
+                    const phoneLink = document.getElementById('md-phone');
+                    phoneLink.href = d.phone ? ('tel:' + d.phone) : '#';
+                    phoneLink.querySelector('span').innerText = d.phone || 'Không có';
 
-                document.getElementById('md-email').querySelector('span').innerText = d.email || '';
-                document.getElementById('md-note').innerText = d.note || 'Không có lời nhắn';
-                document.getElementById('md-sellerNote').value = d.sellerNote || '';
+                    document.getElementById('md-email').querySelector('span').innerText = d.email || 'Không có';
+                    document.getElementById('md-note').innerText = d.note || 'Không có lời nhắn';
+                    document.getElementById('md-source').innerText = `${d.sourceType || 'Nguồn'} - ${d.sourceTitle || 'Không xác định'}`;
+                    document.getElementById('md-created').innerText = d.createdAt || '';
+                    document.getElementById('md-updated').innerText = d.updatedAt || '';
+                    document.getElementById('md-sellerNote').value = d.sellerNote || '';
 
-                const sel = document.getElementById('md-status-select');
-                sel.disabled = false;
+                    const currentStatus = document.getElementById('md-current-status');
+                    currentStatus.className = `status-pill ${statusView.cls}`;
+                    currentStatus.innerHTML = `<i class="bi ${statusView.icon}"></i>${statusView.text}`;
+        const statusSelect = document.getElementById('md-status-select');
 
-                if (d.status === "Cancelled") {
-                    sel.value = "Cancelled";
-                    sel.disabled = true;
-                } else {
-                    sel.value = d.status || "New";
-                }
+        if (d.status === 'Cancelled') {
+            statusSelect.value = 'New';
+        } else {
+            statusSelect.value = d.status || 'New';
+        }
 
-                getCrmModal().show();
-            })
-            .catch(() => {
-                Swal.close();
-                Swal.fire('Lỗi', 'Không thể tải dữ liệu từ máy chủ', 'error');
+        applyStatusTransitionRules(d.status || 'New');
+                    getCrmModal().show();
+
+                    setTimeout(function () {
+                        cleanupModalOverlay();
+                    }, 100);
+                })
+                .catch(function () {
+                    Swal.close();
+                    cleanupModalOverlay();
+                    Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                });
+        }
+
+        const updateLeadForm = document.getElementById('frmUpdateLead');
+
+        if (updateLeadForm) {
+            updateLeadForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const formData = new FormData(this);
+                setSaveButtonLoading(true);
+
+                fetch(this.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(function (res) {
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.success) {
+                            closeCRMModal();
+
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Đã lưu',
+                                text: data.message || 'Đã cập nhật lead.',
+                                confirmButtonText: 'OK'
+                            }).then(function () {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Không thể cập nhật', data.message || 'Cập nhật thất bại.', 'error');
+                            setSaveButtonLoading(false);
+                        }
+                    })
+                    .catch(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                        setSaveButtonLoading(false);
+                    });
             });
         }
 
-        document.getElementById('frmUpdateLead').addEventListener('submit', function (e) {
-            e.preventDefault();
+        function getDeleteToken(id) {
+            const desktopToken = document.querySelector(`#frmDel-${id} input[name="__RequestVerificationToken"]`);
+            const mobileToken = document.querySelector(`#frmDelMobile-${id} input[name="__RequestVerificationToken"]`);
 
-            const formData = new FormData(this);
-            const btn = this.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
+            if (desktopToken) return desktopToken.value;
+            if (mobileToken) return mobileToken.value;
 
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
-            btn.disabled = true;
-
-            fetch(this.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Thành công',
-                        text: data.message || 'Đã cập nhật',
-                        confirmButtonText: 'OK'
-                    }).then(() => location.reload());
-                } else {
-                    Swal.fire('Lỗi', data.message || 'Cập nhật thất bại', 'error');
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }
-            })
-            .catch(() => {
-                Swal.fire('Lỗi', 'Lỗi mạng, vui lòng thử lại', 'error');
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            });
-        });
+            return '';
+        }
 
         function deleteLead(id) {
+            cleanupModalOverlay();
+
             Swal.fire({
-                title: 'Xóa yêu cầu tư vấn?',
-                text: 'Hành động này không thể hoàn tác!',
+                title: 'Xóa lead này?',
+                text: 'Chỉ nên xóa lead spam hoặc lead khách đã hủy. Lead đang chăm sóc/chốt nên giữ lại lịch sử.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Xóa ngay',
+                confirmButtonText: 'Xóa lead',
                 cancelButtonText: 'Đóng'
-            }).then((result) => {
+            }).then(function (result) {
                 if (!result.isConfirmed) return;
 
-                const tokenEl = document.querySelector(`#frmDel-${id} input[name="__RequestVerificationToken"]`);
-                const token = tokenEl ? tokenEl.value : '';
+                const token = getDeleteToken(id);
 
                 const formData = new FormData();
                 formData.append('id', id);
@@ -629,28 +1223,46 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            toast: true,
-                            position: 'top-end',
-                            icon: 'success',
-                            title: 'Đã xóa!',
-                            showConfirmButton: false,
-                            timer: 1500
-                        });
+                    .then(function (res) {
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.success) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: data.message || 'Đã xóa lead.',
+                                showConfirmButton: false,
+                                timer: 1800
+                            });
 
-                        const row = document.getElementById(`row-${id}`);
-                        if (row) row.remove();
-                    } else {
-                        Swal.fire('Lỗi', data.message || 'Xóa thất bại', 'error');
-                    }
-                })
-                .catch(() => {
-                    Swal.fire('Lỗi', 'Lỗi mạng, vui lòng thử lại', 'error');
-                });
+                            const row = document.getElementById(`row-${id}`);
+                            const mobileRow = document.getElementById(`mobile-row-${id}`);
+
+                            if (row) row.remove();
+                            if (mobileRow) mobileRow.remove();
+                        } else {
+                            Swal.fire('Không thể xóa', data.message || 'Xóa thất bại.', 'error');
+                        }
+                    })
+                    .catch(function () {
+                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    });
             });
         }
+
+        document.addEventListener('hidden.bs.modal', function () {
+            cleanupModalOverlay();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                const modalEl = document.getElementById('crmModal');
+                if (modalEl && modalEl.classList.contains('show')) {
+                    closeCRMModal();
+                }
+            }
+        });
     </script>
 }

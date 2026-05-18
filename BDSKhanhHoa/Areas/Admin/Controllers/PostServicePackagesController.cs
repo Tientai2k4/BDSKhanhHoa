@@ -40,7 +40,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 DefaultDurationDays = 30,
                 SuggestedPrice = 500000,
                 SuggestedPackageName = "VIP Kim Cương 30 Ngày",
-                SuggestedDescription = "Gói hiển thị cao nhất, nổi bật nhất, ưu tiên trên toàn bộ danh sách tìm kiếm.",
+                SuggestedDescription = "Gói hiển thị cao nhất, nổi bật nhất, ưu tiên trên toàn bộ danh sách tìm kiếm. Tin đăng mới dùng gói này có thể được duyệt tự động theo chính sách hệ thống.",
                 Icon = "bi-gem",
                 CssKey = "diamond"
             },
@@ -52,7 +52,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 DefaultDurationDays = 30,
                 SuggestedPrice = 300000,
                 SuggestedPackageName = "VIP Vàng 30 Ngày",
-                SuggestedDescription = "Gói hiển thị nổi bật, đứng sau VIP Kim Cương.",
+                SuggestedDescription = "Gói hiển thị nổi bật, đứng sau VIP Kim Cương, phù hợp tin cần tăng độ tiếp cận.",
                 Icon = "bi-star-fill",
                 CssKey = "gold"
             },
@@ -80,39 +80,88 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 Icon = "bi-award-fill",
                 CssKey = "bronze"
             },
-          new PackageTierOption
-{
-    Type = "Tin Thường",
-    DisplayName = "Tin Thường - Hạng 5 thấp nhất",
-    PriorityLevel = 5,
-    DefaultDurationDays = 30,
-    SuggestedPrice = 0,
-    SuggestedPackageName = "Tin Thường 30 Ngày",
-    SuggestedDescription = "Gói đăng tin cơ bản, không có hiệu ứng VIP, hiển thị sau các gói VIP.",
-    Icon = "bi-tag-fill",
-    CssKey = "normal"
-}
+            new PackageTierOption
+            {
+                Type = "Tin Thường",
+                DisplayName = "Tin Thường - Hạng 5 thấp nhất",
+                PriorityLevel = 5,
+                DefaultDurationDays = 30,
+                SuggestedPrice = 0,
+                SuggestedPackageName = "Tin Thường 30 Ngày",
+                SuggestedDescription = "Gói đăng tin cơ bản, không có hiệu ứng VIP, hiển thị sau các gói VIP.",
+                Icon = "bi-tag-fill",
+                CssKey = "normal"
+            }
         };
 
-        public PostServicePackagesController(ApplicationDbContext context, IAuditLogService auditLogService)
+        public PostServicePackagesController(
+            ApplicationDbContext context,
+            IAuditLogService auditLogService)
         {
             _context = context;
             _auditLogService = auditLogService;
         }
 
+        // =====================================================
+        // DANH SÁCH GÓI
+        // =====================================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string status = "all", string keyword = "")
         {
-            var packages = await _context.PostServicePackages
+            var query = _context.PostServicePackages
                 .AsNoTracking()
-                .OrderBy(p => p.PriorityLevel)
+                .AsQueryable();
+
+            if (status == "active")
+            {
+                query = query.Where(p => p.IsActive);
+            }
+            else if (status == "inactive")
+            {
+                query = query.Where(p => !p.IsActive);
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                keyword = keyword.Trim().ToLower();
+
+                query = query.Where(p =>
+                    p.PackageName.ToLower().Contains(keyword) ||
+                    p.PackageType.ToLower().Contains(keyword) ||
+                    (p.Description != null && p.Description.ToLower().Contains(keyword)));
+            }
+
+            var packages = await query
+                .OrderBy(p => p.IsActive ? 0 : 1)
+                .ThenBy(p => p.PriorityLevel)
                 .ThenByDescending(p => p.Price)
                 .ThenByDescending(p => p.DurationDays)
                 .ToListAsync();
 
+            ViewBag.Status = status;
+            ViewBag.Keyword = keyword;
+
+            ViewBag.TotalCount = await _context.PostServicePackages.CountAsync();
+            ViewBag.ActiveCount = await _context.PostServicePackages.CountAsync(p => p.IsActive);
+            ViewBag.InactiveCount = await _context.PostServicePackages.CountAsync(p => !p.IsActive);
+            ViewBag.UsedInPropertiesCount = await _context.Properties
+                .Where(p => p.PackageID != null)
+                .Select(p => p.PackageID)
+                .Distinct()
+                .CountAsync();
+
+            ViewBag.UsedInTransactionsCount = await _context.Transactions
+                .Where(t => t.PackageID != null)
+                .Select(t => t.PackageID)
+                .Distinct()
+                .CountAsync();
+
             return View(packages);
         }
 
+        // =====================================================
+        // TẠO GÓI
+        // =====================================================
         [HttpGet]
         public IActionResult Create()
         {
@@ -123,7 +172,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 Price = 0,
                 DurationDays = 30,
                 PriorityLevel = 5,
-                Description = "Gói đăng tin cơ bản, không có hiệu ứng VIP, hiển thị sau các gói VIP."
+                Description = "Gói đăng tin cơ bản, không có hiệu ứng VIP, hiển thị sau các gói VIP.",
+                IsActive = true
             };
 
             PrepareViewData(model.PackageType);
@@ -135,7 +185,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         public async Task<IActionResult> Create(PostServicePackage package)
         {
             NormalizePackageByType(package);
-
             ValidatePackage(package);
 
             if (!ModelState.IsValid)
@@ -159,12 +208,15 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _context.PostServicePackages.Add(package);
             await _context.SaveChangesAsync();
 
-            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            int userId = GetCurrentUserId();
+
             await _auditLogService.LogAsync(
                 userId,
                 "Thêm gói đăng tin",
                 "ServicePackages",
-                $"PackageID: {package.PackageID} - {package.PackageName} - Hạng: {package.PackageType} - Priority: {package.PriorityLevel}",
+                $"PackageID: {package.PackageID}",
+                oldValues: null,
+                newValues: BuildPackageAuditText(package),
                 severity: "Info"
             );
 
@@ -172,10 +224,14 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // =====================================================
+        // SỬA GÓI
+        // =====================================================
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
-            var package = await _context.PostServicePackages.FindAsync(id);
+            var package = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == id);
 
             if (package == null)
             {
@@ -195,11 +251,20 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             if (id != package.PackageID)
             {
-                return NotFound();
+                TempData["Error"] = "Dữ liệu gói không hợp lệ.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var existingPackage = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == id);
+
+            if (existingPackage == null)
+            {
+                TempData["Error"] = "Không tìm thấy gói đăng tin.";
+                return RedirectToAction(nameof(Index));
             }
 
             NormalizePackageByType(package);
-
             ValidatePackage(package);
 
             if (!ModelState.IsValid)
@@ -220,63 +285,192 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return View(package);
             }
 
-            try
-            {
-                _context.Update(package);
-                await _context.SaveChangesAsync();
+            string oldValues = BuildPackageAuditText(existingPackage);
 
-                int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                await _auditLogService.LogAsync(
-                    userId,
-                    "Cập nhật gói đăng tin",
-                    "ServicePackages",
-                    $"PackageID: {package.PackageID} - {package.PackageName} - Hạng: {package.PackageType} - Priority: {package.PriorityLevel}",
-                    severity: "Info"
-                );
+            existingPackage.PackageType = package.PackageType;
+            existingPackage.PackageName = package.PackageName;
+            existingPackage.Price = package.Price;
+            existingPackage.DurationDays = package.DurationDays;
+            existingPackage.PriorityLevel = package.PriorityLevel;
+            existingPackage.Description = package.Description;
+            existingPackage.IsActive = package.IsActive;
 
-                TempData["Success"] = $"Đã cập nhật gói \"{package.PackageName}\" thành công.";
-                return RedirectToAction(nameof(Index));
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!PackageExists(package.PackageID))
-                {
-                    return NotFound();
-                }
+            await _context.SaveChangesAsync();
 
-                throw;
-            }
+            int userId = GetCurrentUserId();
+
+            await _auditLogService.LogAsync(
+                userId,
+                "Cập nhật gói đăng tin",
+                "ServicePackages",
+                $"PackageID: {existingPackage.PackageID}",
+                oldValues: oldValues,
+                newValues: BuildPackageAuditText(existingPackage),
+                severity: "Info"
+            );
+
+            TempData["Success"] = $"Đã cập nhật gói \"{existingPackage.PackageName}\" thành công.";
+            return RedirectToAction(nameof(Index));
         }
 
+        // =====================================================
+        // NGỪNG DÙNG GÓI
+        // =====================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Deactivate(int id)
+        {
+            var package = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == id);
+
+            if (package == null)
+            {
+                TempData["Error"] = "Không tìm thấy gói đăng tin cần ngừng dùng.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (!package.IsActive)
+            {
+                TempData["Error"] = $"Gói \"{package.PackageName}\" hiện đã ở trạng thái ngừng dùng.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            string oldValues = BuildPackageAuditText(package);
+
+            package.IsActive = false;
+            await _context.SaveChangesAsync();
+
+            int userId = GetCurrentUserId();
+
+            await _auditLogService.LogAsync(
+                userId,
+                "Ngừng dùng gói đăng tin",
+                "ServicePackages",
+                $"PackageID: {package.PackageID}",
+                oldValues: oldValues,
+                newValues: BuildPackageAuditText(package),
+                severity: "Warning"
+            );
+
+            TempData["Success"] =
+                $"Đã ngừng dùng gói \"{package.PackageName}\". Gói này sẽ không còn nên được hiển thị cho người dùng mua/chọn mới, nhưng lịch sử giao dịch và tin cũ vẫn được giữ nguyên.";
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        // =====================================================
+        // MỞ LẠI GÓI
+        // =====================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Activate(int id)
+        {
+            var package = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == id);
+
+            if (package == null)
+            {
+                TempData["Error"] = "Không tìm thấy gói đăng tin cần mở lại.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (package.IsActive)
+            {
+                TempData["Error"] = $"Gói \"{package.PackageName}\" hiện đang được sử dụng.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            string oldValues = BuildPackageAuditText(package);
+
+            package.IsActive = true;
+            await _context.SaveChangesAsync();
+
+            int userId = GetCurrentUserId();
+
+            await _auditLogService.LogAsync(
+                userId,
+                "Mở lại gói đăng tin",
+                "ServicePackages",
+                $"PackageID: {package.PackageID}",
+                oldValues: oldValues,
+                newValues: BuildPackageAuditText(package),
+                severity: "Info"
+            );
+
+            TempData["Success"] = $"Đã mở lại gói \"{package.PackageName}\" thành công.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // =====================================================
+        // XÓA GÓI
+        // =====================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var package = await _context.PostServicePackages.FindAsync(id);
+            var package = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == id);
 
             if (package == null)
             {
-                TempData["Error"] = "Không tìm thấy gói cần xóa.";
+                TempData["Error"] = "Không tìm thấy gói đăng tin cần xóa.";
                 return RedirectToAction(nameof(Index));
             }
 
-            bool isUsed = await _context.Properties.AnyAsync(p => p.PackageID == id);
+            int propertyCount = await _context.Properties
+                .CountAsync(p => p.PackageID == id);
 
-            if (isUsed)
+            int transactionCount = await _context.Transactions
+                .CountAsync(t => t.PackageID == id);
+
+            if (propertyCount > 0 || transactionCount > 0)
             {
-                TempData["Error"] = "Không thể xóa vì đang có tin bất động sản sử dụng gói này.";
+                var reasons = new List<string>();
+
+                if (propertyCount > 0)
+                {
+                    reasons.Add($"{propertyCount:N0} tin bất động sản");
+                }
+
+                if (transactionCount > 0)
+                {
+                    reasons.Add($"{transactionCount:N0} giao dịch/thanh toán");
+                }
+
+                TempData["Error"] =
+                    $"Không thể xóa gói \"{package.PackageName}\" vì gói này đã được sử dụng trong {string.Join(" và ", reasons)}. " +
+                    "Để bảo toàn lịch sử hóa đơn, thanh toán và dữ liệu tin đăng cũ, hệ thống không cho xóa gói đã phát sinh dữ liệu. " +
+                    "Bạn hãy dùng chức năng Ngừng dùng gói thay vì xóa.";
+
+                int userIdCheck = GetCurrentUserId();
+
+                await _auditLogService.LogAsync(
+                    userIdCheck,
+                    "Chặn xóa gói đăng tin đang được sử dụng",
+                    "ServicePackages",
+                    $"PackageID: {package.PackageID}",
+                    oldValues: BuildPackageAuditText(package),
+                    newValues: $"Không xóa. Lý do: Có {propertyCount} tin bất động sản và {transactionCount} giao dịch/thanh toán đang tham chiếu gói này.",
+                    severity: "Warning"
+                );
+
                 return RedirectToAction(nameof(Index));
             }
+
+            string oldValues = BuildPackageAuditText(package);
 
             _context.PostServicePackages.Remove(package);
             await _context.SaveChangesAsync();
 
-            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            int userId = GetCurrentUserId();
+
             await _auditLogService.LogAsync(
                 userId,
                 "Xóa gói đăng tin",
                 "ServicePackages",
-                $"PackageID: {id} - {package.PackageName}",
+                $"PackageID: {id}",
+                oldValues: oldValues,
+                newValues: "Gói đăng tin đã được xóa khỏi hệ thống.",
                 severity: "Warning"
             );
 
@@ -284,6 +478,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // =====================================================
+        // DỮ LIỆU CHO VIEW
+        // =====================================================
         private void PrepareViewData(string? selectedType = null)
         {
             ViewBag.PackageTypes = new SelectList(_packageTiers, "Type", "DisplayName", selectedType);
@@ -312,6 +509,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return _packageTiers.FirstOrDefault(t => t.Type == packageType.Trim());
         }
 
+        // =====================================================
+        // CHUẨN HÓA VÀ KIỂM TRA
+        // =====================================================
         private void NormalizePackageByType(PostServicePackage package)
         {
             package.PackageType = package.PackageType?.Trim() ?? "";
@@ -325,8 +525,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return;
             }
 
-            // Chỉ tự động gán hạng hiển thị.
-            // Không ép giá, không ép thời hạn, vì admin được quyền cấu hình.
             package.PriorityLevel = tier.PriorityLevel;
 
             if (string.IsNullOrWhiteSpace(package.PackageName))
@@ -339,6 +537,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 package.Description = tier.SuggestedDescription;
             }
         }
+
         private void ValidatePackage(PostServicePackage package)
         {
             var tier = GetTierOption(package.PackageType);
@@ -354,6 +553,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 ModelState.AddModelError(nameof(PostServicePackage.PackageName), "Vui lòng nhập tên hiển thị của gói.");
             }
 
+            if (package.PackageName != null && package.PackageName.Length > 100)
+            {
+                ModelState.AddModelError(nameof(PostServicePackage.PackageName), "Tên gói không được vượt quá 100 ký tự.");
+            }
+
             if (package.Price < 0)
             {
                 ModelState.AddModelError(nameof(PostServicePackage.Price), "Giá gói không được nhỏ hơn 0.");
@@ -364,17 +568,56 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 ModelState.AddModelError(nameof(PostServicePackage.DurationDays), "Thời hạn không được nhỏ hơn 0.");
             }
 
-            // Gói VIP phải có ngày hết hạn để hệ thống còn tự hạ cấp khi VIP hết hạn.
+            if (package.DurationDays > 3650)
+            {
+                ModelState.AddModelError(nameof(PostServicePackage.DurationDays), "Thời hạn không được vượt quá 3650 ngày.");
+            }
+
             if (package.PackageType != "Tin Thường" && package.DurationDays <= 0)
             {
                 ModelState.AddModelError(nameof(PostServicePackage.DurationDays), "Gói VIP phải có thời hạn lớn hơn 0 ngày.");
             }
 
-            // Tin Thường được phép:
-            // - Giá = 0 hoặc > 0
-            // - Thời hạn = 0 hoặc > 0
-            // 0 ngày có thể hiểu là không hết hạn, còn > 0 là gói tin thường theo ngày.
+            if (package.Description != null && package.Description.Length > 500)
+            {
+                ModelState.AddModelError(nameof(PostServicePackage.Description), "Mô tả không được vượt quá 500 ký tự.");
+            }
         }
+
+        // =====================================================
+        // HELPER
+        // =====================================================
+        private int GetCurrentUserId()
+        {
+            string? userIdText = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (int.TryParse(userIdText, out int userId))
+            {
+                return userId;
+            }
+
+            return 0;
+        }
+
+        private static string BuildPackageAuditText(PostServicePackage package)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                package.PackageID,
+                package.PackageType,
+                package.PackageName,
+                package.Price,
+                package.DurationDays,
+                package.PriorityLevel,
+                package.Description,
+                package.IsActive,
+                TrangThai = package.IsActive ? "Đang dùng" : "Ngừng dùng"
+            }, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+
         private bool PackageExists(int id)
         {
             return _context.PostServicePackages.Any(e => e.PackageID == id);
