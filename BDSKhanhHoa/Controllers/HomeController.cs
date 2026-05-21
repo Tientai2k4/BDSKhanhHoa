@@ -189,12 +189,12 @@ namespace BDSKhanhHoa.Controllers
             // 2. DỰ ÁN NỔI BẬT
             // ---------------------------------------------------------
             ViewBag.LatestProjects = await _context.Projects
-                .AsNoTracking()
-                .Include(p => p.Area)
-                .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
-                .OrderByDescending(p => p.PublishedAt)
-                .Take(4)
-                .ToListAsync();
+           .AsNoTracking()
+           .Include(p => p.Area)
+           .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
+           .OrderByDescending(p => p.PublishedAt)
+           .Take(12)
+           .ToListAsync();
 
             // ---------------------------------------------------------
             // 3. BANNERS

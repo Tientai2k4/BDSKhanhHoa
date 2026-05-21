@@ -5,6 +5,8 @@
     var trans = ViewBag.Transactions as List<BDSKhanhHoa.Models.Transaction>;
     var logs = ViewBag.Logs as List<BDSKhanhHoa.Models.AuditLog>;
     var violations = ViewBag.Violations as List<BDSKhanhHoa.Models.UserViolation>;
+    int activeViolationCount = ViewBag.ActiveViolationCount ?? (violations?.Count(v => v.Status == "Active") ?? 0);
+    bool isLockedByViolation = ViewBag.IsLockedByViolation ?? (!Model.IsActive && !string.IsNullOrWhiteSpace(Model.AdminNote) && Model.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM"));
 }
 
 <div class="container-fluid px-4 mt-4">
@@ -45,9 +47,35 @@
                             <p class="text-muted small mb-0 text-uppercase fw-bold">Trạng thái tài khoản</p>
                         </div>
                         <span class="badge @(Model.IsActive ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger") fs-6 px-3 py-2 rounded-pill border @(Model.IsActive ? "border-success-subtle" : "border-danger-subtle")">
-                            <i class="bi @(Model.IsActive ? "bi-check-circle" : "bi-lock") me-1"></i> @(Model.IsActive ? "Hoạt động tốt" : "Đang bị khóa")
+                            <i class="bi @(Model.IsActive ? "bi-check-circle" : "bi-lock") me-1"></i>
+                            @(Model.IsActive ? "Hoạt động tốt" : (isLockedByViolation ? "Khóa do vi phạm" : "Đang bị khóa"))
                         </span>
                     </div>
+
+                    @if (activeViolationCount > 0 || isLockedByViolation)
+                    {
+                        <div class="alert @(activeViolationCount >= 3 ? "alert-danger" : "alert-warning") rounded-4 border-2 fw-bold mb-4">
+                            <i class="bi bi-shield-exclamation me-1"></i>
+                            Hồ sơ vi phạm đang hiệu lực: @activeViolationCount/3 lỗi.
+                            @if (isLockedByViolation)
+                            {
+                                <div class="small mt-1">
+                                    Tài khoản đã bị khóa tự động do vi phạm chính sách hệ thống. Muốn mở lại cần ân xá/xử lý lỗi trước.
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.AdminNote))
+                    {
+                        <div class="bg-danger-subtle border border-danger-subtle text-danger p-3 rounded-3 mb-4">
+                            <small class="fw-bold text-uppercase d-block mb-1">
+                                <i class="bi bi-sticky-fill me-1"></i>
+                                Ghi chú quản trị nội bộ
+                            </small>
+                            <div class="small" style="white-space:pre-wrap;">@Model.AdminNote</div>
+                        </div>
+                    }
 
                     <h6 class="fw-bold text-uppercase small text-primary mb-3">Thông tin liên hệ</h6>
                     <ul class="list-group list-group-flush mb-4">
@@ -211,8 +239,8 @@
                                         <div class="alert alert-danger border-start border-danger border-4 bg-white shadow-sm mb-0">
                                             <div class="d-flex justify-content-between align-items-center mb-2">
                                                 <strong class="text-danger text-uppercase"><i class="bi bi-exclamation-triangle-fill me-2"></i>Lý do: @v.Reason</strong>
-                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill">
-                                                    <i class="bi bi-calendar-event me-1"></i> @v.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                                <span class="badge @(v.Status == "Active" ? "bg-danger-subtle text-danger border-danger-subtle" : "bg-secondary-subtle text-secondary border-secondary-subtle") border px-3 py-2 rounded-pill">
+                                                    <i class="bi bi-calendar-event me-1"></i> @v.CreatedAt.ToString("dd/MM/yyyy HH:mm") • @v.Status
                                                 </span>
                                             </div>
                                             <p class="mb-0 text-dark small bg-light p-2 rounded border">@v.Description</p>

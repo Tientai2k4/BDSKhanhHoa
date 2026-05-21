@@ -29,18 +29,27 @@ namespace BDSKhanhHoa.Controllers
         // Không cần SQL mới, không cần Model mới.
         // Chỉ dùng lại Property.Status = Sold / Rented.
         // =====================================================
+        private const int SystemGiftNormalQuantity = 5;
+        private const int SystemGiftValidDays = 30;
+        private const int NormalPropertyVisibleDays = 30;
+
         private static bool IsLockedProperty(Property? property)
         {
             return property != null &&
-                   (property.Status == "Sold" || property.Status == "Rented");
+                   (property.Status == "Sold" || property.Status == "Rented" || property.Status == "Expired");
         }
 
         private static string GetLockedPropertyMessage(Property property)
         {
-            return property.Status == "Sold"
-                ? "Tin đăng này đã bán nên hệ thống đã khóa toàn bộ thao tác."
-                : "Tin đăng này đã cho thuê nên hệ thống đã khóa toàn bộ thao tác.";
+            return property.Status switch
+            {
+                "Sold" => "Tin đăng này đã bán nên hệ thống đã khóa toàn bộ thao tác.",
+                "Rented" => "Tin đăng này đã cho thuê nên hệ thống đã khóa toàn bộ thao tác.",
+                "Expired" => "Tin đăng này đã hết hạn nên hệ thống đã khóa thao tác. Vui lòng đăng tin mới hoặc dùng gói mới.",
+                _ => "Tin đăng này đang bị khóa thao tác."
+            };
         }
+
         private static string GetPropertyStatusText(string? status)
         {
             return status switch
@@ -50,6 +59,7 @@ namespace BDSKhanhHoa.Controllers
                 "Rejected" => "Bị từ chối",
                 "Sold" => "Đã bán",
                 "Rented" => "Đã cho thuê",
+                "Expired" => "Tin hết hạn",
                 "Draft" => "Bản nháp",
                 null or "" => "Chưa xác định",
                 _ => status
@@ -61,6 +71,223 @@ namespace BDSKhanhHoa.Controllers
             return package != null
                 && !string.IsNullOrWhiteSpace(package.PackageType)
                 && package.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsNormalPackage(PostServicePackage? package)
+        {
+            return package != null
+                && !string.IsNullOrWhiteSpace(package.PackageType)
+                && package.PackageType.Contains("Tin Thường", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSystemGiftNormalTransaction(Transaction t)
+        {
+            return t.PaymentMethod == "System Gift" &&
+                   t.Type == "Tặng lượt đăng tin thường";
+        }
+
+        private static DateTime GetCreditExpiredAt(Transaction transaction)
+        {
+            if (IsSystemGiftNormalTransaction(transaction))
+            {
+                return transaction.CreatedAt.AddDays(SystemGiftValidDays);
+            }
+
+            return DateTime.MaxValue;
+        }
+
+        private static bool IsCreditStillValid(Transaction transaction)
+        {
+            return GetCreditExpiredAt(transaction) >= DateTime.Now;
+        }
+
+        private async Task NormalizePackageAndExpiredPropertiesAsync(int? onlyUserId = null)
+        {
+            await ExpireSystemGiftCreditsAsync(onlyUserId);
+
+            // Bước 1: VIP hết hạn thì hạ xuống Tin Thường trước.
+            await DowngradeExpiredVipPropertiesAsync(onlyUserId);
+
+            // Bước 2: Sau khi đã hạ VIP xong, tin Tin Thường nào hết 30 ngày thì khóa Expired.
+            await ExpireNormalPropertiesAsync(onlyUserId);
+        }
+
+        private async Task ExpireSystemGiftCreditsAsync(int? onlyUserId = null)
+        {
+            DateTime giftCutoff = DateTime.Now.AddDays(-SystemGiftValidDays);
+
+            var query = _context.Transactions
+                .Where(t =>
+                    t.PropertyID == null &&
+                    t.Status == "Success" &&
+                    t.Quantity > 0 &&
+                    t.PaymentMethod == "System Gift" &&
+                    t.Type == "Tặng lượt đăng tin thường" &&
+                    t.CreatedAt < giftCutoff);
+
+            if (onlyUserId.HasValue)
+            {
+                query = query.Where(t => t.UserID == onlyUserId.Value);
+            }
+
+            var expiredCredits = await query.ToListAsync();
+
+            foreach (var credit in expiredCredits)
+            {
+                credit.Quantity = 0;
+                credit.Status = "Expired";
+                credit.Description = string.IsNullOrWhiteSpace(credit.Description)
+                    ? "Lượt Tin Thường được hệ thống tặng đã hết hạn sau 30 ngày."
+                    : credit.Description + Environment.NewLine + "[HẾT HẠN] Lượt Tin Thường được hệ thống tặng đã hết hạn sau 30 ngày.";
+            }
+
+            if (expiredCredits.Any())
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private async Task ExpireNormalPropertiesAsync(int? onlyUserId = null)
+        {
+            DateTime now = DateTime.Now;
+
+            var query = _context.Properties
+                .Include(p => p.PostServicePackage)
+                .Where(p =>
+                    p.IsDeleted == false &&
+                    p.Status == "Approved" &&
+                    p.PostServicePackage != null &&
+                    p.PostServicePackage.PackageType != null &&
+                    p.PostServicePackage.PackageType.Contains("Tin Thường") &&
+                    (
+                        (p.VipExpiryDate.HasValue && p.VipExpiryDate.Value < now) ||
+                        (!p.VipExpiryDate.HasValue && p.ApprovedAt.HasValue && p.ApprovedAt.Value.AddDays(NormalPropertyVisibleDays) < now) ||
+                        (!p.VipExpiryDate.HasValue && !p.ApprovedAt.HasValue && p.CreatedAt.AddDays(NormalPropertyVisibleDays) < now)
+                    ));
+
+            if (onlyUserId.HasValue)
+            {
+                query = query.Where(p => p.UserID == onlyUserId.Value);
+            }
+
+            var expiredNormalProperties = await query.ToListAsync();
+
+            foreach (var prop in expiredNormalProperties)
+            {
+                DateTime startDate = prop.ApprovedAt ?? prop.CreatedAt;
+                DateTime expiredAt = prop.VipExpiryDate ?? startDate.AddDays(NormalPropertyVisibleDays);
+
+                prop.Status = "Expired";
+                prop.UpdatedAt = now;
+                prop.RejectionReason =
+                    $"Tin hết hạn. Tin dùng gói Tin Thường chỉ hiển thị tối đa {NormalPropertyVisibleDays} ngày, hết hạn lúc {expiredAt:dd/MM/yyyy HH:mm}.";
+
+                string note = $"[TIN HẾT HẠN - {now:dd/MM/yyyy HH:mm}] Tin dùng gói Tin Thường đã hết hạn hiển thị. Hệ thống khóa sửa, xóa, đánh dấu giao dịch và các thao tác tương tác khác.";
+
+                if (string.IsNullOrWhiteSpace(prop.Description))
+                {
+                    prop.Description = note;
+                }
+                else if (!prop.Description.Contains("[TIN HẾT HẠN"))
+                {
+                    prop.Description = note + Environment.NewLine + Environment.NewLine + prop.Description;
+                }
+            }
+
+            if (expiredNormalProperties.Any())
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+        private async Task DowngradeExpiredVipPropertiesAsync(int? onlyUserId = null)
+        {
+            DateTime now = DateTime.Now;
+
+            var normalPackage = await _context.PostServicePackages
+                .OrderByDescending(p => p.IsActive)
+                .ThenBy(p => p.PriorityLevel)
+                .FirstOrDefaultAsync(p =>
+                    p.PackageType != null &&
+                    p.PackageType.Contains("Tin Thường"));
+
+            if (normalPackage == null)
+            {
+                return;
+            }
+
+            var query = _context.Properties
+                .Include(p => p.PostServicePackage)
+                .Where(p =>
+                    p.IsDeleted == false &&
+                    p.Status == "Approved" &&
+                    p.VipExpiryDate.HasValue &&
+                    p.VipExpiryDate.Value < now &&
+                    p.PostServicePackage != null &&
+                    p.PostServicePackage.PackageType != null &&
+                    !p.PostServicePackage.PackageType.Contains("Tin Thường"));
+
+            if (onlyUserId.HasValue)
+            {
+                query = query.Where(p => p.UserID == onlyUserId.Value);
+            }
+
+            var expiredVipProperties = await query.ToListAsync();
+
+            foreach (var prop in expiredVipProperties)
+            {
+                DateTime vipExpiredAt = prop.VipExpiryDate!.Value;
+                DateTime normalExpiredAt = vipExpiredAt.AddDays(NormalPropertyVisibleDays);
+                string oldPackageName = prop.PostServicePackage?.PackageName ?? "Gói VIP";
+
+                prop.PackageID = normalPackage.PackageID;
+                prop.UpdatedAt = now;
+                prop.IsAutoApproved = false;
+
+                if (normalExpiredAt >= now)
+                {
+                    prop.VipExpiryDate = normalExpiredAt;
+                    prop.Status = "Approved";
+
+                    string note =
+                        $"[HẠ VIP - {now:dd/MM/yyyy HH:mm}] Tin dùng gói '{oldPackageName}' đã hết hạn lúc {vipExpiredAt:dd/MM/yyyy HH:mm}. " +
+                        $"Hệ thống tự chuyển về Tin Thường và cho hiển thị tiếp tối đa {NormalPropertyVisibleDays} ngày, đến {normalExpiredAt:dd/MM/yyyy HH:mm}.";
+
+                    if (string.IsNullOrWhiteSpace(prop.Description))
+                    {
+                        prop.Description = note;
+                    }
+                    else if (!prop.Description.Contains("[HẠ VIP"))
+                    {
+                        prop.Description = note + Environment.NewLine + Environment.NewLine + prop.Description;
+                    }
+                }
+                else
+                {
+                    prop.Status = "Expired";
+                    prop.VipExpiryDate = normalExpiredAt;
+                    prop.RejectionReason =
+                        $"Tin hết hạn. Gói VIP '{oldPackageName}' đã hết hạn lúc {vipExpiredAt:dd/MM/yyyy HH:mm}. " +
+                        $"Sau đó hệ thống hạ về Tin Thường trong {NormalPropertyVisibleDays} ngày và đã hết hạn lúc {normalExpiredAt:dd/MM/yyyy HH:mm}.";
+
+                    string note =
+                        $"[TIN HẾT HẠN - {now:dd/MM/yyyy HH:mm}] Gói VIP '{oldPackageName}' đã hết hạn, " +
+                        $"tin đã được hạ xuống Tin Thường {NormalPropertyVisibleDays} ngày và hiện đã hết hạn hiển thị. Hệ thống khóa toàn bộ thao tác.";
+
+                    if (string.IsNullOrWhiteSpace(prop.Description))
+                    {
+                        prop.Description = note;
+                    }
+                    else if (!prop.Description.Contains("[TIN HẾT HẠN"))
+                    {
+                        prop.Description = note + Environment.NewLine + Environment.NewLine + prop.Description;
+                    }
+                }
+            }
+
+            if (expiredVipProperties.Any())
+            {
+                await _context.SaveChangesAsync();
+            }
         }
         [AllowAnonymous]
         public IActionResult Index()
@@ -119,32 +346,13 @@ namespace BDSKhanhHoa.Controllers
 
             keyword = keyword?.Trim();
 
+            await NormalizePackageAndExpiredPropertiesAsync();
+
             // =====================================================
-            // TỰ ĐỘNG HẠ CẤP VIP HẾT HẠN
+            // Gói hết hạn đã được chuẩn hóa bởi NormalizePackageAndExpiredPropertiesAsync()
+            // - VIP hết hạn: hạ về Tin Thường và cho thêm tối đa 30 ngày hiển thị thường.
+            // - Tin Thường hết hạn: chuyển Expired, không hiển thị công khai.
             // =====================================================
-            var normalPackage = await _context.PostServicePackages
-                .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
-
-            if (normalPackage != null)
-            {
-                var expiredVipProperties = await _context.Properties
-                    .Where(p => p.VipExpiryDate.HasValue
-                             && p.VipExpiryDate.Value < DateTime.Now
-                             && p.PackageID != normalPackage.PackageID)
-                    .ToListAsync();
-
-                if (expiredVipProperties.Any())
-                {
-                    foreach (var prop in expiredVipProperties)
-                    {
-                        prop.PackageID = normalPackage.PackageID;
-                        prop.VipExpiryDate = null;
-                        prop.UpdatedAt = DateTime.Now;
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
-            }
 
             // =====================================================
             // LẤY DANH SÁCH LOẠI BĐS
@@ -517,30 +725,7 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // ---------------------------------------------------------
-            // [THÊM MỚI]: HẠ CẤP TRONG TRANG QUẢN LÝ CỦA CHỦ NHÀ
-            // Để chủ nhà tự thấy tin mình bị rớt xuống tin thường
-            // ---------------------------------------------------------
-            var normalPackage = await _context.PostServicePackages
-                .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
-
-            if (normalPackage != null)
-            {
-                var myExpiredVips = await _context.Properties
-                    .Where(p => p.UserID == userId && p.VipExpiryDate.HasValue && p.VipExpiryDate.Value < DateTime.Now && p.PackageID != normalPackage.PackageID)
-                    .ToListAsync();
-
-                if (myExpiredVips.Any())
-                {
-                    foreach (var prop in myExpiredVips)
-                    {
-                        prop.PackageID = normalPackage.PackageID;
-                        prop.VipExpiryDate = null;
-                    }
-                    await _context.SaveChangesAsync();
-                }
-            }
-            // ---------------------------------------------------------
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
 
             var myProperties = await _context.Properties
                 .Include(p => p.PropertyType)
@@ -609,67 +794,190 @@ namespace BDSKhanhHoa.Controllers
 
             return RedirectToAction("MyAds");
         }
+        private async Task<int> GetRemainingPackageCountAsync(int userId, int packageId)
+        {
+            await ExpireSystemGiftCreditsAsync(userId);
+
+            return await _context.Transactions
+                .Where(t =>
+                    t.UserID == userId &&
+                    t.PackageID == packageId &&
+                    t.PropertyID == null &&
+                    t.Status == "Success" &&
+                    t.Quantity > 0)
+                .Where(t =>
+                    !(t.PaymentMethod == "System Gift" && t.Type == "Tặng lượt đăng tin thường") ||
+                    t.CreatedAt.AddDays(SystemGiftValidDays) >= DateTime.Now)
+                .SumAsync(t => (int?)t.Quantity) ?? 0;
+        }
+
+        private async Task<bool> ConsumeOnePackageCreditAsync(int userId, int packageId, int propertyId)
+        {
+            await ExpireSystemGiftCreditsAsync(userId);
+
+            var credit = await _context.Transactions
+                .Where(t =>
+                    t.UserID == userId &&
+                    t.PackageID == packageId &&
+                    t.PropertyID == null &&
+                    t.Status == "Success" &&
+                    t.Quantity > 0)
+                .Where(t =>
+                    !(t.PaymentMethod == "System Gift" && t.Type == "Tặng lượt đăng tin thường") ||
+                    t.CreatedAt.AddDays(SystemGiftValidDays) >= DateTime.Now)
+                .OrderBy(t => t.PaymentMethod == "System Gift" ? 0 : 1)
+                .ThenBy(t => t.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (credit == null)
+            {
+                return false;
+            }
+
+            if (credit.Quantity <= 1)
+            {
+                credit.Quantity = 1;
+                credit.PropertyID = propertyId;
+                _context.Update(credit);
+            }
+            else
+            {
+                credit.Quantity -= 1;
+                _context.Update(credit);
+
+                _context.Transactions.Add(new Transaction
+                {
+                    UserID = userId,
+                    PackageID = packageId,
+                    PropertyID = propertyId,
+                    Quantity = 1,
+                    Amount = 0,
+                    Type = "Sử dụng lượt đăng",
+                    PaymentMethod = credit.PaymentMethod == "System Gift" ? "System Gift Used" : "Wallet",
+                    TransactionCode = "USE" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + "_" + userId + "_" + propertyId,
+                    Status = "Success",
+                    Description = credit.PaymentMethod == "System Gift"
+                        ? "Sử dụng 1 lượt Tin Thường được hệ thống tặng. Lượt tặng có hạn 30 ngày kể từ ngày tặng."
+                        : "Sử dụng 1 lượt đăng từ ví gói tin",
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            return true;
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetAvailablePackages()
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return Unauthorized();
+            }
 
-            bool hasReceivedGift = await _context.Transactions.AnyAsync(t => t.UserID == userId && t.PaymentMethod == "System Gift");
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
+
+            bool hasReceivedGift = await _context.Transactions.AnyAsync(t =>
+                t.UserID == userId &&
+                t.PaymentMethod == "System Gift" &&
+                t.Type == "Tặng lượt đăng tin thường");
 
             if (!hasReceivedGift)
             {
-                var normalPackage = await _context.PostServicePackages.FirstOrDefaultAsync(p => p.PackageType == "Tin Thường");
-                if (normalPackage == null) normalPackage = await _context.PostServicePackages.OrderBy(p => p.Price).FirstOrDefaultAsync();
+                var normalPackage = await _context.PostServicePackages
+                    .FirstOrDefaultAsync(p => p.PackageType == "Tin Thường" && p.IsActive);
 
                 if (normalPackage != null)
                 {
-                    for (int i = 0; i < 5; i++)
+                    _context.Transactions.Add(new Transaction
                     {
-                        _context.Transactions.Add(new Transaction
-                        {
-                            UserID = userId,
-                            PackageID = normalPackage.PackageID,
-                            PropertyID = null,
-                            Quantity = 1,
-                            Amount = 0,
-                            Type = "Tặng lượt đăng tin thường",
-                            PaymentMethod = "System Gift",
-                            TransactionCode = "WELCOME" + DateTime.Now.ToString("yyyyMMddHHmmss") + userId + i,
-                            Status = "Success",
-                            CreatedAt = DateTime.Now
-                        });
-                    }
+                        UserID = userId,
+                        PackageID = normalPackage.PackageID,
+                        PropertyID = null,
+                        Quantity = SystemGiftNormalQuantity,
+                        Amount = 0,
+                        Type = "Tặng lượt đăng tin thường",
+                        PaymentMethod = "System Gift",
+                        TransactionCode = "WELCOME" + DateTime.Now.ToString("yyyyMMddHHmmss") + userId,
+                        Status = "Success",
+                        Description = $"Hệ thống tặng {SystemGiftNormalQuantity} lượt Tin Thường. Lượt tặng có hiệu lực tối đa {SystemGiftValidDays} ngày kể từ ngày tặng.",
+                        CreatedAt = DateTime.Now
+                    });
+
                     await _context.SaveChangesAsync();
                 }
             }
 
+            DateTime giftCutoff = DateTime.Now.AddDays(-SystemGiftValidDays);
+
             var availableCredits = await _context.Transactions
-                .Where(t => t.UserID == userId && t.PropertyID == null && t.Status == "Success" && t.PackageID != null)
+                .Where(t =>
+                    t.UserID == userId &&
+                    t.PropertyID == null &&
+                    t.Status == "Success" &&
+                    t.PackageID != null &&
+                    t.Quantity > 0)
+                .Where(t =>
+                    !(t.PaymentMethod == "System Gift" && t.Type == "Tặng lượt đăng tin thường") ||
+                    t.CreatedAt >= giftCutoff)
                 .GroupBy(t => t.PackageID)
-                .Select(g => new {
+                .Select(g => new
+                {
                     PackageID = g.Key,
-                    Count = g.Count()
+                    Count = g.Sum(x => x.Quantity),
+                    GiftExpiredAt = g
+                        .Where(x => x.PaymentMethod == "System Gift" && x.Type == "Tặng lượt đăng tin thường")
+                        .Select(x => (DateTime?)x.CreatedAt.AddDays(SystemGiftValidDays))
+                        .OrderBy(x => x)
+                        .FirstOrDefault()
                 })
+                .Where(x => x.Count > 0)
                 .ToListAsync();
 
-            var packageIds = availableCredits.Select(a => a.PackageID).ToList();
-            var packages = await _context.PostServicePackages.Where(p => packageIds.Contains(p.PackageID)).ToListAsync();
+            var packageIds = availableCredits
+                .Where(a => a.PackageID.HasValue)
+                .Select(a => a.PackageID!.Value)
+                .ToList();
 
-            var resultData = availableCredits.Select(a => {
-                var p = packages.First(pkg => pkg.PackageID == a.PackageID);
-                return new
+            var packages = await _context.PostServicePackages
+                .Where(p => packageIds.Contains(p.PackageID) && p.IsActive)
+                .ToListAsync();
+
+            var resultData = availableCredits
+                .Where(a => a.PackageID.HasValue)
+                .Select(a =>
                 {
-                    id = p.PackageID,
-                    name = p.PackageName,
-                    type = p.PackageType,
-                    priority = p.PriorityLevel,
-                    price = p.Price,
-                    availableCount = a.Count.ToString()
-                };
-            }).OrderBy(x => x.priority).ToList();
+                    var p = packages.FirstOrDefault(pkg => pkg.PackageID == a.PackageID!.Value);
 
-            return Json(new { success = true, data = resultData });
+                    if (p == null)
+                    {
+                        return null;
+                    }
+
+                    return new
+                    {
+                        id = p.PackageID,
+                        name = p.PackageName,
+                        type = p.PackageType,
+                        priority = p.PriorityLevel,
+                        price = p.Price,
+                        durationDays = p.DurationDays,
+                        availableCount = a.Count,
+                        giftExpiredAt = a.GiftExpiredAt?.ToString("dd/MM/yyyy"),
+                        note = p.PackageType == "Tin Thường"
+                            ? $"Tin Thường hiển thị tối đa {NormalPropertyVisibleDays} ngày sau khi được duyệt."
+                            : ""
+                    };
+                })
+                .Where(x => x != null)
+                .OrderBy(x => x!.priority)
+                .ToList();
+
+            return Json(new
+            {
+                success = true,
+                data = resultData
+            });
         }
 
         [HttpGet]
@@ -677,6 +985,8 @@ namespace BDSKhanhHoa.Controllers
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdClaim, out int userId)) return RedirectToAction("Login", "Account");
+
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
 
             var currentUser = await _context.Users.FindAsync(userId);
             if (currentUser == null || string.IsNullOrWhiteSpace(currentUser.Phone))
@@ -710,6 +1020,8 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
 
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
+
             var currentUser = await _context.Users.FindAsync(userId);
             if (currentUser == null || string.IsNullOrWhiteSpace(currentUser.Phone))
             {
@@ -732,15 +1044,18 @@ namespace BDSKhanhHoa.Controllers
                 return View(prop);
             }
 
-            var selectedPackage = await _context.PostServicePackages.FindAsync(prop.PackageID);
-            if (selectedPackage == null) return BadRequest("Gói tin không tồn tại.");
+            var selectedPackage = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == prop.PackageID && p.IsActive);
 
-            var creditToUse = await _context.Transactions
-                .Where(t => t.UserID == userId && t.PackageID == selectedPackage.PackageID && t.PropertyID == null && t.Status == "Success")
-                .OrderBy(t => t.CreatedAt)
-                .FirstOrDefaultAsync();
+            if (selectedPackage == null)
+            {
+                TempData["Error"] = "Gói tin không tồn tại hoặc đã ngừng sử dụng.";
+                return RedirectToAction("Create");
+            }
 
-            if (creditToUse == null)
+            int remainingCredits = await GetRemainingPackageCountAsync(userId, selectedPackage.PackageID);
+
+            if (remainingCredits <= 0)
             {
                 TempData["Error"] = "Bạn đã hết lượt đăng tin cho gói này. Vui lòng mua thêm!";
                 return RedirectToAction("Create");
@@ -770,14 +1085,18 @@ namespace BDSKhanhHoa.Controllers
                 prop.Status = "Approved";
                 prop.IsAutoApproved = true;
                 prop.ApprovedAt = DateTime.Now;
-                prop.VipExpiryDate = DateTime.Now.AddDays(selectedPackage.DurationDays);
+                prop.VipExpiryDate = DateTime.Now.AddDays(Math.Max(1, selectedPackage.DurationDays));
                 TempData["Success"] = $"Tin VIP '{selectedPackage.PackageName}' của bạn đã được hệ thống duyệt tự động và hiển thị ngay lập tức!";
             }
             else
             {
                 prop.Status = "Pending";
                 prop.IsAutoApproved = false;
-                TempData["Success"] = $"Đăng tin thành công với gói '{selectedPackage.PackageName}'. Vui lòng chờ quản trị viên kiểm duyệt để được hiển thị.";
+                prop.ApprovedAt = null;
+                prop.VipExpiryDate = null;
+                TempData["Success"] = IsNormalPackage(selectedPackage)
+                    ? $"Đăng tin thành công với gói Tin Thường. Sau khi Admin duyệt, tin sẽ hiển thị tối đa {NormalPropertyVisibleDays} ngày."
+                    : $"Đăng tin thành công với gói '{selectedPackage.PackageName}'. Vui lòng chờ quản trị viên kiểm duyệt để được hiển thị.";
             }
 
             using var dbTransaction = await _context.Database.BeginTransactionAsync();
@@ -786,8 +1105,15 @@ namespace BDSKhanhHoa.Controllers
                 _context.Properties.Add(prop);
                 await _context.SaveChangesAsync();
 
-                creditToUse.PropertyID = prop.PropertyID;
-                _context.Update(creditToUse);
+                bool consumed = await ConsumeOnePackageCreditAsync(userId, selectedPackage.PackageID, prop.PropertyID);
+
+                if (!consumed)
+                {
+                    await dbTransaction.RollbackAsync();
+                    TempData["Error"] = "Ví của bạn không đủ lượt đăng cho gói đã chọn. Vui lòng mua thêm gói.";
+                    return RedirectToAction("Create");
+                }
+
                 await _context.SaveChangesAsync();
 
                 var features = new List<PropertyFeature>();
@@ -873,6 +1199,8 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
 
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
+
             var property = await _context.Properties
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
                 .Include(p => p.PropertyType)
@@ -903,6 +1231,8 @@ namespace BDSKhanhHoa.Controllers
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
 
+            await NormalizePackageAndExpiredPropertiesAsync(userId);
+
             var existingProp = await _context.Properties.FirstOrDefaultAsync(p => p.PropertyID == id && p.UserID == userId && p.IsDeleted == false);
             if (existingProp == null) return NotFound();
 
@@ -923,48 +1253,163 @@ namespace BDSKhanhHoa.Controllers
                 return View(prop);
             }
 
-            var currentPackage = await _context.PostServicePackages.FindAsync(existingProp.PackageID);
-            var newPackage = await _context.PostServicePackages.FindAsync(prop.PackageID);
+            var currentPackage = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == existingProp.PackageID);
 
-            if (currentPackage != null && newPackage != null)
+            var newPackage = await _context.PostServicePackages
+                .FirstOrDefaultAsync(p => p.PackageID == prop.PackageID);
+
+            if (currentPackage == null)
             {
+                prop.MainImage = existingProp.MainImage;
+                prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                await LoadEditViewBags(existingProp);
+                ViewBag.MasterFeatures = await _context.PropertyFeatures
+                    .Where(f => f.PropertyID == null)
+                    .ToListAsync();
+
+                TempData["Error"] = "Không tìm thấy gói hiện tại của tin đăng. Vui lòng liên hệ quản trị viên.";
+                return View(prop);
+            }
+
+            if (newPackage == null)
+            {
+                prop.MainImage = existingProp.MainImage;
+                prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                await LoadEditViewBags(existingProp);
+                ViewBag.MasterFeatures = await _context.PropertyFeatures
+                    .Where(f => f.PropertyID == null)
+                    .ToListAsync();
+
+                TempData["Error"] = "Gói tin bạn chọn không tồn tại hoặc đã ngừng sử dụng.";
+                return View(prop);
+            }
+
+            bool isChangingPackage = existingProp.PackageID != prop.PackageID;
+            bool isUpgradePackage = false;
+
+            // =====================================================
+            // QUY TẮC GÓI KHI SỬA TIN
+            // =====================================================
+            // 1. Sửa nội dung, ảnh, giá, vị trí, mô tả: KHÔNG trừ lượt.
+            // 2. Tin bị tạm dừng / bị từ chối, người bán sửa gửi lại duyệt: KHÔNG trừ lượt nếu giữ nguyên gói.
+            // 3. Chỉ trừ 1 lượt khi đổi sang gói VIP cao hơn.
+            // 4. Không cho hạ VIP.
+            // 5. Không cho đổi ngang sang gói cùng hạng khác.
+            // Lưu ý: PriorityLevel càng nhỏ thì hạng VIP càng cao.
+            // Ví dụ: Kim Cương = 1, Vàng = 2, Bạc = 3, Đồng = 4, Tin Thường = 5.
+            // =====================================================
+
+            if (isChangingPackage)
+            {
+                if (!newPackage.IsActive)
+                {
+                    prop.MainImage = existingProp.MainImage;
+                    prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                    await LoadEditViewBags(existingProp);
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures
+                        .Where(f => f.PropertyID == null)
+                        .ToListAsync();
+
+                    TempData["Error"] = $"Gói '{newPackage.PackageName}' hiện đã ngừng sử dụng, không thể chọn để nâng cấp.";
+                    return View(prop);
+                }
+
                 if (newPackage.PriorityLevel > currentPackage.PriorityLevel)
                 {
                     prop.MainImage = existingProp.MainImage;
                     prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
 
                     await LoadEditViewBags(existingProp);
-                    ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures
+                        .Where(f => f.PropertyID == null)
+                        .ToListAsync();
 
-                    TempData["Error"] = $"Hệ thống không cho phép hạ cấp từ '{currentPackage.PackageName}' xuống '{newPackage.PackageName}'. Vui lòng giữ nguyên hoặc nâng cấp lên gói cao hơn!";
+                    TempData["Error"] =
+                        $"Không được hạ cấp từ '{currentPackage.PackageName}' xuống '{newPackage.PackageName}'. " +
+                        "Bạn chỉ được giữ nguyên gói hiện tại hoặc nâng cấp lên gói VIP cao hơn.";
+
                     return View(prop);
                 }
-            }
 
-            bool isChangingPackage = (existingProp.PackageID != prop.PackageID);
-            bool isResubmittingRejected = (existingProp.Status == "Rejected");
-
-            if (isChangingPackage || isResubmittingRejected)
-            {
-                var newCredit = await _context.Transactions.FirstOrDefaultAsync(t =>
-                    t.UserID == userId && t.PackageID == prop.PackageID && t.PropertyID == null && t.Status == "Success");
-
-                if (newCredit == null)
+                if (newPackage.PriorityLevel == currentPackage.PriorityLevel)
                 {
                     prop.MainImage = existingProp.MainImage;
                     prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
 
                     await LoadEditViewBags(existingProp);
-                    ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
-                    TempData["Error"] = isResubmittingRejected
-                        ? "Tin bị từ chối đã được hoàn lượt về ví. Vui lòng chọn lại gói tin trong ví để nộp lại!"
-                        : $"Ví của bạn không đủ lượt đăng cho gói '{newPackage?.PackageName}'. Vui lòng mua thêm gói.";
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures
+                        .Where(f => f.PropertyID == null)
+                        .ToListAsync();
+
+                    TempData["Error"] =
+                        $"Không được đổi ngang từ '{currentPackage.PackageName}' sang '{newPackage.PackageName}'. " +
+                        "Vui lòng giữ nguyên gói hiện tại hoặc nâng cấp lên gói VIP cao hơn.";
+
                     return View(prop);
                 }
 
-                newCredit.PropertyID = existingProp.PropertyID;
-                _context.Update(newCredit);
-                existingProp.PackageID = prop.PackageID;
+                if (newPackage.PriorityLevel < currentPackage.PriorityLevel)
+                {
+                    isUpgradePackage = true;
+                }
+            }
+
+            if (isUpgradePackage)
+            {
+                int remainingCredits = await GetRemainingPackageCountAsync(userId, newPackage.PackageID);
+
+                if (remainingCredits <= 0)
+                {
+                    prop.MainImage = existingProp.MainImage;
+                    prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                    await LoadEditViewBags(existingProp);
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures
+                        .Where(f => f.PropertyID == null)
+                        .ToListAsync();
+
+                    TempData["Error"] =
+                        $"Ví của bạn không đủ lượt để nâng cấp lên gói '{newPackage.PackageName}'. " +
+                        "Vui lòng mua thêm gói trước khi nâng cấp.";
+
+                    return View(prop);
+                }
+
+                bool consumed = await ConsumeOnePackageCreditAsync(userId, newPackage.PackageID, existingProp.PropertyID);
+
+                if (!consumed)
+                {
+                    prop.MainImage = existingProp.MainImage;
+                    prop.PropertyType = await _context.PropertyTypes.FindAsync(prop.TypeID);
+
+                    await LoadEditViewBags(existingProp);
+                    ViewBag.MasterFeatures = await _context.PropertyFeatures
+                        .Where(f => f.PropertyID == null)
+                        .ToListAsync();
+
+                    TempData["Error"] = "Ví của bạn không đủ lượt để nâng cấp gói. Vui lòng mua thêm gói.";
+                    return View(prop);
+                }
+
+                existingProp.PackageID = newPackage.PackageID;
+
+                if (newPackage.DurationDays > 0)
+                {
+                    existingProp.VipExpiryDate = DateTime.Now.AddDays(newPackage.DurationDays);
+                }
+                else
+                {
+                    existingProp.VipExpiryDate = null;
+                }
+            }
+            else
+            {
+                // Giữ nguyên gói cũ, tuyệt đối không trừ lượt khi chỉ sửa nội dung hoặc gửi lại duyệt.
+                prop.PackageID = existingProp.PackageID;
             }
 
             existingProp.Title = prop.Title;
@@ -998,18 +1443,28 @@ namespace BDSKhanhHoa.Controllers
             existingProp.IsDuplicate = false;
             existingProp.DuplicateReason = null;
 
-            if (isChangingPackage && packageToApplyStatus != null && packageToApplyStatus.DurationDays > 0)
+            if (isUpgradePackage && packageToApplyStatus != null && packageToApplyStatus.DurationDays > 0)
             {
                 existingProp.VipExpiryDate = DateTime.Now.AddDays(packageToApplyStatus.DurationDays);
             }
 
-            if (isDiamondStatus)
+            if (isUpgradePackage)
             {
-                TempData["Success"] = "Đã lưu thay đổi. Vì đây là thao tác chỉnh sửa tin VIP Kim Cương nên tin đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra thủ công.";
+                TempData["Success"] =
+                    $"Đã lưu thay đổi và nâng cấp tin lên gói '{packageToApplyStatus?.PackageName}'. " +
+                    "Hệ thống đã trừ 1 lượt gói nâng cấp từ ví. Tin đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra.";
+            }
+            else if (isDiamondStatus)
+            {
+                TempData["Success"] =
+                    "Đã lưu thay đổi. Hệ thống không trừ thêm lượt gói vì bạn giữ nguyên gói hiện tại. " +
+                    "Tin VIP Kim Cương đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra thủ công.";
             }
             else
             {
-                TempData["Success"] = "Đã lưu thay đổi. Tin đăng của bạn đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra.";
+                TempData["Success"] =
+                    "Đã lưu thay đổi. Hệ thống không trừ thêm lượt gói vì bạn giữ nguyên gói hiện tại. " +
+                    "Tin đăng đã chuyển về trạng thái Chờ duyệt để Admin kiểm tra.";
             }
 
             existingProp.IsDuplicate = false;
@@ -1120,6 +1575,17 @@ namespace BDSKhanhHoa.Controllers
 
             ViewBag.OldFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == property.PropertyID).ToListAsync();
             ViewBag.OldImages = await _context.PropertyImages.Where(i => i.PropertyID == property.PropertyID && i.IsMain == false).ToListAsync();
+            var currentPackage = await _context.PostServicePackages
+         .AsNoTracking()
+         .FirstOrDefaultAsync(p => p.PackageID == property.PackageID);
+
+            ViewBag.CurrentPackageID = property.PackageID;
+            ViewBag.CurrentPackageName = currentPackage?.PackageName ?? "Gói hiện tại";
+            ViewBag.CurrentPackageType = currentPackage?.PackageType ?? "";
+            ViewBag.CurrentPackagePriority = currentPackage?.PriorityLevel ?? 9999;
+            ViewBag.CurrentPackagePrice = currentPackage?.Price ?? 0;
+            ViewBag.CurrentPackageDurationDays = currentPackage?.DurationDays ?? 0;
+
         }
 
         [HttpPost]
@@ -1165,6 +1631,8 @@ namespace BDSKhanhHoa.Controllers
             int.TryParse(userIdClaim, out int currentUserId);
             bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
 
+            await NormalizePackageAndExpiredPropertiesAsync();
+
             var property = await _context.Properties
                 .Include(p => p.PropertyType)
                 .Include(p => p.Ward).ThenInclude(w => w.Area)
@@ -1175,7 +1643,12 @@ namespace BDSKhanhHoa.Controllers
 
             if (property == null) return RedirectToAction("Search");
 
-            bool isPublicVisibleStatus = property.Status == "Approved" || property.Status == "Sold" || property.Status == "Rented";
+            bool isPublicVisibleStatus =
+      property.Status == "Approved" ||
+      property.Status == "Sold" ||
+      property.Status == "Rented" ||
+      property.Status == "Expired";
+
             if (!isPublicVisibleStatus && !isAdminOrStaff && property.UserID != currentUserId)
             {
                 TempData["Error"] = "Tin đăng này đang chờ kiểm duyệt hoặc đã bị ẩn.";
@@ -1226,42 +1699,158 @@ namespace BDSKhanhHoa.Controllers
         // CÁC API TƯƠNG TÁC (ĐÃ FIX: TỰ ĐỘNG SINH THÔNG BÁO)
         // ==========================================
         [HttpPost]
-        public async Task<IActionResult> SubmitReport([FromForm] int propertyId, [FromForm] string reason, [FromForm] string description)
+        public async Task<IActionResult> SubmitReport(
+       [FromForm] int propertyId,
+       [FromForm] string reason,
+       [FromForm] string description)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Bạn cần đăng nhập." });
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return Json(new { success = false, message = "Bạn cần đăng nhập." });
+            }
 
-            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
-            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
-            if (property.Status != "Approved") return Json(new { success = false, message = "Hành động bị từ chối. Tin đăng chưa được duyệt." });
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new { success = false, message = lockCheck.Message });
+            }
 
-            var existingReport = await _context.PropertyReports.FirstOrDefaultAsync(r => r.PropertyID == propertyId && r.ReportedBy == userId && r.Status == "Pending");
-            if (existingReport != null) return Json(new { success = false, message = "Bạn đã báo cáo tin này rồi." });
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                return Json(new { success = false, message = "Vui lòng chọn lý do báo cáo." });
+            }
 
-            _context.PropertyReports.Add(new PropertyReport { PropertyID = propertyId, ReportedBy = userId, Reason = reason, Description = description, Status = "Pending", CreatedAt = DateTime.Now });
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            }
+
+            if (property.UserID == userId)
+            {
+                return Json(new { success = false, message = "Bạn không thể tự báo cáo tin của mình." });
+            }
+
+            var existingReport = await _context.PropertyReports
+                .FirstOrDefaultAsync(r =>
+                    r.PropertyID == propertyId &&
+                    r.ReportedBy == userId &&
+                    r.Status == "Pending");
+
+            if (existingReport != null)
+            {
+                return Json(new { success = false, message = "Bạn đã báo cáo tin này rồi. Vui lòng chờ Admin xử lý." });
+            }
+
+            _context.PropertyReports.Add(new PropertyReport
+            {
+                PropertyID = propertyId,
+                ReportedBy = userId,
+                Reason = reason.Trim(),
+                Description = description?.Trim(),
+                Status = "Pending",
+                CreatedAt = DateTime.Now
+            });
+
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Gửi báo cáo thành công!" });
+
+            return Json(new { success = true, message = "Gửi báo cáo thành công. Cảm ơn bạn đã hỗ trợ hệ thống kiểm duyệt nội dung." });
         }
 
+        private async Task<(bool IsLocked, string Message)> CheckPropertyInteractionLockedAsync(int propertyId)
+        {
+            await NormalizePackageAndExpiredPropertiesAsync();
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                return (true, "Tin đăng không tồn tại hoặc đã bị xóa.");
+            }
+
+            if (property.Status == "Sold")
+            {
+                return (true, "Tin đăng này đã bán nên hệ thống đã khóa toàn bộ thao tác.");
+            }
+
+            if (property.Status == "Rented")
+            {
+                return (true, "Tin đăng này đã cho thuê nên hệ thống đã khóa toàn bộ thao tác.");
+            }
+
+            if (property.Status == "Expired")
+            {
+                return (true, "Tin đăng này đã hết hạn hiển thị nên hệ thống đã khóa toàn bộ thao tác.");
+            }
+
+            if (property.Status != "Approved")
+            {
+                return (true, "Tin đăng chưa được duyệt hoặc đang bị tạm ẩn nên không thể thao tác.");
+            }
+
+            return (false, "");
+        }
         [HttpPost]
-        public async Task<IActionResult> BookAppointment([FromForm] int propertyId, [FromForm] string customerName, [FromForm] string customerPhone, [FromForm] string meetingLocation, [FromForm] DateTime appointmentDate, [FromForm] string note)
+        public async Task<IActionResult> BookAppointment(
+        [FromForm] int propertyId,
+        [FromForm] string customerName,
+        [FromForm] string customerPhone,
+        [FromForm] string meetingLocation,
+        [FromForm] DateTime appointmentDate,
+        [FromForm] string note)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            }
 
-            if (string.IsNullOrWhiteSpace(customerPhone) || customerPhone.Trim().Length != 10)
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new { success = false, message = lockCheck.Message });
+            }
+
+            if (string.IsNullOrWhiteSpace(customerName))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập họ tên người đặt lịch." });
+            }
+
+            if (string.IsNullOrWhiteSpace(customerPhone) || customerPhone.Trim().Length != 10 || !customerPhone.Trim().All(char.IsDigit))
+            {
                 return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
+            }
 
-            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (string.IsNullOrWhiteSpace(meetingLocation))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập địa điểm hẹn." });
+            }
+
+            if (appointmentDate <= DateTime.Now)
+            {
+                return Json(new { success = false, message = "Thời gian hẹn phải lớn hơn thời gian hiện tại." });
+            }
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
             if (property == null)
+            {
                 return Json(new { success = false, message = "Không tìm thấy bất động sản." });
-            if (IsLockedProperty(property))
-                return Json(new { success = false, message = GetLockedPropertyMessage(property) });
-            if (property.Status != "Approved")
-                return Json(new { success = false, message = "Bất động sản này đang chờ duyệt hoặc đã bị ẩn." });
+            }
 
-            // 1. Lưu lịch hẹn
+            if (property.UserID == userId)
+            {
+                return Json(new { success = false, message = "Bạn không thể tự đặt lịch xem tin của mình." });
+            }
+
             _context.Appointments.Add(new Appointment
             {
                 PropertyID = propertyId,
@@ -1269,52 +1858,75 @@ namespace BDSKhanhHoa.Controllers
                 SellerID = property.UserID,
                 CustomerName = customerName.Trim(),
                 CustomerPhone = customerPhone.Trim(),
-                MeetingLocation = meetingLocation?.Trim(),
+                MeetingLocation = meetingLocation.Trim(),
                 AppointmentDate = appointmentDate,
                 Note = note ?? "",
                 Status = "Pending",
                 CreatedAt = DateTime.Now
             });
 
-            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
             _context.Notifications.Add(new Notification
             {
                 UserID = property.UserID,
                 Title = "Lịch hẹn xem nhà mới",
-                Content = $"Khách hàng {customerName} ({customerPhone}) vừa đặt lịch hẹn xem bất động sản '{property.Title}' vào lúc {appointmentDate:HH:mm dd/MM/yyyy}.",
+                Content = $"Khách hàng {customerName.Trim()} ({customerPhone.Trim()}) vừa đặt lịch hẹn xem bất động sản '{property.Title}' vào lúc {appointmentDate:HH:mm dd/MM/yyyy}.",
                 ActionUrl = "/Appointments/Index",
-                ActionText = "Xem lịch hẹn",
+                ActionText = "Xem chi tiết",
                 IsRead = false,
                 CreatedAt = DateTime.Now
             });
 
             await _context.SaveChangesAsync();
+
             return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp thành công!" });
         }
-
         [HttpPost]
         [AllowAnonymous]
-        public async Task<IActionResult> SubmitConsultation([FromForm] int propertyId, [FromForm] string fullName, [FromForm] string phone, [FromForm] string email, [FromForm] string note)
+        public async Task<IActionResult> SubmitConsultation(
+        [FromForm] int propertyId,
+        [FromForm] string fullName,
+        [FromForm] string phone,
+        [FromForm] string email,
+        [FromForm] string note)
         {
-            if (string.IsNullOrWhiteSpace(phone) || phone.Trim().Length != 10)
-                return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new { success = false, message = lockCheck.Message });
+            }
 
-            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
+            if (string.IsNullOrWhiteSpace(fullName))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập họ tên." });
+            }
+
+            if (string.IsNullOrWhiteSpace(phone) || phone.Trim().Length != 10 || !phone.Trim().All(char.IsDigit))
+            {
+                return Json(new { success = false, message = "Số điện thoại không hợp lệ. Vui lòng nhập đúng 10 số." });
+            }
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
             if (property == null)
+            {
                 return Json(new { success = false, message = "Không tìm thấy bất động sản." });
-            if (IsLockedProperty(property))
-                return Json(new { success = false, message = GetLockedPropertyMessage(property) });
-            if (property.Status != "Approved")
-                return Json(new { success = false, message = "Bất động sản này không khả dụng." });
+            }
 
             int? senderId = null;
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int parsedId))
             {
                 senderId = parsedId;
+
+                if (property.UserID == parsedId)
+                {
+                    return Json(new { success = false, message = "Bạn không thể tự gửi yêu cầu tư vấn cho tin của mình." });
+                }
             }
 
-            // 1. Lưu yêu cầu tư vấn
             _context.Consultations.Add(new Consultation
             {
                 PropertyID = propertyId,
@@ -1327,12 +1939,11 @@ namespace BDSKhanhHoa.Controllers
                 CreatedAt = DateTime.Now
             });
 
-            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
             _context.Notifications.Add(new Notification
             {
                 UserID = property.UserID,
                 Title = "Yêu cầu tư vấn mới",
-                Content = $"Khách hàng {fullName} ({phone}) đang quan tâm và cần tư vấn về bất động sản '{property.Title}'.",
+                Content = $"Khách hàng {fullName.Trim()} ({phone.Trim()}) đang quan tâm và cần tư vấn về bất động sản '{property.Title}'.",
                 ActionUrl = "/Consultations/Index",
                 ActionText = "Xem chi tiết",
                 IsRead = false,
@@ -1340,55 +1951,134 @@ namespace BDSKhanhHoa.Controllers
             });
 
             await _context.SaveChangesAsync();
+
             return Json(new { success = true, message = "Đã gửi thông tin tư vấn!" });
+        }
+        [HttpPost]
+        public async Task<IActionResult> SubmitComment(
+        [FromForm] int propertyId,
+        [FromForm] string content)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            }
+
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new { success = false, message = lockCheck.Message });
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return Json(new { success = false, message = "Nội dung bình luận không được để trống." });
+            }
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            }
+
+            _context.Comments.Add(new Comment
+            {
+                PropertyID = propertyId,
+                UserID = userId,
+                Content = content.Trim(),
+                CreatedAt = DateTime.Now,
+                IsHidden = true
+            });
+
+            if (property.UserID != userId)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserID = property.UserID,
+                    Title = "Bình luận mới trên tin đăng",
+                    Content = $"Một khách hàng vừa để lại bình luận trên bất động sản '{property.Title}' của bạn. Vui lòng kiểm tra và phản hồi.",
+                    ActionUrl = $"/Property/Details/{propertyId}",
+                    ActionText = "Xem bình luận",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, message = "Bình luận đã gửi và đang chờ duyệt." });
         }
 
         [HttpPost]
-        public async Task<IActionResult> SubmitComment([FromForm] int propertyId, [FromForm] string content)
+        public async Task<IActionResult> SendMessage(
+       [FromForm] int receiverId,
+       [FromForm] int propertyId,
+       [FromForm] string messageContent)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            if (string.IsNullOrWhiteSpace(content)) return Json(new { success = false, message = "Nội dung trống." });
+            if (!int.TryParse(userIdStr, out int senderId))
+            {
+                return Json(new { success = false, message = "Vui lòng đăng nhập." });
+            }
 
-            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
-            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
-            if (property.Status != "Approved") return Json(new { success = false, message = "Không thể bình luận vào tin chưa được duyệt." });
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new { success = false, message = lockCheck.Message });
+            }
 
-            // 1. Lưu bình luận
-            _context.Comments.Add(new Comment { PropertyID = propertyId, UserID = userId, Content = content, CreatedAt = DateTime.Now, IsHidden = true });
+            if (senderId == receiverId)
+            {
+                return Json(new { success = false, message = "Không thể tự nhắn cho mình." });
+            }
 
-            // 2. TẠO THÔNG BÁO CHO CHỦ NHÀ
+            if (string.IsNullOrWhiteSpace(messageContent))
+            {
+                return Json(new { success = false, message = "Vui lòng nhập nội dung tin nhắn." });
+            }
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                return Json(new { success = false, message = "Không tìm thấy tin đăng." });
+            }
+
+            if (property.UserID != receiverId)
+            {
+                return Json(new { success = false, message = "Người nhận không khớp với chủ tin đăng." });
+            }
+
+            _context.UserMessages.Add(new UserMessage
+            {
+                SenderID = senderId,
+                ReceiverID = receiverId,
+                PropertyID = propertyId,
+                MessageContent = messageContent.Trim(),
+                IsRead = false,
+                CreatedAt = DateTime.Now
+            });
+
             _context.Notifications.Add(new Notification
             {
-                UserID = property.UserID,
-                Title = "Bình luận mới trên tin đăng",
-                Content = $"Một khách hàng vừa để lại bình luận trên bất động sản '{property.Title}' của bạn. Vui lòng kiểm tra và phản hồi.",
-                ActionUrl = $"/Property/Details/{propertyId}",
-                ActionText = "Xem bình luận",
+                UserID = receiverId,
+                Title = "Tin nhắn mới",
+                Content = $"Bạn có tin nhắn mới liên quan đến bất động sản '{property.Title}'.",
+                ActionUrl = "/UserMessages/Index",
+                ActionText = "Xem tin nhắn",
                 IsRead = false,
                 CreatedAt = DateTime.Now
             });
 
             await _context.SaveChangesAsync();
-            return Json(new { success = true, message = "Bình luận đã gửi." });
-        }
-        [HttpPost]
-        public async Task<IActionResult> SendMessage([FromForm] int receiverId, [FromForm] int propertyId, [FromForm] string messageContent)
-        {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int senderId)) return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            if (senderId == receiverId) return Json(new { success = false, message = "Không thể tự nhắn cho mình." });
 
-            var property = await _context.Properties.AsNoTracking().FirstOrDefaultAsync(p => p.PropertyID == propertyId);
-            if (property == null) return Json(new { success = false, message = "Không tìm thấy tin đăng." });
-            if (IsLockedProperty(property)) return Json(new { success = false, message = GetLockedPropertyMessage(property) });
-            if (property.Status != "Approved") return Json(new { success = false, message = "Tin đăng chưa duyệt, không thể chat." });
-
-            _context.UserMessages.Add(new UserMessage { SenderID = senderId, ReceiverID = receiverId, PropertyID = propertyId, MessageContent = messageContent, IsRead = false, CreatedAt = DateTime.Now });
-            await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Tin nhắn đã gửi!" });
         }
-
     }
 }

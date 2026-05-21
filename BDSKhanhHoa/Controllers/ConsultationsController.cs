@@ -104,6 +104,9 @@ namespace BDSKhanhHoa.Controllers
         {
             message = string.Empty;
 
+            currentStatus = string.IsNullOrWhiteSpace(currentStatus) ? StatusNew : currentStatus;
+            newStatus = string.IsNullOrWhiteSpace(newStatus) ? StatusNew : newStatus;
+
             if (currentStatus == StatusCancelled)
             {
                 message = "Khách đã hủy yêu cầu. Lead này đã khóa xử lý, bạn chỉ có thể xem lại.";
@@ -112,7 +115,7 @@ namespace BDSKhanhHoa.Controllers
 
             if (currentStatus == StatusClosed)
             {
-                message = "Lead đã chốt thành công nên không được lùi hoặc chuyển sang trạng thái khác.";
+                message = "Lead đã hoàn tất tư vấn nên không được lùi hoặc chuyển sang trạng thái khác.";
                 return false;
             }
 
@@ -129,7 +132,7 @@ namespace BDSKhanhHoa.Controllers
                     return true;
                 }
 
-                message = "Lead mới chỉ được giữ Mới, chuyển sang Đã gọi hoặc đánh dấu Spam.";
+                message = "Lead mới chỉ được giữ trạng thái Mới, chuyển sang Đã gọi hoặc đánh dấu Spam.";
                 return false;
             }
 
@@ -140,12 +143,34 @@ namespace BDSKhanhHoa.Controllers
                     return true;
                 }
 
-                message = "Lead đã gọi không được lùi về Mới. Chỉ được giữ Đã gọi, chuyển sang Đã chốt hoặc Spam.";
+                message = "Lead đã gọi không được lùi về Mới. Chỉ được giữ Đã gọi, chuyển sang Hoàn tất tư vấn hoặc Spam.";
                 return false;
             }
 
             message = "Trạng thái hiện tại không hợp lệ.";
             return false;
+        }
+        private static bool IsSellerNoteRequired(string currentStatus, string newStatus)
+        {
+            if (currentStatus == newStatus)
+            {
+                return false;
+            }
+
+            return newStatus == StatusContacted
+                || newStatus == StatusClosed
+                || newStatus == StatusSpam;
+        }
+
+        private static string GetRequiredNoteMessage(string newStatus)
+        {
+            return newStatus switch
+            {
+                StatusContacted => "Vui lòng nhập ghi chú ngắn sau khi đã gọi hoặc tiếp nhận khách.",
+                StatusClosed => "Vui lòng nhập ghi chú kết quả trước khi hoàn tất tư vấn.",
+                StatusSpam => "Vui lòng nhập lý do khi đánh dấu lead là Spam/Rác.",
+                _ => "Vui lòng nhập ghi chú chăm sóc."
+            };
         }
 
         private async Task<bool> UserCanManageConsultationAsync(Consultation consultation, int currentUserId)
@@ -541,6 +566,8 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Vui lòng đăng nhập để tiếp tục." });
             }
 
+            newStatus = CleanText(newStatus, 50);
+
             if (!IsSellerAllowedStatus(newStatus))
             {
                 return Json(new
@@ -564,7 +591,9 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Bạn không có quyền thao tác trên lead này." });
             }
 
-            string currentStatus = string.IsNullOrWhiteSpace(consultation.Status) ? StatusNew : consultation.Status;
+            string currentStatus = string.IsNullOrWhiteSpace(consultation.Status)
+                ? StatusNew
+                : consultation.Status;
 
             if (!CanChangeLeadStatus(currentStatus, newStatus, out string blockMessage))
             {
@@ -576,6 +605,25 @@ namespace BDSKhanhHoa.Controllers
             }
 
             string cleanSellerNote = CleanText(sellerNote, 3000);
+            bool statusChanged = currentStatus != newStatus;
+
+            if (IsSellerNoteRequired(currentStatus, newStatus) && string.IsNullOrWhiteSpace(cleanSellerNote))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = GetRequiredNoteMessage(newStatus)
+                });
+            }
+
+            if (!statusChanged && string.IsNullOrWhiteSpace(cleanSellerNote))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng nhập ghi chú nếu bạn muốn cập nhật lead mà không đổi trạng thái."
+                });
+            }
 
             consultation.Status = newStatus;
 
@@ -586,7 +634,7 @@ namespace BDSKhanhHoa.Controllers
 
             consultation.UpdatedAt = DateTime.Now;
 
-            if (consultation.SenderID.HasValue)
+            if (statusChanged && consultation.SenderID.HasValue)
             {
                 string buyerMessage = newStatus switch
                 {
@@ -613,10 +661,22 @@ namespace BDSKhanhHoa.Controllers
 
             await _context.SaveChangesAsync();
 
+            string successMessage = !statusChanged
+                ? "Đã lưu thêm ghi chú chăm sóc. Trạng thái lead được giữ nguyên."
+                : newStatus switch
+                {
+                    StatusContacted => "Đã cập nhật: Lead đã được tiếp nhận/gọi điện.",
+                    StatusClosed => "Đã cập nhật: Lead đã hoàn tất tư vấn.",
+                    StatusSpam => "Đã cập nhật: Lead đã được đánh dấu Spam/Rác.",
+                    _ => "Đã cập nhật trạng thái chăm sóc khách hàng."
+                };
+
             return Json(new
             {
                 success = true,
-                message = "Đã cập nhật trạng thái chăm sóc khách hàng."
+                message = successMessage,
+                processedAt = consultation.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy"),
+                status = consultation.Status
             });
         }
         // ==========================================================
@@ -695,6 +755,32 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Bạn không có quyền xem lead này." });
             }
 
+            string status = string.IsNullOrWhiteSpace(c.Status) ? StatusNew : c.Status;
+
+            string sourceTitle = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định";
+            string sourceType = c.Property != null ? "Nhà đất" : c.Project != null ? "Dự án" : "Không xác định";
+
+            string sourceUrl = "#";
+
+            if (c.PropertyID.HasValue)
+            {
+                sourceUrl = "/Property/Details/" + c.PropertyID.Value;
+            }
+            else if (c.ProjectID.HasValue)
+            {
+                sourceUrl = "/Project/Details/" + c.ProjectID.Value;
+            }
+
+            string nextAction = status switch
+            {
+                StatusNew => "Cần gọi khách hoặc tiếp nhận lead.",
+                StatusContacted => "Đang theo dõi. Có thể lưu thêm ghi chú, hoàn tất tư vấn hoặc đánh dấu Spam nếu không phù hợp.",
+                StatusClosed => "Lead đã hoàn tất tư vấn và bị khóa xử lý.",
+                StatusSpam => "Lead đã đánh dấu Spam/Rác và bị khóa xử lý.",
+                StatusCancelled => "Khách đã tự hủy yêu cầu, chỉ được xem lại.",
+                _ => "Cần kiểm tra trạng thái lead."
+            };
+
             return Json(new
             {
                 success = true,
@@ -706,11 +792,13 @@ namespace BDSKhanhHoa.Controllers
                     email = string.IsNullOrWhiteSpace(c.Email) ? "Không có" : c.Email,
                     note = string.IsNullOrWhiteSpace(c.Note) ? "Không có lời nhắn" : c.Note,
                     sellerNote = c.SellerNote ?? "",
-                    sourceTitle = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định",
-                    sourceType = c.Property != null ? "Nhà đất" : c.Project != null ? "Dự án" : "Không xác định",
+                    sourceTitle = sourceTitle,
+                    sourceType = sourceType,
+                    sourceUrl = sourceUrl,
                     createdAt = c.CreatedAt.ToString("HH:mm - dd/MM/yyyy"),
-                    updatedAt = c.UpdatedAt.HasValue ? c.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy") : "Chưa cập nhật",
-                    status = c.Status
+                    updatedAt = c.UpdatedAt.HasValue ? c.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy") : "Chưa xử lý",
+                    status = status,
+                    nextAction = nextAction
                 }
             });
         }

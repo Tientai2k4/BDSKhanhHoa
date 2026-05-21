@@ -79,6 +79,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.DuplicateCount = await _context.Properties.CountAsync(p => p.IsDuplicate && p.IsDeleted == false);
             ViewBag.SoldCount = await _context.Properties.CountAsync(p => p.Status == "Sold" && p.IsDeleted == false);
             ViewBag.RentedCount = await _context.Properties.CountAsync(p => p.Status == "Rented" && p.IsDeleted == false);
+            ViewBag.ExpiredCount = await _context.Properties.CountAsync(p => p.Status == "Expired" && p.IsDeleted == false);
 
             return View("Index", properties);
         }
@@ -103,6 +104,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     p.Status != "Deleted" &&
                     p.Status != "Sold" &&
                     p.Status != "Rented" &&
+                    p.Status != "Expired" &&
                     p.CreatedAt >= duplicateFrom)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
@@ -146,6 +148,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     p.Status != "Deleted" &&
                     p.Status != "Sold" &&
                     p.Status != "Rented" &&
+                    p.Status != "Expired" &&
                     p.CreatedAt >= duplicateFrom)
                 .OrderByDescending(p => p.CreatedAt)
                 .Take(80)
@@ -245,7 +248,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return RedirectBackToIndex();
             }
 
-            if (property.Status == "Sold" || property.Status == "Rented")
+            if (property.Status == "Sold" || property.Status == "Rented" || property.Status == "Expired")
             {
                 TempData["Error"] = "Tin đã bán hoặc đã cho thuê, không thể duyệt hoặc từ chối lại.";
                 return RedirectBackToIndex();
@@ -270,9 +273,20 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 property.IsDuplicate = false;
                 property.DuplicateReason = null;
 
-                if (property.PostServicePackage != null && property.PostServicePackage.DurationDays > 0)
+                if (property.PostServicePackage != null)
                 {
-                    property.VipExpiryDate = DateTime.Now.AddDays(property.PostServicePackage.DurationDays);
+                    if (property.PostServicePackage.PackageType == "Tin Thường")
+                    {
+                        property.VipExpiryDate = DateTime.Now.AddDays(30);
+                    }
+                    else if (property.PostServicePackage.DurationDays > 0)
+                    {
+                        property.VipExpiryDate = DateTime.Now.AddDays(property.PostServicePackage.DurationDays);
+                    }
+                    else
+                    {
+                        property.VipExpiryDate = null;
+                    }
                 }
 
                 _context.Notifications.Add(new Notification
@@ -371,7 +385,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return RedirectBackToIndex();
             }
 
-            if (property.Status == "Sold" || property.Status == "Rented")
+            if (property.Status == "Sold" || property.Status == "Rented" || property.Status == "Expired")
             {
                 TempData["Error"] = "Tin đã bán hoặc đã cho thuê, không thể gửi cảnh báo trùng lặp.";
                 return RedirectBackToIndex();
@@ -1054,7 +1068,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         private static bool IsLockedProperty(Property? property)
         {
             return property != null &&
-                   (property.Status == "Sold" || property.Status == "Rented");
+                   (property.Status == "Sold" || property.Status == "Rented" || property.Status == "Expired");
         }
 
         private static string GetLockedPropertyMessage(Property property)
@@ -1073,6 +1087,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 "Rejected" => "Bị từ chối",
                 "Sold" => "Đã bán",
                 "Rented" => "Đã cho thuê",
+                "Expired" => "Tin hết hạn",
                 "Deleted" => "Đã xóa",
                 null or "" => "Chưa xác định",
                 _ => status

@@ -6,7 +6,9 @@
 
         public int UserId { get; set; }
 
-        // Dùng để gửi thông tin tin BĐS hiện tại nếu khách đang xem trang chi tiết
+        // Frontend gửi ngữ cảnh trang hiện tại vào đây.
+        // Ví dụ khi khách đang xem chi tiết BĐS:
+        // Tiêu đề, giá, diện tích, vị trí, loại BĐS...
         public string? PageContext { get; set; }
     }
 }

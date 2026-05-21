@@ -150,12 +150,27 @@
     string mainImage = galleryImages.FirstOrDefault() ?? "/images/no-image.jpg";
     var totalImages = galleryImages.Count;
 
-    bool isLockedProperty = Model.Status == "Sold" || Model.Status == "Rented";
-    string lockedTitle = Model.Status == "Sold" ? "TIN ĐÃ BÁN" : "TIN ĐÃ CHO THUÊ";
-    string lockedMessage = Model.Status == "Sold"
-        ? "Bất động sản này đã bán thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa."
-        : "Bất động sản này đã cho thuê thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.";
+    bool isExpiredProperty = Model.Status == "Expired";
+    bool isLockedProperty = Model.Status == "Sold" || Model.Status == "Rented" || Model.Status == "Expired";
+
+    string lockedTitle = Model.Status switch
+    {
+        "Sold" => "TIN ĐÃ BÁN",
+        "Rented" => "TIN ĐÃ CHO THUÊ",
+        "Expired" => "TIN ĐÃ HẾT HẠN",
+        _ => "TIN ĐANG BỊ KHÓA"
+    };
+
+    string lockedMessage = Model.Status switch
+    {
+        "Sold" => "Bất động sản này đã bán thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.",
+        "Rented" => "Bất động sản này đã cho thuê thành công. Hệ thống đã khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.",
+        "Expired" => "Tin đăng này đã hết hạn hiển thị. Hệ thống chỉ cho xem thông tin lưu trữ và khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.",
+        _ => "Tin đăng này đang bị khóa thao tác."
+    };
 }
+
+
 
 <meta name="chatbot-property-title" content="@Model.Title" />
 <meta name="chatbot-context" content="Khách hàng đang trực tiếp xem BĐS có ID: @Model.PropertyID. Tiêu đề: '@Model.Title'. Loại hình: @(isRent ? "Cho thuê" : "Bán") - @Model.PropertyType?.TypeName. Giá: @priceDisplay. Diện tích: @Model.AreaSize m2. Vị trí: @fullAddress. Phòng ngủ: @(bed ?? "0"). Phòng tắm: @(bath ?? "0"). Pháp lý: @(legal ?? "Chưa cập nhật"). Tiện ích: @(amenities ?? "Không có"). Mô tả từ chủ nhà: @Model.Description." />
@@ -1537,6 +1552,131 @@
         background: linear-gradient(135deg, #dc2626, #ef4444) !important;
     }
 
+    .pd-locked-detail-alert {
+        border: 1px solid #fecaca;
+        background: linear-gradient(135deg, #fff1f2, #fff7ed);
+        color: #991b1b;
+        border-radius: 22px;
+        padding: 18px;
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        box-shadow: 0 10px 26px rgba(153, 27, 27, .08);
+    }
+
+        .pd-locked-detail-alert.pd-locked-expired {
+            border-color: #fed7aa;
+            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+            color: #9a3412;
+        }
+
+    .pd-locked-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        background: rgba(239, 68, 68, .12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.25rem;
+    }
+
+    .pd-locked-expired .pd-locked-icon {
+        background: rgba(245, 158, 11, .14);
+    }
+
+    .pd-locked-content h5 {
+        margin: 0 0 5px;
+        font-weight: 950;
+        letter-spacing: -.02em;
+    }
+
+    .pd-locked-content p {
+        margin: 0;
+        font-weight: 750;
+        line-height: 1.55;
+    }
+
+    .pd-locked-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.7);
+        border: 1px solid rgba(251, 146, 60, .35);
+        font-size: .88rem;
+        font-weight: 800;
+    }
+
+    .pd-locked-disabled {
+        pointer-events: none !important;
+        opacity: .55 !important;
+        filter: grayscale(.2);
+    }
+
+    .pd-locked-detail-alert {
+        border: 1px solid #fecaca;
+        background: linear-gradient(135deg, #fff1f2, #fff7ed);
+        color: #991b1b;
+        border-radius: 22px;
+        padding: 18px;
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        box-shadow: 0 10px 26px rgba(153, 27, 27, .08);
+    }
+
+        .pd-locked-detail-alert.pd-locked-expired {
+            border-color: #fed7aa;
+            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+            color: #9a3412;
+        }
+
+    .pd-locked-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        background: rgba(239, 68, 68, .12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.25rem;
+    }
+
+    .pd-locked-expired .pd-locked-icon {
+        background: rgba(245, 158, 11, .14);
+    }
+
+    .pd-locked-content h5 {
+        margin: 0 0 5px;
+        font-weight: 950;
+        letter-spacing: -.02em;
+    }
+
+    .pd-locked-content p {
+        margin: 0;
+        font-weight: 750;
+        line-height: 1.55;
+    }
+
+    .pd-locked-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.7);
+        border: 1px solid rgba(251, 146, 60, .35);
+        font-size: .88rem;
+        font-weight: 800;
+    }
+
+    .pd-locked-disabled {
+        pointer-events: none !important;
+        opacity: .55 !important;
+        filter: grayscale(.25);
+    }
+
+
 </style>
 
 <div class="pd-breadcrumb">
@@ -1554,7 +1694,31 @@
         </div>
     </div>
 </div>
+@if (isLockedProperty)
+{
+    <div class="container py-3">
+        <div class="pd-locked-detail-alert @(isExpiredProperty ? "pd-locked-expired" : "")">
+            <div class="pd-locked-icon">
+                <i class="bi @(isExpiredProperty ? "bi-clock-history" : "bi-lock-fill")"></i>
+            </div>
 
+            <div class="pd-locked-content">
+                <h5>@lockedTitle</h5>
+                <p>@lockedMessage</p>
+
+                @if (Model.Status == "Expired")
+                {
+                    <div class="pd-locked-note">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        @(string.IsNullOrWhiteSpace(Model.RejectionReason)
+                                        ? "Tin đã hết hạn hiển thị. Chủ tin cần đăng tin mới hoặc mua/gia hạn gói hiển thị mới nếu muốn tiếp tục quảng bá."
+                                        : Model.RejectionReason)
+            </div>
+                        }
+            </div>
+        </div>
+    </div>
+}
 <div class="pd-page">
     <div class="container my-4">
         @if (isLockedProperty)
@@ -2072,8 +2236,15 @@
                             @if (isLockedProperty)
                             {
                                 <div class="pd-locked-small-box">
-                                    <i class="bi bi-lock-fill me-1"></i>
-                                    Tin đã hoàn tất giao dịch. Mọi chức năng liên hệ, chat, đặt lịch, lưu tin, báo cáo và bình luận đã bị khóa.
+                                    <i class="bi @(isExpiredProperty ? "bi-clock-history" : "bi-lock-fill") me-1"></i>
+                                    @if (isExpiredProperty)
+                                    {
+                                        <span>Tin đã hết hạn hiển thị. Hệ thống chỉ cho xem thông tin lưu trữ và khóa toàn bộ thao tác.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Tin đã hoàn tất giao dịch. Mọi chức năng liên hệ, chat, đặt lịch, lưu tin, báo cáo và bình luận đã bị khóa.</span>
+                                    }
                                 </div>
                             }
 
@@ -2520,8 +2691,10 @@
             }
         }
 
-        async function submitReply(parentId) {
-            const input = document.getElementById('replyContent_' + parentId);
+          async function submitReply(parentId) {
+        if (guardLockedAction()) return;
+
+        const input = document.getElementById('replyContent_' + parentId);
             const content = input?.value.trim();
 
             if (!content) {
@@ -2624,9 +2797,11 @@
         const btnCopyPh = document.getElementById('btnCopyPh');
         const fullPhone = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.User?.Phone ?? ""));
 
-        if (btnReveal) {
-            btnReveal.addEventListener('click', function () {
-                if (!fullPhone) {
+           if (btnReveal) {
+        btnReveal.addEventListener('click', function () {
+            if (guardLockedAction()) return;
+
+            if (!fullPhone) {
                     showToast('Người dùng chưa cập nhật số điện thoại', 'info');
                     return;
                 }
@@ -2642,8 +2817,9 @@
         }
 
         if (btnCopyPh) {
-            btnCopyPh.addEventListener('click', function () {
-                if (!fullPhone) return;
+         btnCopyPh.addEventListener('click', function () {
+             if (guardLockedAction()) return;
+             if (!fullPhone) return;
 
                 navigator.clipboard.writeText(fullPhone).then(() => {
                     this.innerHTML = '<i class="bi bi-check2-all"></i>';

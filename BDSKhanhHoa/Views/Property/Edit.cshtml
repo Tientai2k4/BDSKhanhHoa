@@ -1,7 +1,4 @@
 ﻿@model BDSKhanhHoa.Models.Property
-@{
-    ViewData["Title"] = "Chỉnh sửa tin đăng";
-    Layout = "~/Views/Shared/_UserLayout.cshtml";
 @functions {
     private string HienThiTrangThai(string? status)
     {
@@ -12,6 +9,7 @@
             "Rejected" => "Bị từ chối",
             "Sold" => "Đã bán",
             "Rented" => "Đã cho thuê",
+            "Expired" => "Tin hết hạn",
             "Draft" => "Bản nháp",
             null or "" => "Chưa xác định",
             _ => status
@@ -27,10 +25,14 @@
             "Rejected" => "status-rejected",
             "Sold" => "status-sold",
             "Rented" => "status-rented",
+            "Expired" => "status-expired",
             _ => "status-unknown"
         };
     }
 }
+@{
+    ViewData["Title"] = "Chỉnh sửa tin đăng";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
     var oldFeatures = ViewBag.OldFeatures as List<BDSKhanhHoa.Models.PropertyFeature> ?? new List<BDSKhanhHoa.Models.PropertyFeature>();
 
     var bed = oldFeatures.FirstOrDefault(f => f.FeatureName == "Phòng ngủ")?.FeatureValue;
@@ -92,7 +94,8 @@
     }
 
     .status-sold,
-    .status-rented {
+    .status-rented,
+    .status-expired {
         border-color: #cbd5e1 !important;
         background: #f8fafc !important;
         color: #334155 !important;
@@ -103,6 +106,7 @@
         background: #f8fafc !important;
         color: #64748b !important;
     }
+
     .property-edit-hero {
         display: flex;
         align-items: center;
@@ -980,8 +984,11 @@
 
                             <div class="alert alert-info bg-opacity-10 border-info border-opacity-25 small mb-3 p-3 rounded-4">
                                 <i class="bi bi-info-circle-fill text-info me-1"></i>
-                                Gói cũ đã được sử dụng. Đổi gói tin sẽ trừ 1 lượt mới từ ví.
-                                <strong class="text-danger">Không hoàn trả lượt cũ.</strong>
+                                Khi chỉ sửa nội dung tin hoặc gửi lại duyệt, hệ thống <strong>không trừ thêm lượt gói</strong>.
+                                Chỉ khi bạn chủ động <strong>nâng cấp lên gói VIP cao hơn</strong>, hệ thống mới trừ 1 lượt từ ví.
+                                <div class="mt-1 text-danger fw-bold">
+                                    Không được hạ VIP xuống gói thấp hơn hoặc đổi ngang sang gói cùng hạng khác.
+                                </div>
                             </div>
 
                             <select asp-for="PackageID" id="packageSelect" class="form-select form-select-lg border-primary shadow-sm mb-3 fw-bold text-primary" required>
@@ -1010,6 +1017,7 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
         // ==========================================
@@ -1019,197 +1027,264 @@
         const subTypeSelect = document.getElementById('subTypeSelect');
 
         function filterSubTypes(parentId) {
+            if (!subTypeSelect) return;
+
             let oldSelected = subTypeSelect.value;
             subTypeSelect.innerHTML = '<option value="">-- Chọn loại bất động sản --</option>';
-            const filteredTypes = subTypesData.filter(t => t.ParentID == parentId);
+
+            const filteredTypes = subTypesData.filter(t => String(t.ParentID) === String(parentId));
 
             filteredTypes.forEach(t => {
                 let opt = new Option(t.TypeName, t.TypeID);
-                if(t.TypeID == oldSelected) opt.selected = true;
+                if (String(t.TypeID) === String(oldSelected)) opt.selected = true;
                 subTypeSelect.add(opt);
             });
         }
 
         async function loadWards(areaId) {
             const wardSelect = document.getElementById('wardSelect');
-            let oldWard = wardSelect.value;
+            if (!wardSelect) return;
 
+            let oldWard = wardSelect.value;
             wardSelect.innerHTML = '<option value="">Đang tải...</option>';
+
             if (!areaId) {
                 wardSelect.innerHTML = '<option value="">-- Vui lòng chọn Khu vực trước --</option>';
                 return;
             }
+
             try {
                 const response = await fetch(`/Home/GetWardsByArea?areaId=${areaId}`);
                 const data = await response.json();
+
                 wardSelect.innerHTML = '<option value="">-- Chọn Phường / Xã --</option>';
+
                 data.forEach(w => {
                     let opt = new Option(w.wardName, w.wardId);
-                    if(w.wardId == oldWard) opt.selected = true;
+                    if (String(w.wardId) === String(oldWard)) opt.selected = true;
                     wardSelect.add(opt);
                 });
-            } catch (error) { wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>'; }
+            } catch (error) {
+                wardSelect.innerHTML = '<option value="">Lỗi kết nối</option>';
+            }
         }
 
         // ==========================================
         // LOGIC ẢNH ĐẠI DIỆN
         // ==========================================
         function previewMainImage(event) {
-            var reader = new FileReader();
-            reader.onload = function() { document.getElementById('imgPreview').src = reader.result; };
-            if(event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function () {
+                document.getElementById('imgPreview').src = reader.result;
+            };
+            reader.readAsDataURL(file);
         }
 
         // ==========================================
-        // LOGIC QUẢN LÝ ẢNH PHỤ (CŨ & MỚI)
+        // LOGIC ẢNH PHỤ
         // ==========================================
-        const dataTransfer = new DataTransfer(); // Nơi lưu trữ ảo danh sách file mới
+        const dataTransfer = new DataTransfer();
         const galleryContainer = document.getElementById('combinedGalleryContainer');
         const fileInput = document.getElementById('AdditionalImagesFile');
 
-        // 1. Xóa ảnh cũ (Đã có trên Server)
         function markOldImageDeleted(imageId) {
             const container = document.getElementById('oldImg_' + imageId);
-            if(container.classList.contains('img-deleted')) return; // Chống click đúp
+            if (!container || container.classList.contains('img-deleted')) return;
 
-            // Làm mờ UI
             container.classList.add('img-deleted');
-            container.querySelector('.btn-remove-img').style.display = 'none';
+            const removeBtn = container.querySelector('.btn-remove-img');
+            if (removeBtn) removeBtn.style.display = 'none';
 
-            // Tạo input hidden báo cho Controller biết ID cần xóa
             const input = document.createElement('input');
             input.type = 'hidden';
-            input.name = 'DeletedImageIds'; // Bắt buộc đúng tên biến List<int> bên Controller
+            input.name = 'DeletedImageIds';
             input.value = imageId;
             document.getElementById('deletedImagesContainer').appendChild(input);
         }
 
-        // 2. Thêm ảnh mới vào DataTransfer
         function handleNewImagesSelection(event) {
             const files = event.target.files;
 
-            for(let i = 0; i < files.length; i++) {
-                if(!files[i].type.startsWith('image/')) continue; // Chỉ nhận ảnh
-                if(dataTransfer.items.length >= 10) {
-                    alert('Chỉ được tải lên tối đa 10 ảnh phụ mới!');
+            for (let i = 0; i < files.length; i++) {
+                if (!files[i].type.startsWith('image/')) continue;
+
+                if (dataTransfer.items.length >= 10) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Vượt quá số ảnh',
+                        text: 'Chỉ được tải lên tối đa 10 ảnh phụ mới.',
+                        confirmButtonText: 'Đã hiểu',
+                        customClass: { popup: 'rounded-4' }
+                    });
                     break;
                 }
+
                 dataTransfer.items.add(files[i]);
             }
 
-            // Cập nhật lại input file và Render UI
             syncFileInputAndRender();
         }
 
-        // 3. Xóa ảnh mới (Vừa chọn, chưa đẩy lên Server)
         function removeNewImage(indexToRemove) {
             const tempDt = new DataTransfer();
 
-            // Chép lại toàn bộ file, bỏ qua file cần xóa
-            for(let i = 0; i < dataTransfer.files.length; i++) {
+            for (let i = 0; i < dataTransfer.files.length; i++) {
                 if (i !== indexToRemove) {
                     tempDt.items.add(dataTransfer.files[i]);
                 }
             }
 
-            // Xóa sạch dataTransfer hiện tại và gán lại từ tempDt
             dataTransfer.items.clear();
-            for(let i = 0; i < tempDt.files.length; i++) {
+
+            for (let i = 0; i < tempDt.files.length; i++) {
                 dataTransfer.items.add(tempDt.files[i]);
             }
 
             syncFileInputAndRender();
         }
 
-        // 4. Render UI cho mảng ảnh mới
         function syncFileInputAndRender() {
-            // Gán lại cho thẻ input thật để lúc Submit nó có dữ liệu
-            fileInput.files = dataTransfer.files;
+            if (!fileInput || !galleryContainer) return;
 
-            // Xóa các thẻ review ảnh mới cũ trên giao diện
+            fileInput.files = dataTransfer.files;
             document.querySelectorAll('.new-img').forEach(el => el.remove());
 
-            // Vẽ lại từ đầu danh sách ảnh đang có trong DataTransfer
             const files = dataTransfer.files;
-            for(let i = 0; i < files.length; i++) {
+
+            for (let i = 0; i < files.length; i++) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+
+                reader.onload = function (e) {
                     const div = document.createElement('div');
-                    div.className = 'img-thumb-container new-img'; // Đánh dấu là ảnh mới
+                    div.className = 'img-thumb-container new-img';
 
                     const img = document.createElement('img');
                     img.src = e.target.result;
                     img.className = 'sub-img-thumb';
+                    img.alt = 'Ảnh phụ mới';
 
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.className = 'btn-remove-img';
                     btn.title = 'Hủy chọn ảnh này';
                     btn.innerHTML = '<i class="bi bi-x-lg"></i>';
-                    btn.onclick = function() { removeNewImage(i); }; // Xóa theo đúng index
+                    btn.onclick = function () { removeNewImage(i); };
 
                     div.appendChild(img);
                     div.appendChild(btn);
                     galleryContainer.appendChild(div);
-                }
+                };
+
                 reader.readAsDataURL(files[i]);
             }
         }
 
         // ==========================================
-        // LOGIC LOAD GÓI TIN
+        // LOGIC GÓI TIN KHI SỬA
         // ==========================================
         async function loadMyPackages() {
             const selectEl = document.getElementById('packageSelect');
-            let oldPackageId = '@Model.PackageID';
+            if (!selectEl) return;
+
+            const currentPackageId = Number('@Model.PackageID');
+            const currentPackagePriority = Number('@(ViewBag.CurrentPackagePriority ?? 9999)');
+            const currentPackageName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(ViewBag.CurrentPackageName ?? "Gói hiện tại")))';
+
+            selectEl.innerHTML = '';
+
+            const currentOption = new Option(
+                `[Đang dùng] ${currentPackageName} - Giữ nguyên gói, không trừ lượt`,
+                currentPackageId
+            );
+            currentOption.selected = true;
+            currentOption.style.color = '#2563eb';
+            currentOption.style.fontWeight = 'bold';
+            selectEl.add(currentOption);
 
             try {
                 const response = await fetch('/Property/GetAvailablePackages');
                 const result = await response.json();
 
-                if (result.success && result.data.length > 0) {
-                    selectEl.innerHTML = '<option value="">-- Click để chọn gói đăng --</option>';
-                    let foundOldPackage = false;
-
+                if (result.success && Array.isArray(result.data)) {
                     result.data.forEach(pkg => {
-                        let isFree = (pkg.price == 0);
-                        let typeLabel = isFree ? "Miễn phí" : "VIP " + pkg.type;
-                        let textStr = `[${typeLabel}] ${pkg.name} - (Còn: ${pkg.availableCount} Lượt)`;
+                        const pkgId = Number(pkg.id);
+                        const pkgPriority = Number(pkg.priority || 9999);
 
-                        let option = new Option(textStr, pkg.id);
-                        if(isFree) option.style.color = "#16a34a";
-                        else option.style.color = "#e81c2e";
+                        if (pkgId === currentPackageId) return;
 
-                        if(pkg.id == oldPackageId) {
-                            option.selected = true;
-                            foundOldPackage = true;
-                        }
+                        // Chỉ hiện gói cao hơn để nâng cấp.
+                        // PriorityLevel càng nhỏ thì gói càng cao.
+                        if (pkgPriority >= currentPackagePriority) return;
+
+                        const textStr = `[Nâng cấp] ${pkg.name} - Còn: ${pkg.availableCount} lượt`;
+                        const option = new Option(textStr, pkg.id);
+                        option.style.color = '#dc2626';
+                        option.style.fontWeight = 'bold';
                         selectEl.add(option);
                     });
+                }
 
-                    if (!foundOldPackage) {
-                        let optionOld = new Option("Gói tin hiện tại đang dùng (Sẽ mất nếu đổi)", oldPackageId);
-                        optionOld.selected = true;
-                        optionOld.style.color = "#64748b";
-                        selectEl.add(optionOld);
-                    }
-                } else {
-                    selectEl.innerHTML = '<option value="@Model.PackageID">Gói tin hiện tại (Ví của bạn đã hết lượt)</option>';
+                if (selectEl.options.length === 1) {
+                    const noUpgradeOption = new Option(
+                        'Không có gói VIP cao hơn trong ví để nâng cấp',
+                        ''
+                    );
+                    noUpgradeOption.disabled = true;
+                    noUpgradeOption.style.color = '#64748b';
+                    selectEl.add(noUpgradeOption);
                 }
             } catch (error) {
-                selectEl.innerHTML = '<option value="@Model.PackageID">Lỗi kết nối. Vẫn giữ gói cũ.</option>';
+                const errorOption = new Option(
+                    'Không tải được ví gói. Hệ thống vẫn giữ nguyên gói hiện tại.',
+                    ''
+                );
+                errorOption.disabled = true;
+                errorOption.style.color = '#64748b';
+                selectEl.add(errorOption);
             }
         }
 
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.id === 'packageSelect') {
+                const currentPackageId = Number('@Model.PackageID');
+                const selectedPackageId = Number(e.target.value || 0);
+
+                if (selectedPackageId > 0 && selectedPackageId !== currentPackageId) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Xác nhận nâng cấp gói',
+                        html: `
+                            <div class="text-start">
+                                <p class="mb-2">Bạn đang chọn gói VIP cao hơn gói hiện tại.</p>
+                                <div class="alert alert-warning rounded-4 mb-0">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                    Khi lưu thay đổi, hệ thống sẽ trừ <strong>1 lượt</strong> của gói nâng cấp từ ví.
+                                    Tin đăng sẽ chuyển về trạng thái <strong>Chờ duyệt</strong>.
+                                </div>
+                            </div>
+                        `,
+                        confirmButtonText: 'Tôi đã hiểu',
+                        confirmButtonColor: '#f59e0b',
+                        customClass: { popup: 'rounded-4' }
+                    });
+                }
+            }
+        });
+
         // ==========================================
-        // INIT ON LOAD
+        // INIT
         // ==========================================
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener('DOMContentLoaded', () => {
             const checkedRadio = document.querySelector('input[name="ParentTypeSelector"]:checked');
             if (checkedRadio) {
                 filterSubTypes(checkedRadio.value);
-                document.getElementById('subTypeSelect').value = '@Model.TypeID';
+                const subSelect = document.getElementById('subTypeSelect');
+                if (subSelect) subSelect.value = '@Model.TypeID';
             }
+
             loadMyPackages();
         });
     </script>

@@ -15,6 +15,7 @@
     int duplicateCount = ViewBag.DuplicateCount is int dc ? dc : 0;
     int soldCount = ViewBag.SoldCount is int sc ? sc : 0;
     int rentedCount = ViewBag.RentedCount is int rtc ? rtc : 0;
+    int expiredCount = ViewBag.ExpiredCount is int ec ? ec : 0;
 }
 
 @functions {
@@ -24,9 +25,10 @@
         {
             "Approved" => "Đang hiển thị",
             "Pending" => "Chờ duyệt",
-            "Rejected" => "Bị từ chối",
+            "Rejected" => "Tạm dừng / Cần sửa",
             "Sold" => "Đã bán",
             "Rented" => "Đã cho thuê",
+            "Expired" => "Tin hết hạn",
             "Deleted" => "Đã xóa",
             _ => string.IsNullOrWhiteSpace(status) ? "Chưa xác định" : status
         };
@@ -376,6 +378,12 @@
         border: 1px solid #67e8f9;
     }
 
+    .badge-expired {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+    }
+
     .badge-duplicate {
         background: #fee2e2;
         color: #b91c1c;
@@ -457,6 +465,7 @@
         background: #fff7ed;
         border-color: #fed7aa;
     }
+
     .btn-approve {
         color: #047857;
         background: #ecfdf5;
@@ -702,9 +711,18 @@
                         Đã cho thuê
                     </a>
 
+                    <a href="/Admin/Properties/Index?status=Expired" class="btn @(currentStatus == "Expired" && !duplicateOnly ? "active" : "")">
+                        <i class="bi bi-clock-history me-1"></i>
+                        Tin hết hạn
+                        @if (expiredCount > 0)
+                        {
+                            <span class="badge bg-light text-dark ms-1 rounded-pill">@expiredCount</span>
+                        }
+                    </a>
+
                     <a href="/Admin/Properties/Index?status=Rejected" class="btn @(currentStatus == "Rejected" && !duplicateOnly ? "active" : "")">
-                        <i class="bi bi-x-circle-fill me-1"></i>
-                        Bị từ chối
+                        <i class="bi bi-eye-slash-fill me-1"></i>
+                        Tạm dừng / Cần sửa
                     </a>
                 </div>
             </div>
@@ -795,8 +813,8 @@
                                 else if (item.Status == "Rejected")
                                 {
                                     <span class="status-badge badge-rejected">
-                                        <i class="bi bi-x-circle-fill"></i>
-                                        Bị từ chối
+                                        <i class="bi bi-eye-slash-fill"></i>
+                                        Tạm dừng / Cần sửa
                                     </span>
                                 }
                                 else if (item.Status == "Sold")
@@ -811,6 +829,13 @@
                                     <span class="status-badge badge-rented">
                                         <i class="bi bi-key-fill"></i>
                                         Đã cho thuê
+                                    </span>
+                                }
+                                else if (item.Status == "Expired")
+                                {
+                                    <span class="status-badge badge-expired">
+                                        <i class="bi bi-clock-history"></i>
+                                        Tin hết hạn
                                     </span>
                                 }
                                 else
@@ -882,7 +907,7 @@
                             {
                                 <div class="reject-warning">
                                     <i class="bi bi-info-circle-fill me-1"></i>
-                                    <strong>Lý do từ chối:</strong> @item.RejectionReason
+                                    <strong>Lý do tạm dừng / cần chỉnh sửa:</strong> @item.RejectionReason
                                 </div>
                             }
                         </div>
@@ -895,7 +920,7 @@
                                 <i class="bi bi-eye-fill"></i>
                                 <span>Xem</span>
                             </a>
-                            @if (item.Status != "Sold" && item.Status != "Rented")
+                            @if (item.Status != "Sold" && item.Status != "Rented" && item.Status != "Expired")
                             {
                                 <a href="/Admin/Properties/Edit/@item.PropertyID"
                                    class="action-btn btn-edit"
@@ -1127,32 +1152,32 @@
 
         @if (TempData["Success"] != null)
         {
-                <text>
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Thành công',
-                        text: '@Html.Raw(TempData["Success"])',
-                        timer: 3200,
-                        showConfirmButton: false,
-                        toast: true,
-                        position: 'top-end'
-                    });
-                </text>
+                    <text>
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công',
+                            text: '@Html.Raw(TempData["Success"])',
+                            timer: 3200,
+                            showConfirmButton: false,
+                            toast: true,
+                            position: 'top-end'
+                        });
+                    </text>
         }
 
         @if (TempData["Error"] != null)
         {
-                <text>
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Thất bại',
-                        text: '@Html.Raw(TempData["Error"])',
-                        timer: 4200,
-                        showConfirmButton: false,
-                        toast: true,
-                        position: 'top-end'
-                    });
-                </text>
+                    <text>
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Thất bại',
+                            text: '@Html.Raw(TempData["Error"])',
+                            timer: 4200,
+                            showConfirmButton: false,
+                            toast: true,
+                            position: 'top-end'
+                        });
+                    </text>
         }
     </script>
 }

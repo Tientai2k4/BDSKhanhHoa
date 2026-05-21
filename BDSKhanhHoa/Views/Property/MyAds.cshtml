@@ -11,6 +11,7 @@
             "Rejected" => "Bị từ chối",
             "Sold" => "Đã bán",
             "Rented" => "Đã cho thuê",
+            "Expired" => "Tin hết hạn",
             "Draft" => "Bản nháp",
             null or "" => "Chưa xác định",
             _ => status
@@ -26,6 +27,7 @@
             "Rejected" => "bg-danger-subtle text-danger border border-danger-subtle",
             "Sold" => "bg-secondary-subtle text-secondary border border-secondary-subtle",
             "Rented" => "bg-info-subtle text-info border border-info-subtle",
+            "Expired" => "bg-dark-subtle text-dark border border-dark-subtle",
             _ => "bg-light text-muted border"
         };
     }
@@ -80,6 +82,7 @@
             "Rejected" => "Bị từ chối",
             "Sold" => "Đã bán",
             "Rented" => "Đã cho thuê",
+            "Expired" => "Tin hết hạn",
             _ => "Chưa xác định"
         };
     }
@@ -93,6 +96,7 @@
             "Rejected" => "bi bi-x-circle-fill",
             "Sold" => "bi bi-bag-check-fill",
             "Rented" => "bi bi-key-fill",
+            "Expired" => "bi bi-clock-history",
             _ => "bi bi-question-circle-fill"
         };
     }
@@ -106,6 +110,7 @@
             "Rejected" => "status-rejected",
             "Sold" => "status-sold",
             "Rented" => "status-rented",
+            "Expired" => "status-expired",
             _ => "status-unknown"
         };
     }
@@ -113,14 +118,18 @@
 
     private bool IsLockedStatus(string? status)
     {
-        return status == "Sold" || status == "Rented";
+        return status == "Sold" || status == "Rented" || status == "Expired";
     }
 
     private string GetLockedStatusText(string? status)
     {
-        return status == "Sold"
-            ? "Tin này đã bán, hệ thống đã khóa toàn bộ thao tác."
-            : "Tin này đã cho thuê, hệ thống đã khóa toàn bộ thao tác.";
+        return status switch
+        {
+            "Sold" => "Tin này đã bán, hệ thống đã khóa toàn bộ thao tác.",
+            "Rented" => "Tin này đã cho thuê, hệ thống đã khóa toàn bộ thao tác.",
+            "Expired" => "Tin này đã hết hạn hiển thị. Hệ thống giữ lại để bạn theo dõi lịch sử.",
+            _ => "Tin này đang bị khóa thao tác."
+        };
     }
 
     private string GetPackageClass(string? packageName, string? packageType)
@@ -189,6 +198,7 @@
     int rejectedCount = ads.Count(x => x.Status == "Rejected");
     int soldCount = ads.Count(x => x.Status == "Sold");
     int rentedCount = ads.Count(x => x.Status == "Rented");
+    int expiredCount = ads.Count(x => x.Status == "Expired");
     int vipActiveCount = ads.Count(x => x.VipExpiryDate.HasValue && x.VipExpiryDate.Value >= DateTime.Now);
 }
 
@@ -754,6 +764,12 @@
         border-color: #bae6fd;
     }
 
+    .status-expired {
+        background: #f1f5f9;
+        color: #334155;
+        border-color: #cbd5e1;
+    }
+
     .status-unknown {
         background: #f1f5f9;
         color: #475569;
@@ -1064,8 +1080,8 @@
 
 
     /* =====================================================
-           KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
-        ===================================================== */
+                   KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+                ===================================================== */
     .myads-locked-row {
         opacity: .86;
     }
@@ -1306,11 +1322,41 @@
 
                                             @if (item.Status == "Rejected" && !string.IsNullOrWhiteSpace(item.RejectionReason))
                                             {
+                                                bool isReportRejected = item.RejectionReason.Contains("báo cáo", StringComparison.OrdinalIgnoreCase)
+                                                || item.RejectionReason.Contains("vi phạm", StringComparison.OrdinalIgnoreCase)
+                                                || item.RejectionReason.Contains("tạm dừng", StringComparison.OrdinalIgnoreCase);
+
                                                 <div class="myads-alert myads-alert-danger">
                                                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                                    <strong>Lý do từ chối:</strong> @item.RejectionReason
+
+                                                    @if (isReportRejected)
+                                                    {
+                                                        <strong>Tin đang tạm dừng hiển thị do báo cáo vi phạm:</strong>
+                                                    }
+                                                    else
+                                                    {
+                                                        <strong>Lý do từ chối:</strong>
+                                                    }
+
+                                                    @item.RejectionReason
+
+                                                    <div class="mt-2 small fw-bold text-danger">
+                                                        <i class="bi bi-pencil-square me-1"></i>
+                                                        Vui lòng bấm “Sửa”, cập nhật lại thông tin. Sau khi lưu, tin sẽ được gửi lại Admin duyệt.
+                                                    </div>
                                                 </div>
                                             }
+
+                                            @if (item.Status == "Expired")
+                                            {
+                                                <div class="myads-alert myads-alert-warning">
+                                                    <i class="bi bi-clock-history me-1"></i>
+                                                    <strong>Tin hết hạn:</strong>
+                                                    @(string.IsNullOrWhiteSpace(item.RejectionReason)
+                                                                                            ? "Tin đã hết hạn hiển thị và không còn xuất hiện công khai."
+                                                                                            : item.RejectionReason)
+                                    </div>
+                                                                        }
 
                                             @if (item.IsDuplicate && !string.IsNullOrWhiteSpace(item.DuplicateReason))
                                             {

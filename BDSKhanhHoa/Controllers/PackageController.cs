@@ -18,9 +18,19 @@ namespace BDSKhanhHoa.Controllers
         [HttpGet]
         public async Task<IActionResult> Buy()
         {
-            // Lấy danh sách gói tin, sắp xếp ưu tiên hiển thị từ cao xuống thấp
+            /*
+                CHUẨN NGHIỆP VỤ:
+                - Admin bấm "Ngừng dùng" thì IsActive = false.
+                - Gói IsActive = false không được hiển thị ở trang mua gói.
+                - Không cho người dùng thêm giỏ hàng / thanh toán mới với gói đã ngừng.
+                - Lịch sử giao dịch cũ vẫn giữ nguyên ở Transaction.
+            */
+
             var packages = await _context.PostServicePackages
-                .OrderByDescending(p => p.PriorityLevel)
+                .AsNoTracking()
+                .Where(p => p.IsActive)
+                .OrderBy(p => p.PriorityLevel)
+                .ThenBy(p => p.Price)
                 .ToListAsync();
 
             return View(packages);

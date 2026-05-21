@@ -21,11 +21,11 @@
     {
         return status switch
         {
-            "New" => "Chờ người bán phản hồi",
-            "Contacted" => "Đã được tiếp nhận",
+            "New" => "Chờ phản hồi",
+            "Contacted" => "Đã tiếp nhận",
             "Closed" => "Đã hoàn tất",
             "Spam" => "Bị từ chối",
-            "Cancelled" => "Bạn đã hủy",
+            "Cancelled" => "Đã hủy",
             _ => "Chờ phản hồi"
         };
     }
@@ -43,17 +43,153 @@
         };
     }
 
-    string GetStatusDescription(string? status)
+    string GetBuyerStatusMessage(string? status)
     {
         return status switch
         {
-            "New" => "Yêu cầu đã gửi thành công. Bạn có thể hủy trước khi người bán tiếp nhận.",
-            "Contacted" => "Người bán hoặc chuyên viên đã tiếp nhận yêu cầu của bạn.",
-            "Closed" => "Quy trình tư vấn đã hoàn tất.",
-            "Spam" => "Yêu cầu bị từ chối do thông tin không phù hợp hoặc không liên hệ được.",
-            "Cancelled" => "Bạn đã rút lại yêu cầu này. Người bán sẽ không xử lý tiếp.",
-            _ => "Yêu cầu đang được ghi nhận."
+            "New" => "Yêu cầu đã được ghi nhận. Người bán/chuyên viên chưa tiếp nhận, bạn vẫn có thể rút lại yêu cầu.",
+            "Contacted" => "Người bán/chuyên viên đã tiếp nhận yêu cầu. Vui lòng chờ liên hệ hoặc tiếp tục trao đổi trực tiếp.",
+            "Closed" => "Quy trình tư vấn đã hoàn tất. Yêu cầu này được khóa để lưu lịch sử.",
+            "Spam" => "Yêu cầu bị từ chối do thông tin không phù hợp, sai số hoặc không thể liên hệ.",
+            "Cancelled" => "Bạn đã rút lại yêu cầu. Người bán sẽ không xử lý tiếp yêu cầu này.",
+            _ => "Yêu cầu đang được hệ thống ghi nhận."
         };
+    }
+
+    string GetNextStepText(string? status)
+    {
+        return status switch
+        {
+            "New" => "Bước tiếp theo: chờ người bán gọi lại hoặc bạn có thể rút yêu cầu.",
+            "Contacted" => "Bước tiếp theo: tiếp tục trao đổi với người bán/chuyên viên.",
+            "Closed" => "Bước tiếp theo: không cần thao tác thêm.",
+            "Spam" => "Bước tiếp theo: bạn có thể tìm bất động sản khác phù hợp hơn.",
+            "Cancelled" => "Bước tiếp theo: yêu cầu đã dừng xử lý.",
+            _ => "Bước tiếp theo: vui lòng kiểm tra lại trạng thái yêu cầu."
+        };
+    }
+
+    string GetProcessClass(string? status, string step)
+    {
+        status ??= "New";
+
+        if (step == "Sent")
+        {
+            return "done";
+        }
+
+        if (step == "Received")
+        {
+            if (status == "Contacted")
+            {
+                return "active";
+            }
+
+            if (status == "Closed")
+            {
+                return "done";
+            }
+
+            if (status == "Spam" || status == "Cancelled")
+            {
+                return "danger";
+            }
+
+            return "";
+        }
+
+        if (step == "Result")
+        {
+            if (status == "Closed")
+            {
+                return "done";
+            }
+
+            if (status == "Spam" || status == "Cancelled")
+            {
+                return "danger";
+            }
+
+            return "";
+        }
+
+        return "";
+    }
+
+    string GetResultText(string? status)
+    {
+        return status switch
+        {
+            "Closed" => "Hoàn tất",
+            "Spam" => "Từ chối",
+            "Cancelled" => "Đã hủy",
+            _ => "Chưa có kết quả"
+        };
+    }
+
+    string GetSourceTypeText(Consultation item)
+    {
+        if (item.Property != null)
+        {
+            return "Nhà đất";
+        }
+
+        if (item.Project != null)
+        {
+            return "Dự án";
+        }
+
+        return "Không xác định";
+    }
+
+    string GetSourceTypeClass(Consultation item)
+    {
+        if (item.Property != null)
+        {
+            return "src-property";
+        }
+
+        if (item.Project != null)
+        {
+            return "src-project";
+        }
+
+        return "src-unknown";
+    }
+
+    string GetSourceTitle(Consultation item)
+    {
+        if (item.Property != null)
+        {
+            return item.Property.Title;
+        }
+
+        if (item.Project != null)
+        {
+            return item.Project.ProjectName;
+        }
+
+        return "Bất động sản hoặc dự án đã bị gỡ khỏi hệ thống";
+    }
+
+    string GetSourceUrl(Consultation item)
+    {
+        if (item.Property != null && item.PropertyID.HasValue)
+        {
+            return "/Property/Details/" + item.PropertyID.Value;
+        }
+
+        if (item.Project != null && item.ProjectID.HasValue)
+        {
+            return "/Project/Details/" + item.ProjectID.Value;
+        }
+
+        return "#";
+    }
+
+    bool CanOpenSource(Consultation item)
+    {
+        return item.Property != null || item.Project != null;
     }
 }
 
@@ -62,6 +198,7 @@
 <style>
     .myreq-page {
         --req-primary: #2563eb;
+        --req-primary-dark: #1d4ed8;
         --req-success: #16a34a;
         --req-danger: #dc2626;
         --req-warning: #f59e0b;
@@ -69,18 +206,58 @@
         --req-muted: #64748b;
         --req-border: #e2e8f0;
         --req-soft: #f8fafc;
+        --req-card: #ffffff;
+        --req-radius: 22px;
+        --req-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
+        font-size: 14px;
+    }
+
+    .fw-black {
+        font-weight: 900;
     }
 
     .myreq-hero {
-        border-radius: 28px;
-        padding: 26px;
+        border-radius: 24px;
+        padding: 22px;
         color: #fff;
-        background: radial-gradient(circle at top left, rgba(255,255,255,0.15), transparent 24%), linear-gradient(135deg, #0f172a 0%, #1e293b 52%, #2563eb 100%);
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.16);
-        margin-bottom: 24px;
+        background: radial-gradient(circle at top left, rgba(255,255,255,0.15), transparent 26%), linear-gradient(135deg, #0f172a 0%, #1e293b 54%, #2563eb 100%);
+        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+        margin-bottom: 18px;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .myreq-hero::after {
+            content: "";
+            width: 170px;
+            height: 170px;
+            position: absolute;
+            right: -65px;
+            top: -70px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.08);
+        }
+
+    .myreq-hero-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .myreq-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.96);
+        color: var(--req-primary);
+        padding: 7px 13px;
+        font-size: .78rem;
+        font-weight: 900;
+        margin-bottom: 10px;
     }
 
     .myreq-title {
+        font-size: clamp(1.35rem, 2.4vw, 2rem);
         font-weight: 950;
         letter-spacing: -0.04em;
         margin-bottom: 6px;
@@ -89,41 +266,126 @@
     .myreq-sub {
         color: rgba(255,255,255,0.78);
         margin-bottom: 0;
+        line-height: 1.55;
+        font-size: .92rem;
+        max-width: 820px;
+    }
+
+    .myreq-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+    }
+
+    .guide-panel {
+        border: 1px solid var(--req-border);
+        background: #fff;
+        border-radius: 22px;
+        box-shadow: var(--req-shadow);
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .guide-title {
+        font-weight: 950;
+        color: var(--req-dark);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: .98rem;
+    }
+
+    .guide-flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .guide-step {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 18px;
+        padding: 12px;
+        min-height: 86px;
+    }
+
+    .guide-step-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+        margin-bottom: 8px;
+        font-size: .92rem;
+    }
+
+    .guide-step-title {
+        color: var(--req-dark);
+        font-weight: 900;
+        font-size: .84rem;
+        margin-bottom: 3px;
+    }
+
+    .guide-step-text {
+        color: var(--req-muted);
+        font-size: .76rem;
+        line-height: 1.4;
+        font-weight: 650;
+        margin: 0;
+    }
+
+    .request-list {
+        display: grid;
+        gap: 14px;
     }
 
     .request-card {
         border: 1px solid var(--req-border);
         border-radius: 24px;
-        background: #fff;
+        background: var(--req-card);
         overflow: hidden;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
-        transition: 0.22s ease;
-        height: 100%;
+        box-shadow: var(--req-shadow);
+        transition: .2s ease;
     }
 
         .request-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.10);
+            transform: translateY(-2px);
             border-color: #cbd5e1;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.09);
         }
 
     .request-head {
-        padding: 16px 18px;
+        padding: 14px 18px;
         border-bottom: 1px solid #f1f5f9;
         background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
     }
 
-    .request-body {
-        padding: 18px;
+    .request-code {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 850;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
     }
 
     .status-badge {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 6px;
         border-radius: 999px;
-        padding: 7px 13px;
-        font-size: 0.74rem;
+        padding: 7px 12px;
+        font-size: .74rem;
         font-weight: 950;
         border: 1px solid transparent;
         white-space: nowrap;
@@ -159,260 +421,678 @@
         border-color: #fecaca;
     }
 
+    .request-body {
+        padding: 18px;
+    }
+
+    .request-main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr);
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .source-panel,
+    .process-panel {
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        background: #fff;
+        padding: 15px;
+        height: 100%;
+    }
+
+    .source-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 6px 11px;
+        font-size: .72rem;
+        font-weight: 900;
+        margin-bottom: 10px;
+    }
+
+    .src-property {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .src-project {
+        background: #ecfeff;
+        color: #0891b2;
+    }
+
+    .src-unknown {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
     .source-title {
         color: #0f172a;
         text-decoration: none;
         font-weight: 950;
-        font-size: 1.05rem;
-        line-height: 1.35;
+        font-size: 1rem;
+        line-height: 1.38;
         display: block;
+        margin-bottom: 10px;
     }
 
         .source-title:hover {
-            color: #2563eb;
+            color: var(--req-primary);
             text-decoration: underline;
         }
+
+        .source-title.is-disabled {
+            color: #64748b;
+            text-decoration: none;
+            cursor: default;
+        }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        margin-top: 12px;
+    }
 
     .info-box {
         border: 1px solid #e2e8f0;
         background: #f8fafc;
-        border-radius: 18px;
-        padding: 14px;
+        border-radius: 16px;
+        padding: 11px;
+        min-height: 72px;
     }
 
-    .timeline {
-        position: relative;
-        display: grid;
-        gap: 10px;
-        margin-top: 16px;
-    }
-
-    .timeline-row {
+    .info-label {
+        color: #64748b;
+        font-size: .7rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 5px;
         display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .info-value {
+        color: #0f172a;
+        font-size: .84rem;
+        font-weight: 750;
+        line-height: 1.45;
+        word-break: break-word;
+    }
+
+    .note-box {
+        border-radius: 16px;
+        padding: 12px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        margin-top: 12px;
+    }
+
+        .note-box .info-label {
+            color: #92400e;
+        }
+
+    .process-title {
+        color: #0f172a;
+        font-size: .9rem;
+        font-weight: 950;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .process-steps {
+        display: grid;
+        gap: 8px;
+    }
+
+    .process-step {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
         gap: 10px;
         align-items: flex-start;
+        padding: 10px;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
     }
 
-    .timeline-dot {
-        width: 28px;
-        height: 28px;
-        border-radius: 999px;
+        .process-step.done {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .process-step.active {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, .08);
+        }
+
+        .process-step.danger {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+    .process-dot {
+        width: 34px;
+        height: 34px;
+        border-radius: 13px;
+        background: #e2e8f0;
+        color: #64748b;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        flex: 0 0 auto;
-        font-size: 0.82rem;
+        font-size: .9rem;
+    }
+
+    .process-step.done .process-dot {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .process-step.active .process-dot {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .process-step.danger .process-dot {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .process-name {
+        color: #0f172a;
+        font-size: .84rem;
+        font-weight: 950;
+        margin-bottom: 2px;
+    }
+
+    .process-desc {
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 650;
+        line-height: 1.38;
+        margin: 0;
+    }
+
+    .next-box {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 11px;
+        margin-top: 11px;
+        color: #475569;
+        font-size: .8rem;
+        line-height: 1.5;
+        font-weight: 700;
+    }
+
+        .next-box strong {
+            color: #0f172a;
+        }
+
+    .request-footer {
+        border-top: 1px solid #f1f5f9;
+        padding: 14px 18px;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .time-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 800;
+    }
+
+        .time-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+    .action-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .btn-req {
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: .82rem;
+        padding: 8px 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
 
     .empty-panel {
         border: 1px solid #e2e8f0;
         background: #fff;
-        border-radius: 28px;
+        border-radius: 26px;
         box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+        text-align: center;
+        padding: 52px 18px;
+    }
+
+        .empty-panel i {
+            font-size: 4rem;
+            color: #94a3b8;
+            opacity: .55;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+    .empty-title {
+        color: #0f172a;
+        font-weight: 950;
+        font-size: 1.25rem;
+        margin-bottom: 8px;
+    }
+
+    .empty-text {
+        color: #64748b;
+        font-size: .92rem;
+        margin-bottom: 18px;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .request-main-grid
+
+    {
+        grid-template-columns: 1fr;
+    }
+
     }
 
     @@media (max-width: 767.98px) {
-        .myreq-hero {
-            padding: 22px;
-            border-radius: 24px;
-        }
+        .myreq-page
 
-        .myreq-actions {
+    {
+        font-size: 13.5px;
+    }
+
+    .myreq-hero {
+        padding: 20px;
+        border-radius: 22px;
+    }
+
+    .myreq-top-actions {
+        width: 100%;
+    }
+
+        .myreq-top-actions .btn {
             width: 100%;
+            justify-content: center;
         }
 
-            .myreq-actions .btn {
-                width: 100%;
-            }
+    .guide-panel {
+        padding: 14px;
+        border-radius: 20px;
+    }
 
-        .request-head {
-            display: block !important;
+    .guide-flow {
+        grid-template-columns: 1fr;
+    }
+
+    .request-head {
+        display: block;
+        padding: 14px;
+    }
+
+        .request-head .status-badge {
+            margin-top: 10px;
         }
 
-            .request-head .status-badge {
-                margin-top: 10px;
-            }
+    .request-body {
+        padding: 14px;
+    }
+
+    .source-panel,
+    .process-panel {
+        padding: 13px;
+        border-radius: 18px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .request-footer {
+        padding: 14px;
+        display: block;
+    }
+
+    .action-group {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .btn-req {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .time-meta {
+        display: grid;
+        gap: 5px;
+    }
+
     }
 </style>
 
 <div class="container-fluid px-0 myreq-page">
     <div class="myreq-hero">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <span class="badge bg-white text-primary rounded-pill px-3 py-2 fw-bold mb-2">
-                    <i class="bi bi-clock-history me-1"></i> Lịch sử tư vấn
-                </span>
-                <h2 class="myreq-title">Yêu cầu tư vấn của bạn</h2>
-                <p class="myreq-sub">
-                    Theo dõi những bất động sản/dự án bạn đã gửi yêu cầu. Bạn chỉ có thể hủy khi người bán chưa tiếp nhận.
+        <div class="myreq-hero-content">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <div class="myreq-kicker">
+                        <i class="bi bi-clock-history"></i>
+                        Lịch sử tư vấn
+                    </div>
+
+                    <h2 class="myreq-title">Yêu cầu tư vấn của bạn</h2>
+
+                    <p class="myreq-sub">
+                        Theo dõi toàn bộ bất động sản/dự án bạn đã gửi yêu cầu. Hệ thống hiển thị rõ trạng thái xử lý,
+                        thời gian cập nhật và bước tiếp theo để bạn dễ nắm tình hình.
+                    </p>
+                </div>
+
+                <div class="myreq-top-actions">
+                    <a href="/Property/Search" class="btn btn-light rounded-pill fw-black px-4 py-2">
+                        <i class="bi bi-search me-1"></i> Tìm BĐS mới
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="guide-panel">
+        <div class="guide-title">
+            <i class="bi bi-diagram-3-fill text-primary"></i>
+            Quy trình xử lý yêu cầu tư vấn
+        </div>
+
+        <div class="guide-flow">
+            <div class="guide-step">
+                <div class="guide-step-icon">
+                    <i class="bi bi-send-check-fill"></i>
+                </div>
+                <div class="guide-step-title">1. Bạn gửi yêu cầu</div>
+                <p class="guide-step-text">
+                    Hệ thống ghi nhận thông tin liên hệ, lời nhắn và nguồn bất động sản/dự án bạn quan tâm.
                 </p>
             </div>
 
-            <div class="myreq-actions">
-                <a href="/Property/Search" class="btn btn-light rounded-pill fw-black px-4 py-2">
-                    <i class="bi bi-search me-1"></i> Tìm BĐS mới
-                </a>
+            <div class="guide-step">
+                <div class="guide-step-icon">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="guide-step-title">2. Chờ tiếp nhận</div>
+                <p class="guide-step-text">
+                    Khi trạng thái còn chờ phản hồi, bạn có thể rút yêu cầu nếu không còn nhu cầu.
+                </p>
+            </div>
+
+            <div class="guide-step">
+                <div class="guide-step-icon">
+                    <i class="bi bi-telephone-inbound-fill"></i>
+                </div>
+                <div class="guide-step-title">3. Người bán liên hệ</div>
+                <p class="guide-step-text">
+                    Người bán/chuyên viên tiếp nhận, gọi điện hoặc tư vấn thêm theo thông tin bạn đã gửi.
+                </p>
+            </div>
+
+            <div class="guide-step">
+                <div class="guide-step-icon">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="guide-step-title">4. Hoàn tất xử lý</div>
+                <p class="guide-step-text">
+                    Yêu cầu được hoàn tất, từ chối hoặc dừng xử lý nếu bạn đã rút lại yêu cầu.
+                </p>
             </div>
         </div>
     </div>
 
     @if (Model != null && Model.Any())
     {
-        <div class="row g-3">
+        <div class="request-list">
             @foreach (var item in Model)
             {
                 bool canCancel = item.Status == "New";
+                bool canOpenSource = CanOpenSource(item);
+                string sourceUrl = GetSourceUrl(item);
+                string sourceTitle = GetSourceTitle(item);
 
-                <div class="col-xl-6 col-lg-12" id="card-req-@item.ConsultID">
-                    <div class="request-card">
-                        <div class="request-head d-flex justify-content-between align-items-center gap-3">
-                            <div class="text-muted small fw-bold">
-                                <i class="bi bi-calendar-event me-1"></i>
+                <div class="request-card" id="card-req-@item.ConsultID">
+                    <div class="request-head">
+                        <div class="request-code">
+                            <span>
+                                <i class="bi bi-receipt-cutoff"></i>
+                                Mã yêu cầu: #@item.ConsultID
+                            </span>
+                            <span>
+                                <i class="bi bi-calendar-event"></i>
                                 Gửi lúc @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
-                            </div>
-
-                            <span id="badge-@item.ConsultID" class="status-badge @GetStatusClass(item.Status)">
-                                <i class="bi @GetStatusIcon(item.Status)"></i>
-                                @GetStatusText(item.Status)
                             </span>
                         </div>
 
-                        <div class="request-body">
-                            <div class="mb-3">
-                                @if (item.Property != null)
+                        <span id="badge-@item.ConsultID" class="status-badge @GetStatusClass(item.Status)">
+                            <i class="bi @GetStatusIcon(item.Status)"></i>
+                            @GetStatusText(item.Status)
+                        </span>
+                    </div>
+
+                    <div class="request-body">
+                        <div class="request-main-grid">
+                            <div class="source-panel">
+                                <span class="source-type @GetSourceTypeClass(item)">
+                                    <i class="bi @(item.Property != null ? "bi-house-door-fill" : item.Project != null ? "bi-buildings-fill" : "bi-question-circle-fill")"></i>
+                                    @GetSourceTypeText(item)
+                                </span>
+
+                                @if (canOpenSource)
                                 {
-                                    <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary mb-2 px-3 py-2">
-                                        <i class="bi bi-house-door me-1"></i> Nhà đất
-                                    </span>
-                                    <a href="/Property/Details/@item.PropertyID" class="source-title" target="_blank">
-                                        @item.Property.Title
-                                    </a>
-                                }
-                                else if (item.Project != null)
-                                {
-                                    <span class="badge rounded-pill bg-info bg-opacity-10 text-info mb-2 px-3 py-2">
-                                        <i class="bi bi-buildings me-1"></i> Dự án
-                                    </span>
-                                    <a href="/Project/Details/@item.ProjectID" class="source-title" target="_blank">
-                                        @item.Project.ProjectName
+                                    <a href="@sourceUrl" class="source-title" target="_blank">
+                                        @sourceTitle
                                     </a>
                                 }
                                 else
                                 {
-                                    <span class="badge rounded-pill bg-secondary mb-2 px-3 py-2">
-                                        <i class="bi bi-question-circle me-1"></i> Không xác định
-                                    </span>
-                                    <div class="source-title text-muted fst-italic">
-                                        Bất động sản hoặc dự án đã bị gỡ khỏi hệ thống.
+                                    <div class="source-title is-disabled">
+                                        @sourceTitle
                                     </div>
                                 }
+
+                            <div class="info-grid">
+                                <div class="info-box">
+                                    <div class="info-label">
+                                        <i class="bi bi-telephone"></i>
+                                        Số điện thoại đã gửi
+                                    </div>
+                                    <div class="info-value">
+                                        @item.Phone
+                                    </div>
+                                </div>
+
+                                <div class="info-box">
+                                    <div class="info-label">
+                                        <i class="bi bi-envelope"></i>
+                                        Email
+                                    </div>
+                                    <div class="info-value">
+                                        @(string.IsNullOrWhiteSpace(item.Email) ? "Không cung cấp" : item.Email)
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="info-box mb-3">
-                                <div class="small text-muted fw-black text-uppercase mb-1">
-                                    <i class="bi bi-chat-left-text me-1"></i> Lời nhắn của bạn
+                            <div class="note-box">
+                                <div class="info-label">
+                                    <i class="bi bi-chat-left-text"></i>
+                                    Lời nhắn của bạn
                                 </div>
-                                <div class="text-dark fw-medium">
-                                    @(string.IsNullOrWhiteSpace(item.Note) ? "Bạn chỉ để lại thông tin liên hệ, không có lời nhắn thêm." : item.Note)
-                                </div>
+                                <div class="info-value">
+                                    @(string.IsNullOrWhiteSpace(item.Note)
+                                                                    ? "Bạn chỉ để lại thông tin liên hệ, không có lời nhắn thêm."
+                                                                    : item.Note)
                             </div>
+                        </div>
+                    </div>
 
-                            <div class="info-box bg-white mb-3">
-                                <div class="small text-muted fw-black text-uppercase mb-1">
-                                    <i class="bi bi-telephone me-1"></i> Thông tin người bán nhận được
-                                </div>
-                                <div class="fw-bold text-dark">
-                                    SĐT: @item.Phone
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(item.Email))
-                                {
-                                    <div class="fw-semibold text-muted">
-                                        Email: @item.Email
-                                    </div>
-                                }
-                            </div>
-
-                            <div class="timeline">
-                                <div class="timeline-row">
-                                    <div class="timeline-dot bg-success bg-opacity-10 text-success">
-                                        <i class="bi bi-send-check-fill"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-dark small">Đã gửi yêu cầu</div>
-                                        <div class="text-muted small">Hệ thống đã ghi nhận yêu cầu tư vấn của bạn.</div>
-                                    </div>
+                            <div class="process-panel">
+                                <div class="process-title">
+                                    <i class="bi bi-list-check text-primary"></i>
+                                    Tình trạng xử lý
                                 </div>
 
-                                <div class="timeline-row">
-                                    <div class="timeline-dot @((item.Status == "Contacted" || item.Status == "Closed") ? "bg-primary bg-opacity-10 text-primary" : "bg-light text-muted")">
-                                        <i class="bi bi-telephone-inbound-fill"></i>
+                                <div class="process-steps">
+                                    <div class="process-step @GetProcessClass(item.Status, "Sent")">
+                                        <div class="process-dot">
+                                            <i class="bi bi-send-check-fill"></i>
+                                        </div>
+                                        <div>
+                                            <div class="process-name">Đã gửi yêu cầu</div>
+                                            <p class="process-desc">
+                                                Hệ thống đã ghi nhận thông tin và chuyển yêu cầu đến người bán/chuyên viên.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-dark small">Người bán tiếp nhận</div>
-                                        <div class="text-muted small">@GetStatusDescription(item.Status)</div>
-                                    </div>
-                                </div>
 
-                                <div class="timeline-row">
-                                    <div class="timeline-dot @(item.Status == "Closed" ? "bg-success bg-opacity-10 text-success" : item.Status == "Cancelled" || item.Status == "Spam" ? "bg-danger bg-opacity-10 text-danger" : "bg-light text-muted")">
-                                        <i class="bi @(item.Status == "Closed" ? "bi-check-circle-fill" : item.Status == "Cancelled" || item.Status == "Spam" ? "bi-x-circle-fill" : "bi-circle")"></i>
+                                    <div class="process-step @GetProcessClass(item.Status, "Received")">
+                                        <div class="process-dot">
+                                            <i class="bi bi-telephone-inbound-fill"></i>
+                                        </div>
+                                        <div>
+                                            <div class="process-name">Người bán tiếp nhận</div>
+                                            <p class="process-desc">
+                                                @GetBuyerStatusMessage(item.Status)
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-dark small">Kết quả</div>
-                                        <div class="text-muted small">
-                                            @if (item.Status == "Closed")
-                                            {
-                                                <span>Yêu cầu đã hoàn tất.</span>
-                                            }
-                                            else if (item.Status == "Cancelled")
-                                            {
-                                                <span>Bạn đã hủy yêu cầu này.</span>
-                                            }
-                                            else if (item.Status == "Spam")
-                                            {
-                                                <span>Yêu cầu bị từ chối hoặc không thể liên hệ.</span>
-                                            }
-                                            else
-                                            {
-                                                <span>Chưa có kết quả cuối cùng.</span>
-                                            }
+
+                                    <div class="process-step @GetProcessClass(item.Status, "Result")">
+                                        <div class="process-dot">
+                                            <i class="bi @(item.Status == "Closed" ? "bi-check-circle-fill" : item.Status == "Spam" || item.Status == "Cancelled" ? "bi-x-circle-fill" : "bi-circle")"></i>
+                                        </div>
+                                        <div>
+                                            <div class="process-name">Kết quả: @GetResultText(item.Status)</div>
+                                            <p class="process-desc">
+                                                @GetNextStepText(item.Status)
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="mt-4 pt-3 border-top d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                <div class="small text-muted fw-bold">
-                                    @if (item.UpdatedAt.HasValue)
+                                <div class="next-box">
+                                    <strong><i class="bi bi-info-circle-fill me-1"></i>Ghi chú:</strong>
+                            @if (item.Status == "New")
                                     {
-                                        <span>Cập nhật: @item.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy")</span>
+                                        <span>
+                                            Bạn chỉ có thể rút yêu cầu khi người bán/chuyên viên chưa tiếp nhận.
+                                        </span>
+                                    }
+                                    else if (item.Status == "Contacted")
+                                    {
+                                        <span>
+                                            Yêu cầu đã được tiếp nhận nên không thể rút trực tiếp trên hệ thống.
+                                        </span>
+                                    }
+                                    else if (item.Status == "Closed")
+                                    {
+                                        <span>
+                                            Yêu cầu đã hoàn tất và được lưu lại để theo dõi lịch sử tư vấn.
+                                        </span>
+                                    }
+                                    else if (item.Status == "Spam")
+                                    {
+                                        <span>
+                                            Yêu cầu đã bị từ chối hoặc không thể xử lý tiếp.
+                                        </span>
+                                    }
+                                    else if (item.Status == "Cancelled")
+                                    {
+                                        <span>
+                                            Bạn đã chủ động rút lại yêu cầu này.
+                                        </span>
                                     }
                                     else
                                     {
-                                        <span>Chưa có cập nhật mới</span>
-                                    }
-                                </div>
-
-                                <div id="action-box-@item.ConsultID">
-                                    @if (canCancel)
-                                    {
-                                        <form class="m-0" id="frmCancel-@item.ConsultID">
-                                            @Html.AntiForgeryToken()
-                                            <button type="button"
-                                                    class="btn btn-outline-danger rounded-pill fw-black px-4"
-                                                    onclick="cancelRequest(@item.ConsultID)">
-                                                <i class="bi bi-x-circle me-1"></i> Rút lại yêu cầu
-                                            </button>
-                                        </form>
-                                    }
-                                    else
-                                    {
-                                        <button type="button" class="btn btn-light border rounded-pill fw-black px-4 text-muted" disabled>
-                                            <i class="bi bi-lock-fill me-1"></i> Không thể hủy
-                                        </button>
+                                        <span>
+                                            Vui lòng theo dõi cập nhật mới từ hệ thống.
+                                        </span>
                                     }
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="request-footer">
+                        <div class="time-meta">
+                            <span>
+                                <i class="bi bi-send-check"></i>
+                                Gửi: @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+                            </span>
+
+                            @if (item.UpdatedAt.HasValue)
+                            {
+                                <span>
+                                    <i class="bi bi-clock-history"></i>
+                                    Cập nhật xử lý: @item.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy")
+                                </span>
+                            }
+                            else
+                            {
+                                <span>
+                                    <i class="bi bi-hourglass-split"></i>
+                                    Chưa có cập nhật xử lý
+                                </span>
+                            }
+                        </div>
+
+                        <div class="action-group" id="action-box-@item.ConsultID">
+                            @if (canOpenSource)
+                            {
+                                <a href="@sourceUrl" target="_blank" class="btn btn-outline-primary btn-req">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                    Xem lại tin
+                                </a>
+                            }
+
+                            @if (canCancel)
+                            {
+                                <form class="m-0" id="frmCancel-@item.ConsultID">
+                                    @Html.AntiForgeryToken()
+                                    <button type="button"
+                                            class="btn btn-outline-danger btn-req"
+                                            onclick="cancelRequest(@item.ConsultID)">
+                                        <i class="bi bi-x-circle"></i>
+                                        Rút yêu cầu
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-light border btn-req text-muted" disabled>
+                                    <i class="bi bi-lock-fill"></i>
+                                    Không thể hủy
+                                </button>
+                            }
                         </div>
                     </div>
                 </div>
@@ -421,14 +1101,15 @@
     }
     else
     {
-        <div class="empty-panel text-center py-5 px-3">
-            <i class="bi bi-headset display-1 d-block mb-3 text-muted opacity-50"></i>
-            <h4 class="fw-black text-dark mb-2">Bạn chưa gửi yêu cầu tư vấn nào</h4>
-            <p class="text-muted fs-6 mb-4">
-                Hãy tìm bất động sản phù hợp rồi gửi yêu cầu để chủ nhà hoặc môi giới liên hệ lại.
+        <div class="empty-panel">
+            <i class="bi bi-headset"></i>
+            <div class="empty-title">Bạn chưa gửi yêu cầu tư vấn nào</div>
+            <p class="empty-text">
+                Hãy tìm bất động sản phù hợp rồi gửi yêu cầu để chủ nhà, môi giới hoặc chuyên viên dự án liên hệ lại.
             </p>
             <a href="/Property/Search" class="btn btn-primary rounded-pill fw-black px-5 py-3">
-                <i class="bi bi-search me-1"></i> Khám phá bất động sản
+                <i class="bi bi-search me-1"></i>
+                Khám phá bất động sản
             </a>
         </div>
     }
@@ -438,21 +1119,53 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
+        function getCancelToken(id) {
+            const tokenEl = document.querySelector(`#frmCancel-${id} input[name="__RequestVerificationToken"]`);
+            return tokenEl ? tokenEl.value : '';
+        }
+
+        function safeParseJsonResponse(res) {
+            return res.text().then(function (text) {
+                let data = null;
+
+                try {
+                    data = text ? JSON.parse(text) : null;
+                } catch {
+                    data = null;
+                }
+
+                if (!res.ok) {
+                    const message = data && data.message
+                        ? data.message
+                        : 'Máy chủ trả về lỗi ' + res.status + '. Vui lòng thử lại.';
+
+                    throw new Error(message);
+                }
+
+                if (!data) {
+                    throw new Error('Máy chủ không trả về dữ liệu hợp lệ.');
+                }
+
+                return data;
+            });
+        }
+
         function cancelRequest(id) {
             Swal.fire({
                 title: 'Rút lại yêu cầu tư vấn?',
-                text: 'Bạn chỉ nên hủy nếu không còn nhu cầu. Sau khi hủy, người bán sẽ không xử lý tiếp yêu cầu này.',
+                text: 'Bạn chỉ nên hủy nếu không còn nhu cầu. Sau khi hủy, người bán/chuyên viên sẽ không xử lý tiếp yêu cầu này.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
                 cancelButtonColor: '#64748b',
                 confirmButtonText: 'Đồng ý hủy',
                 cancelButtonText: 'Giữ lại'
-            }).then((result) => {
-                if (!result.isConfirmed) return;
+            }).then(function (result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
 
-                const tokenEl = document.querySelector(`#frmCancel-${id} input[name="__RequestVerificationToken"]`);
-                const token = tokenEl ? tokenEl.value : '';
+                const token = getCancelToken(id);
 
                 const formData = new FormData();
                 formData.append('id', id);
@@ -462,15 +1175,20 @@
                     title: 'Đang xử lý...',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
-                    didOpen: () => Swal.showLoading()
+                    didOpen: function () {
+                        Swal.showLoading();
+                    }
                 });
 
                 fetch('/Consultations/CancelRequest', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
                 })
-                    .then(res => res.json())
-                    .then(data => {
+                    .then(safeParseJsonResponse)
+                    .then(function (data) {
                         Swal.close();
 
                         if (data.success) {
@@ -487,24 +1205,31 @@
 
                             if (badge) {
                                 badge.className = 'status-badge st-cancelled';
-                                badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> Bạn đã hủy';
+                                badge.innerHTML = '<i class="bi bi-x-circle-fill"></i> Đã hủy';
                             }
 
                             const actionBox = document.getElementById(`action-box-${id}`);
 
                             if (actionBox) {
+                                const viewButton = actionBox.querySelector('a')?.outerHTML || '';
+
                                 actionBox.innerHTML =
-                                    '<button type="button" class="btn btn-light border rounded-pill fw-black px-4 text-muted" disabled>' +
-                                    '<i class="bi bi-lock-fill me-1"></i> Đã hủy' +
+                                    viewButton +
+                                    '<button type="button" class="btn btn-light border btn-req text-muted" disabled>' +
+                                    '<i class="bi bi-lock-fill"></i> Đã hủy' +
                                     '</button>';
                             }
+
+                            setTimeout(function () {
+                                location.reload();
+                            }, 900);
                         } else {
                             Swal.fire('Không thể hủy', data.message || 'Hủy yêu cầu thất bại.', 'error');
                         }
                     })
-                    .catch(() => {
+                    .catch(function (err) {
                         Swal.close();
-                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                        Swal.fire('Lỗi', err.message || 'Không thể kết nối máy chủ.', 'error');
                     });
             });
         }

@@ -609,25 +609,70 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> Profile()
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login");
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return RedirectToAction("Login");
+            }
 
-            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserID == userId && !u.IsDeleted);
-            if (user == null) return NotFound();
+            var user = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserID == userId && !u.IsDeleted);
 
-            ViewBag.TotalProps = await _db.Properties.CountAsync(p => p.UserID == userId && p.IsDeleted == false);
-            ViewBag.TotalProjects = await _db.Projects.CountAsync(p => p.OwnerUserID == userId && p.IsDeleted == false);
-            ViewBag.BusinessProfile = await _db.BusinessProfiles.AsNoTracking().FirstOrDefaultAsync(b => b.UserID == userId);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            var now = DateTime.Now;
+
+            ViewBag.TotalProps = await _db.Properties
+                .CountAsync(p => p.UserID == userId && p.IsDeleted == false);
+
+            ViewBag.TotalProjects = await _db.Projects
+                .CountAsync(p => p.OwnerUserID == userId && p.IsDeleted == false);
+
+            ViewBag.BusinessProfile = await _db.BusinessProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.UserID == userId);
+
+            // Tổng số lỗi/vi phạm của chính người dùng.
+            // Nếu bảng UserViolations của bạn có IsDeleted thì dùng dòng dưới.
+            ViewBag.TotalViolations = await _db.UserViolations
+     .CountAsync(v => v.UserID == userId);
+
+            // Đếm tin đang hết hạn / đã hết hạn VIP nếu hệ thống của bạn dùng VipExpiryDate.
+            // Bảng Properties trong báo cáo của bạn có VipExpiryDate và bảng PostServicePackages có DurationDays. 
+            ViewBag.ExpiredVipProps = await _db.Properties
+                .CountAsync(p =>
+                    p.UserID == userId
+                    && p.IsDeleted == false
+                    && p.Status == "Approved"
+                    && p.VipExpiryDate != null
+                    && p.VipExpiryDate < now);
+
+            ViewBag.ExpiringVipProps = await _db.Properties
+                .CountAsync(p =>
+                    p.UserID == userId
+                    && p.IsDeleted == false
+                    && p.Status == "Approved"
+                    && p.VipExpiryDate != null
+                    && p.VipExpiryDate >= now
+                    && p.VipExpiryDate <= now.AddDays(3));
 
             if (user.RoleID == 1 || user.RoleID == 2)
             {
-                ViewBag.PendingAds = await _db.Properties.CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
-                ViewBag.TotalUsers = await _db.Users.CountAsync(u => !u.IsDeleted);
-                ViewBag.NewReports = await _db.PropertyReports.CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
+                ViewBag.PendingAds = await _db.Properties
+                    .CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
+
+                ViewBag.TotalUsers = await _db.Users
+                    .CountAsync(u => !u.IsDeleted);
+
+                ViewBag.NewReports = await _db.PropertyReports
+                    .CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
             }
 
             return View(user);
         }
-
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]

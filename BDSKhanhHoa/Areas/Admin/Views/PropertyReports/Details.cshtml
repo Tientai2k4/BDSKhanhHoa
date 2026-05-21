@@ -146,7 +146,9 @@
             }
             else if (Model.Status == "Processed")
             {
-                <span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i> Đã phê duyệt & Kỷ luật</span>
+                <span class="badge bg-success fs-6 px-3 py-2">
+                    <i class="bi bi-check-circle me-1"></i> Đã xử lý & Yêu cầu cập nhật
+                </span>
             }
             else
             {
@@ -235,14 +237,36 @@
                                     <label class="action-option action-warn d-block w-100 cursor-pointer mb-0">
                                         <input type="radio" name="actionType" value="Warn" onchange="updateNoteHint('warn')">
                                         <div class="option-content p-3 d-flex align-items-start gap-3 h-100">
-                                            <div class="text-warning mt-1"><i class="bi bi-exclamation-triangle-fill fs-4" style="color: #fd7e14;"></i></div>
+                                            <div class="text-warning mt-1">
+                                                <i class="bi bi-exclamation-triangle-fill fs-4" style="color: #fd7e14;"></i>
+                                            </div>
+
                                             <div>
-                                                <h6 class="fw-bold mb-1" style="color: #d96400;">Ghi nhận lỗi & Yêu cầu sửa tin</h6>
-                                                <p class="text-muted small mb-0">Tin vẫn hiển thị. Ghi <strong class="text-danger">1 lỗi</strong> vào hồ sơ người bán, gửi thông báo ép buộc sửa tin.</p>
-                                                @if (isAutoBanRisk)
-                                                {
-                                                    <span class="badge bg-danger mt-1"><i class="bi bi-lock-fill"></i> Sẽ kích hoạt Auto-Ban</span>
-                                                }
+                                                <h6 class="fw-bold mb-1" style="color: #d96400;">
+                                                    Tạm dừng hiển thị & yêu cầu người bán chỉnh sửa
+                                                </h6>
+
+                                                <p class="text-muted small mb-0">
+                                                    Tin sẽ tạm thời bị ẩn khỏi trang công khai. Người bán nhận thông báo lỗi vi phạm,
+                                                    cập nhật lại nội dung tin, sau đó hệ thống gửi lại Admin duyệt trước khi hiển thị lại.
+                                                </p>
+
+                                                <div class="mt-2 d-flex flex-wrap gap-2">
+                                                    <span class="badge bg-warning-subtle text-dark border border-warning">
+                                                        <i class="bi bi-eye-slash-fill me-1"></i>
+                                                        Tạm dừng hiển thị
+                                                    </span>
+
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary">
+                                                        <i class="bi bi-pencil-square me-1"></i>
+                                                        Người bán sửa và gửi duyệt lại
+                                                    </span>
+
+                                                    <span class="badge bg-success-subtle text-success border border-success">
+                                                        <i class="bi bi-shield-check me-1"></i>
+                                                        Không xóa cứng dữ liệu
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </label>
@@ -255,7 +279,10 @@
                                             <div class="text-danger mt-1"><i class="bi bi-trash3-fill fs-4"></i></div>
                                             <div>
                                                 <h6 class="fw-bold text-danger mb-1">Gỡ tin lập tức & Ghi nhận vi phạm</h6>
-                                                <p class="text-muted small mb-0">Ẩn tin khỏi hệ thống. Ghi <strong class="text-danger">1 lỗi</strong>. Gửi thông báo cảnh cáo nghiêm khắc cho người bán.</p>
+                                                <p class="text-muted small mb-0">
+                                                    Ẩn/xóa mềm tin khỏi hệ thống, cộng <strong class="text-danger">1 lỗi vi phạm</strong> vào hồ sơ người bán,
+                                                    gửi cảnh báo nghiêm khắc. Nếu đủ <strong class="text-danger">3/3 lỗi</strong>, hệ thống sẽ tự động khóa tài khoản.
+                                                </p>
                                                 @if (isAutoBanRisk)
                                                 {
                                                     <span class="badge bg-danger mt-1"><i class="bi bi-lock-fill"></i> Sẽ kích hoạt Auto-Ban</span>
@@ -292,7 +319,7 @@
                     <div class="card-body p-4 text-center">
                         <i class="bi @(Model.Status == "Processed" ? "bi-check-circle-fill text-success" : "bi-info-circle-fill text-secondary")" style="font-size: 3rem;"></i>
                         <h4 class="fw-bold mt-3 mb-2">Báo cáo đã được khép lại</h4>
-                        <p class="text-muted mb-0">Vào lúc @Model.UpdatedAt?.ToString("HH:mm - dd/MM/yyyy"). Quyết định cuối cùng: <strong>@(Model.Status == "Processed" ? "Đã ghi nhận vi phạm & Xử lý người bán" : "Đã bác bỏ báo cáo")</strong>.</p>
+                        <p class="text-muted mb-0">Vào lúc @Model.UpdatedAt?.ToString("HH:mm - dd/MM/yyyy"). Quyết định cuối cùng: <strong>@(Model.Status == "Processed" ? "Đã xử lý / đã thi hành theo quyết định Admin" : "Đã bác bỏ báo cáo")</strong>.</p>
                     </div>
                 </div>
             }
@@ -459,178 +486,202 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        const currentViolations = parseInt('@violationCount');
-        const isCurrentlyBanned = @((seller != null && !seller.IsActive).ToString().ToLower());
+                const currentViolations = parseInt('@violationCount');
+                const isCurrentlyBanned = @((seller != null && !seller.IsActive).ToString().ToLower());
 
-        const noteConfigs = {
-            reject: {
-                hint: "Nội dung này sẽ được gửi cho người tố cáo để giải thích lý do bác bỏ.",
-                notes: [
-                    "Tin đăng hoàn toàn hợp lệ, hình ảnh và giá cả đúng thực tế.",
-                    "Không đủ bằng chứng xác định tin đăng lừa đảo.",
-                    "Báo cáo mang tính chất spam hoặc cạnh tranh không lành mạnh."
-                ]
-            },
-            warn: {
-                hint: "Nội dung này sẽ gửi cho NGƯỜI ĐĂNG TIN để yêu cầu họ tự sửa đổi sai phạm.",
-                notes: [
-                    "Vui lòng cập nhật lại hình ảnh thực tế của bất động sản.",
-                    "Giá bán hiển thị không đúng với thực tế. Yêu cầu điều chỉnh ngay.",
-                    "Địa chỉ hoặc thông số diện tích bị sai lệch, vui lòng cập nhật lại."
-                ]
-            },
-            delete: {
-                hint: "Nội dung này sẽ gửi cho NGƯỜI ĐĂNG TIN để giải thích lý do Gỡ tin và Ghi lỗi.",
-                notes: [
-                    "Tin đăng có dấu hiệu lừa đảo chiếm đoạt tiền cọc.",
-                    "Sử dụng hình ảnh giả mạo, copy từ dự án khác.",
-                    "Đăng tin rác, trùng lặp nhiều lần gây ảnh hưởng hệ thống."
-                ]
-            }
-        };
-
-        function updateNoteHint(type) {
-            const config = noteConfigs[type];
-            document.getElementById('noteHint').innerHTML = `<strong>Lưu ý:</strong> ${config.hint}`;
-
-            const container = document.getElementById('quickNotesContainer');
-            container.innerHTML = '';
-            config.notes.forEach(note => {
-                const span = document.createElement('span');
-                span.className = 'quick-note-btn';
-                span.innerText = note.length > 25 ? note.substring(0, 25) + '...' : note;
-                span.title = note;
-                span.onclick = () => addNote(note);
-                container.appendChild(span);
-            });
-
-            document.getElementById('adminNoteField').value = '';
-        }
-
-        function addNote(text) {
-            document.getElementById('adminNoteField').value = text;
-        }
-
-        // 1. GỬI XỬ LÝ REPORT
-        document.getElementById('btnSubmitProcess')?.addEventListener('click', function() {
-            const form = document.getElementById('frmProcessReport');
-            if (!form.reportValidity()) return;
-
-            const fd = new FormData(form);
-            const actionVal = fd.get('actionType');
-            const adminNote = fd.get('adminNote');
-
-            let actionTitle = "";
-            let actionHtml = "";
-            let confirmBtnClass = "";
-            let icon = "";
-
-            if (actionVal === 'Reject') {
-                actionTitle = 'Xác nhận Bác bỏ Báo cáo';
-                icon = 'info';
-                confirmBtnClass = '#6c757d';
-                actionHtml = `<div class="text-start mt-3"><p><strong>Hành động:</strong> Giữ nguyên tin đăng.</p><p><strong>Thông báo gửi người tố cáo:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p></div>`;
-            }
-            else if (actionVal === 'Warn') {
-                actionTitle = 'Xác nhận Cảnh cáo';
-                icon = 'warning';
-                confirmBtnClass = '#fd7e14';
-                actionHtml = `<div class="text-start mt-3 border-start border-warning border-4 ps-3"><p class="text-danger fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> Ghi nhận 1 vi phạm vào hồ sơ!</p><p class="mb-1"><strong>Hành động:</strong> Giữ tin, ép sửa.</p><p class="mb-0"><strong>Lời nhắn gửi người bán:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p></div>`;
-            }
-            else {
-                actionTitle = 'Xác nhận Xóa tin & Kỷ luật';
-                icon = 'error';
-                confirmBtnClass = '#dc3545';
-                actionHtml = `<div class="text-start mt-3 border-start border-danger border-4 ps-3"><p class="text-danger fw-bold mb-1"><i class="bi bi-trash3"></i> Ẩn toàn bộ tin đăng!</p><p class="text-danger fw-bold mb-1"><i class="bi bi-shield-x"></i> Ghi nhận 1 vi phạm nặng!</p><p class="mb-0 mt-2"><strong>Lời nhắn gửi người bán:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p></div>`;
-            }
-
-            if ((actionVal === 'Warn' || actionVal === 'DeleteProperty') && currentViolations >= 2 && !isCurrentlyBanned) {
-                actionHtml += `
-                    <div class="alert alert-danger mt-4 mb-0 text-start border-danger border-2 shadow-sm">
-                        <h6 class="fw-bold mb-2 text-danger"><i class="bi bi-exclamation-octagon-fill fs-5"></i> CẢNH BÁO: TỰ ĐỘNG KHÓA TÀI KHOẢN</h6>
-                        <p class="mb-0 small text-dark">Người dùng đã có <b>${currentViolations} vi phạm</b>. Hành động này sẽ khiến hệ thống <b>khóa quyền đăng nhập</b> của tài khoản này ngay lập tức.</p>
-                    </div>`;
-            }
-
-            Swal.fire({
-                title: actionTitle,
-                html: actionHtml,
-                icon: icon,
-                showCancelButton: true,
-                confirmButtonColor: confirmBtnClass,
-                cancelButtonColor: '#adb5bd',
-                confirmButtonText: 'Đồng ý & Thực thi',
-                cancelButtonText: 'Hủy bỏ'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const btn = this;
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
-                    btn.disabled = true;
-
-                    fetch('/Admin/PropertyReports/ProcessReport', {
-                        method: 'POST',
-                        body: fd,
-                        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            Swal.fire('Thành công!', data.message, 'success').then(() => location.reload());
-                        } else {
-                            Swal.fire('Lỗi', data.message, 'error');
-                            btn.innerHTML = '<i class="bi bi-shield-lock-fill me-2"></i> Xác thực & Thi hành quyết định';
-                            btn.disabled = false;
-                        }
-                    }).catch(err => {
-                        Swal.fire('Lỗi hệ thống', 'Không thể kết nối máy chủ.', 'error');
-                        btn.disabled = false;
-                    });
-                }
-            });
-        });
-
-        // 2. GỬI XỬ LÝ ÂN XÁ KHÁCH VIP
-        document.getElementById('btnPardon')?.addEventListener('click', function() {
-            Swal.fire({
-                title: 'Ân xá Người dùng',
-                html: `
-                    <p class="text-start mb-2">Tính năng này dùng để <b>xóa sạch toàn bộ án tích</b> của khách hàng (VIP/thân thiết) và <b>Mở khóa tài khoản</b> nếu đang bị cấm.</p>
-                    <textarea id="pardonReasonInput" class="form-control" rows="3" placeholder="Nhập lời nhắn gửi đến người bán (Ví dụ: Ban quản trị quyết định bỏ qua lỗi lần này...)"></textarea>
-                `,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#0d6efd',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Thực thi Ân Xá',
-                cancelButtonText: 'Đóng',
-                preConfirm: () => {
-                    const reason = document.getElementById('pardonReasonInput').value;
-                    if (!reason) {
-                        Swal.showValidationMessage('Vui lòng nhập lời nhắn gửi đến người bán!');
+                const noteConfigs = {
+                    reject: {
+                        hint: "Nội dung này sẽ được gửi cho người tố cáo để giải thích lý do bác bỏ.",
+                        notes: [
+                            "Tin đăng hoàn toàn hợp lệ, hình ảnh và giá cả đúng thực tế.",
+                            "Không đủ bằng chứng xác định tin đăng lừa đảo.",
+                            "Báo cáo mang tính chất spam hoặc cạnh tranh không lành mạnh."
+                        ]
+                    },
+                          warn: {
+                            hint: "Nội dung này sẽ gửi cho người đăng tin. Tin sẽ tạm dừng hiển thị công khai cho đến khi người bán cập nhật và được Admin duyệt lại.",
+                            notes: [
+                                "Tin đăng có dấu hiệu chưa chính xác. Vui lòng cập nhật lại hình ảnh thực tế, giá và mô tả trước khi gửi duyệt lại.",
+                                "Thông tin trong tin đăng đang bị phản ánh là dễ gây hiểu nhầm. Vui lòng rà soát nội dung và cập nhật lại.",
+                                "Tin đăng bị tạm dừng hiển thị do có báo cáo từ cộng đồng. Vui lòng chỉnh sửa thông tin chưa phù hợp rồi gửi lại để Admin duyệt."
+                            ]
+                        },
+                    delete: {
+                        hint: "Nội dung này sẽ gửi cho NGƯỜI ĐĂNG TIN để giải thích lý do Gỡ tin và Ghi lỗi.",
+                        notes: [
+                            "Tin đăng có dấu hiệu lừa đảo chiếm đoạt tiền cọc.",
+                            "Sử dụng hình ảnh giả mạo, copy từ dự án khác.",
+                            "Đăng tin rác, trùng lặp nhiều lần gây ảnh hưởng hệ thống."
+                        ]
                     }
-                    return reason;
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const form = document.getElementById('frmPardonUser');
-                    const fd = new FormData(form);
-                    fd.append('pardonReason', result.value);
+                };
 
-                    fetch('/Admin/PropertyReports/PardonUser', {
-                        method: 'POST',
-                        body: fd,
-                        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            Swal.fire('Đã Ân Xá!', data.message, 'success').then(() => location.reload());
-                        } else {
-                            Swal.fire('Lỗi', data.message, 'error');
+                function updateNoteHint(type) {
+                    const config = noteConfigs[type];
+                    document.getElementById('noteHint').innerHTML = `<strong>Lưu ý:</strong> ${config.hint}`;
+
+                    const container = document.getElementById('quickNotesContainer');
+                    container.innerHTML = '';
+                    config.notes.forEach(note => {
+                        const span = document.createElement('span');
+                        span.className = 'quick-note-btn';
+                        span.innerText = note.length > 25 ? note.substring(0, 25) + '...' : note;
+                        span.title = note;
+                        span.onclick = () => addNote(note);
+                        container.appendChild(span);
+                    });
+
+                    document.getElementById('adminNoteField').value = '';
+                }
+
+                function addNote(text) {
+                    document.getElementById('adminNoteField').value = text;
+                }
+
+                // 1. GỬI XỬ LÝ REPORT
+                document.getElementById('btnSubmitProcess')?.addEventListener('click', function() {
+                    const form = document.getElementById('frmProcessReport');
+                    if (!form.reportValidity()) return;
+
+                    const fd = new FormData(form);
+                    const actionVal = fd.get('actionType');
+                    const adminNote = fd.get('adminNote');
+
+                    let actionTitle = "";
+                    let actionHtml = "";
+                    let confirmBtnClass = "";
+                    let icon = "";
+
+                    if (actionVal === 'Reject') {
+                        actionTitle = 'Xác nhận Bác bỏ Báo cáo';
+                        icon = 'info';
+                        confirmBtnClass = '#6c757d';
+                        actionHtml = `<div class="text-start mt-3"><p><strong>Hành động:</strong> Giữ nguyên tin đăng.</p><p><strong>Thông báo gửi người tố cáo:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p></div>`;
+                    }
+                    else if (actionVal === 'Warn') {
+                        actionTitle = 'Xác nhận tạm dừng tin & yêu cầu chỉnh sửa';
+                        icon = 'warning';
+                        confirmBtnClass = '#fd7e14';
+
+                        actionHtml = `
+                            <div class="text-start mt-3 border-start border-warning border-4 ps-3">
+                                <p class="fw-bold text-warning mb-2">
+                                    <i class="bi bi-eye-slash-fill"></i>
+                                    Tạm dừng hiển thị tin đăng
+                                </p>
+
+                                <p class="mb-2">
+                                    <strong>Hành động:</strong>
+                                    Tin sẽ bị ẩn khỏi trang công khai và chuyển sang trạng thái
+                                    <strong>Bị từ chối / Cần chỉnh sửa</strong>.
+                                </p>
+
+                                <p class="mb-2">
+                                    Người bán sẽ nhận được thông báo lỗi vi phạm, bấm vào sửa tin,
+                                    cập nhật nội dung và gửi lại Admin duyệt.
+                                </p>
+
+                                <p class="mb-0">
+                                    <strong>Lời nhắn gửi người bán:</strong><br>
+                                    <span class="text-muted fst-italic">"${adminNote}"</span>
+                                </p>
+                            </div>`;
+                    }
+                    else {
+                        actionTitle = 'Xác nhận Xóa tin & Kỷ luật';
+                        icon = 'error';
+                        confirmBtnClass = '#dc3545';
+                        actionHtml = `<div class="text-start mt-3 border-start border-danger border-4 ps-3"><p class="text-danger fw-bold mb-1"><i class="bi bi-trash3"></i> Ẩn toàn bộ tin đăng!</p><p class="text-danger fw-bold mb-1"><i class="bi bi-shield-x"></i> Cộng 1 lỗi vi phạm vào hồ sơ người bán!</p>
+        <p class="text-danger fw-bold mb-1"><i class="bi bi-person-fill-lock"></i> Nếu đủ 3/3 lỗi đang hiệu lực, hệ thống sẽ khóa tài khoản tự động!</p><p class="mb-0 mt-2"><strong>Lời nhắn gửi người bán:</strong><br><span class="text-muted fst-italic">"${adminNote}"</span></p></div>`;
+                    }
+
+                    if (actionVal === 'DeleteProperty' && currentViolations >= 2 && !isCurrentlyBanned) {
+                        actionHtml += `
+                            <div class="alert alert-danger mt-4 mb-0 text-start border-danger border-2 shadow-sm">
+                                <h6 class="fw-bold mb-2 text-danger"><i class="bi bi-exclamation-octagon-fill fs-5"></i> CẢNH BÁO: TỰ ĐỘNG KHÓA TÀI KHOẢN</h6>
+                                <p class="mb-0 small text-dark">Người dùng đã có <b>${currentViolations} vi phạm</b>. Hành động này sẽ khiến hệ thống <b>khóa quyền đăng nhập</b> của tài khoản này ngay lập tức.</p>
+                            </div>`;
+                    }
+
+                    Swal.fire({
+                        title: actionTitle,
+                        html: actionHtml,
+                        icon: icon,
+                        showCancelButton: true,
+                        confirmButtonColor: confirmBtnClass,
+                        cancelButtonColor: '#adb5bd',
+                        confirmButtonText: 'Đồng ý & Thực thi',
+                        cancelButtonText: 'Hủy bỏ'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const btn = this;
+                            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+                            btn.disabled = true;
+
+                            fetch('/Admin/PropertyReports/ProcessReport', {
+                                method: 'POST',
+                                body: fd,
+                                headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    Swal.fire('Thành công!', data.message, 'success').then(() => location.reload());
+                                } else {
+                                    Swal.fire('Lỗi', data.message, 'error');
+                                    btn.innerHTML = '<i class="bi bi-shield-lock-fill me-2"></i> Xác thực & Thi hành quyết định';
+                                    btn.disabled = false;
+                                }
+                            }).catch(err => {
+                                Swal.fire('Lỗi hệ thống', 'Không thể kết nối máy chủ.', 'error');
+                                btn.disabled = false;
+                            });
                         }
                     });
-                }
-            });
-        });
+                });
+
+                // 2. GỬI XỬ LÝ ÂN XÁ KHÁCH VIP
+                document.getElementById('btnPardon')?.addEventListener('click', function() {
+                    Swal.fire({
+                        title: 'Ân xá Người dùng',
+                        html: `
+                            <p class="text-start mb-2">Tính năng này dùng để <b>xóa sạch toàn bộ án tích</b> của khách hàng (VIP/thân thiết) và <b>Mở khóa tài khoản</b> nếu đang bị cấm.</p>
+                            <textarea id="pardonReasonInput" class="form-control" rows="3" placeholder="Nhập lời nhắn gửi đến người bán (Ví dụ: Ban quản trị quyết định bỏ qua lỗi lần này...)"></textarea>
+                        `,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#0d6efd',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Thực thi Ân Xá',
+                        cancelButtonText: 'Đóng',
+                        preConfirm: () => {
+                            const reason = document.getElementById('pardonReasonInput').value;
+                            if (!reason) {
+                                Swal.showValidationMessage('Vui lòng nhập lời nhắn gửi đến người bán!');
+                            }
+                            return reason;
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            const form = document.getElementById('frmPardonUser');
+                            const fd = new FormData(form);
+                            fd.append('pardonReason', result.value);
+
+                            fetch('/Admin/PropertyReports/PardonUser', {
+                                method: 'POST',
+                                body: fd,
+                                headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    Swal.fire('Đã Ân Xá!', data.message, 'success').then(() => location.reload());
+                                } else {
+                                    Swal.fire('Lỗi', data.message, 'error');
+                                }
+                            });
+                        }
+                    });
+                });
     </script>
 }

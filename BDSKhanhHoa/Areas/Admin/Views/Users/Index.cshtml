@@ -20,6 +20,8 @@
     int lockedUsers = ViewBag.LockedUsers ?? 0;
     int unverifiedUsers = ViewBag.UnverifiedUsers ?? 0;
     int trashCount = ViewBag.TrashCount ?? 0;
+    int violationLockedUsers = ViewBag.ViolationLockedUsers ?? 0;
+    var activeViolationCounts = ViewBag.ActiveViolationCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
 }
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -277,47 +279,47 @@
                 document.addEventListener('DOMContentLoaded', function () {
                     @if (TempData["Success"] != null)
                     {
-                            <text>
-                                Swal.fire({
-                                    toast: true,
-                                    position: 'top-end',
-                                    icon: 'success',
-                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Success"]?.ToString())),
-                                    showConfirmButton: false,
-                                    timer: 3000,
-                                    timerProgressBar: true
-                                });
-                            </text>
+                                <text>
+                                    Swal.fire({
+                                        toast: true,
+                                        position: 'top-end',
+                                        icon: 'success',
+                                        title: @Html.Raw(JsonSerializer.Serialize(TempData["Success"]?.ToString())),
+                                        showConfirmButton: false,
+                                        timer: 3000,
+                                        timerProgressBar: true
+                                    });
+                                </text>
                     }
 
                     @if (TempData["Warning"] != null)
                     {
-                            <text>
-                                Swal.fire({
-                                    toast: true,
-                                    position: 'top-end',
-                                    icon: 'warning',
-                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Warning"]?.ToString())),
-                                    showConfirmButton: false,
-                                    timer: 4000,
-                                    timerProgressBar: true
-                                });
-                            </text>
+                                <text>
+                                    Swal.fire({
+                                        toast: true,
+                                        position: 'top-end',
+                                        icon: 'warning',
+                                        title: @Html.Raw(JsonSerializer.Serialize(TempData["Warning"]?.ToString())),
+                                        showConfirmButton: false,
+                                        timer: 4000,
+                                        timerProgressBar: true
+                                    });
+                                </text>
                     }
 
                     @if (TempData["Error"] != null)
                     {
-                            <text>
-                                Swal.fire({
-                                    toast: true,
-                                    position: 'top-end',
-                                    icon: 'error',
-                                    title: @Html.Raw(JsonSerializer.Serialize(TempData["Error"]?.ToString())),
-                                    showConfirmButton: false,
-                                    timer: 4000,
-                                    timerProgressBar: true
-                                });
-                            </text>
+                                <text>
+                                    Swal.fire({
+                                        toast: true,
+                                        position: 'top-end',
+                                        icon: 'error',
+                                        title: @Html.Raw(JsonSerializer.Serialize(TempData["Error"]?.ToString())),
+                                        showConfirmButton: false,
+                                        timer: 4000,
+                                        timerProgressBar: true
+                                    });
+                                </text>
                     }
                 });
             </script>
@@ -367,7 +369,7 @@
                     </div>
                     <div>
                         <h4 class="stat-value text-danger">@lockedUsers.ToString("N0")</h4>
-                        <div class="stat-label">Bị khóa sau xác thực</div>
+                        <div class="stat-label">Bị khóa sau xác thực • Vi phạm: @violationLockedUsers</div>
                     </div>
                 </div>
             </div>
@@ -533,6 +535,10 @@
 
                             bool isVerified = item.IsEmailVerified == true;
                             bool canToggle = isVerified;
+                            int activeViolationCount = activeViolationCounts.ContainsKey(item.UserID) ? activeViolationCounts[item.UserID] : 0;
+                            bool lockedByViolation = !item.IsActive
+                            && !string.IsNullOrWhiteSpace(item.AdminNote)
+                            && item.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM");
 
                             <tr id="user-row-@item.UserID">
                                 <td class="ps-4">
@@ -546,6 +552,15 @@
                                             <div class="fw-bold text-dark">@displayName</div>
                                             <div class="small text-muted fw-bold">@@@item.Username</div>
                                             <div class="small text-muted">ID: @item.UserID</div>
+                                            @if (activeViolationCount > 0)
+                                            {
+                                                <div class="mt-1">
+                                                    <span class="badge @(activeViolationCount >= 3 ? "bg-danger" : "bg-warning text-dark") rounded-pill">
+                                                        <i class="bi bi-shield-exclamation me-1"></i>
+                                                        @activeViolationCount/3 lỗi
+                                                    </span>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
                                 </td>
@@ -609,8 +624,14 @@
                                     {
                                         <span class="status-pill status-locked">
                                             <i class="bi bi-lock-fill"></i>
-                                            Bị khóa
+                                            @(lockedByViolation ? "Khóa do vi phạm" : "Bị khóa")
                                         </span>
+                                        @if (lockedByViolation)
+                                        {
+                                            <div class="verify-note text-danger">
+                                                Tự động khóa do đủ 3 lỗi vi phạm.
+                                            </div>
+                                        }
                                     }
 
                                     <div class="form-check form-switch pt-2">
@@ -632,7 +653,7 @@
                                             }
                                             else
                                             {
-                                                <text>@(item.IsActive ? "Đang mở" : "Bị khóa")</text>
+                                                <text>@(item.IsActive ? "Đang mở" : (lockedByViolation ? "Khóa do vi phạm" : "Bị khóa"))</text>
                                             }
                                         </label>
                                     </div>

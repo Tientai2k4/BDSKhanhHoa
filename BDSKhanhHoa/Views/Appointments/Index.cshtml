@@ -3,6 +3,7 @@
 
 @{
     var appointmentMode = (ViewBag.AppointmentMode as string ?? "CaNhan").Trim();
+
     bool isBusinessMode = appointmentMode.Equals("DoanhNghiep", StringComparison.OrdinalIgnoreCase)
                        || appointmentMode.Equals("Business", StringComparison.OrdinalIgnoreCase);
 
@@ -28,9 +29,14 @@
     string keyword = ViewBag.Keyword as string ?? "";
     string dateRange = ViewBag.DateRange as string ?? "tat-ca";
 
+    var vi = CultureInfo.GetCultureInfo("vi-VN");
+
     string GetStatusText(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return "Chờ xác nhận";
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Chờ xác nhận";
+        }
 
         return status.Trim() switch
         {
@@ -63,14 +69,33 @@
             "Đã hủy" => "trang-thai-huy",
             "Đã hoàn tất" => "trang-thai-hoan-tat",
             "Đang dời lịch" => "trang-thai-doi-lich",
-            "Khách không đến" => "trang-thai-huy",
+            "Khách không đến" => "trang-thai-khong-den",
             _ => "trang-thai-cho"
+        };
+    }
+
+    string GetStatusIcon(string? status)
+    {
+        string text = GetStatusText(status);
+
+        return text switch
+        {
+            "Chờ xác nhận" => "bi-hourglass-split",
+            "Đã xác nhận" => "bi-calendar-check-fill",
+            "Đã hủy" => "bi-x-circle-fill",
+            "Đã hoàn tất" => "bi-check-circle-fill",
+            "Đang dời lịch" => "bi-clock-history",
+            "Khách không đến" => "bi-person-x-fill",
+            _ => "bi-hourglass-split"
         };
     }
 
     string GetResultText(string? resultStatus)
     {
-        if (string.IsNullOrWhiteSpace(resultStatus)) return "";
+        if (string.IsNullOrWhiteSpace(resultStatus))
+        {
+            return "";
+        }
 
         return resultStatus.Trim() switch
         {
@@ -86,6 +111,97 @@
 
             _ => ""
         };
+    }
+
+    string GetSourceName(Appointment a)
+    {
+        return a.Property?.Title
+            ?? a.Project?.ProjectName
+            ?? a.Lead?.Project?.ProjectName
+            ?? "Bất động sản / dự án";
+    }
+
+    string GetCustomerName(Appointment a)
+    {
+        return !string.IsNullOrWhiteSpace(a.CustomerName)
+            ? a.CustomerName
+            : (a.Buyer?.Username ?? "Khách chưa rõ tên");
+    }
+
+    string GetRoleText(bool isSeller, bool isBuyer)
+    {
+        if (isSeller && isBuyer)
+        {
+            return "Lịch của bạn";
+        }
+
+        if (isSeller)
+        {
+            return "Khách hẹn bạn";
+        }
+
+        if (isBuyer)
+        {
+            return "Bạn đặt lịch";
+        }
+
+        return "Lịch hẹn";
+    }
+
+    string GetRoleClass(bool isSeller, bool isBuyer)
+    {
+        if (isSeller)
+        {
+            return "vai-tro-den";
+        }
+
+        if (isBuyer)
+        {
+            return "vai-tro-di";
+        }
+
+        return "vai-tro-trung";
+    }
+
+    bool IsClosedStatus(string statusText)
+    {
+        return statusText == "Đã hoàn tất"
+            || statusText == "Đã hủy"
+            || statusText == "Khách không đến";
+    }
+
+    string GetNextActionText(string statusText, bool isSeller, bool isBuyer, bool hasResult)
+    {
+        if (isSeller)
+        {
+            return statusText switch
+            {
+                "Chờ xác nhận" => "Việc chính: xác nhận lịch nếu có thể đi xem. Nếu không phù hợp, dùng Tùy chọn để dời hoặc từ chối.",
+                "Đã xác nhận" when !hasResult => "Việc chính: cập nhật kết quả sau khi gặp khách. Chưa nên hoàn tất khi chưa có kết quả.",
+                "Đã xác nhận" => "Việc chính: tiếp tục sửa kết quả nếu cần. Khi chắc chắn xong, bấm Hoàn tất lịch hẹn.",
+                "Đang dời lịch" => "Đang chờ khách phản hồi giờ mới. Người bán tạm thời không cần thao tác thêm.",
+                "Đã hoàn tất" => "Lịch đã hoàn tất và bị khóa để lưu lịch sử.",
+                "Đã hủy" => "Lịch đã hủy và bị khóa.",
+                "Khách không đến" => "Lịch đã đóng do khách không đến.",
+                _ => "Cần kiểm tra lại trạng thái lịch hẹn."
+            };
+        }
+
+        if (isBuyer)
+        {
+            return statusText switch
+            {
+                "Chờ xác nhận" => "Bạn đã gửi lịch hẹn. Có thể hủy nếu không còn nhu cầu.",
+                "Đã xác nhận" => "Lịch đã được xác nhận. Hãy đến đúng giờ hoặc hủy nếu không đi được.",
+                "Đang dời lịch" => "Người bán đề xuất giờ mới. Bạn cần đồng ý hoặc không đồng ý.",
+                "Đã hoàn tất" => "Lịch đã hoàn tất.",
+                "Đã hủy" => "Lịch đã hủy.",
+                "Khách không đến" => "Lịch được ghi nhận khách không đến.",
+                _ => "Theo dõi trạng thái lịch hẹn."
+            };
+        }
+
+        return "Theo dõi trạng thái lịch hẹn.";
     }
 }
 
@@ -106,99 +222,102 @@
     }
 
     .lich-page {
-        padding: 24px 0 40px;
+        padding: 18px 0 36px;
+        font-size: 14px;
     }
 
     .lich-hero,
     .lich-filter,
     .lich-card-box {
         background: var(--lich-card);
-        border: 1px solid rgba(148, 163, 184, .18);
-        box-shadow: 0 14px 40px rgba(15, 23, 42, .06);
-        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, .20);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+        border-radius: 22px;
     }
 
     .lich-hero {
-        padding: 26px;
-        margin-bottom: 24px;
+        padding: 20px;
+        margin-bottom: 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 18px;
+        gap: 14px;
         flex-wrap: wrap;
     }
 
     .lich-title {
-        font-size: clamp(1.35rem, 2.4vw, 2rem);
-        font-weight: 900;
+        font-size: clamp(1.22rem, 2vw, 1.68rem);
+        font-weight: 950;
         color: var(--lich-dark);
-        margin: 0 0 6px;
+        margin: 0 0 5px;
         letter-spacing: -.03em;
     }
 
     .lich-subtitle {
         color: var(--lich-muted);
         margin: 0;
-        font-size: .98rem;
-        line-height: 1.6;
+        font-size: .88rem;
+        line-height: 1.55;
+        max-width: 820px;
     }
 
     .lich-quick {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
     }
 
     .lich-chip {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 10px 15px;
+        gap: 7px;
+        padding: 8px 12px;
         border-radius: 999px;
         background: #f8fafc;
         border: 1px solid var(--lich-border);
         color: #334155;
-        font-weight: 800;
+        font-weight: 850;
+        font-size: .8rem;
         white-space: nowrap;
     }
 
     .lich-stats {
-        margin-bottom: 24px;
+        margin-bottom: 16px;
     }
 
     .lich-stat {
         height: 100%;
-        min-height: 132px;
-        border-radius: 24px;
-        padding: 22px;
+        min-height: 88px;
+        border-radius: 19px;
+        padding: 15px;
         color: #fff;
         overflow: hidden;
         position: relative;
-        box-shadow: 0 16px 34px rgba(15, 23, 42, .10);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .09);
     }
 
         .lich-stat::after {
             content: "";
             position: absolute;
-            width: 120px;
-            height: 120px;
-            right: -35px;
-            top: -35px;
+            width: 90px;
+            height: 90px;
+            right: -32px;
+            top: -32px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, .16);
+            background: rgba(255, 255, 255, .15);
         }
 
     .lich-stat-label {
-        font-size: .78rem;
+        font-size: .68rem;
         text-transform: uppercase;
-        letter-spacing: .08em;
+        letter-spacing: .07em;
         font-weight: 900;
         opacity: .92;
-        margin-bottom: 14px;
+        margin-bottom: 9px;
     }
 
     .lich-stat-value {
-        font-size: 2.6rem;
+        font-size: 1.9rem;
         font-weight: 950;
         line-height: 1;
     }
@@ -224,26 +343,27 @@
     }
 
     .lich-filter {
-        padding: 24px;
-        margin-bottom: 24px;
+        padding: 16px;
+        margin-bottom: 16px;
     }
 
     .lich-label {
-        font-size: .78rem;
+        font-size: .7rem;
         font-weight: 900;
-        letter-spacing: .06em;
+        letter-spacing: .055em;
         text-transform: uppercase;
         color: #475569;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }
 
     .lich-input {
-        min-height: 50px;
-        border-radius: 15px;
+        min-height: 44px;
+        border-radius: 13px;
         border: 1px solid #dbe3ef;
         box-shadow: none !important;
         font-weight: 700;
         color: #1e293b;
+        font-size: .88rem;
     }
 
         .lich-input:focus {
@@ -251,8 +371,8 @@
         }
 
     .btn-loc {
-        min-height: 50px;
-        border-radius: 15px;
+        min-height: 44px;
+        border-radius: 13px;
         border: 0;
         font-weight: 900;
         background: linear-gradient(135deg, var(--lich-primary), var(--lich-primary-dark));
@@ -270,17 +390,17 @@
         .lich-table thead th {
             background: #f8fafc;
             color: #475569;
-            font-size: .78rem;
+            font-size: .7rem;
             text-transform: uppercase;
-            letter-spacing: .06em;
+            letter-spacing: .055em;
             font-weight: 900;
-            padding: 18px;
+            padding: 14px;
             border-bottom: 1px solid var(--lich-border);
             white-space: nowrap;
         }
 
         .lich-table tbody td {
-            padding: 18px;
+            padding: 14px;
             vertical-align: middle;
             border-bottom: 1px solid #f1f5f9;
         }
@@ -290,56 +410,65 @@
         }
 
     .lich-time {
-        font-weight: 900;
+        font-weight: 950;
         color: var(--lich-primary);
-        font-size: 1rem;
+        font-size: .92rem;
+    }
+
+    .lich-created {
+        color: #94a3b8;
+        font-size: .74rem;
+        font-weight: 700;
+        margin-top: 4px;
     }
 
     .lich-source {
-        margin-top: 10px;
-        padding: 10px 12px;
-        border-radius: 16px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 14px;
         border: 1px solid #e5e7eb;
         background: #f8fafc;
     }
 
     .lich-source-label {
-        font-size: .76rem;
+        font-size: .66rem;
         font-weight: 900;
         text-transform: uppercase;
         color: #64748b;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
     }
 
     .lich-source-name {
         font-weight: 850;
         color: #0f172a;
-        line-height: 1.45;
+        line-height: 1.4;
+        font-size: .84rem;
     }
 
     .lich-person {
-        font-size: 1.02rem;
+        font-size: .94rem;
         color: var(--lich-dark);
-        font-weight: 900;
-        margin-bottom: 6px;
+        font-weight: 950;
+        margin-bottom: 5px;
     }
 
     .lich-small {
         color: #64748b;
-        font-size: .9rem;
-        line-height: 1.55;
+        font-size: .82rem;
+        line-height: 1.52;
     }
 
     .trang-thai {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        padding: 8px 14px;
+        gap: 6px;
+        padding: 7px 11px;
         border-radius: 999px;
-        font-size: .78rem;
+        font-size: .7rem;
         font-weight: 950;
         text-transform: uppercase;
-        letter-spacing: .04em;
+        letter-spacing: .03em;
+        white-space: nowrap;
     }
 
     .trang-thai-cho {
@@ -362,20 +491,19 @@
         color: #047857;
     }
 
-    .trang-thai-huy {
+    .trang-thai-huy,
+    .trang-thai-khong-den {
         background: #f1f5f9;
         color: #64748b;
-        text-decoration: line-through;
     }
 
     .vai-tro {
         display: inline-flex;
         align-items: center;
-        padding: 6px 10px;
+        padding: 5px 9px;
         border-radius: 999px;
-        font-size: .75rem;
+        font-size: .68rem;
         font-weight: 900;
-        margin-left: 6px;
     }
 
     .vai-tro-den {
@@ -388,41 +516,92 @@
         color: #047857;
     }
 
+    .vai-tro-trung {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
     .lich-note {
-        margin-top: 10px;
-        padding: 10px 12px;
-        border-radius: 14px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 13px;
         background: #fffbeb;
         border: 1px solid #fde68a;
         color: #78350f;
-        font-size: .88rem;
+        font-size: .8rem;
         font-weight: 700;
-        line-height: 1.55;
+        line-height: 1.48;
     }
 
     .ket-qua-pill {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        padding: 7px 12px;
+        gap: 6px;
+        padding: 6px 10px;
         border-radius: 12px;
         background: #fff;
         border: 1px solid var(--lich-border);
         color: #334155;
-        font-size: .82rem;
+        font-size: .76rem;
         font-weight: 850;
+    }
+
+    .next-box {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 13px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: .78rem;
+        line-height: 1.45;
+        font-weight: 700;
+    }
+
+    .action-stack {
+        display: grid;
+        gap: 8px;
+        width: 100%;
+        max-width: 210px;
+        margin: 0 auto;
     }
 
     .nut-thao-tac {
-        border-radius: 13px;
+        border-radius: 12px;
         font-weight: 850;
-        min-height: 42px;
-        padding-left: 14px;
-        padding-right: 14px;
+        min-height: 39px;
+        padding: 8px 12px;
+        font-size: .82rem;
     }
 
+    .btn-more-action {
+        border-radius: 12px;
+        font-weight: 850;
+        min-height: 38px;
+        font-size: .8rem;
+    }
+
+    .dropdown-menu.lich-action-menu {
+        border: 1px solid #e2e8f0;
+        border-radius: 15px;
+        box-shadow: 0 16px 34px rgba(15, 23, 42, .14);
+        padding: 8px;
+        min-width: 210px;
+    }
+
+    .lich-action-menu .dropdown-item {
+        border-radius: 11px;
+        font-size: .84rem;
+        font-weight: 750;
+        padding: 9px 10px;
+    }
+
+        .lich-action-menu .dropdown-item:hover {
+            background: #f8fafc;
+        }
+
     .lich-empty {
-        padding: 70px 24px;
+        padding: 54px 20px;
         text-align: center;
         color: #64748b;
     }
@@ -433,34 +612,38 @@
 
     .lich-mobile-card {
         background: #fff;
-        border-radius: 22px;
-        border: 1px solid rgba(148, 163, 184, .22);
-        padding: 18px;
-        box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
-        margin-bottom: 16px;
+        border-radius: 19px;
+        border: 1px solid rgba(148, 163, 184, .24);
+        padding: 14px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .055);
+        margin-bottom: 13px;
     }
 
     .mobile-line {
         display: flex;
-        gap: 10px;
+        gap: 9px;
         align-items: flex-start;
         color: #475569;
-        font-size: .92rem;
-        line-height: 1.55;
-        margin-top: 9px;
+        font-size: .84rem;
+        line-height: 1.48;
+        margin-top: 8px;
     }
+
+        .mobile-line i {
+            margin-top: 2px;
+        }
 
     .phan-trang .page-link {
         border: 1px solid #dbe3ef;
         color: #334155;
         font-weight: 900;
-        border-radius: 14px;
-        width: 44px;
-        height: 44px;
+        border-radius: 12px;
+        width: 40px;
+        height: 40px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin: 0 4px;
+        margin: 0 3px;
     }
 
     .phan-trang .page-item.active .page-link {
@@ -470,13 +653,13 @@
     }
 
     .modal-content {
-        border-radius: 24px;
+        border-radius: 22px;
         overflow: hidden;
     }
 
     @@media (max-width: 991.98px) {
         .lich-hero {
-            padding: 22px;
+            padding: 17px;
         }
 
         .lich-quick {
@@ -489,11 +672,11 @@
         }
 
         .lich-stat {
-            min-height: 112px;
+            min-height: 88px;
         }
 
         .lich-stat-value {
-            font-size: 2.2rem;
+            font-size: 1.65rem;
         }
 
         .desktop-table-wrap {
@@ -502,28 +685,33 @@
 
         .lich-mobile-list {
             display: block;
-            padding: 16px;
+            padding: 12px;
             background: #f8fafc;
+        }
+
+        .action-stack {
+            max-width: 100%;
         }
     }
 
     @@media (max-width: 575.98px) {
         .lich-page {
-            padding-top: 14px;
+            padding-top: 10px;
+            font-size: 13.5px;
         }
 
         .lich-hero,
         .lich-filter {
-            border-radius: 20px;
-            padding: 18px;
+            border-radius: 18px;
+            padding: 14px;
         }
 
         .lich-title {
-            font-size: 1.35rem;
+            font-size: 1.22rem;
         }
 
         .lich-subtitle {
-            font-size: .9rem;
+            font-size: .84rem;
         }
 
         .lich-chip {
@@ -531,32 +719,32 @@
         }
 
         .lich-stat {
-            border-radius: 20px;
-            padding: 18px;
+            border-radius: 18px;
+            padding: 13px;
         }
 
         .lich-mobile-list {
-            padding: 12px;
+            padding: 10px;
         }
 
         .lich-mobile-card {
-            border-radius: 20px;
-            padding: 16px;
+            border-radius: 18px;
+            padding: 13px;
         }
 
-        .nut-thao-tac {
+        .nut-thao-tac,
+        .btn-more-action {
             width: 100%;
         }
     }
 </style>
 
 <div class="container lich-page">
-
     <div class="lich-hero">
         <div>
             <h1 class="lich-title">@(isBusinessMode ? "Quản lý lịch hẹn dự án" : "Lịch hẹn của tôi")</h1>
             <p class="lich-subtitle">
-                Theo dõi lịch hẹn, xác nhận khách xem nhà, đề xuất dời lịch và cập nhật kết quả sau buổi gặp.
+                Theo dõi lịch hẹn xem bất động sản. Mỗi lịch chỉ hiển thị thao tác phù hợp với trạng thái hiện tại để tránh xử lý nhầm.
             </p>
         </div>
 
@@ -626,7 +814,7 @@
                     <option value="tat-ca" selected="@(activeTab == "tat-ca" || activeTab == "all")">Tất cả lịch</option>
                     <option value="lich-den" selected="@(activeTab == "lich-den" || activeTab == "incoming")">Khách hẹn mình</option>
                     <option value="lich-di" selected="@(activeTab == "lich-di" || activeTab == "outgoing")">Mình đặt lịch</option>
-                    <option value="sap-toi" selected="@(activeTab == "sap-toi" || activeTab == "upcoming")">Sắp tới</option>
+                    <option value="sap-toi" selected="@(activeTab == "sap-toi" || activeTab == "upcoming")">Cần xử lý</option>
                     <option value="hoan-tat" selected="@(activeTab == "hoan-tat" || activeTab == "completed")">Hoàn tất</option>
                     <option value="da-huy" selected="@(activeTab == "da-huy" || activeTab == "cancelled")">Đã hủy</option>
                 </select>
@@ -641,6 +829,7 @@
                     <option value="Đã xác nhận" selected="@(statusFilter == "Đã xác nhận" || statusFilter == "Confirmed")">Đã xác nhận</option>
                     <option value="Đã hoàn tất" selected="@(statusFilter == "Đã hoàn tất" || statusFilter == "Completed")">Đã hoàn tất</option>
                     <option value="Đã hủy" selected="@(statusFilter == "Đã hủy" || statusFilter == "Cancelled")">Đã hủy</option>
+                    <option value="Khách không đến" selected="@(statusFilter == "Khách không đến" || statusFilter == "NoShow")">Khách không đến</option>
                 </select>
             </div>
 
@@ -660,7 +849,7 @@
                        name="keyword"
                        value="@keyword"
                        class="form-control lich-input"
-                       placeholder="Nhập tên khách, số điện thoại, điểm hẹn, ghi chú, tiêu đề BĐS..." />
+                       placeholder="Tên khách, SĐT, điểm hẹn, ghi chú, tiêu đề BĐS..." />
             </div>
 
             <div class="col-xl-1 col-lg-3 col-md-12 d-grid">
@@ -673,14 +862,13 @@
     </div>
 
     <div class="lich-card-box mb-5">
-
         <div class="desktop-table-wrap table-responsive">
             <table class="table lich-table align-middle">
                 <thead>
                     <tr>
-                        <th style="width: 25%;">Thời gian & nguồn</th>
-                        <th style="width: 25%;">Khách hàng & điểm hẹn</th>
-                        <th style="width: 30%;">Trạng thái & ghi chú</th>
+                        <th style="width: 24%;">Thời gian & nguồn</th>
+                        <th style="width: 24%;">Khách hàng & điểm hẹn</th>
+                        <th style="width: 32%;">Trạng thái & ghi chú</th>
                         <th style="width: 20%;" class="text-center">Thao tác</th>
                     </tr>
                 </thead>
@@ -693,32 +881,41 @@
                             bool isSeller = a.SellerID == currentUserId;
                             bool isBuyer = a.BuyerID == currentUserId;
 
-                            string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)
-                            ? a.CustomerName
-                            : (a.Buyer?.Username ?? "Khách chưa rõ tên");
-
-                            string sourceName = a.Property?.Title
-                            ?? a.Project?.ProjectName
-                            ?? a.Lead?.Project?.ProjectName
-                            ?? "Bất động sản";
-
+                            string customerName = GetCustomerName(a);
+                            string sourceName = GetSourceName(a);
                             string statusText = GetStatusText(a.Status);
                             string statusClass = GetStatusClass(a.Status);
+                            string statusIcon = GetStatusIcon(a.Status);
                             string resultText = GetResultText(a.ResultStatus);
+                            bool hasResult = !string.IsNullOrWhiteSpace(resultText);
+                            bool isClosed = IsClosedStatus(statusText);
 
                             <tr>
                                 <td>
                                     <div class="lich-time">
                                         <i class="bi bi-calendar-check me-1"></i>
-                                        @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                        @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", vi)
                                     </div>
+
+                                    <div class="lich-created">
+                                        <i class="bi bi-plus-circle me-1"></i>
+                                        Tạo lúc: @a.CreatedAt.ToString("HH:mm - dd/MM/yyyy", vi)
+                                    </div>
+
+                                    @if (a.UpdatedAt.HasValue)
+                                    {
+                                        <div class="lich-created">
+                                            <i class="bi bi-clock-history me-1"></i>
+                                            Cập nhật: @a.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
+                                        </div>
+                                    }
 
                                     @if (a.ProposedAppointmentDate.HasValue)
                                     {
                                         <div class="mt-2 text-danger small fw-bold">
                                             <i class="bi bi-arrow-right-circle"></i>
-                                            Giờ đề xuất mới:
-                                            @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                            Giờ mới:
+                                            @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", vi)
                                         </div>
                                     }
 
@@ -746,6 +943,19 @@
                                         @(string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa cung cấp điểm hẹn" : a.MeetingLocation)
                                     </div>
 
+                                    @if (!string.IsNullOrWhiteSpace(a.AssignedStaffName) || !string.IsNullOrWhiteSpace(a.AssignedStaffPhone))
+                                    {
+                                        <div class="lich-small mt-1">
+                                            <i class="bi bi-person-badge-fill text-info me-1"></i>
+                                            Phụ trách:
+                                            @(string.IsNullOrWhiteSpace(a.AssignedStaffName) ? "Chưa rõ tên" : a.AssignedStaffName)
+                                            @if (!string.IsNullOrWhiteSpace(a.AssignedStaffPhone))
+                                            {
+                                                <span> - @a.AssignedStaffPhone</span>
+                                            }
+                                        </div>
+                                    }
+
                                     @if (!string.IsNullOrWhiteSpace(a.Note))
                                     {
                                         <div class="mt-2 text-muted small fst-italic">
@@ -757,19 +967,18 @@
                                 <td>
                                     <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
                                         <span class="trang-thai @statusClass">
-                                            <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
+                                            <i class="bi @statusIcon"></i>
                                             @statusText
                                         </span>
 
-                                        @if (isSeller)
-                                        {
-                                            <span class="vai-tro vai-tro-den">Khách hẹn bạn</span>
-                                        }
+                                        <span class="vai-tro @GetRoleClass(isSeller, isBuyer)">
+                                            @GetRoleText(isSeller, isBuyer)
+                                        </span>
+                                    </div>
 
-                                        @if (isBuyer)
-                                        {
-                                            <span class="vai-tro vai-tro-di">Bạn đặt lịch</span>
-                                        }
+                                    <div class="next-box">
+                                        <i class="bi bi-info-circle-fill me-1"></i>
+                                        @GetNextActionText(statusText, isSeller, isBuyer, hasResult)
                                     </div>
 
                                     @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
@@ -780,7 +989,7 @@
                                         </div>
                                     }
 
-                                    @if (!string.IsNullOrWhiteSpace(resultText))
+                                    @if (hasResult)
                                     {
                                         <div class="mt-2">
                                             <span class="ket-qua-pill">
@@ -788,52 +997,107 @@
                                                 Kết quả: @resultText
                                             </span>
 
-                                            @if (!string.IsNullOrWhiteSpace(a.ResultNote))
+                                            @if (isSeller && !string.IsNullOrWhiteSpace(a.ResultNote))
                                             {
-                                                <div class="text-muted small mt-2">@a.ResultNote</div>
+                                                <div class="lich-note">
+                                                    <i class="bi bi-journal-text me-1"></i>
+                                                    <strong>Ghi chú nội bộ:</strong> @a.ResultNote
+                                                </div>
                                             }
+
+                                            @if (isBuyer)
+                                            {
+                                                <div class="text-muted small mt-2">
+                                                    Người mua chỉ thấy kết quả tổng quát, không thấy ghi chú nội bộ của người bán.
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (a.CompletedAt.HasValue)
+                                    {
+                                        <div class="lich-created mt-2">
+                                            <i class="bi bi-check2-circle me-1"></i>
+                                            Đóng lúc: @a.CompletedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
                                         </div>
                                     }
                                 </td>
 
                                 <td class="text-center">
-                                    <div class="d-flex flex-column gap-2 align-items-center">
-
+                                    <div class="action-stack">
                                         @if (isSeller)
                                         {
                                             if (statusText == "Chờ xác nhận")
                                             {
                                                 <button type="button"
-                                                        class="btn btn-success nut-thao-tac w-100"
-                                                        onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Bạn có chắc muốn xác nhận lịch hẹn này?')">
+                                                        class="btn btn-success nut-thao-tac"
+                                                        onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Xác nhận lịch hẹn này?')">
                                                     <i class="bi bi-check-circle-fill"></i>
                                                     Xác nhận
                                                 </button>
 
-                                                <button type="button"
-                                                        class="btn btn-warning text-dark nut-thao-tac w-100"
-                                                        onclick="openRescheduleModal(@a.AppointmentID)">
-                                                    <i class="bi bi-clock-history"></i>
-                                                    Dời lịch
-                                                </button>
-
-                                                <button type="button"
-                                                        class="btn btn-danger nut-thao-tac w-100"
-                                                        onclick="openRejectModal(@a.AppointmentID, 'Từ chối lịch hẹn')">
-                                                    <i class="bi bi-x-circle-fill"></i>
-                                                    Từ chối
-                                                </button>
+                                                <div class="dropdown">
+                                                    <button class="btn btn-light border btn-more-action w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                        Tùy chọn
+                                                    </button>
+                                                    <div class="dropdown-menu lich-action-menu dropdown-menu-end">
+                                                        <button class="dropdown-item" type="button" onclick="openRescheduleModal(@a.AppointmentID)">
+                                                            <i class="bi bi-clock-history text-warning me-2"></i>Dời lịch
+                                                        </button>
+                                                        <button class="dropdown-item text-danger" type="button"
+                                                                onclick="openReasonModal(@a.AppointmentID, 'Từ chối lịch hẹn', '@Url.Action("SellerReject", "Appointments")', 'Nhập lý do từ chối hoặc hủy lịch hẹn.')">
+                                                            <i class="bi bi-x-circle-fill me-2"></i>Từ chối
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             }
                                             else if (statusText == "Đã xác nhận")
                                             {
                                                 <button type="button"
-                                                        class="btn btn-primary nut-thao-tac w-100"
+                                                        class="btn btn-primary nut-thao-tac"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#feedbackModal"
-                                                        data-id="@a.AppointmentID">
-                                                    <i class="bi bi-clipboard-check"></i>
-                                                    Chốt kết quả
+                                                        data-id="@a.AppointmentID"
+                                                        data-result-status="@resultText"
+                                                        data-result-note="@(a.ResultNote ?? "")">
+                                                    <i class="bi bi-pencil-square"></i>
+                                                    @(hasResult ? "Sửa kết quả" : "Cập nhật kết quả")
                                                 </button>
+
+                                                @if (hasResult)
+                                                {
+                                                    <button type="button"
+                                                            class="btn btn-success nut-thao-tac"
+                                                            onclick="postAction('@Url.Action("SellerComplete", "Appointments")', @a.AppointmentID, 'Hoàn tất lịch hẹn này? Sau khi hoàn tất, lịch sẽ bị khóa.')">
+                                                        <i class="bi bi-check2-circle"></i>
+                                                        Hoàn tất
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button"
+                                                            class="btn btn-success nut-thao-tac"
+                                                            disabled
+                                                            title="Cần cập nhật kết quả trước khi hoàn tất">
+                                                        <i class="bi bi-check2-circle"></i>
+                                                        Hoàn tất
+                                                    </button>
+                                                }
+
+                                                <div class="dropdown">
+                                                    <button class="btn btn-light border btn-more-action w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                        Tùy chọn
+                                                    </button>
+                                                    <div class="dropdown-menu lich-action-menu dropdown-menu-end">
+                                                        <button class="dropdown-item" type="button" onclick="openRescheduleModal(@a.AppointmentID)">
+                                                            <i class="bi bi-clock-history text-warning me-2"></i>Dời lịch
+                                                        </button>
+                                                        <button class="dropdown-item text-danger" type="button"
+                                                                onclick="openReasonModal(@a.AppointmentID, 'Khách không đến', '@Url.Action("SellerNoShow", "Appointments")', 'Nhập ghi chú nếu khách không đến buổi hẹn.')">
+                                                            <i class="bi bi-person-x-fill me-2"></i>Khách không đến
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             }
                                             else if (statusText == "Đang dời lịch")
                                             {
@@ -849,8 +1113,8 @@
                                             if (statusText == "Chờ xác nhận")
                                             {
                                                 <button type="button"
-                                                        class="btn btn-outline-danger nut-thao-tac w-100"
-                                                        onclick="openRejectModal(@a.AppointmentID, 'Hủy lịch đã đặt')">
+                                                        class="btn btn-outline-danger nut-thao-tac"
+                                                        onclick="openReasonModal(@a.AppointmentID, 'Hủy lịch đã đặt', '@Url.Action("BuyerCancel", "Appointments")', 'Nhập lý do hủy lịch hẹn.')">
                                                     <i class="bi bi-trash-fill"></i>
                                                     Hủy yêu cầu
                                                 </button>
@@ -858,29 +1122,31 @@
                                             else if (statusText == "Đang dời lịch")
                                             {
                                                 <button type="button"
-                                                        class="btn btn-success nut-thao-tac w-100"
+                                                        class="btn btn-success nut-thao-tac"
                                                         onclick="postAction('@Url.Action("BuyerAcceptReschedule", "Appointments")', @a.AppointmentID, 'Bạn đồng ý với giờ dời lịch do người bán đề xuất?')">
                                                     <i class="bi bi-check-circle-fill"></i>
                                                     Đồng ý giờ mới
                                                 </button>
 
                                                 <button type="button"
-                                                        class="btn btn-danger nut-thao-tac w-100"
-                                                        onclick="openRejectModal(@a.AppointmentID, 'Từ chối giờ dời lịch')">
+                                                        class="btn btn-danger nut-thao-tac"
+                                                        onclick="openReasonModal(@a.AppointmentID, 'Từ chối giờ dời lịch', '@Url.Action("BuyerRejectReschedule", "Appointments")', 'Nhập lý do không đồng ý giờ dời lịch.')">
                                                     <i class="bi bi-x-circle-fill"></i>
                                                     Không đồng ý
                                                 </button>
                                             }
                                             else if (statusText == "Đã xác nhận")
                                             {
-                                                <span class="text-success small fw-bold">
-                                                    <i class="bi bi-shield-fill-check"></i>
-                                                    Đã được xác nhận
-                                                </span>
+                                                <button type="button"
+                                                        class="btn btn-outline-danger nut-thao-tac"
+                                                        onclick="openReasonModal(@a.AppointmentID, 'Hủy lịch đã xác nhận', '@Url.Action("BuyerCancel", "Appointments")', 'Nhập lý do hủy lịch hẹn đã xác nhận.')">
+                                                    <i class="bi bi-x-circle"></i>
+                                                    Hủy lịch
+                                                </button>
                                             }
                                         }
 
-                                        @if (statusText == "Đã hoàn tất" || statusText == "Đã hủy" || statusText == "Khách không đến")
+                                        @if (isClosed)
                                         {
                                             <span class="text-muted small fw-bold">
                                                 <i class="bi bi-lock-fill"></i>
@@ -916,18 +1182,14 @@
                     bool isSeller = a.SellerID == currentUserId;
                     bool isBuyer = a.BuyerID == currentUserId;
 
-                    string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)
-                    ? a.CustomerName
-                    : (a.Buyer?.Username ?? "Khách chưa rõ tên");
-
-                    string sourceName = a.Property?.Title
-                    ?? a.Project?.ProjectName
-                    ?? a.Lead?.Project?.ProjectName
-                    ?? "Bất động sản";
-
+                    string customerName = GetCustomerName(a);
+                    string sourceName = GetSourceName(a);
                     string statusText = GetStatusText(a.Status);
                     string statusClass = GetStatusClass(a.Status);
+                    string statusIcon = GetStatusIcon(a.Status);
                     string resultText = GetResultText(a.ResultStatus);
+                    bool hasResult = !string.IsNullOrWhiteSpace(resultText);
+                    bool isClosed = IsClosedStatus(statusText);
 
                     <div class="lich-mobile-card">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
@@ -935,12 +1197,19 @@
                                 <div class="lich-person mb-1">@customerName</div>
                                 <div class="lich-time">
                                     <i class="bi bi-calendar-check me-1"></i>
-                                    @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                    @a.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", vi)
                                 </div>
                             </div>
 
                             <span class="trang-thai @statusClass">
+                                <i class="bi @statusIcon"></i>
                                 @statusText
+                            </span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <span class="vai-tro @GetRoleClass(isSeller, isBuyer)">
+                                @GetRoleText(isSeller, isBuyer)
                             </span>
                         </div>
 
@@ -961,6 +1230,14 @@
                         </div>
 
                         <div class="mobile-line">
+                            <i class="bi bi-envelope-fill text-primary"></i>
+                            <div>
+                                <strong>Email:</strong>
+                                @(string.IsNullOrWhiteSpace(a.CustomerEmail) ? "Chưa có" : a.CustomerEmail)
+                            </div>
+                        </div>
+
+                        <div class="mobile-line">
                             <i class="bi bi-geo-alt-fill text-danger"></i>
                             <div>
                                 <strong>Điểm hẹn:</strong>
@@ -968,14 +1245,43 @@
                             </div>
                         </div>
 
+                        <div class="mobile-line">
+                            <i class="bi bi-clock-history text-muted"></i>
+                            <div>
+                                <strong>Tạo lúc:</strong>
+                                @a.CreatedAt.ToString("HH:mm - dd/MM/yyyy", vi)
+
+                                @if (a.UpdatedAt.HasValue)
+                                {
+                                    <div>
+                                        <strong>Cập nhật:</strong>
+                                        @a.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
                         @if (a.ProposedAppointmentDate.HasValue)
                         {
                             <div class="lich-note">
                                 <i class="bi bi-arrow-right-circle"></i>
-                                Giờ đề xuất mới:
-                                @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", CultureInfo.GetCultureInfo("vi-VN"))
+                                Giờ mới:
+                                @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", vi)
                             </div>
                         }
+
+                        @if (!string.IsNullOrWhiteSpace(a.Note))
+                        {
+                            <div class="lich-note">
+                                <i class="bi bi-chat-left-text me-1"></i>
+                                @a.Note
+                            </div>
+                        }
+
+                        <div class="next-box">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            @GetNextActionText(statusText, isSeller, isBuyer, hasResult)
+                        </div>
 
                         @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
                         {
@@ -985,24 +1291,50 @@
                             </div>
                         }
 
-                        @if (!string.IsNullOrWhiteSpace(resultText))
+                        @if (hasResult)
                         {
                             <div class="mt-3">
                                 <span class="ket-qua-pill">
                                     <i class="bi bi-bookmark-check-fill text-success"></i>
                                     Kết quả: @resultText
                                 </span>
+
+                                @if (isSeller && !string.IsNullOrWhiteSpace(a.ResultNote))
+                                {
+                                    <div class="lich-note">
+                                        <i class="bi bi-journal-text me-1"></i>
+                                        <strong>Ghi chú nội bộ:</strong> @a.ResultNote
+                                    </div>
+                                }
+
+                                @if (isBuyer)
+                                {
+                                    <div class="text-muted small mt-2">
+                                        Người mua chỉ thấy kết quả tổng quát, không thấy ghi chú nội bộ của người bán.
+                                    </div>
+                                }
                             </div>
                         }
 
-                        <div class="d-grid gap-2 mt-3">
+                        @if (a.CompletedAt.HasValue)
+                        {
+                            <div class="mobile-line">
+                                <i class="bi bi-check2-circle text-success"></i>
+                                <div>
+                                    <strong>Đóng lúc:</strong>
+                                    @a.CompletedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
+                                </div>
+                            </div>
+                        }
+
+                        <div class="action-stack mt-3">
                             @if (isSeller)
                             {
                                 if (statusText == "Chờ xác nhận")
                                 {
                                     <button type="button"
                                             class="btn btn-success nut-thao-tac"
-                                            onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Bạn có chắc muốn xác nhận lịch hẹn này?')">
+                                            onclick="postAction('@Url.Action("SellerAccept", "Appointments")', @a.AppointmentID, 'Xác nhận lịch hẹn này?')">
                                         <i class="bi bi-check-circle-fill"></i>
                                         Xác nhận
                                     </button>
@@ -1015,8 +1347,8 @@
                                     </button>
 
                                     <button type="button"
-                                            class="btn btn-danger nut-thao-tac"
-                                            onclick="openRejectModal(@a.AppointmentID, 'Từ chối lịch hẹn')">
+                                            class="btn btn-outline-danger nut-thao-tac"
+                                            onclick="openReasonModal(@a.AppointmentID, 'Từ chối lịch hẹn', '@Url.Action("SellerReject", "Appointments")', 'Nhập lý do từ chối hoặc hủy lịch hẹn.')">
                                         <i class="bi bi-x-circle-fill"></i>
                                         Từ chối
                                     </button>
@@ -1027,10 +1359,52 @@
                                             class="btn btn-primary nut-thao-tac"
                                             data-bs-toggle="modal"
                                             data-bs-target="#feedbackModal"
-                                            data-id="@a.AppointmentID">
-                                        <i class="bi bi-clipboard-check"></i>
-                                        Chốt kết quả
+                                            data-id="@a.AppointmentID"
+                                            data-result-status="@resultText"
+                                            data-result-note="@(a.ResultNote ?? "")">
+                                        <i class="bi bi-pencil-square"></i>
+                                        @(hasResult ? "Sửa kết quả" : "Cập nhật kết quả")
                                     </button>
+
+                                    @if (hasResult)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-success nut-thao-tac"
+                                                onclick="postAction('@Url.Action("SellerComplete", "Appointments")', @a.AppointmentID, 'Hoàn tất lịch hẹn này? Sau khi hoàn tất, lịch sẽ bị khóa.')">
+                                            <i class="bi bi-check2-circle"></i>
+                                            Hoàn tất
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="btn btn-success nut-thao-tac"
+                                                disabled>
+                                            <i class="bi bi-check2-circle"></i>
+                                            Hoàn tất
+                                        </button>
+                                    }
+
+                                    <button type="button"
+                                            class="btn btn-outline-warning text-dark nut-thao-tac"
+                                            onclick="openRescheduleModal(@a.AppointmentID)">
+                                        <i class="bi bi-clock-history"></i>
+                                        Dời lịch
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-outline-danger nut-thao-tac"
+                                            onclick="openReasonModal(@a.AppointmentID, 'Khách không đến', '@Url.Action("SellerNoShow", "Appointments")', 'Nhập ghi chú nếu khách không đến buổi hẹn.')">
+                                        <i class="bi bi-person-x-fill"></i>
+                                        Khách không đến
+                                    </button>
+                                }
+                                else if (statusText == "Đang dời lịch")
+                                {
+                                    <span class="text-muted small fw-bold text-center">
+                                        <i class="bi bi-hourglass-split"></i>
+                                        Chờ khách xác nhận giờ mới
+                                    </span>
                                 }
                             }
 
@@ -1040,7 +1414,7 @@
                                 {
                                     <button type="button"
                                             class="btn btn-outline-danger nut-thao-tac"
-                                            onclick="openRejectModal(@a.AppointmentID, 'Hủy lịch đã đặt')">
+                                            onclick="openReasonModal(@a.AppointmentID, 'Hủy lịch đã đặt', '@Url.Action("BuyerCancel", "Appointments")', 'Nhập lý do hủy lịch hẹn.')">
                                         <i class="bi bi-trash-fill"></i>
                                         Hủy yêu cầu
                                     </button>
@@ -1056,11 +1430,28 @@
 
                                     <button type="button"
                                             class="btn btn-danger nut-thao-tac"
-                                            onclick="openRejectModal(@a.AppointmentID, 'Từ chối giờ dời lịch')">
+                                            onclick="openReasonModal(@a.AppointmentID, 'Từ chối giờ dời lịch', '@Url.Action("BuyerRejectReschedule", "Appointments")', 'Nhập lý do không đồng ý giờ dời lịch.')">
                                         <i class="bi bi-x-circle-fill"></i>
                                         Không đồng ý
                                     </button>
                                 }
+                                else if (statusText == "Đã xác nhận")
+                                {
+                                    <button type="button"
+                                            class="btn btn-outline-danger nut-thao-tac"
+                                            onclick="openReasonModal(@a.AppointmentID, 'Hủy lịch đã xác nhận', '@Url.Action("BuyerCancel", "Appointments")', 'Nhập lý do hủy lịch hẹn đã xác nhận.')">
+                                        <i class="bi bi-x-circle"></i>
+                                        Hủy lịch
+                                    </button>
+                                }
+                            }
+
+                            @if (isClosed)
+                            {
+                                <span class="text-muted small fw-bold text-center">
+                                    <i class="bi bi-lock-fill"></i>
+                                    Lịch đã đóng
+                                </span>
                             }
                         </div>
                     </div>
@@ -1111,34 +1502,38 @@
     </div>
 </div>
 
-<div class="modal fade" id="rejectModal" tabindex="-1">
+<div class="modal fade" id="reasonModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-danger text-white border-0">
-                <h5 class="modal-title fw-bold" id="rejectModalTitle">
+                <h5 class="modal-title fw-bold" id="reasonModalTitle">
                     <i class="bi bi-x-octagon-fill me-2"></i>
-                    Từ chối lịch hẹn
+                    Xác nhận thao tác
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
-            <form id="frmReject" method="post">
+            <form id="frmReason" method="post">
                 <div class="modal-body p-4">
                     @Html.AntiForgeryToken()
 
-                    <input type="hidden" name="id" id="rejectId" />
+                    <input type="hidden" name="id" id="reasonAppointmentId" />
 
                     <label class="form-label fw-bold text-dark">
-                        Lý do hủy hoặc từ chối
+                        Lý do / ghi chú
                         <span class="text-danger">*</span>
                     </label>
 
                     <textarea name="reason"
-                              id="rejectReason"
+                              id="reasonText"
                               class="form-control lich-input bg-light"
                               rows="4"
                               required
-                              placeholder="Ví dụ: Chủ nhà bận đột xuất, khách không phù hợp thời gian, sản phẩm đã giao dịch..."></textarea>
+                              placeholder="Nhập lý do hoặc ghi chú xử lý..."></textarea>
+
+                    <div class="form-text mt-2">
+                        Nội dung này dùng để lưu lịch sử xử lý và thông báo cho bên liên quan khi cần.
+                    </div>
                 </div>
 
                 <div class="modal-footer border-0 p-4 pt-0">
@@ -1147,7 +1542,7 @@
                     </button>
 
                     <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
-                        Xác nhận hủy
+                        Xác nhận
                     </button>
                 </div>
             </form>
@@ -1239,13 +1634,18 @@
 
                     <input type="hidden" name="id" id="feedbackAppointmentId" />
 
+                    <div class="alert alert-info border-0 rounded-4 small fw-bold mb-4">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Lưu kết quả không khóa lịch hẹn. Người bán vẫn có thể sửa lại. Chỉ khi bấm “Hoàn tất” thì lịch mới bị khóa.
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold text-dark">
                             Kết quả khách hàng
                             <span class="text-danger">*</span>
                         </label>
 
-                        <select name="resultStatus" class="form-select lich-input bg-light" required>
+                        <select name="resultStatus" id="feedbackResultStatus" class="form-select lich-input bg-light" required>
                             <option value="Khách quan tâm">Khách quan tâm / ưng ý</option>
                             <option value="Chờ đặt cọc">Chờ đặt cọc / làm hợp đồng</option>
                             <option value="Cần chăm sóc thêm">Cần chăm sóc, tư vấn thêm</option>
@@ -1254,11 +1654,19 @@
                     </div>
 
                     <div>
-                        <label class="form-label fw-bold text-dark">Ghi chú thực tế</label>
+                        <label class="form-label fw-bold text-dark">
+                            Ghi chú nội bộ của người bán
+                        </label>
+
                         <textarea name="resultNote"
+                                  id="feedbackResultNote"
                                   class="form-control lich-input"
                                   rows="4"
                                   placeholder="Ví dụ: Khách thích vị trí nhưng cần thương lượng giá, khách muốn xem thêm căn khác..."></textarea>
+
+                        <div class="form-text mt-2">
+                            Ghi chú này chỉ hiển thị cho người bán/người phụ trách. Người mua chỉ thấy kết quả tổng quát.
+                        </div>
                     </div>
                 </div>
 
@@ -1281,6 +1689,32 @@
         function layTokenChongGiaMao() {
             const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
             return tokenInput ? tokenInput.value : '';
+        }
+
+        function safeParseJsonResponse(res) {
+            return res.text().then(function (text) {
+                let data = null;
+
+                try {
+                    data = text ? JSON.parse(text) : null;
+                } catch {
+                    data = null;
+                }
+
+                if (!res.ok) {
+                    const message = data && data.message
+                        ? data.message
+                        : 'Máy chủ trả về lỗi ' + res.status + '. Vui lòng kiểm tra lại Controller.';
+
+                    throw new Error(message);
+                }
+
+                if (!data) {
+                    throw new Error('Máy chủ không trả về dữ liệu JSON hợp lệ.');
+                }
+
+                return data;
+            });
         }
 
         function postAction(url, id, message) {
@@ -1306,6 +1740,7 @@
                     title: 'Đang xử lý...',
                     text: 'Vui lòng chờ trong giây lát.',
                     allowOutsideClick: false,
+                    allowEscapeKey: false,
                     didOpen: () => {
                         Swal.showLoading();
                     }
@@ -1313,28 +1748,68 @@
 
                 fetch(url, {
                     method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Thành công',
-                            text: data.message,
-                            timer: 1800,
-                            showConfirmButton: false
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Không thành công', data.message, 'error');
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
                     }
                 })
-                .catch(() => {
-                    Swal.fire('Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại.', 'error');
-                });
+                    .then(safeParseJsonResponse)
+                    .then(data => {
+                        Swal.close();
+
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Thành công',
+                                text: data.message || 'Đã xử lý thành công.',
+                                confirmButtonText: 'OK'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Không thành công', data.message || 'Thao tác thất bại.', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.close();
+                        Swal.fire('Lỗi', err.message || 'Lỗi máy chủ, vui lòng thử lại sau.', 'error');
+                    });
             });
+        }
+
+        function openReasonModal(id, title, actionUrl, placeholder) {
+            const titleEl = document.getElementById('reasonModalTitle');
+            const idEl = document.getElementById('reasonAppointmentId');
+            const textEl = document.getElementById('reasonText');
+            const form = document.getElementById('frmReason');
+
+            if (!titleEl || !idEl || !textEl || !form) {
+                Swal.fire('Lỗi', 'Không tìm thấy modal xử lý lý do.', 'error');
+                return;
+            }
+
+            titleEl.innerHTML = '<i class="bi bi-x-octagon-fill me-2"></i>' + title;
+            idEl.value = id;
+            textEl.value = '';
+            textEl.placeholder = placeholder || 'Nhập lý do hoặc ghi chú xử lý.';
+            form.action = actionUrl;
+
+            const modal = new bootstrap.Modal(document.getElementById('reasonModal'));
+            modal.show();
+        }
+
+        function openRescheduleModal(id) {
+            const idEl = document.getElementById('rescheduleId');
+
+            if (!idEl) {
+                Swal.fire('Lỗi', 'Không tìm thấy modal dời lịch.', 'error');
+                return;
+            }
+
+            idEl.value = id;
+
+            const modal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
+            modal.show();
         }
 
         function handleModalFormAjax(formId) {
@@ -1347,71 +1822,56 @@
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
 
-                const formData = new FormData(form);
                 const submitButton = form.querySelector('button[type="submit"]');
-                const originalHtml = submitButton.innerHTML;
+                const originalHtml = submitButton ? submitButton.innerHTML : '';
 
-                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
-                submitButton.disabled = true;
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
+                }
+
+                const formData = new FormData(form);
 
                 fetch(form.action, {
                     method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Thành công',
-                            text: data.message,
-                            confirmButtonColor: '#2563eb'
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Không thành công', data.message, 'error');
-                        submitButton.innerHTML = originalHtml;
-                        submitButton.disabled = false;
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
                     }
                 })
-                .catch(() => {
-                    Swal.fire('Lỗi', 'Lỗi máy chủ, vui lòng thử lại sau.', 'error');
-                    submitButton.innerHTML = originalHtml;
-                    submitButton.disabled = false;
-                });
+                    .then(safeParseJsonResponse)
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Thành công',
+                                text: data.message || 'Đã lưu thành công.',
+                                confirmButtonText: 'OK'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Không thành công', data.message || 'Thao tác thất bại.', 'error');
+
+                            if (submitButton) {
+                                submitButton.innerHTML = originalHtml;
+                                submitButton.disabled = false;
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('Lỗi', err.message || 'Lỗi máy chủ, vui lòng thử lại sau.', 'error');
+
+                        if (submitButton) {
+                            submitButton.innerHTML = originalHtml;
+                            submitButton.disabled = false;
+                        }
+                    });
             });
         }
 
-        function openRejectModal(id, title = 'Từ chối lịch hẹn') {
-            document.getElementById('rejectModalTitle').innerHTML =
-                '<i class="bi bi-x-octagon-fill me-2"></i>' + title;
-
-            document.getElementById('rejectId').value = id;
-            document.getElementById('rejectReason').value = '';
-
-            const isBuyerRejectingReschedule = title.includes('Từ chối giờ');
-            const isBuyerCancelling = title.includes('Hủy lịch') || title.includes('Hủy yêu cầu');
-
-            if (isBuyerRejectingReschedule || isBuyerCancelling) {
-                document.getElementById('frmReject').action = '@Url.Action("BuyerRejectReschedule", "Appointments")';
-            } else {
-                document.getElementById('frmReject').action = '@Url.Action("SellerReject", "Appointments")';
-            }
-
-            const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
-            modal.show();
-        }
-
-        function openRescheduleModal(id) {
-            document.getElementById('rescheduleId').value = id;
-
-            const modal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
-            modal.show();
-        }
-
         document.addEventListener('DOMContentLoaded', function () {
-            handleModalFormAjax('frmReject');
+            handleModalFormAjax('frmReason');
             handleModalFormAjax('frmReschedule');
             handleModalFormAjax('frmFeedback');
 
@@ -1420,9 +1880,41 @@
             if (feedbackModal) {
                 feedbackModal.addEventListener('show.bs.modal', function (event) {
                     const button = event.relatedTarget;
-                    const id = button ? button.getAttribute('data-id') : '';
 
-                    document.getElementById('feedbackAppointmentId').value = id || '';
+                    if (!button) {
+                        return;
+                    }
+
+                    const id = button.getAttribute('data-id') || '';
+                    const resultStatus = button.getAttribute('data-result-status') || '';
+                    const resultNote = button.getAttribute('data-result-note') || '';
+
+                    const idEl = document.getElementById('feedbackAppointmentId');
+                    const noteEl = document.getElementById('feedbackResultNote');
+                    const selectEl = document.getElementById('feedbackResultStatus');
+
+                    if (idEl) {
+                        idEl.value = id;
+                    }
+
+                    if (noteEl) {
+                        noteEl.value = resultNote || '';
+                    }
+
+                    if (selectEl && resultStatus) {
+                        let hasMatched = false;
+
+                        Array.from(selectEl.options).forEach(function (option) {
+                            if (option.value === resultStatus) {
+                                option.selected = true;
+                                hasMatched = true;
+                            }
+                        });
+
+                        if (!hasMatched) {
+                            selectEl.selectedIndex = 0;
+                        }
+                    }
                 });
             }
         });

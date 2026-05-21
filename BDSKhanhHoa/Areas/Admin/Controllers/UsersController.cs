@@ -96,6 +96,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.TotalUsers = await _context.Users.CountAsync(u => !u.IsDeleted);
             ViewBag.ActiveUsers = await _context.Users.CountAsync(u => !u.IsDeleted && u.IsActive && u.IsEmailVerified == true);
             ViewBag.LockedUsers = await _context.Users.CountAsync(u => !u.IsDeleted && !u.IsActive && u.IsEmailVerified == true);
+            ViewBag.ViolationLockedUsers = await _context.Users.CountAsync(u =>
+                !u.IsDeleted &&
+                !u.IsActive &&
+                u.AdminNote != null &&
+                u.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM"));
             ViewBag.UnverifiedUsers = await _context.Users.CountAsync(u => !u.IsDeleted && (u.IsEmailVerified == false || u.IsEmailVerified == null));
             ViewBag.TrashCount = await _context.Users.CountAsync(u => u.IsDeleted);
 
@@ -127,6 +132,14 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+
+            var pageUserIds = users.Select(u => u.UserID).ToList();
+
+            ViewBag.ActiveViolationCounts = await _context.UserViolations
+                .Where(v => pageUserIds.Contains(v.UserID) && v.Status == "Active")
+                .GroupBy(v => v.UserID)
+                .Select(g => new { UserID = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UserID, x => x.Count);
 
             ViewBag.SearchString = searchString;
             ViewBag.RoleId = roleId;
@@ -422,6 +435,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectToAction(nameof(Edit), new { id = user.UserID });
         }
 
+
         [HttpPost]
         public async Task<IActionResult> ToggleStatus(int id)
         {
@@ -457,7 +471,33 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 });
             }
 
+            int activeViolationCount = await _context.UserViolations
+                .CountAsync(v => v.UserID == id && v.Status == "Active");
+
+            bool isOpening = !user.IsActive;
+
+            // Tài khoản bị khóa do đủ 3 lỗi chỉ nên mở lại bằng chức năng ân xá/xóa lỗi,
+            // để tránh mở nhầm khi hồ sơ vi phạm vẫn còn hiệu lực.
+            if (isOpening && activeViolationCount >= 3)
+            {
+                return Json(new
+                {
+                    success = false,
+                    lockedByViolation = true,
+                    activeViolationCount,
+                    message = $"Tài khoản đang có {activeViolationCount}/3 lỗi vi phạm đang hiệu lực nên không thể mở khóa thủ công. Vui lòng vào hồ sơ người dùng hoặc hồ sơ báo cáo để ân xá/xử lý lỗi trước."
+                });
+            }
+
             user.IsActive = !user.IsActive;
+
+            string adminNoteLine = user.IsActive
+                ? $"[MỞ KHÓA THỦ CÔNG - {DateTime.Now:dd/MM/yyyy HH:mm}] Admin mở khóa tài khoản. Số lỗi đang hiệu lực: {activeViolationCount}/3."
+                : $"[KHÓA THỦ CÔNG - {DateTime.Now:dd/MM/yyyy HH:mm}] Admin khóa tài khoản thủ công. Số lỗi đang hiệu lực: {activeViolationCount}/3.";
+
+            user.AdminNote = string.IsNullOrWhiteSpace(user.AdminNote)
+                ? adminNoteLine
+                : user.AdminNote + Environment.NewLine + adminNoteLine;
 
             await _context.SaveChangesAsync();
 
@@ -465,7 +505,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 int.Parse(currentAdminId ?? "0"),
                 user.IsActive ? "Mở khóa tài khoản" : "Khóa tài khoản",
                 "Users",
-                $"UserID: {id}, IsEmailVerified: {user.IsEmailVerified}",
+                $"UserID: {id}, IsEmailVerified: {user.IsEmailVerified}, ActiveViolations: {activeViolationCount}",
                 severity: user.IsActive ? "Info" : "Warning");
 
             return Json(new
@@ -473,6 +513,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 success = true,
                 isActive = user.IsActive,
                 isEmailVerified = user.IsEmailVerified == true,
+                activeViolationCount,
                 message = user.IsActive ? "Đã mở khóa tài khoản." : "Đã khóa tài khoản."
             });
         }
@@ -553,6 +594,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Where(v => v.UserID == id)
                 .OrderByDescending(v => v.CreatedAt)
                 .ToListAsync();
+
+            ViewBag.ActiveViolationCount = await _context.UserViolations
+                .CountAsync(v => v.UserID == id && v.Status == "Active");
+
+            ViewBag.IsLockedByViolation = user.AdminNote != null &&
+                user.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM");
 
             return View(user);
         }

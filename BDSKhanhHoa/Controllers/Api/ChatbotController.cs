@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using BDSKhanhHoa.Services;
 using BDSKhanhHoa.ViewModels;
-using BDSKhanhHoa.Services;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
 namespace BDSKhanhHoa.Controllers.Api
@@ -10,10 +10,12 @@ namespace BDSKhanhHoa.Controllers.Api
     public class ChatbotController : ControllerBase
     {
         private readonly ChatbotService _chatbotService;
+        private readonly ILogger<ChatbotController> _logger;
 
-        public ChatbotController(ChatbotService chatbotService)
+        public ChatbotController(ChatbotService chatbotService, ILogger<ChatbotController> logger)
         {
             _chatbotService = chatbotService;
+            _logger = logger;
         }
 
         [HttpPost("send")]
@@ -38,6 +40,7 @@ namespace BDSKhanhHoa.Controllers.Api
                 }
 
                 request.UserId = currentUserId;
+                request.Message = request.Message.Trim();
 
                 ChatResponse result = await _chatbotService.ProcessChatAsync(request);
 
@@ -45,9 +48,11 @@ namespace BDSKhanhHoa.Controllers.Api
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Lỗi khi xử lý tin nhắn chatbot.");
+
                 return StatusCode(500, new
                 {
-                    message = "Lỗi hệ thống nội bộ: " + ex.Message
+                    message = "Hiện tại trợ lý AI chưa phản hồi được. Bạn vui lòng thử lại sau ít phút."
                 });
             }
         }

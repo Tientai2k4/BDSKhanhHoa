@@ -1,10 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BDSKhanhHoa.Models
 {
+    [Table("ChatLogs")]
     public class ChatLogs
     {
-        [Key]                                      // ← DÒNG NÀY LÀ QUAN TRỌNG NHẤT
+        [Key]
         public int LogID { get; set; }
 
         public int? UserID { get; set; }

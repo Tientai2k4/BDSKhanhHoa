@@ -4,52 +4,89 @@
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 }
 
-<div class="container-fluid py-4 animate__animated animate__fadeIn">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid py-4 ai-training-page">
+    <div class="ai-hero mb-4">
         <div>
-            <h4 class="fw-bold text-primary mb-1"><i class="bi bi-cpu-fill me-2"></i>Đào tạo Kiến thức AI</h4>
-            <p class="text-muted mb-0 small">Bơm tài liệu pháp lý, quy hoạch và chính sách nội bộ để AI tự động học và tư vấn khách hàng.</p>
+            <div class="ai-label">
+                <i class="bi bi-cpu-fill"></i>
+                Trung tâm huấn luyện AI
+            </div>
+            <h3 class="ai-title">Đào tạo kiến thức Chatbot AI</h3>
+            <p class="ai-subtitle">
+                Nhập chính sách, quy trình, pháp lý cơ bản, gói VIP, kịch bản tư vấn và dữ liệu nội bộ để Chatbot trả lời đúng hệ thống BĐS Khánh Hòa.
+            </p>
+        </div>
+
+        <div class="ai-hero-badge">
+            <i class="bi bi-robot"></i>
+            <span>RAG Knowledge Base</span>
         </div>
     </div>
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            @TempData["Success"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
     <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                <div class="card-header bg-white border-0 pt-4 pb-2 px-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="fw-bold text-dark mb-0">Nội dung tài liệu (RAG Data)</h5>
-                        <span class="badge bg-info bg-opacity-10 text-info px-3 py-2 rounded-pill"><i class="bi bi-robot me-1"></i>Gemini 2.5 Flash</span>
+        <div class="col-xl-8 col-lg-7">
+            <div class="card ai-card border-0 shadow-sm">
+                <div class="card-header ai-card-head">
+                    <div>
+                        <h5 class="mb-1 fw-bold">Nội dung dữ liệu huấn luyện</h5>
+                        <p class="mb-0 text-muted small">
+                            Dữ liệu này sẽ được gửi kèm vào prompt để AI trả lời chính xác hơn theo nghiệp vụ website.
+                        </p>
+                    </div>
+
+                    <div class="ai-status">
+                        <span class="dot"></span>
+                        Đang hoạt động
                     </div>
                 </div>
-                <div class="card-body px-4 pb-4">
-                    <form asp-action="Save" method="post">
+
+                <div class="card-body p-4">
+                    <form asp-action="Save" method="post" id="aiTrainingForm">
+                        @Html.AntiForgeryToken()
+
                         <input type="hidden" asp-for="PageID" />
                         <input type="hidden" asp-for="PageKey" />
 
-                        <div class="mb-3 position-relative">
-                            <textarea asp-for="Content" class="form-control" rows="20" id="aiContent"
-                                      style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; resize: vertical;"
-                                      placeholder="Dán các văn bản pháp lý, quy định vay vốn, hoặc kịch bản trả lời vào đây..."></textarea>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-database-fill-gear me-1 text-primary"></i>
+                                RAG Data
+                            </label>
 
-                            <div class="text-end mt-2">
-                                <small class="text-muted fw-bold" id="charCount">0 ký tự</small>
+                            <textarea asp-for="Content"
+                                      class="form-control ai-textarea"
+                                      rows="24"
+                                      id="aiContent"
+                                      placeholder="Dán dữ liệu huấn luyện AI tại đây. Ví dụ: quy trình tư vấn, chính sách đăng tin, gói VIP, pháp lý cơ bản, câu hỏi thường gặp..."></textarea>
+
+                            <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Nên viết theo mục rõ ràng: Vai trò, Quy trình, Chính sách, Pháp lý, Kịch bản trả lời.
+                                </small>
+
+                                <small class="fw-bold text-muted" id="charCount">0 ký tự</small>
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center border-top pt-4 mt-2">
-                            <div class="text-muted small">
-                                <i class="bi bi-shield-check text-success me-1"></i> Hệ thống tự động mã hóa và bảo mật dữ liệu nguồn.
+                        <div class="ai-save-bar">
+                            <div class="save-note">
+                                <i class="bi bi-shield-check text-success"></i>
+                                AI sẽ ưu tiên dữ liệu này nhưng vẫn bị giới hạn: không bịa pháp lý, không cam kết lợi nhuận.
                             </div>
-                            <button type="submit" class="btn btn-primary px-5 py-2 shadow-sm" style="border-radius: 10px; font-weight: 700;">
-                                <i class="bi bi-cloud-arrow-up-fill me-2"></i>Lưu cấu hình AI
+
+                            <button type="submit" class="btn btn-primary ai-save-btn">
+                                <i class="bi bi-cloud-arrow-up-fill me-2"></i>
+                                Lưu dữ liệu AI
                             </button>
                         </div>
                     </form>
@@ -57,25 +94,72 @@
             </div>
         </div>
 
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm" style="border-radius: 16px; background: linear-gradient(145deg, #1e3a8a, #3b82f6); color: white;">
+        <div class="col-xl-4 col-lg-5">
+            <div class="card ai-guide-card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
-                    <h5 class="fw-bold mb-3"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Hướng dẫn viết RAG</h5>
-                    <p class="small opacity-75 mb-4">Để AI thông minh và trả lời chính xác nhất, bạn nên trình bày dữ liệu theo cấu trúc rõ ràng.</p>
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+                        Cách viết để AI thông minh hơn
+                    </h5>
 
-                    <div class="bg-white bg-opacity-10 p-3 rounded-3 mb-3 border border-light border-opacity-25">
-                        <h6 class="fw-bold fs-6 mb-2 text-warning">1. Chính sách chung</h6>
-                        <p class="small mb-0 opacity-75">Ghi rõ hoa hồng, phí dịch vụ đăng tin, quy định pháp lý của sàn.</p>
+                    <div class="guide-item">
+                        <div class="guide-num">1</div>
+                        <div>
+                            <div class="guide-title">Viết theo từng nhóm</div>
+                            <p>Chia dữ liệu thành: đăng tin, tìm kiếm, pháp lý, vay vốn, lịch hẹn, gói VIP, báo cáo vi phạm.</p>
+                        </div>
                     </div>
 
-                    <div class="bg-white bg-opacity-10 p-3 rounded-3 mb-3 border border-light border-opacity-25">
-                        <h6 class="fw-bold fs-6 mb-2 text-warning">2. Ngân hàng & Vay vốn</h6>
-                        <p class="small mb-0 opacity-75">VD: "Vietcombank hỗ trợ vay 70%, lãi suất 6.5%/năm trong 2 năm đầu..."</p>
+                    <div class="guide-item">
+                        <div class="guide-num">2</div>
+                        <div>
+                            <div class="guide-title">Dùng câu trả lời mẫu</div>
+                            <p>Ví dụ: “Nếu khách hỏi pháp lý, phải nhắc kiểm tra sổ, quy hoạch, tranh chấp và công chứng”.</p>
+                        </div>
                     </div>
 
-                    <div class="bg-white bg-opacity-10 p-3 rounded-3 border border-light border-opacity-25">
-                        <h6 class="fw-bold fs-6 mb-2 text-warning">3. Kịch bản khéo léo</h6>
-                        <p class="small mb-0 opacity-75">Cung cấp lệnh ẩn. VD: "Nếu khách chê giá đắt, hãy phản hồi bằng tiện ích xung quanh để thuyết phục..."</p>
+                    <div class="guide-item">
+                        <div class="guide-num">3</div>
+                        <div>
+                            <div class="guide-title">Không nhập dữ liệu mơ hồ</div>
+                            <p>Không ghi chung chung như “tư vấn hay”. Hãy ghi chính xác chính sách, điều kiện, quy trình.</p>
+                        </div>
+                    </div>
+
+                    <div class="guide-item mb-0">
+                        <div class="guide-num">4</div>
+                        <div>
+                            <div class="guide-title">Luôn có giới hạn pháp lý</div>
+                            <p>AI chỉ hỗ trợ tham khảo, không thay thế chuyên gia pháp lý, ngân hàng hoặc cơ quan nhà nước.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card ai-template-card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-2">
+                        <i class="bi bi-file-earmark-text-fill text-primary me-2"></i>
+                        Mẫu dữ liệu chuẩn
+                    </h5>
+
+                    <p class="text-muted small mb-3">
+                        Dùng khi bạn muốn nạp nhanh bộ khung huấn luyện AI mặc định cho website BĐS.
+                    </p>
+
+                    <form asp-action="LoadDefaultTemplate" method="post" onsubmit="return confirm('Nạp mẫu mặc định sẽ thay thế nội dung hiện tại. Bạn chắc chắn muốn tiếp tục?');">
+                        @Html.AntiForgeryToken()
+
+                        <button type="submit" class="btn btn-outline-primary w-100 fw-bold rounded-3">
+                            <i class="bi bi-magic me-2"></i>
+                            Nạp mẫu huấn luyện mặc định
+                        </button>
+                    </form>
+
+                    <hr />
+
+                    <div class="small text-muted">
+                        <strong>Gợi ý:</strong> Sau khi nạp mẫu, bạn nên chỉnh lại giá gói VIP, số điện thoại hỗ trợ, quy trình duyệt tin và chính sách thật của website.
                     </div>
                 </div>
             </div>
@@ -83,28 +167,282 @@
     </div>
 </div>
 
+<style>
+    .ai-training-page {
+        --ai-primary: #2563eb;
+        --ai-primary-dark: #1d4ed8;
+        --ai-bg: #f8fafc;
+        --ai-border: #e2e8f0;
+        --ai-text: #0f172a;
+        --ai-muted: #64748b;
+    }
+
+    .ai-hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 24px;
+        border-radius: 24px;
+        background: radial-gradient(circle at top right, rgba(255,255,255,.38), transparent 28%), linear-gradient(135deg, #1d4ed8, #2563eb, #0ea5e9);
+        color: #fff;
+        box-shadow: 0 20px 45px rgba(37,99,235,.22);
+    }
+
+    .ai-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.16);
+        border: 1px solid rgba(255,255,255,.22);
+        font-size: .82rem;
+        font-weight: 800;
+        margin-bottom: 12px;
+    }
+
+    .ai-title {
+        font-weight: 900;
+        margin: 0 0 8px;
+        letter-spacing: -.03em;
+    }
+
+    .ai-subtitle {
+        margin: 0;
+        max-width: 760px;
+        color: rgba(255,255,255,.86);
+        line-height: 1.65;
+    }
+
+    .ai-hero-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-width: 190px;
+        padding: 14px 18px;
+        border-radius: 18px;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.22);
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+        .ai-hero-badge i {
+            font-size: 1.35rem;
+        }
+
+    .ai-card,
+    .ai-guide-card,
+    .ai-template-card {
+        border-radius: 22px;
+        overflow: hidden;
+    }
+
+    .ai-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 24px 14px;
+        background: #fff;
+        border-bottom: 1px solid var(--ai-border);
+    }
+
+    .ai-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #ecfdf5;
+        color: #15803d;
+        font-size: .78rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+        .ai-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34,197,94,.14);
+        }
+
+    .ai-textarea {
+        min-height: 620px;
+        resize: vertical;
+        border-radius: 18px;
+        background: #f8fafc;
+        border: 1px solid var(--ai-border);
+        color: var(--ai-text);
+        font-family: Consolas, Monaco, 'Courier New', monospace;
+        font-size: .94rem;
+        line-height: 1.7;
+        padding: 18px;
+        box-shadow: none !important;
+    }
+
+        .ai-textarea:focus {
+            background: #fff;
+            border-color: rgba(37,99,235,.45);
+            box-shadow: 0 0 0 4px rgba(37,99,235,.08) !important;
+        }
+
+    .ai-save-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-top: 20px;
+        margin-top: 8px;
+        border-top: 1px solid var(--ai-border);
+    }
+
+    .save-note {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ai-muted);
+        font-size: .88rem;
+        line-height: 1.5;
+    }
+
+    .ai-save-btn {
+        min-height: 46px;
+        padding-left: 24px;
+        padding-right: 24px;
+        border-radius: 14px;
+        font-weight: 900;
+        box-shadow: 0 12px 24px rgba(37,99,235,.18);
+    }
+
+    .guide-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 12px;
+    }
+
+    .guide-num {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-weight: 900;
+    }
+
+    .guide-title {
+        font-weight: 900;
+        color: #0f172a;
+        margin-bottom: 4px;
+    }
+
+    .guide-item p {
+        color: #64748b;
+        font-size: .86rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    @@media (max-width: 991.98px) {
+        .ai-hero {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .ai-hero-badge {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .ai-save-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .ai-save-btn {
+            width: 100%;
+        }
+
+        .ai-card-head {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .ai-textarea {
+            min-height: 520px;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .ai-hero {
+            padding: 18px;
+            border-radius: 20px;
+        }
+
+        .ai-title {
+            font-size: 1.35rem;
+        }
+
+        .ai-subtitle {
+            font-size: .9rem;
+        }
+
+        .ai-card-head,
+        .card-body {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+        }
+
+        .ai-textarea {
+            min-height: 460px;
+            font-size: .86rem;
+            border-radius: 16px;
+        }
+    }
+</style>
+
 @section Scripts {
     <script>
-        // Script đếm số lượng ký tự nhập vào để Admin dễ kiểm soát dung lượng Token gửi cho AI
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const textarea = document.getElementById('aiContent');
             const charCount = document.getElementById('charCount');
+
+            if (!textarea || !charCount) {
+                return;
+            }
 
             function updateCount() {
                 const len = textarea.value.length;
                 charCount.innerHTML = new Intl.NumberFormat('vi-VN').format(len) + ' ký tự';
 
-                if (len > 50000) {
+                charCount.classList.remove('text-muted', 'text-warning', 'text-danger');
+
+                if (len > 60000) {
                     charCount.classList.add('text-danger');
-                    charCount.classList.remove('text-muted');
+                } else if (len > 30000) {
+                    charCount.classList.add('text-warning');
                 } else {
-                    charCount.classList.remove('text-danger');
                     charCount.classList.add('text-muted');
                 }
             }
 
             textarea.addEventListener('input', updateCount);
-            updateCount(); // Gọi lần đầu khi load trang
+            updateCount();
         });
     </script>
 }

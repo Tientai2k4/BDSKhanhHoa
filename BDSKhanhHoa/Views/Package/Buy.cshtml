@@ -4,7 +4,10 @@
     ViewData["Title"] = "Bảng giá dịch vụ";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 
+    // Chỉ hiển thị gói đang dùng.
+    // Admin bấm Ngừng dùng thì gói sẽ không xuất hiện để người dùng thêm giỏ hàng/thanh toán mới.
     var packages = Model?
+        .Where(p => p.IsActive)
         .OrderBy(p => p.PriorityLevel)
         .ThenBy(p => p.Price)
         .ToList() ?? new List<BDSKhanhHoa.Models.PostServicePackage>();
@@ -21,6 +24,7 @@
             "Kim Cương" => "theme-diamond",
             "Vàng" => "theme-gold",
             "Bạc" => "theme-silver",
+            "Đồng" => "theme-bronze",
             "Tin Thường" => "theme-basic",
             _ => "theme-basic"
         };
@@ -33,6 +37,7 @@
             "Kim Cương" => "bi-gem",
             "Vàng" => "bi-star-fill",
             "Bạc" => "bi-shield-check",
+            "Đồng" => "bi-award-fill",
             "Tin Thường" => "bi-box-seam",
             _ => "bi-rocket-takeoff"
         };
@@ -45,6 +50,7 @@
             "Kim Cương" => "Tự động duyệt tin mới",
             "Vàng" => "Ưu tiên hiển thị cao",
             "Bạc" => "Tăng khả năng tiếp cận",
+            "Đồng" => "VIP cơ bản tiết kiệm",
             "Tin Thường" => "Phù hợp đăng cơ bản",
             _ => "Gói dịch vụ đăng tin"
         };
@@ -349,6 +355,14 @@
             background: linear-gradient(135deg, #0ea5e9, #0369a1);
         }
 
+    .theme-bronze {
+        border-color: rgba(180, 83, 9, .32);
+    }
+
+        .theme-bronze::before {
+            background: linear-gradient(135deg, #f97316, #9a3412);
+        }
+
     .theme-basic::before {
         background: linear-gradient(135deg, #64748b, #334155);
     }
@@ -387,6 +401,11 @@
         color: #0ea5e9;
     }
 
+    .theme-bronze .icon-box {
+        background: #fff7ed;
+        color: #c2410c;
+    }
+
     .theme-basic .icon-box {
         background: #f8fafc;
         color: #64748b;
@@ -420,6 +439,12 @@
         background: #e0f2fe;
         color: #0369a1;
         border: 1px solid #bae6fd;
+    }
+
+    .theme-bronze .package-type-pill {
+        background: #ffedd5;
+        color: #9a3412;
+        border: 1px solid #fed7aa;
     }
 
     .theme-basic .package-type-pill {
@@ -548,6 +573,10 @@
 
     .theme-silver .btn-buy {
         background: linear-gradient(135deg, #0ea5e9, #0369a1);
+    }
+
+    .theme-bronze .btn-buy {
+        background: linear-gradient(135deg, #f97316, #9a3412);
     }
 
     .theme-basic .btn-buy {
@@ -1044,96 +1073,87 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        let bdsCart = [];
-
-        try {
-            bdsCart = JSON.parse(localStorage.getItem('bds_cart')) || [];
-        } catch {
-            bdsCart = [];
-            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+                const activePackageIds = new Set([
+        @foreach (var p in packages)
+        {
+                <text>@p.PackageID,</text>
         }
+                ]);
 
-        function saveCart() {
-            localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
-        }
+                let bdsCart = [];
 
-        function getCartCount() {
-            return bdsCart.reduce((sum, item) => sum + Number(item.Quantity || 0), 0);
-        }
-
-        function updateCartUI() {
-            const count = getCartCount();
-            const cartElement = document.getElementById('floatingCart');
-            const badgeElement = document.getElementById('cartBadgeCount');
-            const miniPanel = document.getElementById('cartMiniPanel');
-            const miniDesc = document.getElementById('cartMiniDesc');
-
-            badgeElement.innerText = count;
-            miniDesc.innerText = count > 0
-                ? `Bạn đang có ${count} gói trong giỏ.`
-                : 'Bạn đang có 0 gói trong giỏ.';
-
-            if (count > 0) {
-                cartElement.style.display = 'flex';
-            } else {
-                cartElement.style.display = 'none';
-                miniPanel.classList.remove('show');
-            }
-        }
-
-        function addToCart(pkgId, pkgName) {
-            pkgId = Number(pkgId);
-
-            let item = bdsCart.find(x => Number(x.PackageId) === pkgId);
-
-            if (item) {
-                item.Quantity = Number(item.Quantity || 0) + 1;
-            } else {
-                bdsCart.push({
-                    PackageId: pkgId,
-                    Quantity: 1
-                });
-            }
-
-            saveCart();
-            updateCartUI();
-
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: `Đã thêm ${pkgName} vào giỏ`,
-                showConfirmButton: false,
-                timer: 2200,
-                timerProgressBar: true,
-                customClass: {
-                    popup: 'rounded-4'
-                }
-            });
-        }
-
-        function clearCart() {
-            if (!bdsCart.length) {
-                updateCartUI();
-                return;
-            }
-
-            Swal.fire({
-                title: 'Xóa giỏ hàng?',
-                text: 'Toàn bộ gói dịch vụ trong giỏ sẽ được xóa.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Xóa giỏ',
-                cancelButtonText: 'Hủy',
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#94a3b8',
-                customClass: {
-                    confirmButton: 'rounded-pill px-4',
-                    cancelButton: 'rounded-pill px-4'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
+                try {
+                    bdsCart = JSON.parse(localStorage.getItem('bds_cart')) || [];
+                } catch {
                     bdsCart = [];
+                }
+
+                // Dọn giỏ hàng cũ: nếu Admin đã ngừng dùng gói thì xóa khỏi giỏ của trình duyệt.
+                bdsCart = bdsCart
+                    .filter(x => activePackageIds.has(Number(x.PackageId)))
+                    .map(x => ({
+                        PackageId: Number(x.PackageId),
+                        Quantity: Math.max(1, Number(x.Quantity || 1))
+                    }));
+
+                localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+
+                function saveCart() {
+                    localStorage.setItem('bds_cart', JSON.stringify(bdsCart));
+                }
+
+                function getCartCount() {
+                    return bdsCart.reduce((sum, item) => sum + Number(item.Quantity || 0), 0);
+                }
+
+                function updateCartUI() {
+                    const count = getCartCount();
+                    const cartElement = document.getElementById('floatingCart');
+                    const badgeElement = document.getElementById('cartBadgeCount');
+                    const miniPanel = document.getElementById('cartMiniPanel');
+                    const miniDesc = document.getElementById('cartMiniDesc');
+
+                    badgeElement.innerText = count;
+                    miniDesc.innerText = count > 0
+                        ? `Bạn đang có ${count} gói trong giỏ.`
+                        : 'Bạn đang có 0 gói trong giỏ.';
+
+                    if (count > 0) {
+                        cartElement.style.display = 'flex';
+                    } else {
+                        cartElement.style.display = 'none';
+                        miniPanel.classList.remove('show');
+                    }
+                }
+
+                function addToCart(pkgId, pkgName) {
+                    pkgId = Number(pkgId);
+
+                    if (!activePackageIds.has(pkgId)) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Gói đã ngừng sử dụng',
+                            text: 'Gói này hiện không còn được mở bán. Vui lòng chọn gói khác.',
+                            confirmButtonText: 'Đã hiểu',
+                            confirmButtonColor: '#2563eb',
+                            customClass: {
+                                popup: 'rounded-4'
+                            }
+                        });
+                        return;
+                    }
+
+                    let item = bdsCart.find(x => Number(x.PackageId) === pkgId);
+
+                    if (item) {
+                        item.Quantity = Number(item.Quantity || 0) + 1;
+                    } else {
+                        bdsCart.push({
+                            PackageId: pkgId,
+                            Quantity: 1
+                        });
+                    }
+
                     saveCart();
                     updateCartUI();
 
@@ -1141,29 +1161,68 @@
                         toast: true,
                         position: 'top-end',
                         icon: 'success',
-                        title: 'Đã xóa giỏ hàng',
+                        title: `Đã thêm ${pkgName} vào giỏ`,
                         showConfirmButton: false,
-                        timer: 1800
+                        timer: 2200,
+                        timerProgressBar: true,
+                        customClass: {
+                            popup: 'rounded-4'
+                        }
                     });
                 }
-            });
-        }
 
-        document.addEventListener('DOMContentLoaded', function () {
-            updateCartUI();
+                function clearCart() {
+                    if (!bdsCart.length) {
+                        updateCartUI();
+                        return;
+                    }
 
-            const cartElement = document.getElementById('floatingCart');
-            const miniPanel = document.getElementById('cartMiniPanel');
+                    Swal.fire({
+                        title: 'Xóa giỏ hàng?',
+                        text: 'Toàn bộ gói dịch vụ trong giỏ sẽ được xóa.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Xóa giỏ',
+                        cancelButtonText: 'Hủy',
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: '#94a3b8',
+                        customClass: {
+                            confirmButton: 'rounded-pill px-4',
+                            cancelButton: 'rounded-pill px-4'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            bdsCart = [];
+                            saveCart();
+                            updateCartUI();
 
-            cartElement.addEventListener('mouseenter', function () {
-                if (getCartCount() > 0) {
-                    miniPanel.classList.add('show');
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: 'Đã xóa giỏ hàng',
+                                showConfirmButton: false,
+                                timer: 1800
+                            });
+                        }
+                    });
                 }
-            });
 
-            miniPanel.addEventListener('mouseleave', function () {
-                miniPanel.classList.remove('show');
-            });
-        });
+                document.addEventListener('DOMContentLoaded', function () {
+                    updateCartUI();
+
+                    const cartElement = document.getElementById('floatingCart');
+                    const miniPanel = document.getElementById('cartMiniPanel');
+
+                    cartElement.addEventListener('mouseenter', function () {
+                        if (getCartCount() > 0) {
+                            miniPanel.classList.add('show');
+                        }
+                    });
+
+                    miniPanel.addEventListener('mouseleave', function () {
+                        miniPanel.classList.remove('show');
+                    });
+                });
     </script>
 }

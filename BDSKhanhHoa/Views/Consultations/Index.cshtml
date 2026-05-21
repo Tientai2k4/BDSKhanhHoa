@@ -36,7 +36,7 @@
         {
             "New" => "Mới gửi",
             "Contacted" => "Đã liên hệ",
-            "Closed" => "Đã chốt",
+            "Closed" => "Hoàn tất tư vấn",
             "Spam" => "Spam/Rác",
             "Cancelled" => "Khách hủy",
             _ => "Mới gửi"
@@ -64,6 +64,77 @@
     bool IsLocked(string? status)
     {
         return status == "Closed" || status == "Spam" || status == "Cancelled";
+    }
+    string GetNextActionText(string? status, DateTime? updatedAt)
+    {
+        if (status == "New")
+        {
+            return "Cần gọi / tiếp nhận";
+        }
+
+        if (status == "Contacted")
+        {
+            if (!updatedAt.HasValue)
+            {
+                return "Đang theo dõi";
+            }
+
+            var hours = (DateTime.Now - updatedAt.Value).TotalHours;
+
+            if (hours >= 24)
+            {
+                return "Nên chăm sóc lại";
+            }
+
+            return "Đang theo dõi";
+        }
+
+        if (status == "Closed")
+        {
+            return "Đã hoàn tất";
+        }
+
+        if (status == "Spam")
+        {
+            return "Đã loại";
+        }
+
+        if (status == "Cancelled")
+        {
+            return "Khách đã hủy";
+        }
+
+        return "Cần kiểm tra";
+    }
+
+    string GetNextActionClass(string? status, DateTime? updatedAt)
+    {
+        if (status == "New")
+        {
+            return "next-hot";
+        }
+
+        if (status == "Contacted")
+        {
+            if (updatedAt.HasValue && (DateTime.Now - updatedAt.Value).TotalHours >= 24)
+            {
+                return "next-warning";
+            }
+
+            return "next-follow";
+        }
+
+        if (status == "Closed")
+        {
+            return "next-done";
+        }
+
+        if (status == "Spam" || status == "Cancelled")
+        {
+            return "next-locked";
+        }
+
+        return "next-follow";
     }
 }
 
@@ -396,6 +467,314 @@
         font-weight: 800;
     }
 
+    .crm-time-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        margin-top: 4px;
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+    .next-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+        border: 1px solid transparent;
+    }
+
+    .next-hot {
+        background: #fff7ed;
+        color: #ea580c;
+        border-color: #fed7aa;
+    }
+
+    .next-follow {
+        background: #eff6ff;
+        color: #2563eb;
+        border-color: #bfdbfe;
+    }
+
+    .next-warning {
+        background: #fffbeb;
+        color: #b45309;
+        border-color: #fde68a;
+    }
+
+    .next-done {
+        background: #f0fdf4;
+        color: #16a34a;
+        border-color: #bbf7d0;
+    }
+
+    .next-locked {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+    }
+
+    .crm-next-box {
+        border-radius: 18px;
+        padding: 13px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: .84rem;
+        font-weight: 700;
+        line-height: 1.55;
+    }
+
+        .crm-next-box strong {
+            color: #0f172a;
+        }
+    .crm-process-box {
+        border-radius: 22px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        padding: 16px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    }
+
+    .crm-process-title {
+        color: #0f172a;
+        font-weight: 950;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .crm-status-flow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .crm-flow-step {
+        position: relative;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 18px;
+        padding: 13px;
+        min-height: 92px;
+        transition: .18s ease;
+    }
+
+        .crm-flow-step.active {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, .12);
+        }
+
+        .crm-flow-step.done {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .crm-flow-step.locked {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .crm-flow-step.danger {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+    .crm-flow-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        color: #fff;
+        background: #94a3b8;
+    }
+
+    .crm-flow-step.active .crm-flow-icon {
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+    }
+
+    .crm-flow-step.done .crm-flow-icon {
+        background: linear-gradient(135deg, #16a34a, #10b981);
+    }
+
+    .crm-flow-step.danger .crm-flow-icon {
+        background: linear-gradient(135deg, #dc2626, #f97316);
+    }
+
+    .crm-flow-name {
+        font-size: .82rem;
+        font-weight: 950;
+        color: #0f172a;
+        line-height: 1.25;
+    }
+
+    .crm-flow-desc {
+        color: #64748b;
+        font-size: .73rem;
+        font-weight: 650;
+        line-height: 1.35;
+        margin-top: 4px;
+    }
+
+    .crm-quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .crm-action-card {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 18px;
+        padding: 13px;
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+        text-align: left;
+        transition: .18s ease;
+        width: 100%;
+    }
+
+        .crm-action-card:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(15, 23, 42, .08);
+        }
+
+        .crm-action-card:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .crm-action-card.active {
+            border-color: #93c5fd;
+            background: #eff6ff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .08);
+        }
+
+        .crm-action-card.success.active {
+            border-color: #86efac;
+            background: #f0fdf4;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, .08);
+        }
+
+        .crm-action-card.danger.active {
+            border-color: #fecaca;
+            background: #fef2f2;
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, .08);
+        }
+
+        .crm-action-card .act-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 14px;
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+        }
+
+        .crm-action-card.success .act-icon {
+            background: linear-gradient(135deg, #16a34a, #10b981);
+        }
+
+        .crm-action-card.danger .act-icon {
+            background: linear-gradient(135deg, #dc2626, #f97316);
+        }
+
+        .crm-action-card.warning .act-icon {
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+        }
+
+    .crm-action-title {
+        color: #0f172a;
+        font-weight: 950;
+        line-height: 1.25;
+        font-size: .9rem;
+    }
+
+    .crm-action-desc {
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 650;
+        line-height: 1.35;
+        margin-top: 3px;
+    }
+
+    .crm-helper-box {
+        border-radius: 18px;
+        padding: 13px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        font-size: .83rem;
+        font-weight: 650;
+        line-height: 1.55;
+    }
+
+        .crm-helper-box strong {
+            color: #0f172a;
+        }
+
+    .crm-note-required {
+        display: none;
+        border-radius: 16px;
+        padding: 11px 13px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-weight: 800;
+        font-size: .82rem;
+        margin-top: 8px;
+    }
+
+    .crm-call-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+        .crm-call-row .btn {
+            border-radius: 999px;
+            font-weight: 900;
+        }
+
+    @@media (max-width: 767.98px) {
+        .crm-status-flow {
+            grid-template-columns: 1fr;
+        }
+
+        .crm-quick-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .crm-action-card {
+            padding: 12px;
+        }
+    }
+
+    .crm-quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .crm-action-card {
+        padding: 12px;
+    }
+
+    }
     @@media (max-width: 991.98px) {
         .crm-hero {
             padding: 22px;
@@ -524,7 +903,7 @@
                         <option value="All" selected="@(statusFilter == "All")">Tất cả trạng thái</option>
                         <option value="New" selected="@(statusFilter == "New")">Mới gửi</option>
                         <option value="Contacted" selected="@(statusFilter == "Contacted")">Đã liên hệ</option>
-                        <option value="Closed" selected="@(statusFilter == "Closed")">Đã chốt</option>
+                        <option value="Closed" selected="@(statusFilter == "Closed")">Hoàn tất tư vấn</option>
                         <option value="Spam" selected="@(statusFilter == "Spam")">Spam / Lead rác</option>
                         <option value="Cancelled" selected="@(statusFilter == "Cancelled")">Khách đã hủy</option>
                     </select>
@@ -550,7 +929,7 @@
                         <i class="bi bi-list-check text-primary me-2"></i>Danh sách khách hàng tiềm năng
                     </h5>
                     <div class="text-muted small">
-                        Lead mới được ưu tiên hiển thị trước. Lead đã chốt, Spam hoặc khách đã hủy sẽ bị khóa xử lý.
+                        Lead mới được ưu tiên hiển thị trước. Lead Hoàn tất tư vấn, Spam hoặc khách đã hủy sẽ bị khóa xử lý.
                     </div>
                 </div>
 
@@ -600,7 +979,25 @@
                                                 <a href="tel:@item.Phone" class="text-success text-decoration-none small fw-bold">
                                                     <i class="bi bi-telephone-fill"></i> @item.Phone
                                                 </a>
-                                                <span class="text-muted small">· @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</span>
+                                            </div>
+
+                                            <div class="crm-time-line">
+                                                <span>
+                                                    <i class="bi bi-send-check me-1"></i>Gửi: @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                                                </span>
+
+                                                @if (item.UpdatedAt.HasValue)
+                                                {
+                                                    <span>
+                                                        <i class="bi bi-clock-history me-1"></i>Xử lý: @item.UpdatedAt.Value.ToString("HH:mm dd/MM/yyyy")
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span>
+                                                        <i class="bi bi-hourglass-split me-1"></i>Chưa xử lý
+                                                    </span>
+                                                }
                                             </div>
                                         </div>
                                     </div>
@@ -646,9 +1043,18 @@
                                 </td>
 
                                 <td>
+                                <td>
                                     <span class="status-pill @GetStatusClass(item.Status)">
                                         <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
                                     </span>
+
+                                    <div class="mt-2">
+                                        <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
+                                            <i class="bi bi-flag-fill"></i>
+                                            @GetNextActionText(item.Status, item.UpdatedAt)
+                                        </span>
+                                    </div>
+                                </td>
                                 </td>
 
                                 <td class="text-center pe-4">
@@ -716,9 +1122,18 @@
                                 </div>
                             </div>
 
-                            <span class="status-pill @GetStatusClass(item.Status)">
-                                <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
-                            </span>
+                            <td>
+                                <span class="status-pill @GetStatusClass(item.Status)">
+                                    <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
+                                </span>
+
+                                <div class="mt-2">
+                                    <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
+                                        <i class="bi bi-flag-fill"></i>
+                                        @GetNextActionText(item.Status, item.UpdatedAt)
+                                    </span>
+                                </div>
+                            </td>
                         </div>
 
                         <div class="mb-3">
@@ -759,7 +1174,32 @@
 
                         <div class="d-flex justify-content-between align-items-center gap-2">
                             <div class="small text-muted fw-bold">
-                                @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                                <div>
+                                    <i class="bi bi-send-check me-1"></i>
+                                    Gửi: @item.CreatedAt.ToString("HH:mm dd/MM/yyyy")
+                                </div>
+
+                                @if (item.UpdatedAt.HasValue)
+                                {
+                                    <div class="mt-1">
+                                        <i class="bi bi-clock-history me-1"></i>
+                                        Xử lý: @item.UpdatedAt.Value.ToString("HH:mm dd/MM/yyyy")
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="mt-1">
+                                        <i class="bi bi-hourglass-split me-1"></i>
+                                        Chưa xử lý
+                                    </div>
+                                }
+
+                                <div class="mt-2">
+                                    <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
+                                        <i class="bi bi-flag-fill"></i>
+                                        @GetNextActionText(item.Status, item.UpdatedAt)
+                                    </span>
+                                </div>
                             </div>
 
                             <div class="d-flex gap-2">
@@ -887,33 +1327,139 @@
                     <i class="bi bi-lock-fill me-1"></i>
                     Khách đã hủy yêu cầu. Lead này bị khóa xử lý để tránh gọi nhầm hoặc cập nhật sai.
                 </div>
-
+                <div id="nextActionBox" class="crm-next-box mb-3">
+                    <strong><i class="bi bi-flag-fill me-1"></i>Việc cần làm:</strong>
+                    <span id="md-next-action">Đang tải...</span>
+                </div>
                 <form id="frmUpdateLead" method="post" action="/Consultations/SellerUpdateStatus">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="id" id="md-id" />
 
+                    <div class="crm-process-box mb-3">
+                        <div class="crm-process-title">
+                            <i class="bi bi-diagram-3-fill text-primary"></i>
+                            Quy trình chăm sóc lead
+                        </div>
+
+                        <div class="crm-status-flow" id="crmStatusFlow">
+                            <div class="crm-flow-step" data-flow="New">
+                                <div class="crm-flow-icon">
+                                    <i class="bi bi-lightning-charge-fill"></i>
+                                </div>
+                                <div class="crm-flow-name">Mới gửi</div>
+                                <div class="crm-flow-desc">Khách vừa để lại thông tin, chưa gọi.</div>
+                            </div>
+
+                            <div class="crm-flow-step" data-flow="Contacted">
+                                <div class="crm-flow-icon">
+                                    <i class="bi bi-telephone-inbound-fill"></i>
+                                </div>
+                                <div class="crm-flow-name">Đã tiếp nhận</div>
+                                <div class="crm-flow-desc">Đã gọi, đang tư vấn hoặc theo dõi.</div>
+                            </div>
+
+                            <div class="crm-flow-step" data-flow="Closed">
+                                <div class="crm-flow-icon">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </div>
+                                <div class="crm-flow-name">Hoàn tất</div>
+                                <div class="crm-flow-desc">Đã tư vấn xong, kết thúc xử lý.</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-black text-dark">
-                            Trạng thái chăm sóc <span class="text-danger">*</span>
+                            Chọn thao tác xử lý <span class="text-danger">*</span>
                         </label>
-                        <select name="newStatus" id="md-status-select" class="form-select form-select-lg rounded-4 fw-bold" required>
-                            <option value="New">⚡ Mới gửi - chưa gọi</option>
-                            <option value="Contacted">📞 Đã gọi / đang theo dõi</option>
-                            <option value="Closed">✅ Đã chốt / hoàn tất</option>
-                            <option value="Spam">🛡️ Spam / sai số / không liên hệ được</option>
-                        </select>
-                        <div class="form-text">
-                            Người bán không tự đặt trạng thái “Khách hủy”. Trạng thái này chỉ sinh ra khi người mua tự rút yêu cầu.
+
+                        <input type="hidden" name="newStatus" id="md-status-select" value="New" />
+
+                        <div class="crm-quick-actions" id="crmQuickActions">
+                            <button type="button"
+                                    class="crm-action-card"
+                                    data-status-action="Contacted">
+                                <span class="act-icon">
+                                    <i class="bi bi-telephone-inbound-fill"></i>
+                                </span>
+                                <span>
+                                    <span class="crm-action-title">Đã gọi / tiếp nhận</span>
+                                    <span class="crm-action-desc">Dùng khi đã gọi khách hoặc đang theo dõi.</span>
+                                </span>
+                            </button>
+
+                            <button type="button"
+                                    class="crm-action-card success"
+                                    data-status-action="Closed">
+                                <span class="act-icon">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                </span>
+                                <span>
+                                    <span class="crm-action-title">Hoàn tất tư vấn</span>
+                                    <span class="crm-action-desc">Dùng khi đã tư vấn xong hoặc kết thúc chăm sóc.</span>
+                                </span>
+                            </button>
+
+                            <button type="button"
+                                    class="crm-action-card danger"
+                                    data-status-action="Spam">
+                                <span class="act-icon">
+                                    <i class="bi bi-shield-x"></i>
+                                </span>
+                                <span>
+                                    <span class="crm-action-title">Spam / không phù hợp</span>
+                                    <span class="crm-action-desc">Sai số, lead rác, không liên hệ được.</span>
+                                </span>
+                            </button>
+
+                            <button type="button"
+                                    class="crm-action-card warning"
+                                    data-status-action="Keep">
+                                <span class="act-icon">
+                                    <i class="bi bi-journal-text"></i>
+                                </span>
+                                <span>
+                                    <span class="crm-action-title">Lưu thêm ghi chú</span>
+                                    <span class="crm-action-desc">Không đổi trạng thái, chỉ cập nhật nội dung chăm sóc.</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="crm-helper-box mt-3" id="crmRuleBox">
+                            <strong>Quy tắc:</strong> Lead mới phải chuyển qua “Đã gọi/tiếp nhận” trước khi hoàn tất. Người bán không được tự đặt “Khách hủy”.
+                        </div>
+
+                        <div class="crm-call-row">
+                            <a href="#" id="md-call-btn" class="btn btn-success btn-sm px-3">
+                                <i class="bi bi-telephone-fill me-1"></i> Gọi khách
+                            </a>
+
+                            <a href="#" id="md-source-btn" class="btn btn-outline-primary btn-sm px-3" target="_blank">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Mở nguồn quan tâm
+                            </a>
                         </div>
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label fw-black text-dark">Ghi chú chăm sóc</label>
+                        <label class="form-label fw-black text-dark">
+                            Ghi chú chăm sóc <span id="noteRequiredStar" class="text-danger">*</span>
+                        </label>
+
                         <textarea name="sellerNote"
                                   id="md-sellerNote"
                                   class="form-control rounded-4"
                                   rows="5"
-                                  placeholder="Ví dụ: Đã gọi 2 lần chưa nghe máy. Khách hẹn 9h sáng mai gọi lại. Khách quan tâm giá và pháp lý..."></textarea>
+                                  maxlength="3000"
+                                  placeholder="Ví dụ: Đã gọi khách lúc 9h sáng. Khách quan tâm giá, pháp lý và muốn xem nhà vào cuối tuần."></textarea>
+
+                        <div id="noteRequiredBox" class="crm-note-required">
+                            <i class="bi bi-exclamation-circle-fill me-1"></i>
+                            Khi chuyển trạng thái, bạn cần nhập ghi chú để lưu lại lịch sử chăm sóc.
+                        </div>
+
+                        <div class="form-text">
+                            Ghi chú giúp bạn nhớ lịch sử chăm sóc khách và tránh gọi trùng, gọi nhầm hoặc xử lý sai.
+                        </div>
                     </div>
 
                     <div class="d-grid gap-2">
@@ -935,6 +1481,8 @@
 
     <script>
         let crmModalInstance = null;
+        let currentLeadStatus = 'New';
+        let currentLeadSourceUrl = '#';
 
         function cleanupModalOverlay() {
             document.querySelectorAll('.modal-backdrop').forEach(function (el) {
@@ -974,7 +1522,7 @@
                 case 'Contacted':
                     return { cls: 'st-contacted', icon: 'bi-telephone-inbound-fill', text: 'Đã liên hệ' };
                 case 'Closed':
-                    return { cls: 'st-closed', icon: 'bi-check-circle-fill', text: 'Đã chốt' };
+                    return { cls: 'st-closed', icon: 'bi-check-circle-fill', text: 'Hoàn tất tư vấn' };
                 case 'Spam':
                     return { cls: 'st-spam', icon: 'bi-shield-x', text: 'Spam/Rác' };
                 case 'Cancelled':
@@ -983,87 +1531,223 @@
                     return { cls: 'st-new', icon: 'bi-lightning-charge-fill', text: 'Mới gửi' };
             }
         }
-                function resetStatusOptions() {
-            const statusSelect = document.getElementById('md-status-select');
 
-            if (!statusSelect) return;
+        function isFinalStatus(status) {
+            return status === 'Closed' || status === 'Spam' || status === 'Cancelled';
+        }
 
-            Array.from(statusSelect.options).forEach(function (option) {
-                option.disabled = false;
-                option.hidden = false;
+        function resolveActionStatus(action) {
+            if (action === 'Keep') {
+                return currentLeadStatus || 'New';
+            }
+
+            return action || currentLeadStatus || 'New';
+        }
+
+        function setSelectedAction(action) {
+            const hiddenStatus = document.getElementById('md-status-select');
+            const actionButtons = document.querySelectorAll('[data-status-action]');
+            const noteRequiredBox = document.getElementById('noteRequiredBox');
+            const noteRequiredStar = document.getElementById('noteRequiredStar');
+
+            const actualStatus = resolveActionStatus(action);
+
+            if (hiddenStatus) {
+                hiddenStatus.value = actualStatus;
+            }
+
+            actionButtons.forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.statusAction === action);
+            });
+
+            const noteRequired = actualStatus !== currentLeadStatus
+                && (actualStatus === 'Contacted' || actualStatus === 'Closed' || actualStatus === 'Spam');
+
+            if (noteRequiredBox) {
+                noteRequiredBox.style.display = noteRequired ? 'block' : 'none';
+            }
+
+            if (noteRequiredStar) {
+                noteRequiredStar.style.display = noteRequired ? 'inline' : 'none';
+            }
+        }
+
+        function updateStatusFlow(status) {
+            const steps = document.querySelectorAll('.crm-flow-step');
+
+            steps.forEach(function (step) {
+                step.classList.remove('active', 'done', 'locked', 'danger');
+
+                const flow = step.dataset.flow;
+
+                if (status === 'Cancelled') {
+                    step.classList.add('locked');
+                    return;
+                }
+
+                if (status === 'Spam') {
+                    step.classList.add('danger');
+                    return;
+                }
+
+                if (status === 'New') {
+                    if (flow === 'New') {
+                        step.classList.add('active');
+                    }
+                    return;
+                }
+
+                if (status === 'Contacted') {
+                    if (flow === 'New') {
+                        step.classList.add('done');
+                    }
+
+                    if (flow === 'Contacted') {
+                        step.classList.add('active');
+                    }
+
+                    return;
+                }
+
+                if (status === 'Closed') {
+                    if (flow === 'New' || flow === 'Contacted') {
+                        step.classList.add('done');
+                    }
+
+                    if (flow === 'Closed') {
+                        step.classList.add('active');
+                    }
+                }
             });
         }
 
-        function applyStatusTransitionRules(currentStatus) {
-            const statusSelect = document.getElementById('md-status-select');
+        function updateRuleBox(status) {
+            const ruleBox = document.getElementById('crmRuleBox');
+            if (!ruleBox) return;
+
+            if (status === 'New') {
+                ruleBox.innerHTML = '<strong>Quy tắc:</strong> Lead mới chỉ được chuyển sang “Đã gọi/tiếp nhận” hoặc “Spam”. Không được hoàn tất khi chưa gọi khách.';
+                return;
+            }
+
+            if (status === 'Contacted') {
+                ruleBox.innerHTML = '<strong>Quy tắc:</strong> Lead đã được tiếp nhận nên không được lùi về “Mới gửi”. Bạn có thể lưu thêm ghi chú, hoàn tất tư vấn hoặc đánh dấu Spam nếu không phù hợp.';
+                return;
+            }
+
+            if (status === 'Closed') {
+                ruleBox.innerHTML = '<strong>Đã khóa:</strong> Lead đã hoàn tất tư vấn nên không thể lùi hoặc chuyển sang trạng thái khác.';
+                return;
+            }
+
+            if (status === 'Spam') {
+                ruleBox.innerHTML = '<strong>Đã khóa:</strong> Lead đã đánh dấu Spam/Rác nên không thể lùi hoặc chuyển trạng thái khác.';
+                return;
+            }
+
+            if (status === 'Cancelled') {
+                ruleBox.innerHTML = '<strong>Đã khóa:</strong> Khách đã tự rút yêu cầu. Người bán chỉ được xem lại, không xử lý tiếp.';
+                return;
+            }
+
+            ruleBox.innerHTML = '<strong>Quy tắc:</strong> Cần kiểm tra lại trạng thái lead.';
+        }
+
+        function updateNextActionBox(status, text) {
+            const box = document.getElementById('nextActionBox');
+            const textEl = document.getElementById('md-next-action');
+
+            if (!box || !textEl) return;
+
+            textEl.innerText = text || 'Cần kiểm tra lại lead.';
+
+            box.classList.remove('d-none');
+
+            if (status === 'Closed' || status === 'Spam' || status === 'Cancelled') {
+                box.classList.add('opacity-75');
+            } else {
+                box.classList.remove('opacity-75');
+            }
+        }
+
+        function disableAction(status, disabled) {
+            const btn = document.querySelector(`[data-status-action="${status}"]`);
+
+            if (btn) {
+                btn.disabled = disabled;
+            }
+        }
+
+        function applyStatusTransitionRules(status) {
+            currentLeadStatus = status || 'New';
+
             const sellerNote = document.getElementById('md-sellerNote');
             const saveBtn = document.getElementById('btnSaveLead');
             const lockedBox = document.getElementById('lockedBox');
+            const actionButtons = document.querySelectorAll('[data-status-action]');
 
-            if (!statusSelect || !sellerNote || !saveBtn || !lockedBox) return;
+            updateStatusFlow(currentLeadStatus);
+            updateRuleBox(currentLeadStatus);
 
-            resetStatusOptions();
+            if (lockedBox) {
+                lockedBox.style.display = 'none';
+            }
 
-            statusSelect.disabled = false;
-            sellerNote.disabled = false;
-            saveBtn.disabled = false;
-            lockedBox.style.display = 'none';
+            if (sellerNote) {
+                sellerNote.disabled = false;
+            }
 
-            saveBtn.innerHTML = '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
+            }
 
-            if (currentStatus === 'Cancelled') {
-                lockedBox.style.display = 'block';
-                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Khách đã hủy yêu cầu. Lead này bị khóa xử lý, chỉ được xem lại.';
-                statusSelect.disabled = true;
-                sellerNote.disabled = true;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã khóa xử lý';
+            actionButtons.forEach(function (btn) {
+                btn.disabled = false;
+                btn.classList.remove('active');
+            });
+
+            if (currentLeadStatus === 'New') {
+                disableAction('Closed', true);
+                setSelectedAction('Keep');
                 return;
             }
 
-            if (currentStatus === 'Closed') {
-                lockedBox.style.display = 'block';
-                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã chốt thành công. Không được lùi hoặc chuyển trạng thái khác.';
-                statusSelect.disabled = true;
-                sellerNote.disabled = true;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Lead đã chốt - đã khóa';
+            if (currentLeadStatus === 'Contacted') {
+                disableAction('Contacted', true);
+                setSelectedAction('Keep');
                 return;
             }
 
-            if (currentStatus === 'Spam') {
-                lockedBox.style.display = 'block';
-                lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã được đánh dấu Spam/Rác. Không được lùi hoặc chuyển trạng thái khác.';
-                statusSelect.disabled = true;
-                sellerNote.disabled = true;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="bi bi-shield-x me-1"></i>Lead Spam - đã khóa';
-                return;
-            }
+            if (isFinalStatus(currentLeadStatus)) {
+                actionButtons.forEach(function (btn) {
+                    btn.disabled = true;
+                });
 
-            if (currentStatus === 'Contacted') {
-                const newOption = statusSelect.querySelector('option[value="New"]');
-
-                if (newOption) {
-                    newOption.disabled = true;
-                    newOption.hidden = true;
+                if (sellerNote) {
+                    sellerNote.disabled = true;
                 }
 
-                statusSelect.value = 'Contacted';
-                return;
-            }
-
-            if (currentStatus === 'New') {
-                const closedOption = statusSelect.querySelector('option[value="Closed"]');
-
-                if (closedOption) {
-                    closedOption.disabled = true;
-                    closedOption.hidden = true;
+                if (saveBtn) {
+                    saveBtn.disabled = true;
                 }
 
-                statusSelect.value = 'New';
+                if (lockedBox) {
+                    lockedBox.style.display = 'block';
+
+                    if (currentLeadStatus === 'Closed') {
+                        lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã hoàn tất tư vấn. Trạng thái này đã khóa để tránh cập nhật sai.';
+                    } else if (currentLeadStatus === 'Spam') {
+                        lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lead đã được đánh dấu Spam/Rác. Trạng thái này đã khóa để tránh xử lý lại.';
+                    } else {
+                        lockedBox.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Khách đã hủy yêu cầu. Lead này chỉ được xem lại.';
+                    }
+                }
+
+                setSelectedAction('Keep');
             }
         }
+
         function setSaveButtonLoading(isLoading) {
             const btn = document.getElementById('btnSaveLead');
             if (!btn) return;
@@ -1074,8 +1758,37 @@
                 btn.disabled = true;
             } else {
                 btn.innerHTML = btn.dataset.originalHtml || '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
-                btn.disabled = false;
+
+                if (!isFinalStatus(currentLeadStatus)) {
+                    btn.disabled = false;
+                }
             }
+        }
+
+        function safeParseJsonResponse(res) {
+            return res.text().then(function (text) {
+                let data = null;
+
+                try {
+                    data = text ? JSON.parse(text) : null;
+                } catch {
+                    data = null;
+                }
+
+                if (!res.ok) {
+                    const message = data && data.message
+                        ? data.message
+                        : 'Máy chủ trả về lỗi ' + res.status + '. Vui lòng kiểm tra lại Controller hoặc log server.';
+
+                    throw new Error(message);
+                }
+
+                if (!data) {
+                    throw new Error('Máy chủ không trả về dữ liệu JSON hợp lệ.');
+                }
+
+                return data;
+            });
         }
 
         function openCRMModal(id) {
@@ -1094,9 +1807,7 @@
                 method: 'GET',
                 headers: { 'Accept': 'application/json' }
             })
-                .then(function (res) {
-                    return res.json();
-                })
+                .then(safeParseJsonResponse)
                 .then(function (data) {
                     Swal.close();
                     cleanupModalOverlay();
@@ -1109,6 +1820,9 @@
                     const d = data.data;
                     const statusView = getStatusView(d.status);
 
+                    currentLeadStatus = d.status || 'New';
+                    currentLeadSourceUrl = d.sourceUrl || '#';
+
                     document.getElementById('md-id').value = d.id || '';
                     document.getElementById('md-name').innerText = d.fullName || 'Khách hàng';
 
@@ -1116,37 +1830,65 @@
                     phoneLink.href = d.phone ? ('tel:' + d.phone) : '#';
                     phoneLink.querySelector('span').innerText = d.phone || 'Không có';
 
+                    const callBtn = document.getElementById('md-call-btn');
+                    if (callBtn) {
+                        callBtn.href = d.phone ? ('tel:' + d.phone) : '#';
+                        callBtn.classList.toggle('disabled', !d.phone);
+                    }
+
+                    const sourceBtn = document.getElementById('md-source-btn');
+                    if (sourceBtn) {
+                        sourceBtn.href = currentLeadSourceUrl;
+                        sourceBtn.classList.toggle('disabled', currentLeadSourceUrl === '#');
+                    }
+
                     document.getElementById('md-email').querySelector('span').innerText = d.email || 'Không có';
                     document.getElementById('md-note').innerText = d.note || 'Không có lời nhắn';
                     document.getElementById('md-source').innerText = `${d.sourceType || 'Nguồn'} - ${d.sourceTitle || 'Không xác định'}`;
                     document.getElementById('md-created').innerText = d.createdAt || '';
-                    document.getElementById('md-updated').innerText = d.updatedAt || '';
+                    document.getElementById('md-updated').innerText = d.updatedAt || 'Chưa xử lý';
                     document.getElementById('md-sellerNote').value = d.sellerNote || '';
 
                     const currentStatus = document.getElementById('md-current-status');
                     currentStatus.className = `status-pill ${statusView.cls}`;
                     currentStatus.innerHTML = `<i class="bi ${statusView.icon}"></i>${statusView.text}`;
-        const statusSelect = document.getElementById('md-status-select');
 
-        if (d.status === 'Cancelled') {
-            statusSelect.value = 'New';
-        } else {
-            statusSelect.value = d.status || 'New';
-        }
+                    updateNextActionBox(currentLeadStatus, d.nextAction);
+                    applyStatusTransitionRules(currentLeadStatus);
 
-        applyStatusTransitionRules(d.status || 'New');
                     getCrmModal().show();
 
                     setTimeout(function () {
                         cleanupModalOverlay();
                     }, 100);
                 })
-                .catch(function () {
+                .catch(function (err) {
                     Swal.close();
                     cleanupModalOverlay();
-                    Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    Swal.fire('Lỗi', err.message || 'Không thể kết nối máy chủ.', 'error');
                 });
         }
+
+        document.querySelectorAll('[data-status-action]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (btn.disabled) return;
+
+                const action = btn.dataset.statusAction;
+                const selectedStatus = resolveActionStatus(action);
+
+                if (currentLeadStatus === 'New' && selectedStatus === 'Closed') {
+                    Swal.fire('Chưa đúng quy trình', 'Lead mới phải được gọi/tiếp nhận trước khi hoàn tất tư vấn.', 'warning');
+                    return;
+                }
+
+                if (currentLeadStatus === 'Contacted' && selectedStatus === 'New') {
+                    Swal.fire('Không thể lùi trạng thái', 'Lead đã gọi không được chuyển về Mới gửi.', 'warning');
+                    return;
+                }
+
+                setSelectedAction(action);
+            });
+        });
 
         const updateLeadForm = document.getElementById('frmUpdateLead');
 
@@ -1154,37 +1896,96 @@
             updateLeadForm.addEventListener('submit', function (e) {
                 e.preventDefault();
 
-                const formData = new FormData(this);
-                setSaveButtonLoading(true);
+                const selectedStatus = document.getElementById('md-status-select')?.value || currentLeadStatus || 'New';
+                const sellerNote = document.getElementById('md-sellerNote')?.value.trim() || '';
+                const isStatusChanged = selectedStatus !== currentLeadStatus;
 
-                fetch(this.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(function (res) {
-                        return res.json();
+                const noteRequired = isStatusChanged
+                    && (selectedStatus === 'Contacted' || selectedStatus === 'Closed' || selectedStatus === 'Spam');
+
+                if (noteRequired && sellerNote.length < 5) {
+                    Swal.fire(
+                        'Thiếu ghi chú chăm sóc',
+                        'Bạn cần nhập ghi chú ngắn trước khi chuyển trạng thái để lưu lại lịch sử xử lý.',
+                        'warning'
+                    );
+
+                    document.getElementById('md-sellerNote')?.focus();
+                    return;
+                }
+
+                if (!isStatusChanged && sellerNote.length < 5) {
+                    Swal.fire(
+                        'Chưa có ghi chú mới',
+                        'Bạn đang chọn lưu thêm ghi chú nhưng nội dung ghi chú còn trống hoặc quá ngắn.',
+                        'warning'
+                    );
+
+                    document.getElementById('md-sellerNote')?.focus();
+                    return;
+                }
+
+                let confirmTitle = isStatusChanged ? 'Cập nhật trạng thái?' : 'Lưu thêm ghi chú?';
+                let confirmText = isStatusChanged
+                    ? 'Hệ thống sẽ lưu trạng thái mới và ghi chú chăm sóc cho lead này.'
+                    : 'Hệ thống sẽ giữ nguyên trạng thái hiện tại và chỉ cập nhật ghi chú chăm sóc.';
+                let confirmIcon = 'question';
+
+                if (selectedStatus === 'Closed') {
+                    confirmTitle = 'Hoàn tất tư vấn lead này?';
+                    confirmText = 'Sau khi hoàn tất, lead sẽ bị khóa và không thể lùi trạng thái.';
+                    confirmIcon = 'success';
+                }
+
+                if (selectedStatus === 'Spam') {
+                    confirmTitle = 'Đánh dấu lead là Spam/Rác?';
+                    confirmText = 'Sau khi đánh dấu Spam, lead sẽ bị khóa xử lý.';
+                    confirmIcon = 'warning';
+                }
+
+                Swal.fire({
+                    title: confirmTitle,
+                    text: confirmText,
+                    icon: confirmIcon,
+                    showCancelButton: true,
+                    confirmButtonText: 'Đồng ý lưu',
+                    cancelButtonText: 'Kiểm tra lại',
+                    confirmButtonColor: '#2563eb',
+                    cancelButtonColor: '#64748b'
+                }).then(function (result) {
+                    if (!result.isConfirmed) return;
+
+                    const formData = new FormData(updateLeadForm);
+                    setSaveButtonLoading(true);
+
+                    fetch(updateLeadForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
                     })
-                    .then(function (data) {
-                        if (data.success) {
-                            closeCRMModal();
+                        .then(safeParseJsonResponse)
+                        .then(function (data) {
+                            if (data.success) {
+                                closeCRMModal();
 
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Đã lưu',
-                                text: data.message || 'Đã cập nhật lead.',
-                                confirmButtonText: 'OK'
-                            }).then(function () {
-                                location.reload();
-                            });
-                        } else {
-                            Swal.fire('Không thể cập nhật', data.message || 'Cập nhật thất bại.', 'error');
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Đã lưu',
+                                    text: data.message || 'Đã cập nhật lead.',
+                                    confirmButtonText: 'OK'
+                                }).then(function () {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire('Không thể cập nhật', data.message || 'Cập nhật thất bại.', 'error');
+                                setSaveButtonLoading(false);
+                            }
+                        })
+                        .catch(function (err) {
+                            Swal.fire('Lỗi', err.message || 'Không thể kết nối máy chủ.', 'error');
                             setSaveButtonLoading(false);
-                        }
-                    })
-                    .catch(function () {
-                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
-                        setSaveButtonLoading(false);
-                    });
+                        });
+                });
             });
         }
 
@@ -1203,7 +2004,7 @@
 
             Swal.fire({
                 title: 'Xóa lead này?',
-                text: 'Chỉ nên xóa lead spam hoặc lead khách đã hủy. Lead đang chăm sóc/chốt nên giữ lại lịch sử.',
+                text: 'Chỉ nên xóa lead spam hoặc lead khách đã hủy. Lead đang chăm sóc/hoàn tất nên giữ lại lịch sử.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
@@ -1221,11 +2022,10 @@
 
                 fetch('/Consultations/Delete', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
                 })
-                    .then(function (res) {
-                        return res.json();
-                    })
+                    .then(safeParseJsonResponse)
                     .then(function (data) {
                         if (data.success) {
                             Swal.fire({
@@ -1246,8 +2046,8 @@
                             Swal.fire('Không thể xóa', data.message || 'Xóa thất bại.', 'error');
                         }
                     })
-                    .catch(function () {
-                        Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    .catch(function (err) {
+                        Swal.fire('Lỗi', err.message || 'Không thể kết nối máy chủ.', 'error');
                     });
             });
         }
@@ -1259,6 +2059,7 @@
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
                 const modalEl = document.getElementById('crmModal');
+
                 if (modalEl && modalEl.classList.contains('show')) {
                     closeCRMModal();
                 }
