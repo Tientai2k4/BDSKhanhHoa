@@ -1,182 +1,726 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
 @{
-    ViewData["Title"] = "Quản Lý & Kiểm Duyệt Dự Án BĐS";
+    ViewData["Title"] = "Quản lý dự án BĐS";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string visibility = ViewBag.Visibility as string ?? "";
+    string keyword = ViewBag.Keyword as string ?? "";
+    string projectStatus = ViewBag.ProjectStatus as string ?? "";
+    string projectType = ViewBag.ProjectType as string ?? "";
+    string legal = ViewBag.Legal as string ?? "";
+    string price = ViewBag.Price as string ?? "";
+    string sort = ViewBag.Sort as string ?? "newest";
+
+    int totalResults = ViewBag.TotalResults is int tr ? tr : 0;
+    int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
+    int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+
+    int allCount = ViewBag.AllCount is int ac ? ac : 0;
+    int publicCount = ViewBag.PublicCount is int pc ? pc : 0;
+    int hiddenCount = ViewBag.HiddenCount is int hc ? hc : 0;
+
+    int? areaId = ViewBag.AreaId as int?;
+    int? wardId = ViewBag.WardId as int?;
+    int? ownerId = ViewBag.OwnerId as int?;
+
+    string PageUrl(int p) => Url.Action("Index", "AdminProject", new
+    {
+        area = "Admin",
+        visibility,
+        keyword,
+        areaId,
+        wardId,
+        ownerId,
+        projectStatus,
+        projectType,
+        legal,
+        price,
+        sort,
+        page = p
+    }) ?? "#";
 }
 
 <style>
-    .doc-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 15px;
-        background-color: #fef2f2;
-        color: #ef4444;
-        border: 1px solid #fca5a5;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.85rem;
-        text-decoration: none;
-        transition: 0.3s;
+    .admin-project-page {
+        background: #f8fafc;
+        min-height: 100vh;
     }
 
-        .doc-link:hover {
-            background-color: #fee2e2;
-            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
-            transform: translateY(-2px);
+    .admin-page-title {
+        color: #0f172a;
+        font-weight: 900;
+        letter-spacing: -.03em;
+    }
+
+    .admin-page-subtitle {
+        color: #64748b;
+        font-size: .92rem;
+        font-weight: 500;
+    }
+
+    .visibility-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 18px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
+    }
+
+        .visibility-tabs .btn {
+            min-height: 40px;
+            border-radius: 14px;
+            font-weight: 850;
+            padding-left: 14px;
+            padding-right: 14px;
         }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .summary-card {
+        padding: 15px;
+        border-radius: 20px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .05);
+    }
+
+    .summary-label {
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin-bottom: 4px;
+    }
+
+    .summary-value {
+        color: #0f172a;
+        font-size: 1.35rem;
+        line-height: 1.1;
+        font-weight: 950;
+    }
+
+    .filter-card,
+    .project-table-card {
+        overflow: hidden;
+        border: 0;
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 16px 42px rgba(15, 23, 42, .07);
+    }
+
+    .filter-card-header {
+        padding: 18px 22px;
+        color: #fff;
+        background: linear-gradient(135deg, #0f172a, #1e3a8a);
+    }
+
+    .filter-card-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+    .filter-card-body {
+        padding: 20px 22px 22px;
+    }
+
+    .filter-label {
+        display: block;
+        margin-bottom: 7px;
+        color: #475569;
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+    }
+
+    .filter-control {
+        min-height: 44px;
+        border-radius: 14px;
+        border: 1.5px solid #e2e8f0;
+        color: #0f172a;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+        .filter-control:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .10) !important;
+        }
+
+    .table thead th {
+        background: #f8fafc !important;
+        color: #64748b;
+        font-size: .74rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 900;
+        border-bottom: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
 
     .table-hover tbody tr:hover {
         background-color: #f8fafc;
-        transition: 0.2s;
+    }
+
+    .project-thumb {
+        width: 82px;
+        height: 82px;
+        border-radius: 18px;
+        object-fit: cover;
+        border: 1px solid #e2e8f0;
+        background: #f1f5f9;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+    }
+
+    .project-name {
+        max-width: 310px;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .project-meta {
+        color: #64748b;
+        font-size: .82rem;
+        font-weight: 650;
+    }
+
+    .project-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 26px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .doc-link,
+    .doc-empty {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 13px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: .82rem;
+        white-space: nowrap;
+        text-decoration: none;
+    }
+
+    .doc-link {
+        background: #fef2f2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+    }
+
+        .doc-link:hover {
+            color: #dc2626;
+            background: #fee2e2;
+        }
+
+    .doc-empty {
+        background: #f8fafc;
+        color: #64748b;
+        border: 1px dashed #cbd5e1;
+    }
+
+    .visibility-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 0 13px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: .82rem;
+        white-space: nowrap;
+    }
+
+    .visibility-public {
+        color: #047857;
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+    }
+
+    .visibility-hidden {
+        color: #b45309;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+    }
+
+    .action-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+    }
+
+    .pagination .page-link {
+        min-width: 38px;
+        margin: 0 3px;
+        border: 0;
+        border-radius: 12px;
+        color: #334155;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .pagination .page-item.active .page-link {
+        color: #fff;
+        background: #2563eb;
+    }
+
+    @@media (max-width: 991.98px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .visibility-tabs {
+            width: 100%;
+        }
+
+            .visibility-tabs .btn {
+                flex: 1 1 100%;
+            }
     }
 </style>
 
-<div class="container-fluid py-4 animate__animated animate__fadeIn">
-    <!-- Header và Bộ lọc trạng thái -->
-    <div class="row align-items-center mb-4 g-3">
-        <div class="col-md-5">
-            <h3 class="fw-bold text-dark mb-1"><i class="bi bi-building-fill-check text-primary me-2"></i>Thẩm định & Quản trị Dự án</h3>
-            <p class="text-muted small mb-0">Hệ thống quản lý, xét duyệt hồ sơ dự án Bất Động Sản.</p>
-        </div>
-        <div class="col-md-7 d-flex justify-content-md-end gap-2 align-items-center">
-            <div class="btn-group shadow-sm bg-white rounded-3 p-1">
-                <a href="/Admin/AdminProject/Index" class="btn @(string.IsNullOrEmpty(ViewBag.CurrentStatus) ? "btn-primary rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">Tất cả</a>
-                <a href="/Admin/AdminProject/Index?status=Pending" class="btn @(ViewBag.CurrentStatus == "Pending" ? "btn-warning text-dark rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">
-                    Chờ duyệt <span class="badge bg-danger ms-1 rounded-pill">@ViewBag.PendingCount</span>
-                </a>
-                <a href="/Admin/AdminProject/Index?status=Approved" class="btn @(ViewBag.CurrentStatus == "Approved" ? "btn-success rounded-3" : "btn-white border-0 text-secondary") fw-bold px-4">
-                    Đã duyệt <span class="badge bg-light text-success ms-1 border rounded-pill">@ViewBag.ApprovedCount</span>
+<div class="admin-project-page">
+    <div class="container-fluid py-4 animate__animated animate__fadeIn">
+
+        <div class="row align-items-center mb-4 g-3">
+            <div class="col-xl-5">
+                <h3 class="admin-page-title mb-1">
+                    <i class="bi bi-building-fill-check text-primary me-2"></i>
+                    Quản trị dự án bất động sản
+                </h3>
+                <p class="admin-page-subtitle mb-0">
+                    Tìm kiếm, lọc nhanh, sửa thông tin, ẩn khỏi trang công khai hoặc xóa dự án khi cần.
+                </p>
+            </div>
+
+            <div class="col-xl-7 d-flex justify-content-xl-end gap-2 align-items-center flex-wrap">
+                <div class="visibility-tabs">
+                    <a href="/Admin/AdminProject/Index"
+                       class="btn @(string.IsNullOrEmpty(visibility) ? "btn-primary" : "btn-white text-secondary")">
+                        Tất cả
+                        <span class="badge bg-light text-primary ms-1 border rounded-pill">@allCount</span>
+                    </a>
+
+                    <a href="/Admin/AdminProject/Index?visibility=public"
+                       class="btn @(visibility == "public" ? "btn-success" : "btn-white text-secondary")">
+                        Đang công khai
+                        <span class="badge bg-light text-success ms-1 border rounded-pill">@publicCount</span>
+                    </a>
+
+                    <a href="/Admin/AdminProject/Index?visibility=hidden"
+                       class="btn @(visibility == "hidden" ? "btn-warning text-dark" : "btn-white text-secondary")">
+                        Đã ẩn
+                        <span class="badge bg-light text-warning ms-1 border rounded-pill">@hiddenCount</span>
+                    </a>
+                </div>
+
+                <a asp-action="Create" class="btn btn-dark fw-bold rounded-4 px-3 shadow-sm text-nowrap" style="min-height:44px;">
+                    <i class="bi bi-plus-lg me-1"></i>
+                    Thêm mới
                 </a>
             </div>
-            <a asp-action="Create" class="btn btn-dark fw-bold rounded-3 px-3 shadow-sm text-nowrap">
-                <i class="bi bi-plus-lg"></i> Thêm Mới
-            </a>
         </div>
-    </div>
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    }
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
 
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4 py-3 text-secondary small text-uppercase fw-bold">Thông tin dự án</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold">Đơn vị yêu cầu</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Hồ sơ pháp lý</th>
-                        <th class="py-3 text-secondary small text-uppercase fw-bold text-center">Trạng thái</th>
-                        <th class="text-end pe-4 py-3 text-secondary small text-uppercase fw-bold">Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
-                    {
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-4 fw-medium" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-label">Tổng dự án</div>
+                <div class="summary-value">@allCount</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Đang công khai</div>
+                <div class="summary-value text-success">@publicCount</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Đã ẩn</div>
+                <div class="summary-value text-warning">@hiddenCount</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Kết quả lọc</div>
+                <div class="summary-value text-primary">@totalResults</div>
+            </div>
+        </div>
+
+        <div class="filter-card mb-4">
+            <div class="filter-card-header">
+                <h5 class="filter-card-title">
+                    <i class="bi bi-funnel-fill"></i>
+                    Bộ lọc nhanh dự án
+                </h5>
+            </div>
+
+            <div class="filter-card-body">
+                <form asp-action="Index" method="get" id="adminProjectFilterForm">
+                    <input type="hidden" name="visibility" value="@visibility" />
+
+                    <div class="row g-3">
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <label class="filter-label">Tìm kiếm</label>
+                            <input type="text"
+                                   name="keyword"
+                                   value="@keyword"
+                                   class="form-control filter-control"
+                                   placeholder="Tên dự án, chủ đầu tư, địa chỉ..." />
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Khu vực</label>
+                            <select name="areaId" id="areaDDL" class="form-select filter-control" asp-items="ViewBag.Areas">
+                                <option value="">Tất cả khu vực</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Phường / Xã</label>
+                            <select name="wardId" id="wardDDL" class="form-select filter-control" asp-items="ViewBag.Wards">
+                                <option value="">Tất cả phường/xã</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Trạng thái dự án</label>
+                            <select name="projectStatus" class="form-select filter-control">
+                                <option value="">Tất cả</option>
+                                <option value="Sắp mở bán" selected="@(projectStatus == "Sắp mở bán")">Sắp mở bán</option>
+                                <option value="Đang mở bán" selected="@(projectStatus == "Đang mở bán")">Đang mở bán</option>
+                                <option value="Đang bàn giao" selected="@(projectStatus == "Đang bàn giao")">Đang bàn giao</option>
+                                <option value="Đã bàn giao" selected="@(projectStatus == "Đã bàn giao")">Đã bàn giao</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <label class="filter-label">Loại hình</label>
+                            <input type="text"
+                                   name="projectType"
+                                   value="@projectType"
+                                   class="form-control filter-control"
+                                   placeholder="Căn hộ, đất nền, biệt thự..." />
+                        </div>
+
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <label class="filter-label">Chủ đầu tư / tài khoản</label>
+                            <select name="ownerId" class="form-select filter-control" asp-items="ViewBag.OwnersFilter">
+                                <option value="">Tất cả tài khoản</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Hồ sơ pháp lý</label>
+                            <select name="legal" class="form-select filter-control">
+                                <option value="">Tất cả</option>
+                                <option value="has" selected="@(legal == "has")">Có hồ sơ</option>
+                                <option value="none" selected="@(legal == "none")">Chưa có hồ sơ</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Khoảng giá</label>
+                            <select name="price" class="form-select filter-control">
+                                <option value="">Tất cả</option>
+                                <option value="under_2" selected="@(price == "under_2")">Dưới 2 tỷ</option>
+                                <option value="2_5" selected="@(price == "2_5")">Từ 2 - 5 tỷ</option>
+                                <option value="5_10" selected="@(price == "5_10")">Từ 5 - 10 tỷ</option>
+                                <option value="over_10" selected="@(price == "over_10")">Trên 10 tỷ</option>
+                                <option value="unknown" selected="@(price == "unknown")">Chưa cập nhật giá</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-2 col-lg-4 col-md-6">
+                            <label class="filter-label">Sắp xếp</label>
+                            <select name="sort" class="form-select filter-control">
+                                <option value="newest" selected="@(sort == "newest")">Mới cập nhật</option>
+                                <option value="oldest" selected="@(sort == "oldest")">Cũ nhất</option>
+                                <option value="name_asc" selected="@(sort == "name_asc")">Tên A-Z</option>
+                                <option value="name_desc" selected="@(sort == "name_desc")">Tên Z-A</option>
+                                <option value="price_asc" selected="@(sort == "price_asc")">Giá tăng dần</option>
+                                <option value="price_desc" selected="@(sort == "price_desc")">Giá giảm dần</option>
+                                <option value="views_desc" selected="@(sort == "views_desc")">Xem nhiều</option>
+                                <option value="published_desc" selected="@(sort == "published_desc")">Công bố mới</option>
+                            </select>
+                        </div>
+
+                        <div class="col-xl-3 col-lg-8 col-md-12 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary fw-bold rounded-4 px-4 flex-fill" style="min-height:44px;">
+                                <i class="bi bi-search me-1"></i>
+                                Lọc ngay
+                            </button>
+                            <a href="/Admin/AdminProject/Index" class="btn btn-light border fw-bold rounded-4 px-4" style="min-height:44px;">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                Xóa lọc
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="project-table-card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td colspan="5" class="text-center py-5">
-                                <i class="bi bi-folder-x display-1 text-muted opacity-25 d-block mb-3"></i>
-                                <h6 class="text-muted fw-bold">Chưa có hồ sơ dự án nào trong mục này.</h6>
-                            </td>
+                            <th class="ps-4 py-3">Thông tin dự án</th>
+                            <th class="py-3">Chủ đầu tư / Quản lý</th>
+                            <th class="py-3 text-center">Giá & lượt xem</th>
+                            <th class="py-3 text-center">Hồ sơ pháp lý</th>
+                            <th class="py-3 text-center">Hiển thị</th>
+                            <th class="text-end pe-4 py-3">Thao tác</th>
                         </tr>
-                    }
-                    @foreach (var item in Model)
-                    {
-                        <tr>
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <img src="@(string.IsNullOrEmpty(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)" class="rounded-3 shadow-sm object-fit-cover" width="80" height="80" onerror="this.src='/images/no-image.jpg'" />
-                                    <div>
-                                        <div class="fw-bold text-dark text-truncate" style="max-width: 250px; font-size: 1.05rem;" title="@item.ProjectName">@item.ProjectName</div>
-                                        <div class="small text-muted mt-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@item.Ward?.Area?.AreaName</div>
-                                        <div class="badge bg-light text-dark border mt-2 fw-medium px-2 py-1"><i class="bi bi-clock-history me-1"></i> @item.ProjectStatus</div>
+                    </thead>
+
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <i class="bi bi-folder-x display-1 text-muted opacity-25 d-block mb-3"></i>
+                                    <h6 class="text-muted fw-bold">Không tìm thấy dự án phù hợp với bộ lọc.</h6>
+                                    <a href="/Admin/AdminProject/Index" class="btn btn-primary rounded-4 fw-bold mt-2">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>
+                                        Xóa bộ lọc
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+
+                        @foreach (var item in Model)
+                        {
+                            bool isPublic = item.ApprovalStatus == "Approved" || item.ApprovalStatus == "Đã duyệt";
+                            string priceText = "Đang cập nhật";
+
+                            if (item.PriceMin.HasValue && item.PriceMax.HasValue)
+                            {
+                                priceText = $"{item.PriceMin.Value:0.##} - {item.PriceMax.Value:0.##} {item.PriceUnit}";
+                            }
+                            else if (item.PriceMin.HasValue)
+                            {
+                                priceText = $"Từ {item.PriceMin.Value:0.##} {item.PriceUnit}";
+                            }
+
+                            <tr>
+                                <td class="ps-4 py-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <img src="@(string.IsNullOrWhiteSpace(item.MainImage) ? "/images/no-image.jpg" : item.MainImage)"
+                                             class="project-thumb"
+                                             alt="@item.ProjectName"
+                                             onerror="this.onerror=null;this.src='/images/no-image.jpg';" />
+
+                                        <div class="min-width-0">
+                                            <div class="project-name text-truncate" title="@item.ProjectName">@item.ProjectName</div>
+
+                                            <div class="project-meta mt-1">
+                                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                                                @(item.Ward?.WardName ?? "Chưa có phường/xã") - @(item.Area?.AreaName ?? item.Ward?.Area?.AreaName ?? "Chưa có khu vực")
+                                            </div>
+
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                <span class="project-chip"><i class="bi bi-clock-history"></i>@(string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Đang cập nhật" : item.ProjectStatus)</span>
+                                                <span class="project-chip"><i class="bi bi-building"></i>@(string.IsNullOrWhiteSpace(item.ProjectType) ? "Chưa rõ loại hình" : item.ProjectType)</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="py-3">
-                                <span class="d-block fw-bold text-primary mb-1">@item.Investor</span>
-                                <div class="d-flex align-items-center gap-2 mt-2">
-                                    <img src="@(item.Owner?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border shadow-sm" width="28" height="28" style="object-fit:cover;">
-                                    <span class="small text-muted fw-bold">@item.Owner?.FullName</span>
-                                </div>
-                            </td>
-                            <td class="py-3 text-center">
-                                <a href="@item.LegalDocs" target="_blank" class="doc-link">
-                                    <i class="bi bi-file-earmark-pdf-fill"></i> Xem bản Scan
-                                </a>
-                            </td>
-                            <td class="py-3 text-center">
-                                @if (item.ApprovalStatus == "Approved")
-                                {
-                                    <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3 py-2 fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Đã duyệt</span>
-                                }
-                                else if (item.ApprovalStatus == "Pending")
-                                {
-                                    <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill px-3 py-2 fw-bold"><i class="bi bi-hourglass-split me-1"></i> Chờ duyệt</span>
-                                }
-                                else if (item.ApprovalStatus == "Rejected")
-                                {
-                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill px-3 py-2 fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Từ chối</span>
-                                }
-                            </td>
-                            <td class="text-end pe-4 py-3">
-                                <div class="d-flex justify-content-end gap-2">
-                                    @if (item.ApprovalStatus == "Approved")
+                                </td>
+
+                                <td class="py-3">
+                                    <span class="d-block fw-bold text-primary mb-1">@item.Investor</span>
+                                    <div class="d-flex align-items-center gap-2 mt-2">
+                                        <img src="@(item.Owner?.Avatar ?? "/images/avatars/default-user.png")"
+                                             class="rounded-circle border shadow-sm"
+                                             width="30"
+                                             height="30"
+                                             style="object-fit:cover;"
+                                             onerror="this.onerror=null;this.src='/images/avatars/default-user.png';" />
+                                        <div>
+                                            <span class="small text-dark fw-bold d-block">@(item.Owner?.FullName ?? item.Owner?.Username ?? "Chưa gán")</span>
+                                            <span class="small text-muted">@(item.Owner?.Email ?? "")</span>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <td class="py-3 text-center">
+                                    <div class="fw-black text-danger mb-1">@priceText</div>
+                                    <div class="small text-muted fw-bold">
+                                        <i class="bi bi-eye-fill me-1 text-primary"></i>
+                                        @item.Views lượt xem
+                                    </div>
+                                    <div class="small text-muted mt-1">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
+                                </td>
+
+                                <td class="py-3 text-center">
+                                    @if (!string.IsNullOrWhiteSpace(item.LegalDocs))
                                     {
-                                        <a href="/Project/Details/@item.ProjectID" target="_blank" class="btn btn-sm btn-light border text-primary rounded-3 fw-bold shadow-sm" title="Xem trên Web">
-                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        <a href="@item.LegalDocs" target="_blank" class="doc-link">
+                                            <i class="bi bi-file-earmark-pdf-fill"></i>
+                                            Xem hồ sơ
                                         </a>
                                     }
+                                    else
+                                    {
+                                        <span class="doc-empty"><i class="bi bi-file-earmark-x"></i>Chưa có</span>
+                                    }
+                                </td>
 
-                                    <!-- Nút Sửa Dự Án -->
-                                    <a asp-action="Edit" asp-controller="AdminProject" asp-route-id="@item.ProjectID" class="btn btn-sm btn-warning rounded-3 fw-bold shadow-sm" title="Sửa Dự Án">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
+                                <td class="py-3 text-center">
+                                    @if (isPublic)
+                                    {
+                                        <span class="visibility-badge visibility-public"><i class="bi bi-globe2"></i>Đang công khai</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="visibility-badge visibility-hidden"><i class="bi bi-eye-slash-fill"></i>Đã ẩn</span>
+                                    }
+                                </td>
 
-                                    <!-- Form Duyệt / Từ chối -->
-                                    <form asp-action="UpdateStatus" asp-controller="AdminProject" method="post" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@item.ProjectID" />
-                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Rejected")
-                                        {
-                                            <button type="submit" name="newStatus" value="Approved" class="btn btn-sm btn-success rounded-3 fw-bold shadow-sm" title="Duyệt Hồ Sơ">
-                                                <i class="bi bi-check-lg"></i>
+                                <td class="text-end pe-4 py-3">
+                                    <div class="d-flex justify-content-end gap-2 flex-wrap">
+                                        <a asp-action="Edit"
+                                           asp-controller="AdminProject"
+                                           asp-route-id="@item.ProjectID"
+                                           class="btn btn-sm btn-warning action-btn shadow-sm"
+                                           title="Sửa dự án">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+
+                                        <form asp-action="TogglePublic" asp-controller="AdminProject" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.ProjectID" />
+                                            <button type="submit"
+                                                    class="btn btn-sm @(isPublic ? "btn-secondary" : "btn-success") action-btn shadow-sm"
+                                                    title="@(isPublic ? "Ẩn khỏi trang công khai" : "Công khai lại dự án")"
+                                                    onclick="return confirm('@(isPublic ? "Bạn có chắc muốn ẩn dự án này khỏi trang công khai?" : "Bạn có chắc muốn công khai lại dự án này?")');">
+                                                <i class="bi @(isPublic ? "bi-eye-slash-fill" : "bi-globe2")"></i>
                                             </button>
-                                        }
-                                        @if (item.ApprovalStatus == "Pending" || item.ApprovalStatus == "Approved")
-                                        {
-                                            <button type="submit" name="newStatus" value="Rejected" class="btn btn-sm btn-danger rounded-3 fw-bold shadow-sm" title="Từ chối Hồ Sơ" onclick="return confirm('Bạn có chắc chắn muốn từ chối hồ sơ này?');">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        }
-                                    </form>
+                                        </form>
 
-                                    <!-- Nút Xóa Dự Án -->
-                                    <form asp-action="Delete" asp-controller="AdminProject" method="post" class="d-inline" onsubmit="return confirm('CẢNH BÁO: Xóa dự án này sẽ gỡ bỏ liên kết của tất cả BĐS đang thuộc dự án. Bạn chắc chắn chứ?');">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@item.ProjectID" />
-                                        <button type="submit" class="btn btn-sm btn-light border text-secondary rounded-3 shadow-sm" title="Đưa vào thùng rác">
-                                            <i class="bi bi-trash3-fill"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                                        <form asp-action="Delete"
+                                              asp-controller="AdminProject"
+                                              method="post"
+                                              class="d-inline"
+                                              onsubmit="return confirm('CẢNH BÁO: Xóa dự án này sẽ gỡ bỏ liên kết của tất cả BĐS đang thuộc dự án. Bạn chắc chắn chứ?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.ProjectID" />
+                                            <button type="submit" class="btn btn-sm btn-light border text-danger action-btn shadow-sm" title="Xóa dự án">
+                                                <i class="bi bi-trash3-fill"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 p-3 border-top bg-white">
+                    <div class="small text-muted fw-bold">
+                        Trang @currentPage / @totalPages - Tổng @totalResults dự án
+                    </div>
+
+                    <nav>
+                        <ul class="pagination mb-0">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <a class="page-link" href="@PageUrl(currentPage - 1)"><i class="bi bi-chevron-left"></i></a>
+                            </li>
+
+                            @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <a class="page-link" href="@PageUrl(i)">@i</a>
+                                </li>
+                            }
+
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <a class="page-link" href="@PageUrl(currentPage + 1)"><i class="bi bi-chevron-right"></i></a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#areaDDL').on('change', function () {
+                const areaId = $(this).val();
+                const wardDDL = $('#wardDDL');
+
+                wardDDL.html('<option value="">Đang tải...</option>');
+
+                if (areaId) {
+                    $.getJSON('/Admin/AdminProject/GetWardsByArea?areaId=' + areaId, function (data) {
+                        let items = '<option value="">Tất cả phường/xã</option>';
+                        $.each(data, function (i, ward) {
+                            items += "<option value='" + ward.id + "'>" + ward.name + "</option>";
+                        });
+                        wardDDL.html(items);
+                    }).fail(function () {
+                        wardDDL.html('<option value="">Không tải được phường/xã</option>');
+                    });
+                } else {
+                    wardDDL.html('<option value="">Tất cả phường/xã</option>');
+                }
+            });
+
+            $('input[name="keyword"]').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#adminProjectFilterForm').submit();
+                }
+            });
+        });
+    </script>
+}

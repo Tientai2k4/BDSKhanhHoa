@@ -65,6 +65,38 @@
     {
         return status == "Closed" || status == "Spam" || status == "Cancelled";
     }
+
+    string CleanSellerNote(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        string cleaned = value
+            .Replace("[REMIND_SELLER]", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("REMIND_SELLER", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned,
+            @"(?im)^\s*(\d{1,2}:\d{2}\s+\d{1,2}/\d{1,2}/\d{4})\s*-\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$",
+            "$1 - Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.");
+
+        cleaned = System.Text.RegularExpressions.Regex.Replace(
+            cleaned,
+            @"(?im)^\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$",
+            "Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.");
+
+        cleaned = cleaned.Replace("nhắc người phụ trách", "nhắc chăm sóc khách hàng", StringComparison.OrdinalIgnoreCase);
+
+        while (cleaned.Contains("\n\n\n"))
+        {
+            cleaned = cleaned.Replace("\n\n\n", "\n\n");
+        }
+
+        return cleaned.Trim();
+    }
     string GetNextActionText(string? status, DateTime? updatedAt)
     {
         if (status == "New")
@@ -396,10 +428,10 @@
     }
 
     /*
-            FIX QUAN TRỌNG:
-            Không để backdrop che lên modal.
-            Layout của bạn có sidebar/header z-index riêng, nên dùng backdrop mặc định dễ làm modal bị mờ và không thao tác được.
-        */
+                FIX QUAN TRỌNG:
+                Không để backdrop che lên modal.
+                Layout của bạn có sidebar/header z-index riêng, nên dùng backdrop mặc định dễ làm modal bị mờ và không thao tác được.
+            */
     #crmModal {
         z-index: 99999 !important;
     }
@@ -534,6 +566,7 @@
         .crm-next-box strong {
             color: #0f172a;
         }
+
     .crm-process-box {
         border-radius: 22px;
         background: #fff;
@@ -775,6 +808,7 @@
     }
 
     }
+
     @@media (max-width: 991.98px) {
         .crm-hero {
             padding: 22px;
@@ -802,6 +836,75 @@
             max-width: 100%;
         }
     }
+
+    /* ===== PATCH CRM: gọn trạng thái, ghi chú, thao tác theo đúng quy trình ===== */
+    .crm-note-preview {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+        max-width: 330px;
+        color: #334155;
+        font-size: .86rem;
+        line-height: 1.5;
+        font-weight: 600;
+    }
+
+        .crm-note-preview i {
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+    .crm-seller-note-preview {
+        margin-top: 8px;
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+        max-width: 330px;
+        padding: 9px 10px;
+        border-radius: 14px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #78350f;
+        font-size: .82rem;
+        line-height: 1.5;
+        font-weight: 700;
+    }
+
+        .crm-seller-note-preview i {
+            margin-top: 2px;
+            color: #a16207;
+        }
+
+    .crm-action-card.is-hidden-by-rule {
+        display: none !important;
+    }
+
+    .crm-save-hidden {
+        display: none !important;
+    }
+
+    #md-sellerNote {
+        min-height: 120px;
+        font-weight: 650;
+        line-height: 1.55;
+    }
+
+    @@media (max-width: 575.98px) {
+        .crm-note-preview,
+        .crm-seller-note-preview {
+            max-width: 100%;
+            font-size: .82rem;
+        }
+
+        .status-pill,
+        .next-pill {
+            white-space: normal;
+            text-align: left;
+        }
+    }
+
 </style>
 
 <div class="container-fluid px-0 crm-page">
@@ -1029,32 +1132,35 @@
                                 </td>
 
                                 <td>
-                                    <div class="small fw-medium text-dark truncate-2" style="max-width:310px;">
-                                        <i class="bi bi-chat-left-text text-muted me-1"></i>
-                                        @(string.IsNullOrWhiteSpace(item.Note) ? "Khách không để lại lời nhắn." : item.Note)
+                                    <div class="crm-note-preview">
+                                        <i class="bi bi-chat-left-text"></i>
+                                        <span class="truncate-2">@(string.IsNullOrWhiteSpace(item.Note) ? "Khách không để lại lời nhắn." : item.Note)</span>
                                     </div>
 
-                                    @if (!string.IsNullOrWhiteSpace(item.SellerNote))
+                                    @{
+                                        string sellerNoteClean = CleanSellerNote(item.SellerNote);
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(sellerNoteClean))
                                     {
-                                        <div class="small text-warning-emphasis fw-semibold truncate-2 mt-1" style="max-width:310px;">
-                                            <i class="bi bi-pencil-square me-1"></i>@item.SellerNote
+                                        <div class="crm-seller-note-preview">
+                                            <i class="bi bi-journal-text"></i>
+                                            <span class="truncate-2">@sellerNoteClean</span>
                                         </div>
                                     }
                                 </td>
 
                                 <td>
-                                <td>
-                                    <span class="status-pill @GetStatusClass(item.Status)">
-                                        <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
-                                    </span>
+                                    <div class="d-flex flex-column align-items-start gap-2">
+                                        <span class="status-pill @GetStatusClass(item.Status)">
+                                            <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
+                                        </span>
 
-                                    <div class="mt-2">
                                         <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
                                             <i class="bi bi-flag-fill"></i>
                                             @GetNextActionText(item.Status, item.UpdatedAt)
                                         </span>
                                     </div>
-                                </td>
                                 </td>
 
                                 <td class="text-center pe-4">
@@ -1122,18 +1228,16 @@
                                 </div>
                             </div>
 
-                            <td>
+                            <div class="d-flex flex-column align-items-end gap-2">
                                 <span class="status-pill @GetStatusClass(item.Status)">
                                     <i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)
                                 </span>
 
-                                <div class="mt-2">
-                                    <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
-                                        <i class="bi bi-flag-fill"></i>
-                                        @GetNextActionText(item.Status, item.UpdatedAt)
-                                    </span>
-                                </div>
-                            </td>
+                                <span class="next-pill @GetNextActionClass(item.Status, item.UpdatedAt)">
+                                    <i class="bi bi-flag-fill"></i>
+                                    @GetNextActionText(item.Status, item.UpdatedAt)
+                                </span>
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -1164,11 +1268,17 @@
                             </div>
                         </div>
 
-                        @if (!string.IsNullOrWhiteSpace(item.SellerNote))
+                        @{
+                            string sellerNoteCleanMobile = CleanSellerNote(item.SellerNote);
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(sellerNoteCleanMobile))
                         {
                             <div class="bg-warning bg-opacity-10 rounded-4 border border-warning border-opacity-25 p-3 mb-3">
-                                <div class="small text-warning-emphasis fw-bold mb-1">Ghi chú của bạn</div>
-                                <div class="small text-dark">@item.SellerNote</div>
+                                <div class="small text-warning-emphasis fw-bold mb-1">
+                                    <i class="bi bi-journal-text me-1"></i>Ghi chú chăm sóc
+                                </div>
+                                <div class="small text-dark" style="white-space:pre-wrap;">@sellerNoteCleanMobile</div>
                             </div>
                         }
 
@@ -1536,6 +1646,26 @@
             return status === 'Closed' || status === 'Spam' || status === 'Cancelled';
         }
 
+        function sanitizeSystemTokens(value) {
+            if (!value) return '';
+
+            return String(value)
+                .replaceAll('[REMIND_SELLER]', '')
+                .replaceAll('REMIND_SELLER', '')
+                .replace(/^\s*(\d{1,2}:\d{2}\s+\d{1,2}\/\d{1,2}\/\d{4})\s*-\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$/gmi, '$1 - Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.')
+                .replace(/^\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$/gmi, 'Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.')
+                .replace(/nhắc người phụ trách/gi, 'nhắc chăm sóc khách hàng')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function setActionVisibility(action, visible) {
+            const btn = document.querySelector(`[data-status-action="${action}"]`);
+            if (!btn) return;
+
+            btn.classList.toggle('is-hidden-by-rule', !visible);
+        }
+
         function resolveActionStatus(action) {
             if (action === 'Keep') {
                 return currentLeadStatus || 'New';
@@ -1695,33 +1825,65 @@
 
             if (sellerNote) {
                 sellerNote.disabled = false;
+                sellerNote.placeholder = 'Nhập ghi chú sau khi gọi/tư vấn khách. Ví dụ: Đã gọi 2 lần, khách quan tâm giá và pháp lý...';
             }
 
             if (saveBtn) {
                 saveBtn.disabled = false;
-                saveBtn.innerHTML = '<i class="bi bi-save2 me-1"></i>Cập nhật & lưu chăm sóc';
+                saveBtn.classList.remove('crm-save-hidden');
+                saveBtn.innerHTML = '<i class="bi bi-save2 me-1"></i>Cập nhật chăm sóc';
             }
 
             actionButtons.forEach(function (btn) {
                 btn.disabled = false;
-                btn.classList.remove('active');
+                btn.classList.remove('active', 'is-hidden-by-rule');
             });
 
+            /*
+                Quy trình đúng:
+                - New: chưa gọi -> không cho lưu thêm ghi chú, không cho hoàn tất.
+                  Chỉ cho "Đã gọi / tiếp nhận" hoặc "Spam".
+                - Contacted: đã gọi -> cho lưu thêm ghi chú, hoàn tất, spam.
+                - Closed/Spam/Cancelled: khóa.
+            */
             if (currentLeadStatus === 'New') {
-                disableAction('Closed', true);
-                setSelectedAction('Keep');
+                setActionVisibility('Contacted', true);
+                setActionVisibility('Spam', true);
+                setActionVisibility('Keep', false);
+                setActionVisibility('Closed', false);
+
+                setSelectedAction('Contacted');
+
+                if (sellerNote) {
+                    sellerNote.placeholder = 'Sau khi đã gọi hoặc tiếp nhận khách, nhập ghi chú ngắn tại đây. Ví dụ: Đã gọi khách, khách muốn xem nhà cuối tuần.';
+                }
+
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="bi bi-telephone-inbound-fill me-1"></i>Lưu đã gọi / tiếp nhận';
+                }
+
                 return;
             }
 
             if (currentLeadStatus === 'Contacted') {
-                disableAction('Contacted', true);
+                setActionVisibility('Contacted', false);
+                setActionVisibility('Keep', true);
+                setActionVisibility('Closed', true);
+                setActionVisibility('Spam', true);
+
                 setSelectedAction('Keep');
+
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="bi bi-journal-plus me-1"></i>Lưu thêm ghi chú';
+                }
+
                 return;
             }
 
             if (isFinalStatus(currentLeadStatus)) {
                 actionButtons.forEach(function (btn) {
                     btn.disabled = true;
+                    btn.classList.add('is-hidden-by-rule');
                 });
 
                 if (sellerNote) {
@@ -1730,6 +1892,7 @@
 
                 if (saveBtn) {
                     saveBtn.disabled = true;
+                    saveBtn.classList.add('crm-save-hidden');
                 }
 
                 if (lockedBox) {
@@ -1847,7 +2010,7 @@
                     document.getElementById('md-source').innerText = `${d.sourceType || 'Nguồn'} - ${d.sourceTitle || 'Không xác định'}`;
                     document.getElementById('md-created').innerText = d.createdAt || '';
                     document.getElementById('md-updated').innerText = d.updatedAt || 'Chưa xử lý';
-                    document.getElementById('md-sellerNote').value = d.sellerNote || '';
+                    document.getElementById('md-sellerNote').value = sanitizeSystemTokens(d.sellerNote || '');
 
                     const currentStatus = document.getElementById('md-current-status');
                     currentStatus.className = `status-pill ${statusView.cls}`;
@@ -1911,6 +2074,15 @@
                     );
 
                     document.getElementById('md-sellerNote')?.focus();
+                    return;
+                }
+
+                if (!isStatusChanged && currentLeadStatus === 'New') {
+                    Swal.fire(
+                        'Chưa thể lưu ghi chú',
+                        'Lead mới chưa được gọi hoặc tiếp nhận nên chưa cho phép lưu thêm ghi chú. Sau khi gọi khách, hãy chọn “Đã gọi / tiếp nhận”.',
+                        'warning'
+                    );
                     return;
                 }
 

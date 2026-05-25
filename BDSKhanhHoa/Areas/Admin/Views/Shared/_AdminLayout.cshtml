@@ -40,7 +40,13 @@
     int pendingReports = _context.PropertyReports.Count(r => r.Status == "Pending" && r.IsDeleted == false);
     int pendingConsultations = _context.Consultations.Count(c => c.Status == "New");
     int pendingContacts = _context.ContactMessages.Count(c => c.Status == "Pending" || c.Status == "Chưa xử lý");
+    int pendingConversationReports = _context.ConversationReports.Count(r => r.Status == "Pending");
 
+    int lockedByConversationReport = _context.Users.Count(u =>
+        !u.IsDeleted &&
+        u.IsActive == false &&
+        u.AdminNote != null &&
+        u.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM"));
     // ==============================
     // BADGE CHỈ ADMIN
     // ==============================
@@ -59,8 +65,13 @@
 
     int totalBusinessTasks = pendingBusiness + pendingProjects;
     int totalPropertyTasks = pendingProperties;
-    int totalCrmTasks = pendingContacts + pendingReports + pendingConsultations + pendingAppointments;
-    int totalFinanceTasks = pendingTransactions;
+    int totalCrmTasks =
+        pendingContacts +
+        pendingReports +
+        pendingConversationReports +
+        pendingConsultations +
+        pendingAppointments;
+        int totalFinanceTasks = pendingTransactions;
 }
 
 <!DOCTYPE html>
@@ -903,12 +914,12 @@
                     </div>
                 </a>
 
-                <ul class="collapse show submenu" id="menuProperties">
+                <ul class="collapse show submenu sidebar-submenu-flat" id="menuProperties">
                     <li>
                         <a href="/Admin/Properties/Verify"
                            class="nav-link-custom text-info @(currentController == "Properties" && currentAction == "Verify" ? "active" : "")">
                             <span class="nav-text">
-                                <i class="bi bi-hourglass-split me-2"></i>
+                                <i class="bi bi-hourglass-split nav-icon-fixed"></i>
                                 Chờ duyệt
                             </span>
 
@@ -923,7 +934,7 @@
                         <a href="/Admin/Properties/Index"
                            class="nav-link-custom @(currentController == "Properties" && currentAction == "Index" ? "active" : "")">
                             <span class="nav-text">
-                                <i class="bi bi-list-check me-2 text-muted"></i>
+                                <i class="bi bi-list-check nav-icon-fixed text-muted"></i>
                                 Tất cả tin đăng
                             </span>
                         </a>
@@ -1005,7 +1016,20 @@
                     }
                 </a>
             </li>
+            @if (isAdmin)
+            {
+                <li class="nav-item">
+                    <a href="/Admin/UserMessages/Index"
+                       class="nav-link-custom @(currentController == "UserMessages" ? "active" : "")">
+                        <div class="nav-left">
+                            <i class="bi bi-chat-dots-fill icon-main text-primary"></i>
+                            <span class="nav-text">Lịch sử tin nhắn</span>
+                        </div>
+                    </a>
+                </li>
 
+               
+            }
             @if (isAdmin)
             {
                 <div class="menu-title mt-2">Kinh doanh & doanh thu</div>

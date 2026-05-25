@@ -498,7 +498,7 @@
 
                     <div class="payment-list">
                         <label class="payment-label">
-                            <input class="payment-option" type="radio" name="paymentMethod" value="VNPay" checked />
+                            <input class="payment-option" type="radio" name="paymentMethod" value="VNPay" />
                             <div class="payment-card">
                                 <div class="payment-logo-box">
                                     <img src="@Url.Content("~/images/payments/vnpay.png")"
@@ -552,7 +552,7 @@
                         </label>
 
                         <label class="payment-label">
-                            <input class="payment-option" type="radio" name="paymentMethod" value="BankTransfer" />
+                            <input class="payment-option" type="radio" name="paymentMethod" value="BankTransfer" checked />
                             <div class="payment-card">
                                 <div class="payment-logo-box">
                                     <img src="@Url.Content("~/images/payments/bank-transfer.png")"
@@ -642,7 +642,7 @@
 @section Scripts {
     <script>
         const allPackages = @Html.Raw(allPackagesJson);
-        const directPackageId = @(ViewBag.DirectPackageId != null ? ViewBag.DirectPackageId : "null");
+        const directPackageId = Number('@(ViewBag.DirectPackageId ?? 0)');
         const activePackageIds = new Set(allPackages.map(x => Number(x.PackageID)));
 
         let cart = [];
@@ -653,30 +653,27 @@
             cart = [];
         }
 
-        // Dọn giỏ hàng cũ: loại bỏ gói đã bị Admin ngừng dùng hoặc xóa.
-        cart = cart
-            .filter(x => activePackageIds.has(Number(x.PackageId)))
-            .map(x => ({
-                PackageId: Number(x.PackageId),
-                Quantity: Math.max(1, Number(x.Quantity || 1))
-            }));
+        // Nếu người dùng bấm mua trực tiếp từ trang bảng giá:
+        // /Payment/Checkout?packageId=...
+        // thì chỉ lấy đúng gói đó, không cộng dồn lung tung với giỏ cũ.
+        if (directPackageId > 0 && activePackageIds.has(directPackageId)) {
+            cart = [
+                {
+                    PackageId: directPackageId,
+                    Quantity: 1
+                }
+            ];
+        } else {
+            // Nếu không mua trực tiếp thì giữ giỏ cũ, nhưng loại gói đã ngừng dùng/xóa.
+            cart = cart
+                .filter(x => activePackageIds.has(Number(x.PackageId)))
+                .map(x => ({
+                    PackageId: Number(x.PackageId),
+                    Quantity: Math.max(1, Number(x.Quantity || 1))
+                }));
+        }
 
         localStorage.setItem('bds_cart', JSON.stringify(cart));
-
-        if (directPackageId !== null && activePackageIds.has(Number(directPackageId))) {
-            const existingItem = cart.find(x => Number(x.PackageId) === Number(directPackageId));
-
-            if (existingItem) {
-                existingItem.Quantity += 1;
-            } else {
-                cart.push({
-                    PackageId: Number(directPackageId),
-                    Quantity: 1
-                });
-            }
-
-            saveCart();
-        }
 
         function saveCart() {
             localStorage.setItem('bds_cart', JSON.stringify(cart));
@@ -734,7 +731,7 @@
                 const pkg = allPackages.find(p => Number(p.PackageID) === Number(item.PackageId));
 
                 if (pkg) {
-                    totalOrigin += pkg.Price * item.Quantity;
+                    totalOrigin += Number(pkg.Price) * Number(item.Quantity);
 
                     container.innerHTML += `
                         <div class="cart-item d-flex flex-wrap align-items-center justify-content-between">
@@ -745,7 +742,7 @@
                                     ${pkg.DurationDays} ngày hiển thị
                                 </small>
                                 <span class="text-primary fw-bold mt-1">
-                                    ${pkg.Price.toLocaleString('vi-VN')} đ / gói
+                                    ${Number(pkg.Price).toLocaleString('vi-VN')} đ / gói
                                 </span>
                             </div>
 
@@ -842,21 +839,23 @@
                     msgBox.innerHTML = `
                         <span class="text-warning">
                             <i class="bi bi-check-circle-fill"></i>
-                            ${data.message}
+                            ${data.message || 'Áp dụng mã thành công.'}
                         </span>
                     `;
 
                     document.getElementById('hiddenVoucherCode').value = code;
 
-                    if (data.discountAmount > 0) {
+                    if (Number(data.discountAmount) > 0) {
                         discountRow.style.setProperty('display', 'flex', 'important');
 
                         document.getElementById('discountAmount').innerText =
-                            '-' + data.discountAmount.toLocaleString('vi-VN') + ' đ';
+                            '-' + Number(data.discountAmount).toLocaleString('vi-VN') + ' đ';
+                    } else {
+                        discountRow.style.setProperty('display', 'none', 'important');
                     }
 
                     document.getElementById('finalPrice').innerHTML =
-                        data.finalPrice.toLocaleString('vi-VN') + ' <span class="fs-4">đ</span>';
+                        Number(data.finalPrice).toLocaleString('vi-VN') + ' <span class="fs-4">đ</span>';
                 } else {
                     msgBox.innerHTML = `
                         <span class="text-danger bg-white px-2 py-1 rounded">
@@ -874,7 +873,7 @@
                         const p = allPackages.find(x => Number(x.PackageID) === Number(i.PackageId));
 
                         if (p) {
-                            total += p.Price * i.Quantity;
+                            total += Number(p.Price) * Number(i.Quantity);
                         }
                     });
 
@@ -884,18 +883,34 @@
             .catch(err => {
                 console.error(err);
                 document.getElementById('btnApplyVoucher').innerText = 'Áp dụng';
+                document.getElementById('voucherMessage').innerHTML =
+                    '<span class="text-danger bg-white px-2 py-1 rounded">Không thể kiểm tra mã giảm giá.</span>';
             });
         }
 
         renderCart();
 
         document.getElementById('checkoutForm').addEventListener('submit', function (e) {
-            cart = cart.filter(x => activePackageIds.has(Number(x.PackageId)));
+            cart = cart
+                .filter(x => activePackageIds.has(Number(x.PackageId)))
+                .map(x => ({
+                    PackageId: Number(x.PackageId),
+                    Quantity: Math.max(1, Number(x.Quantity || 1))
+                }));
+
             document.getElementById('cartData').value = JSON.stringify(cart);
 
             if (cart.length === 0) {
                 e.preventDefault();
                 alert('Giỏ hàng trống hoặc gói đã ngừng sử dụng. Vui lòng chọn lại gói.');
+                return;
+            }
+
+            const selectedPayment = document.querySelector('input[name="paymentMethod"]:checked');
+
+            if (!selectedPayment) {
+                e.preventDefault();
+                alert('Vui lòng chọn phương thức thanh toán.');
                 return;
             }
 

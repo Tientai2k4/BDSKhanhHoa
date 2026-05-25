@@ -246,30 +246,44 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         {
             int adminId = GetCurrentAdminId();
 
+            if (adminId <= 0)
+            {
+                return RedirectToAction("Login", "Account", new { area = "" });
+            }
+
             var noti = await _context.Notifications
                 .FirstOrDefaultAsync(n => n.NotificationID == id && n.UserID == adminId);
 
-            if (noti != null && !string.IsNullOrWhiteSpace(noti.ActionUrl))
+            if (noti == null)
             {
-                if (!noti.IsRead)
-                {
-                    noti.IsRead = true;
-                    _context.Notifications.Update(noti);
-                    await _context.SaveChangesAsync();
-                }
-
-                if (Url.IsLocalUrl(noti.ActionUrl))
-                {
-                    return Redirect(noti.ActionUrl);
-                }
-
-                return Redirect($"~{noti.ActionUrl}");
+                TempData["Error"] = "Thông báo không tồn tại hoặc bạn không có quyền truy cập.";
+                return RedirectToAction(nameof(Index));
             }
 
-            TempData["Error"] = "Liên kết đã hết hạn hoặc không có sẵn.";
-            return RedirectToAction(nameof(Index));
-        }
+            if (!noti.IsRead)
+            {
+                noti.IsRead = true;
+                await _context.SaveChangesAsync();
+            }
 
+            if (string.IsNullOrWhiteSpace(noti.ActionUrl))
+            {
+                return RedirectToAction(nameof(Details), new { id = noti.NotificationID });
+            }
+
+            if (Url.IsLocalUrl(noti.ActionUrl))
+            {
+                return Redirect(noti.ActionUrl);
+            }
+
+            if (noti.ActionUrl.StartsWith("/"))
+            {
+                return Redirect(noti.ActionUrl);
+            }
+
+            TempData["Error"] = "Liên kết thông báo không hợp lệ.";
+            return RedirectToAction(nameof(Details), new { id = noti.NotificationID });
+        }
         // ==========================================
         // 5. ĐÁNH DẤU TẤT CẢ ĐÃ ĐỌC
         // ==========================================

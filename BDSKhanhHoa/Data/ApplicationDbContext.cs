@@ -48,6 +48,7 @@ namespace BDSKhanhHoa.Data
         public DbSet<BankAccount> BankAccounts { get; set; }
         public DbSet<BusinessProfile> BusinessProfiles { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<ConversationReport> ConversationReports { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

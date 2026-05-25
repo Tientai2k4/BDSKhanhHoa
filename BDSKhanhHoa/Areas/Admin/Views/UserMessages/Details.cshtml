@@ -1,0 +1,555 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.UserMessage>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Chi tiết lịch sử tin nhắn";
+
+    int messageCount = ViewBag.MessageCount ?? 0;
+    int attachmentCount = ViewBag.AttachmentCount ?? 0;
+    string propertyTitle = ViewBag.PropertyTitle as string ?? "Bất động sản";
+    var reports = ViewBag.Reports as List<BDSKhanhHoa.Models.ConversationReport> ?? new List<BDSKhanhHoa.Models.ConversationReport>();
+
+    int firstSenderId = Model.FirstOrDefault()?.SenderID ?? 0;
+
+    string NameOf(BDSKhanhHoa.Models.User? user)
+    {
+        return user?.FullName ?? user?.Username ?? "Người dùng";
+    }
+
+    string StatusText(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "Cần kiểm tra",
+            "Processed" => "Đã xử lý",
+            "Rejected" => "Không chấp nhận",
+            _ => "Không rõ"
+        };
+    }
+}
+
+<style>
+    .chat-detail-page {
+        padding: 14px 0 32px;
+        color: #0f172a;
+        font-size: 14px;
+    }
+
+    .detail-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 12px;
+    }
+
+    .detail-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 1.28rem;
+        line-height: 1.25;
+        font-weight: 900;
+        letter-spacing: -.02em;
+    }
+
+    .detail-sub {
+        margin: 5px 0 0;
+        max-width: 860px;
+        color: #64748b;
+        font-size: .86rem;
+        line-height: 1.5;
+        font-weight: 600;
+    }
+
+    .detail-actions {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .back-btn {
+        min-height: 38px;
+        padding: 0 13px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: #0f172a;
+        color: #fff;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+        .back-btn:hover {
+            color: #fff;
+            background: #1e293b;
+        }
+
+    .mini-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(105px, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .mini-stat {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 15px;
+        padding: 10px 12px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.04);
+    }
+
+    .mini-stat-label {
+        color: #64748b;
+        font-size: .67rem;
+        line-height: 1.2;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .mini-stat-value {
+        margin-top: 4px;
+        color: #0f172a;
+        font-size: 1.16rem;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .privacy-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        border-radius: 15px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .82rem;
+        line-height: 1.5;
+        font-weight: 650;
+    }
+
+        .privacy-note i {
+            color: #ea580c;
+            font-size: 1rem;
+            margin-top: 1px;
+        }
+
+    .report-box {
+        margin-bottom: 12px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 10px 28px rgba(15,23,42,.05);
+        overflow: hidden;
+    }
+
+    .report-head {
+        padding: 11px 14px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        color: #0f172a;
+        font-size: .92rem;
+        font-weight: 900;
+    }
+
+    .report-list {
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .report-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 11px;
+        border-radius: 14px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .report-main {
+        min-width: 0;
+    }
+
+    .report-title {
+        font-size: .84rem;
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .report-meta {
+        margin-top: 2px;
+        color: #b91c1c;
+        font-size: .76rem;
+        font-weight: 650;
+    }
+
+    .report-link {
+        flex: 0 0 auto;
+        min-height: 32px;
+        padding: 0 11px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        background: #dc2626;
+        color: #fff;
+        text-decoration: none;
+        font-size: .76rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+        .report-link:hover {
+            color: #fff;
+            background: #b91c1c;
+        }
+
+    .chat-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 12px 34px rgba(15,23,42,.05);
+        overflow: hidden;
+    }
+
+    .chat-head {
+        padding: 12px 15px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        color: #0f172a;
+        font-size: .96rem;
+        font-weight: 900;
+    }
+
+    .chat-body {
+        padding: 14px;
+        background: #fff;
+    }
+
+    .message-row {
+        display: flex;
+        margin-bottom: 10px;
+    }
+
+        .message-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-row.left {
+            justify-content: flex-start;
+        }
+
+        .message-row.right {
+            justify-content: flex-end;
+        }
+
+    .message-bubble {
+        max-width: min(620px, 78%);
+        border: 1px solid #e2e8f0;
+        border-radius: 17px;
+        padding: 10px 12px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(15,23,42,.04);
+    }
+
+    .message-row.right .message-bubble {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+    }
+
+    .message-time {
+        margin-bottom: 6px;
+        color: #64748b;
+        font-size: .74rem;
+        line-height: 1.2;
+        font-weight: 800;
+        text-align: right;
+    }
+
+    .message-row.left .message-time {
+        text-align: left;
+    }
+
+    .message-content {
+        color: #111827;
+        font-size: .9rem;
+        line-height: 1.55;
+        font-weight: 600;
+        word-break: break-word;
+        white-space: pre-line;
+    }
+
+    .message-image {
+        display: block;
+        max-width: min(330px, 100%);
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .message-file {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 0 11px;
+        border-radius: 13px;
+        background: #fff;
+        border: 1px solid #bfdbfe;
+        color: #1d4ed8;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 850;
+    }
+
+        .message-file:hover {
+            color: #1d4ed8;
+            background: #eff6ff;
+        }
+
+    .message-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 23px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 850;
+    }
+
+        .status-pill.read {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .status-pill.deleted {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+    .empty-chat {
+        padding: 38px 12px;
+        text-align: center;
+        color: #64748b;
+        font-size: .9rem;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 991.98px) {
+        .chat-detail-page {
+            padding-top: 10px;
+            font-size: 13px;
+        }
+
+        .detail-top {
+            display: block;
+        }
+
+        .detail-title {
+            font-size: 1.14rem;
+        }
+
+        .detail-sub {
+            font-size: .8rem;
+        }
+
+        .detail-actions {
+            margin-top: 9px;
+        }
+
+        .mini-stats {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .message-bubble {
+            max-width: 88%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .mini-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .report-item {
+            display: block;
+        }
+
+        .report-link {
+            margin-top: 8px;
+        }
+
+        .chat-body {
+            padding: 10px;
+        }
+
+        .message-bubble {
+            max-width: 94%;
+            padding: 9px 10px;
+        }
+
+        .message-content {
+            font-size: .86rem;
+        }
+    }
+</style>
+
+<div class="chat-detail-page">
+
+    <div class="detail-top">
+        <div>
+            <h1 class="detail-title">
+                <i class="bi bi-chat-left-text text-primary me-1"></i>
+                Chi tiết lịch sử tin nhắn
+            </h1>
+            <p class="detail-sub">
+                Tin liên quan: <strong>@propertyTitle</strong>. Nội dung chỉ dùng để kiểm tra báo cáo, xác minh vi phạm hoặc lưu bằng chứng khi cần thiết.
+            </p>
+        </div>
+
+        <div class="detail-actions">
+            <a class="back-btn" asp-action="Index">
+                <i class="bi bi-arrow-left"></i>
+                Quay lại
+            </a>
+        </div>
+    </div>
+
+    <div class="mini-stats">
+        <div class="mini-stat">
+            <div class="mini-stat-label">Tổng tin nhắn</div>
+            <div class="mini-stat-value">@messageCount</div>
+        </div>
+
+        <div class="mini-stat">
+            <div class="mini-stat-label">Tệp/ảnh</div>
+            <div class="mini-stat-value">@attachmentCount</div>
+        </div>
+
+        <div class="mini-stat">
+            <div class="mini-stat-label">Báo cáo</div>
+            <div class="mini-stat-value text-danger">@reports.Count</div>
+        </div>
+    </div>
+
+    <div class="privacy-note">
+        <i class="bi bi-shield-lock-fill"></i>
+        <div>
+            <strong>Quyền riêng tư:</strong>
+            Admin chỉ xem nội dung khi có báo cáo, dấu hiệu vi phạm hoặc cần cung cấp bằng chứng theo quy định.
+        </div>
+    </div>
+
+    @if (reports.Any())
+    {
+        <section class="report-box">
+            <div class="report-head">
+                <i class="bi bi-flag-fill text-danger me-1"></i>
+                Báo cáo liên quan
+            </div>
+
+            <div class="report-list">
+                @foreach (var r in reports)
+                {
+                    <div class="report-item">
+                        <div class="report-main">
+                            <div class="report-title">
+                                Báo cáo #@r.ReportID - @r.Reason
+                            </div>
+                            <div class="report-meta">
+                                Người báo cáo: @NameOf(r.Reporter) · Người bị báo cáo: @NameOf(r.ReportedUser) · Trạng thái: @StatusText(r.Status)
+                            </div>
+                        </div>
+
+                        <a class="report-link"
+                           asp-area="Admin"
+                           asp-controller="ConversationReports"
+                           asp-action="Details"
+                           asp-route-id="@r.ReportID">
+                            <i class="bi bi-eye"></i>
+                            Xem báo cáo
+                        </a>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="chat-card">
+        <div class="chat-head">
+            Nội dung cuộc trò chuyện
+        </div>
+
+        <div class="chat-body">
+            @if (!Model.Any())
+            {
+                <div class="empty-chat">
+                    Không có tin nhắn trong cuộc trò chuyện này.
+                </div>
+            }
+            else
+            {
+                @foreach (var m in Model)
+                {
+                    bool right = m.SenderID != firstSenderId;
+
+                    <div class="message-row @(right ? "right" : "left")">
+                        <div class="message-bubble">
+                            <div class="message-time">@m.CreatedAt.ToString("HH:mm dd/MM/yyyy")</div>
+
+                            @if (m.MessageType == "Image" && !string.IsNullOrWhiteSpace(m.AttachmentUrl))
+                            {
+                                <img class="message-image" src="@m.AttachmentUrl" alt="Ảnh trong cuộc trò chuyện" />
+                            }
+                            else if (m.MessageType == "File" && !string.IsNullOrWhiteSpace(m.AttachmentUrl))
+                            {
+                                <a class="message-file" href="@m.AttachmentUrl" target="_blank">
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
+                                    Tệp đính kèm
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="message-content">@m.MessageContent</div>
+                            }
+
+                            <div class="message-status">
+                                <span class="status-pill @(m.IsRead ? "read" : "")">
+                                    <i class="bi bi-check2-all"></i>
+                                    @(m.IsRead ? "Đã đọc" : "Chưa đọc")
+                                </span>
+
+                                @if (m.IsDeletedBySender || m.IsDeletedByReceiver)
+                                {
+                                    <span class="status-pill deleted">
+                                        <i class="bi bi-trash3"></i>
+                                        Người dùng đã ẩn
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+</div>

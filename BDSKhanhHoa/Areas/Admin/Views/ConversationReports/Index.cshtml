@@ -1,0 +1,685 @@
+﻿@model IEnumerable<BDSKhanhHoa.Models.ConversationReport>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Danh sách vi phạm cuộc trò chuyện";
+
+    string status = ViewBag.Status as string ?? "Pending";
+    string keyword = ViewBag.Keyword as string ?? "";
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalItems = ViewBag.TotalItems ?? 0;
+
+    int pending = ViewBag.PendingCount ?? 0;
+    int processed = ViewBag.ProcessedCount ?? 0;
+    int rejected = ViewBag.RejectedCount ?? 0;
+    int lockedByConversationReports = ViewBag.LockedByConversationReports ?? 0;
+
+    string NameOf(BDSKhanhHoa.Models.User? user)
+    {
+        return user?.FullName ?? user?.Username ?? "Người dùng";
+    }
+
+    string ContactOf(BDSKhanhHoa.Models.User? user)
+    {
+        if (user == null) return "Không rõ";
+        if (!string.IsNullOrWhiteSpace(user.Phone)) return user.Phone;
+        if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email;
+        return "Chưa có liên hệ";
+    }
+
+    string StatusText(string? s)
+    {
+        return s switch
+        {
+            "Pending" => "Chờ xử lý",
+            "Processed" => "Đã xử lý",
+            "Rejected" => "Không chấp nhận",
+            _ => "Không rõ"
+        };
+    }
+
+    string StatusClass(string? s)
+    {
+        return s switch
+        {
+            "Pending" => "wait",
+            "Processed" => "done",
+            "Rejected" => "reject",
+            _ => "none"
+        };
+    }
+
+    string ShortText(string? value, int max = 90)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "Không có mô tả thêm.";
+        value = value.Trim();
+        return value.Length <= max ? value : value.Substring(0, max) + "...";
+    }
+
+    bool IsLockedByConversationReport(BDSKhanhHoa.Models.User? user)
+    {
+        return user != null
+            && user.IsActive == false
+            && !string.IsNullOrWhiteSpace(user.AdminNote)
+            && user.AdminNote.Contains("AUTO-KHÓA DO VI PHẠM");
+    }
+}
+
+<style>
+    .vio-page {
+        padding: 14px 0 34px;
+        color: #0f172a;
+        font-size: 14px;
+    }
+
+    .vio-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .vio-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: -.02em;
+    }
+
+    .vio-desc {
+        margin: 5px 0 0;
+        max-width: 800px;
+        color: #64748b;
+        font-size: .88rem;
+        font-weight: 600;
+        line-height: 1.55;
+    }
+
+    .vio-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
+    .btn-darkx,
+    .btn-bluex {
+        min-height: 38px;
+        border-radius: 999px;
+        padding: 0 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .btn-darkx {
+        background: #0f172a;
+        color: #fff;
+    }
+
+        .btn-darkx:hover {
+            background: #1e293b;
+            color: #fff;
+        }
+
+    .btn-bluex {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1d4ed8;
+    }
+
+        .btn-bluex:hover {
+            color: #1d4ed8;
+            background: #dbeafe;
+        }
+
+    .vio-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .stat {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 12px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.04);
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .stat-value {
+        margin-top: 4px;
+        font-size: 1.35rem;
+        line-height: 1;
+        font-weight: 950;
+        color: #0f172a;
+    }
+
+        .stat-value.red {
+            color: #dc2626;
+        }
+
+    .filter-card,
+    .list-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 12px 34px rgba(15,23,42,.05);
+        overflow: hidden;
+    }
+
+    .filter-card {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .filter-label {
+        margin-bottom: 5px;
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .filter-input {
+        min-height: 40px;
+        border-radius: 12px;
+        border: 1px solid #dbe3ef;
+        font-size: .88rem;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+    .btn-filter {
+        min-height: 40px;
+        border-radius: 12px;
+        font-size: .88rem;
+        font-weight: 850;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+
+    .tab-link {
+        min-height: 34px;
+        border-radius: 999px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        text-decoration: none;
+        font-size: .8rem;
+        font-weight: 850;
+    }
+
+        .tab-link.active {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
+
+    .table thead th {
+        padding: 11px 12px;
+        background: #f8fafc;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap;
+    }
+
+    .table tbody td {
+        padding: 12px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .u {
+        font-weight: 900;
+        color: #0f172a;
+        line-height: 1.35;
+    }
+
+        .u.red {
+            color: #dc2626;
+        }
+
+        .u.blue {
+            color: #2563eb;
+        }
+
+    .smallx {
+        margin-top: 2px;
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 650;
+        line-height: 1.35;
+    }
+
+    .badge-st,
+    .badge-lock {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 0 9px;
+        font-size: .74rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+        .badge-st.wait {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .badge-st.done {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .badge-st.reject {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+    .badge-lock {
+        margin-top: 6px;
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .btn-detail {
+        min-height: 34px;
+        border-radius: 999px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #0f172a;
+        color: #fff;
+        text-decoration: none;
+        font-size: .78rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+        .btn-detail:hover {
+            color: #fff;
+            background: #1e293b;
+        }
+
+    .mobile-list {
+        display: none;
+        padding: 10px;
+        background: #f8fafc;
+    }
+
+    .mobile-item {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .empty {
+        padding: 42px 16px;
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+    }
+
+    @@media(max-width: 991.98px) {
+        .vio-head {
+            display: block;
+        }
+
+        .vio-actions {
+            margin-top: 10px;
+            justify-content: flex-start;
+        }
+
+        .vio-stats {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .desktop-table {
+            display: none;
+        }
+
+        .mobile-list {
+            display: block;
+        }
+    }
+
+    @@media(max-width: 575.98px) {
+        .vio-stats {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="vio-page">
+
+    <div class="vio-head">
+        <div>
+            <h1 class="vio-title">
+                <i class="bi bi-flag-fill text-danger me-1"></i>
+                Danh sách vi phạm cuộc trò chuyện
+            </h1>
+            <div class="vio-desc">
+                Theo dõi toàn bộ báo cáo người dùng gửi, kết quả xử lý và các tài khoản đã bị khóa do vi phạm trong trao đổi tin nhắn.
+            </div>
+        </div>
+
+        <div class="vio-actions">
+            <a class="btn-bluex"
+               asp-area="Admin"
+               asp-controller="UserMessages"
+               asp-action="Index">
+                <i class="bi bi-chat-square-text"></i>
+                Lịch sử tin nhắn
+            </a>
+
+            <a class="btn-darkx"
+               asp-area="Admin"
+               asp-controller="Users"
+               asp-action="Index"
+               asp-route-verifyStatus="locked">
+                <i class="bi bi-person-lock"></i>
+                Tài khoản bị khóa
+            </a>
+        </div>
+    </div>
+
+    <div class="vio-stats">
+        <div class="stat">
+            <div class="stat-label">Chờ xử lý</div>
+            <div class="stat-value red">@pending</div>
+        </div>
+
+        <div class="stat">
+            <div class="stat-label">Đã xử lý</div>
+            <div class="stat-value">@processed</div>
+        </div>
+
+        <div class="stat">
+            <div class="stat-label">Không chấp nhận</div>
+            <div class="stat-value">@rejected</div>
+        </div>
+
+        <div class="stat">
+            <div class="stat-label">Tài khoản bị khóa</div>
+            <div class="stat-value red">@lockedByConversationReports</div>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success rounded-4 fw-bold">@TempData["Success"]</div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger rounded-4 fw-bold">@TempData["Error"]</div>
+    }
+
+    <form class="filter-card" method="get">
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-5">
+                <label class="filter-label">Tìm kiếm</label>
+                <input class="form-control filter-input"
+                       name="keyword"
+                       value="@keyword"
+                       placeholder="Tên người dùng, số điện thoại, email, lý do, tin đăng..." />
+            </div>
+
+            <div class="col-lg-3">
+                <label class="filter-label">Trạng thái</label>
+                <select class="form-select filter-input" name="status">
+                    <option value="All" selected="@(status == "All")">Tất cả</option>
+                    <option value="Pending" selected="@(status == "Pending")">Chờ xử lý</option>
+                    <option value="Processed" selected="@(status == "Processed")">Đã xử lý</option>
+                    <option value="Rejected" selected="@(status == "Rejected")">Không chấp nhận</option>
+                </select>
+            </div>
+
+            <div class="col-lg-2">
+                <button class="btn btn-primary btn-filter w-100">
+                    <i class="bi bi-search"></i>
+                    Lọc
+                </button>
+            </div>
+
+            <div class="col-lg-2">
+                <a class="btn btn-light btn-filter w-100" href="/Admin/ConversationReports?status=All">
+                    Làm mới
+                </a>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <a class="tab-link @(status == "Pending" ? "active" : "")" href="?status=Pending">
+                <i class="bi bi-hourglass-split"></i>
+                Chờ xử lý
+            </a>
+
+            <a class="tab-link @(status == "Processed" ? "active" : "")" href="?status=Processed">
+                <i class="bi bi-check2-circle"></i>
+                Đã xử lý
+            </a>
+
+            <a class="tab-link @(status == "Rejected" ? "active" : "")" href="?status=Rejected">
+                <i class="bi bi-x-circle"></i>
+                Không chấp nhận
+            </a>
+
+            <a class="tab-link @(status == "All" ? "active" : "")" href="?status=All">
+                <i class="bi bi-list-ul"></i>
+                Tất cả
+            </a>
+        </div>
+    </form>
+
+    <section class="list-card">
+        <div class="p-3 border-bottom bg-white fw-bold">
+            Tổng cộng: @totalItems báo cáo
+        </div>
+
+        @if (!Model.Any())
+        {
+            <div class="empty">
+                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                Không có báo cáo phù hợp.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive desktop-table">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Trạng thái</th>
+                            <th>Người báo cáo</th>
+                            <th>Người bị báo cáo</th>
+                            <th>Tin liên quan</th>
+                            <th>Lý do</th>
+                            <th>Kết quả xử lý</th>
+                            <th>Thời gian</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var r in Model)
+                        {
+                            bool lockedByReport = IsLockedByConversationReport(r.ReportedUser);
+
+                            <tr>
+                                <td>
+                                    <span class="badge-st @StatusClass(r.Status)">
+                                        @StatusText(r.Status)
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <div class="u">@NameOf(r.Reporter)</div>
+                                    <div class="smallx">@ContactOf(r.Reporter)</div>
+                                </td>
+
+                                <td>
+                                    <div class="u red">@NameOf(r.ReportedUser)</div>
+                                    <div class="smallx">@ContactOf(r.ReportedUser)</div>
+
+                                    @if (lockedByReport)
+                                    {
+                                        <span class="badge-lock">
+                                            <i class="bi bi-lock-fill"></i>
+                                            Đã khóa do vi phạm
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>
+                                    <div class="u blue">@(r.Property?.Title ?? "Không rõ tin bất động sản")</div>
+                                    <div class="smallx">Mã tin: @r.PropertyID</div>
+                                </td>
+
+                                <td>
+                                    <div class="u">@r.Reason</div>
+                                    <div class="smallx">@ShortText(r.Description, 80)</div>
+                                </td>
+
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(r.AdminNote))
+                                    {
+                                        <div class="smallx">Chưa có kết quả xử lý.</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="smallx">@ShortText(r.AdminNote, 100)</div>
+                                    }
+                                </td>
+
+                                <td>
+                                    <div class="u">@r.CreatedAt.ToString("dd/MM/yyyy")</div>
+                                    <div class="smallx">@r.CreatedAt.ToString("HH:mm")</div>
+                                </td>
+
+                                <td>
+                                    <a class="btn-detail"
+                                       asp-action="Details"
+                                       asp-route-id="@r.ReportID">
+                                        <i class="bi bi-eye"></i>
+                                        Xem
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mobile-list">
+                @foreach (var r in Model)
+                {
+                    bool lockedByReport = IsLockedByConversationReport(r.ReportedUser);
+
+                    <div class="mobile-item">
+                        <div class="d-flex justify-content-between gap-2">
+                            <span class="badge-st @StatusClass(r.Status)">
+                                @StatusText(r.Status)
+                            </span>
+
+                            <span class="smallx">
+                                @r.CreatedAt.ToString("HH:mm dd/MM")
+                            </span>
+                        </div>
+
+                        <div class="mt-2">
+                            <b>@NameOf(r.Reporter)</b>
+                            báo cáo
+                            <b class="text-danger">@NameOf(r.ReportedUser)</b>
+                        </div>
+
+                        @if (lockedByReport)
+                        {
+                            <span class="badge-lock">
+                                <i class="bi bi-lock-fill"></i>
+                                Đã khóa do vi phạm
+                            </span>
+                        }
+
+                        <div class="smallx mt-2">
+                            @(r.Property?.Title ?? "Không rõ tin bất động sản")
+                        </div>
+
+                        <div class="fw-bold mt-2">
+                            @r.Reason
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(r.AdminNote))
+                        {
+                            <div class="smallx mt-2">
+                                <b>Kết quả:</b> @ShortText(r.AdminNote, 120)
+                            </div>
+                        }
+
+                        <a class="btn-detail mt-3"
+                           asp-action="Details"
+                           asp-route-id="@r.ReportID">
+                            <i class="bi bi-eye"></i>
+                            Xem chi tiết
+                        </a>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    @if (totalPages > 1)
+    {
+        <nav class="mt-3">
+            <ul class="pagination justify-content-center flex-wrap">
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link"
+                           href="?status=@status&keyword=@keyword&page=@i">
+                            @i
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>

@@ -55,6 +55,73 @@ namespace BDSKhanhHoa.Controllers
             return cleaned;
         }
 
+        private static string CleanSystemTokens(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string cleaned = value
+                .Replace("[REMIND_SELLER]", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("REMIND_SELLER", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+
+            /*
+                Dữ liệu cũ từng lưu dạng:
+                17:32 21/05/2026 - Tên quản trị viên đã gửi thông báo nhắc người phụ trách: Tên người phụ trách.
+
+                Không hiển thị tên quản trị viên/nhân viên nội bộ ra màn hình CRM.
+                Người bán chỉ cần hiểu đây là thông báo nhắc chăm sóc khách hàng.
+            */
+            cleaned = Regex.Replace(
+                cleaned,
+                @"(?im)^\s*(\d{1,2}:\d{2}\s+\d{1,2}/\d{1,2}/\d{4})\s*-\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$",
+                "$1 - Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.");
+
+            cleaned = Regex.Replace(
+                cleaned,
+                @"(?im)^\s*.*?đã gửi thông báo nhắc người phụ trách\s*:\s*.*?\.?\s*$",
+                "Quản trị viên/nhân viên quản lý đã gửi thông báo: Vui lòng liên hệ và chăm sóc khách hàng.");
+
+            cleaned = cleaned.Replace("nhắc người phụ trách", "nhắc chăm sóc khách hàng", StringComparison.OrdinalIgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\n{3,}", "\n\n").Trim();
+
+            return cleaned;
+        }
+
+        private static string GetVietnameseStatusText(string? status)
+        {
+            return status switch
+            {
+                StatusContacted => "Đã gọi / tiếp nhận",
+                StatusClosed => "Hoàn tất tư vấn",
+                StatusSpam => "Spam / không phù hợp",
+                StatusCancelled => "Khách hủy",
+                _ => "Mới gửi"
+            };
+        }
+
+        private static string BuildSellerNoteHistory(string? oldNote, string newNote, string newStatus)
+        {
+            string oldClean = CleanSystemTokens(oldNote);
+            string newClean = CleanSystemTokens(newNote);
+
+            if (string.IsNullOrWhiteSpace(newClean))
+            {
+                return oldClean;
+            }
+
+            string entry = $"{DateTime.Now:HH:mm dd/MM/yyyy} - {GetVietnameseStatusText(newStatus)}: {newClean}";
+
+            if (string.IsNullOrWhiteSpace(oldClean))
+            {
+                return entry;
+            }
+
+            return oldClean + Environment.NewLine + entry;
+        }
+
         private static string CleanPhone(string? phone)
         {
             if (string.IsNullOrWhiteSpace(phone))
@@ -604,8 +671,17 @@ namespace BDSKhanhHoa.Controllers
                 });
             }
 
-            string cleanSellerNote = CleanText(sellerNote, 3000);
+            string cleanSellerNote = CleanSystemTokens(CleanText(sellerNote, 3000));
             bool statusChanged = currentStatus != newStatus;
+
+            if (!statusChanged && currentStatus == StatusNew)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Lead mới chưa được gọi hoặc tiếp nhận nên chưa cho phép lưu thêm ghi chú. Vui lòng chọn “Đã gọi / tiếp nhận” sau khi đã liên hệ khách."
+                });
+            }
 
             if (IsSellerNoteRequired(currentStatus, newStatus) && string.IsNullOrWhiteSpace(cleanSellerNote))
             {
@@ -629,7 +705,7 @@ namespace BDSKhanhHoa.Controllers
 
             if (!string.IsNullOrWhiteSpace(cleanSellerNote))
             {
-                consultation.SellerNote = cleanSellerNote;
+                consultation.SellerNote = BuildSellerNoteHistory(consultation.SellerNote, cleanSellerNote, newStatus);
             }
 
             consultation.UpdatedAt = DateTime.Now;
@@ -791,7 +867,7 @@ namespace BDSKhanhHoa.Controllers
                     phone = c.Phone ?? "",
                     email = string.IsNullOrWhiteSpace(c.Email) ? "Không có" : c.Email,
                     note = string.IsNullOrWhiteSpace(c.Note) ? "Không có lời nhắn" : c.Note,
-                    sellerNote = c.SellerNote ?? "",
+                    sellerNote = CleanSystemTokens(c.SellerNote),
                     sourceTitle = sourceTitle,
                     sourceType = sourceType,
                     sourceUrl = sourceUrl,

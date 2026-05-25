@@ -1,0 +1,804 @@
+﻿@model IEnumerable<BDSKhanhHoa.Areas.Admin.Controllers.UserMessagesController.AdminConversationRow>
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Báo cáo và lịch sử tin nhắn";
+
+    string keyword = ViewBag.Keyword as string ?? "";
+    int? propertyId = ViewBag.PropertyId as int?;
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalItems = ViewBag.TotalItems ?? 0;
+
+    int totalMessages = ViewBag.TotalMessages ?? 0;
+    int todayMessages = ViewBag.TodayMessages ?? 0;
+    int pendingReports = ViewBag.PendingReports ?? 0;
+
+    string NameOf(BDSKhanhHoa.Models.User? user)
+    {
+        return user?.FullName ?? user?.Username ?? "Người dùng";
+    }
+
+    string ContactOf(BDSKhanhHoa.Models.User? user)
+    {
+        if (user == null) return "Không rõ";
+        if (!string.IsNullOrWhiteSpace(user.Phone)) return user.Phone;
+        if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email;
+        return "Chưa có liên hệ";
+    }
+
+    string PreviewOf(BDSKhanhHoa.Models.UserMessage message)
+    {
+        if (message.MessageType == "Image") return "[Ảnh] Người dùng đã gửi ảnh";
+        if (message.MessageType == "File") return "[Tệp] Người dùng đã gửi tài liệu";
+        return string.IsNullOrWhiteSpace(message.MessageContent)
+            ? "Không có nội dung"
+            : message.MessageContent!;
+    }
+
+    string ShortText(string? value, int max = 90)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        value = value.Trim();
+        return value.Length <= max ? value : value.Substring(0, max) + "...";
+    }
+}
+
+<style>
+    .msg-page {
+        padding: 14px 0 30px;
+        color: #0f172a;
+        font-size: 14px;
+    }
+
+    .msg-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .msg-title {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 900;
+        letter-spacing: -.02em;
+        color: #0f172a;
+    }
+
+    .msg-desc {
+        margin: 5px 0 0;
+        max-width: 780px;
+        color: #64748b;
+        font-size: .88rem;
+        line-height: 1.55;
+        font-weight: 600;
+    }
+
+    .msg-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 130px);
+        gap: 10px;
+        flex: 0 0 auto;
+    }
+
+    .stat-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 12px 13px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.04);
+    }
+
+    .stat-label {
+        font-size: .68rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #64748b;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .stat-value {
+        margin-top: 4px;
+        color: #0f172a;
+        font-size: 1.35rem;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .privacy-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 11px 13px;
+        margin-bottom: 12px;
+        border-radius: 16px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .86rem;
+        line-height: 1.5;
+        font-weight: 650;
+    }
+
+        .privacy-note i {
+            color: #ea580c;
+            font-size: 1.05rem;
+            margin-top: 1px;
+        }
+
+    .top-tools {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+        padding: 12px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 8px 24px rgba(15,23,42,.04);
+    }
+
+    .tool-left {
+        color: #475569;
+        font-size: .86rem;
+        font-weight: 700;
+        line-height: 1.5;
+    }
+
+    .tool-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .btn-violation-main,
+    .btn-locked-main {
+        min-height: 38px;
+        border-radius: 999px;
+        padding: 0 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .btn-violation-main {
+        background: #dc2626;
+        color: #fff;
+        border: 1px solid #dc2626;
+        box-shadow: 0 8px 18px rgba(220,38,38,.18);
+    }
+
+        .btn-violation-main:hover {
+            color: #fff;
+            background: #b91c1c;
+        }
+
+    .btn-locked-main {
+        background: #0f172a;
+        color: #fff;
+        border: 1px solid #0f172a;
+    }
+
+        .btn-locked-main:hover {
+            color: #fff;
+            background: #1e293b;
+        }
+
+    .msg-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 12px 34px rgba(15,23,42,.05);
+        overflow: hidden;
+    }
+
+    .filter-box {
+        padding: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+    }
+
+    .filter-label {
+        margin-bottom: 5px;
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .filter-input {
+        min-height: 40px;
+        border-radius: 12px;
+        border: 1px solid #dbe3ef;
+        font-size: .88rem;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+        .filter-input:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.08) !important;
+        }
+
+    .btn-filter {
+        min-height: 40px;
+        border-radius: 12px;
+        font-size: .88rem;
+        font-weight: 850;
+    }
+
+    .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .msg-table {
+        width: 100%;
+        margin: 0;
+        table-layout: fixed;
+    }
+
+        .msg-table thead th {
+            padding: 11px 12px;
+            background: #f8fafc;
+            color: #64748b;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: .68rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            white-space: nowrap;
+        }
+
+        .msg-table tbody td {
+            padding: 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .msg-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+    .col-users {
+        width: 20%;
+    }
+
+    .col-property {
+        width: 22%;
+    }
+
+    .col-last {
+        width: 28%;
+    }
+
+    .col-info {
+        width: 13%;
+    }
+
+    .col-time {
+        width: 10%;
+    }
+
+    .col-action {
+        width: 7%;
+    }
+
+    .user-name {
+        color: #0f172a;
+        font-size: .88rem;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+    .user-contact {
+        margin-top: 2px;
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .property-title {
+        color: #2563eb;
+        font-size: .86rem;
+        font-weight: 850;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .property-code {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 7px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .last-message {
+        max-width: 100%;
+        padding: 9px 11px;
+        border-radius: 13px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: .82rem;
+        line-height: 1.45;
+        font-weight: 600;
+        word-break: break-word;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 26px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .pill-blue {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .pill-green {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .pill-red {
+        background: #fef2f2;
+        color: #b91c1c;
+    }
+
+    .time-main {
+        color: #0f172a;
+        font-size: .86rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .time-sub {
+        margin-top: 2px;
+        color: #94a3b8;
+        font-size: .75rem;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+
+    .btn-view {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-height: 34px;
+        padding: 0 11px;
+        border-radius: 999px;
+        background: #0f172a;
+        color: #fff;
+        text-decoration: none;
+        font-size: .78rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+        .btn-view:hover {
+            color: #fff;
+            background: #1e293b;
+        }
+
+    .mobile-list {
+        display: none;
+        padding: 10px;
+        background: #f8fafc;
+    }
+
+    .mobile-item {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .mobile-title {
+        color: #0f172a;
+        font-size: .92rem;
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .mobile-muted {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 650;
+    }
+
+    .empty-box {
+        padding: 42px 16px;
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+    }
+
+        .empty-box i {
+            display: block;
+            font-size: 2.8rem;
+            opacity: .25;
+            margin-bottom: 8px;
+        }
+
+    .pagination .page-link {
+        border-radius: 11px !important;
+        margin: 0 3px;
+        min-width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .msg-head {
+            display: block;
+        }
+
+        .msg-stats {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 12px;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .msg-page {
+            padding-top: 10px;
+            font-size: 13px;
+        }
+
+        .msg-title {
+            font-size: 1.18rem;
+        }
+
+        .msg-desc {
+            font-size: .82rem;
+        }
+
+        .msg-stats {
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        .stat-card {
+            padding: 10px;
+            border-radius: 14px;
+        }
+
+        .stat-label {
+            font-size: .62rem;
+        }
+
+        .stat-value {
+            font-size: 1.15rem;
+        }
+
+        .table-wrap {
+            display: none;
+        }
+
+        .mobile-list {
+            display: block;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .msg-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .privacy-note,
+        .top-tools {
+            font-size: .8rem;
+        }
+
+        .filter-box {
+            padding: 10px;
+        }
+    }
+</style>
+
+<div class="msg-page">
+
+    <div class="msg-head">
+        <div>
+            <h1 class="msg-title">
+                <i class="bi bi-shield-check text-primary me-1"></i>
+                Báo cáo và lịch sử tin nhắn
+            </h1>
+            <p class="msg-desc">
+                Admin/Staff chỉ xem nội dung trao đổi khi có báo cáo, dấu hiệu vi phạm hoặc cần cung cấp bằng chứng.
+                Hệ thống không can thiệp giao dịch, đặt cọc hay thỏa thuận riêng giữa người dùng.
+            </p>
+        </div>
+
+        <div class="msg-stats">
+            <div class="stat-card">
+                <div class="stat-label">Tổng tin nhắn</div>
+                <div class="stat-value">@totalMessages</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Hôm nay</div>
+                <div class="stat-value">@todayMessages</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Cần kiểm tra</div>
+                <div class="stat-value text-danger">@pendingReports</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="privacy-note">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+            <strong>Lưu ý quyền riêng tư:</strong>
+            Chỉ mở lịch sử cuộc trò chuyện khi có báo cáo vi phạm, nghi ngờ lừa đảo, yêu cầu xác minh hoặc cần lưu bằng chứng xử lý.
+        </div>
+    </div>
+
+    <div class="top-tools">
+        <div class="tool-left">
+            Xem toàn bộ báo cáo vi phạm, kết quả xử lý và các tài khoản đã bị khóa do báo cáo cuộc trò chuyện.
+        </div>
+
+        <div class="tool-actions">
+            <a class="btn-violation-main"
+               asp-area="Admin"
+               asp-controller="ConversationReports"
+               asp-action="Index"
+               asp-route-status="All">
+                <i class="bi bi-flag-fill"></i>
+                Xem vi phạm
+            </a>
+
+            <a class="btn-locked-main"
+               asp-area="Admin"
+               asp-controller="Users"
+               asp-action="Index"
+               asp-route-verifyStatus="locked">
+                <i class="bi bi-person-lock"></i>
+                Tài khoản bị khóa
+            </a>
+        </div>
+    </div>
+
+    <section class="msg-card">
+        <form class="filter-box" method="get">
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-6">
+                    <label class="filter-label">Từ khóa</label>
+                    <input class="form-control filter-input"
+                           name="keyword"
+                           value="@keyword"
+                           placeholder="Tên, số điện thoại, email, nội dung tin nhắn..." />
+                </div>
+
+                <div class="col-lg-3">
+                    <label class="filter-label">Mã tin</label>
+                    <input class="form-control filter-input"
+                           name="propertyId"
+                           value="@propertyId"
+                           placeholder="VD: 12" />
+                </div>
+
+                <div class="col-lg-2">
+                    <button class="btn btn-primary btn-filter w-100">
+                        <i class="bi bi-search"></i>
+                        Lọc
+                    </button>
+                </div>
+
+                <div class="col-lg-1">
+                    <a class="btn btn-light btn-filter w-100" href="/Admin/UserMessages" title="Làm mới">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+
+        @if (!Model.Any())
+        {
+            <div class="empty-box">
+                <i class="bi bi-inbox"></i>
+                Không tìm thấy cuộc trò chuyện phù hợp.
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table msg-table align-middle">
+                    <thead>
+                        <tr>
+                            <th class="col-users">Người tham gia</th>
+                            <th class="col-property">Tin liên quan</th>
+                            <th class="col-last">Tin nhắn cuối</th>
+                            <th class="col-info">Thông tin</th>
+                            <th class="col-time">Thời gian</th>
+                            <th class="col-action"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var row in Model)
+                        {
+                            var m = row.LastMessage;
+
+                            <tr>
+                                <td>
+                                    <div class="user-name">@NameOf(m.Sender)</div>
+                                    <div class="user-contact">@ContactOf(m.Sender)</div>
+
+                                    <div class="user-name mt-2">@NameOf(m.Receiver)</div>
+                                    <div class="user-contact">@ContactOf(m.Receiver)</div>
+                                </td>
+
+                                <td>
+                                    <div class="property-title">
+                                        @(m.Property?.Title ?? "Không rõ tin bất động sản")
+                                    </div>
+
+                                    <div class="property-code">
+                                        <i class="bi bi-hash"></i>
+                                        Mã tin: @row.PropertyID
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <div class="last-message">
+                                        <strong>@NameOf(m.Sender):</strong>
+                                        @ShortText(PreviewOf(m), 95)
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <span class="pill pill-blue">
+                                        <i class="bi bi-chat-square-text"></i>
+                                        @row.MessageCount tin
+                                    </span>
+
+                                    <br />
+
+                                    <span class="pill pill-green mt-2">
+                                        <i class="bi bi-paperclip"></i>
+                                        @row.AttachmentCount tệp
+                                    </span>
+
+                                    @if (row.PendingReportCount > 0)
+                                    {
+                                        <br />
+                                        <span class="pill pill-red mt-2">
+                                            <i class="bi bi-flag-fill"></i>
+                                            @row.PendingReportCount báo cáo
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>
+                                    <div class="time-main">@row.LastAt.ToString("dd/MM/yyyy")</div>
+                                    <div class="time-sub">@row.LastAt.ToString("HH:mm")</div>
+                                </td>
+
+                                <td class="text-end">
+                                    <a class="btn-view"
+                                       asp-area="Admin"
+                                       asp-controller="UserMessages"
+                                       asp-action="Details"
+                                       asp-route-userAId="@row.UserAID"
+                                       asp-route-userBId="@row.UserBID"
+                                       asp-route-propertyId="@row.PropertyID">
+                                        <i class="bi bi-eye"></i>
+                                        Xem
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mobile-list">
+                @foreach (var row in Model)
+                {
+                    var m = row.LastMessage;
+
+                    <div class="mobile-item">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div>
+                                <div class="mobile-title">
+                                    @NameOf(m.Sender) ↔ @NameOf(m.Receiver)
+                                </div>
+                                <div class="mobile-muted">
+                                    @(m.Property?.Title ?? "Không rõ tin bất động sản")
+                                </div>
+                            </div>
+
+                            <div class="mobile-muted text-end">
+                                @row.LastAt.ToString("HH:mm")
+                                <br />
+                                @row.LastAt.ToString("dd/MM")
+                            </div>
+                        </div>
+
+                        <div class="last-message mt-2">
+                            <strong>Tin cuối:</strong>
+                            @ShortText(PreviewOf(m), 100)
+                        </div>
+
+                        <div class="mt-2 d-flex flex-wrap gap-2">
+                            <span class="pill pill-blue">@row.MessageCount tin</span>
+                            <span class="pill pill-green">@row.AttachmentCount tệp</span>
+
+                            @if (row.PendingReportCount > 0)
+                            {
+                                <span class="pill pill-red">@row.PendingReportCount báo cáo</span>
+                            }
+                        </div>
+
+                        <a class="btn-view mt-3"
+                           asp-area="Admin"
+                           asp-controller="UserMessages"
+                           asp-action="Details"
+                           asp-route-userAId="@row.UserAID"
+                           asp-route-userBId="@row.UserBID"
+                           asp-route-propertyId="@row.PropertyID">
+                            <i class="bi bi-eye"></i>
+                            Xem lịch sử
+                        </a>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    @if (totalPages > 1)
+    {
+        <nav class="mt-3">
+            <ul class="pagination justify-content-center flex-wrap">
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    <li class="page-item @(i == currentPage ? "active" : "")">
+                        <a class="page-link"
+                           href="?keyword=@keyword&propertyId=@propertyId&page=@i">
+                            @i
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>

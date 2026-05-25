@@ -26,7 +26,63 @@ namespace BDSKhanhHoa.Controllers
         private const string SESSION_OTP = "RegOTP";
         private const string SESSION_USER = "PendingUser";
         private const string SESSION_USER_ID = "PendingUserID";
+        private const int VIOLATION_LOCK_LIMIT = 3;
+        private const string AUTO_LOCK_TAG = "AUTO-KHÓA DO VI PHẠM";
 
+        private async Task<int> GetActiveViolationCountAsync(int userId)
+        {
+            return await _db.UserViolations
+                .CountAsync(v => v.UserID == userId && v.Status == "Active");
+        }
+
+        private string BuildViolationLockedMessage(int activeViolationCount)
+        {
+            return
+                $"Tài khoản của bạn đã bị khóa do vi phạm chính sách hệ thống. " +
+                $"Hiện tài khoản đang có {activeViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực. " +
+                $"Vui lòng liên hệ Ban quản trị nếu bạn cho rằng có nhầm lẫn hoặc cần gửi yêu cầu khiếu nại.";
+        }
+        private string BuildLockedMessage(User user, int activeViolationCount)
+        {
+            if (!string.IsNullOrWhiteSpace(user.AdminNote) &&
+                user.AdminNote.Contains(AUTO_LOCK_TAG))
+            {
+                return BuildViolationLockedMessage(Math.Max(activeViolationCount, VIOLATION_LOCK_LIMIT));
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.AdminNote))
+            {
+                return "Tài khoản của bạn đang bị khóa. Lý do: " + user.AdminNote;
+            }
+
+            return "Tài khoản của bạn đang bị khóa bởi hệ thống hoặc Ban Quản Trị.";
+        }
+        private async Task<(bool IsLockedByViolation, int ActiveViolationCount, string Message)> EnforceViolationLockAsync(User user)
+        {
+            int activeViolationCount = await GetActiveViolationCountAsync(user.UserID);
+
+            if (activeViolationCount >= VIOLATION_LOCK_LIMIT)
+            {
+                if (user.IsActive)
+                {
+                    user.IsActive = false;
+
+                    string lockNote =
+                        $"[{AUTO_LOCK_TAG} - {DateTime.Now:dd/MM/yyyy HH:mm}] " +
+                        $"Tài khoản bị khóa tự động do có {activeViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm chính sách hệ thống.";
+
+                    user.AdminNote = string.IsNullOrWhiteSpace(user.AdminNote)
+                        ? lockNote
+                        : user.AdminNote + Environment.NewLine + lockNote;
+
+                    await _db.SaveChangesAsync();
+                }
+
+                return (true, activeViolationCount, BuildViolationLockedMessage(activeViolationCount));
+            }
+
+            return (false, activeViolationCount, "");
+        }
         public AccountController(
             ApplicationDbContext db,
             IEmailService emailSender,
@@ -87,7 +143,8 @@ namespace BDSKhanhHoa.Controllers
         [Route("Nguoi-Dang-Tin/{id}")]
         public async Task<IActionResult> UserProfile(int id)
         {
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserID == id && !u.IsDeleted);
+            var user = await _db.Users
+                .FirstOrDefaultAsync(u => u.UserID == id && !u.IsDeleted && u.IsActive);
             if (user == null)
             {
                 TempData["Error"] = "Người dùng này không tồn tại hoặc đã bị khóa tài khoản.";
@@ -135,110 +192,154 @@ namespace BDSKhanhHoa.Controllers
                 return View(model);
             }
 
-            model.Email = model.Email.Trim().ToLower();
-            model.Username = model.Username.Trim();
-
-            bool usernameExists = await _db.Users
-                .AnyAsync(u => u.Username.ToLower() == model.Username.ToLower() && !u.IsDeleted);
-
-            if (usernameExists)
+            try
             {
-                ModelState.AddModelError("Username", "Tên đăng nhập này đã tồn tại. Vui lòng chọn tên khác.");
+                model.Username = UserInputHelper.NormalizeText(model.Username);
+                model.Email = UserInputHelper.NormalizeEmail(model.Email);
+                model.FullName = UserInputHelper.NormalizeText(model.FullName);
+                model.Phone = UserInputHelper.NormalizePhone(model.Phone) ?? "";
+                model.Address = UserInputHelper.NormalizeText(model.Address);
+
+                /*
+                    Nếu user đã đăng ký trước đó nhưng chưa xác thực OTP,
+                    cho phép xóa bản cũ cùng email để đăng ký lại.
+                */
+                var oldUnverifiedUser = await _db.Users
+                    .FirstOrDefaultAsync(u =>
+                        !u.IsDeleted &&
+                        u.Email.ToLower() == model.Email.ToLower() &&
+                        (u.IsEmailVerified == false || u.IsEmailVerified == null));
+
+                if (oldUnverifiedUser != null)
+                {
+                    _db.Users.Remove(oldUnverifiedUser);
+                    await _db.SaveChangesAsync();
+                }
+
+                bool registerValid = await UserUniqueValidator.ValidateRegisterAsync(
+                    _db,
+                    model.Username,
+                    model.Email,
+                    model.Phone,
+                    ModelState);
+
+                if (!registerValid)
+                {
+                    return View(model);
+                }
+
+                if (string.IsNullOrWhiteSpace(model.FullName))
+                {
+                    ModelState.AddModelError(nameof(model.FullName), "Họ và tên là bắt buộc.");
+                    return View(model);
+                }
+
+                if (model.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 2)
+                {
+                    ModelState.AddModelError(nameof(model.FullName), "Vui lòng nhập đầy đủ họ và tên.");
+                    return View(model);
+                }
+
+                if (string.IsNullOrWhiteSpace(model.Phone))
+                {
+                    ModelState.AddModelError(nameof(model.Phone), "Số điện thoại là bắt buộc.");
+                    return View(model);
+                }
+
+                if (!UserInputHelper.IsValidPhone(model.Phone))
+                {
+                    ModelState.AddModelError(nameof(model.Phone), "Số điện thoại không hợp lệ. Phải bắt đầu bằng 03, 05, 07, 08 hoặc 09 và đủ 10 số.");
+                    return View(model);
+                }
+
+                string avatarPath = "/images/avatars/default-user.png";
+
+                if (model.AvatarFile != null && model.AvatarFile.Length > 0)
+                {
+                    string[] allowedExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
+                    string extension = Path.GetExtension(model.AvatarFile.FileName).ToLowerInvariant();
+
+                    if (!allowedExtensions.Contains(extension))
+                    {
+                        ModelState.AddModelError(nameof(model.AvatarFile), "Ảnh đại diện chỉ hỗ trợ JPG, JPEG, PNG hoặc WEBP.");
+                        return View(model);
+                    }
+
+                    if (model.AvatarFile.Length > 2 * 1024 * 1024)
+                    {
+                        ModelState.AddModelError(nameof(model.AvatarFile), "Ảnh đại diện không được vượt quá 2MB.");
+                        return View(model);
+                    }
+
+                    string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "images", "avatars");
+
+                    if (!Directory.Exists(uploadDir))
+                    {
+                        Directory.CreateDirectory(uploadDir);
+                    }
+
+                    string fileName = "avatar_" + Guid.NewGuid().ToString("N") + extension;
+                    string filePath = Path.Combine(uploadDir, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await model.AvatarFile.CopyToAsync(stream);
+                    }
+
+                    avatarPath = "/images/avatars/" + fileName;
+                }
+
+                var newUser = new User
+                {
+                    FullName = model.FullName,
+                    Email = model.Email,
+                    Username = model.Username,
+                    Phone = model.Phone,
+                    Address = model.Address,
+                    Password = PasswordHasher.HashPassword(model.Password),
+                    Avatar = avatarPath,
+                    RoleID = 3,
+                    IsActive = false,
+                    IsDeleted = false,
+                    IsEmailVerified = false,
+                    CreatedAt = DateTime.Now
+                };
+
+                _db.Users.Add(newUser);
+                await _db.SaveChangesAsync();
+
+                await _auditLogService.LogAsync(
+                    newUser.UserID,
+                    "Đăng ký tài khoản mới - Chờ xác thực OTP",
+                    "Authentication",
+                    $"Email: {newUser.Email}, Username: {newUser.Username}, Phone: {newUser.Phone}",
+                    severity: "Info");
+
+                string otpCode = new Random().Next(100000, 999999).ToString();
+
+                HttpContext.Session.SetString(SESSION_OTP, otpCode);
+                HttpContext.Session.SetInt32(SESSION_USER_ID, newUser.UserID);
+
+                await SendOtpEmailAsync(newUser.Email, newUser.FullName ?? newUser.Username, otpCode);
+
+                Console.WriteLine($"[HỆ THỐNG DEV] MÃ OTP CHO {newUser.Email} LÀ: {otpCode}");
+
+                TempData["EmailToVerify"] = newUser.Email;
+                TempData["Warning"] = "Tài khoản đã được tạo nhưng đang bị khóa tạm thời. Vui lòng nhập OTP để xác thực và mở khóa tài khoản.";
+
+                return RedirectToAction("VerifyOTP");
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError("", "Thông tin đăng ký bị trùng. Vui lòng kiểm tra lại tên đăng nhập, email hoặc số điện thoại.");
                 return View(model);
             }
-
-            var existUser = await _db.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-
-            if (existUser != null)
+            catch (Exception ex)
             {
-                if (existUser.IsEmailVerified == true)
-                {
-                    ModelState.AddModelError("Email", "Email này đã được đăng ký và xác thực. Vui lòng đăng nhập.");
-                    return View(model);
-                }
-
-                _db.Users.Remove(existUser);
-                await _db.SaveChangesAsync();
+                ModelState.AddModelError("", "Có lỗi xảy ra khi đăng ký: " + ex.Message);
+                return View(model);
             }
-
-            string avatarPath = "/images/avatars/default-user.png";
-
-            if (model.AvatarFile != null && model.AvatarFile.Length > 0)
-            {
-                string[] allowedExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
-                string extension = Path.GetExtension(model.AvatarFile.FileName).ToLower();
-
-                if (!allowedExtensions.Contains(extension))
-                {
-                    ModelState.AddModelError("AvatarFile", "Ảnh đại diện chỉ hỗ trợ JPG, JPEG, PNG hoặc WEBP.");
-                    return View(model);
-                }
-
-                if (model.AvatarFile.Length > 2 * 1024 * 1024)
-                {
-                    ModelState.AddModelError("AvatarFile", "Ảnh đại diện không được vượt quá 2MB.");
-                    return View(model);
-                }
-
-                string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "images", "avatars");
-
-                if (!Directory.Exists(uploadDir))
-                {
-                    Directory.CreateDirectory(uploadDir);
-                }
-
-                string fileName = "avatar_" + Guid.NewGuid().ToString("N") + extension;
-                string filePath = Path.Combine(uploadDir, fileName);
-
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await model.AvatarFile.CopyToAsync(stream);
-                }
-
-                avatarPath = "/images/avatars/" + fileName;
-            }
-
-            var newUser = new User
-            {
-                FullName = model.FullName.Trim(),
-                Email = model.Email,
-                Username = model.Username,
-                Phone = model.Phone.Trim(),
-                Address = model.Address,
-                Password = PasswordHasher.HashPassword(model.Password),
-                Avatar = avatarPath,
-                RoleID = 3,
-                IsActive = false,
-                IsDeleted = false,
-                IsEmailVerified = false,
-                CreatedAt = DateTime.Now
-            };
-
-            _db.Users.Add(newUser);
-            await _db.SaveChangesAsync();
-
-            await _auditLogService.LogAsync(
-                newUser.UserID,
-                "Đăng ký tài khoản mới - Chờ xác thực OTP",
-                "Authentication",
-                $"Email: {newUser.Email}, Username: {newUser.Username}",
-                severity: "Info");
-
-            string otpCode = new Random().Next(100000, 999999).ToString();
-
-            HttpContext.Session.SetString(SESSION_OTP, otpCode);
-            HttpContext.Session.SetInt32(SESSION_USER_ID, newUser.UserID);
-
-            await SendOtpEmailAsync(newUser.Email, newUser.FullName ?? newUser.Username, otpCode);
-
-            Console.WriteLine($"[HỆ THỐNG DEV] MÃ OTP CHO {newUser.Email} LÀ: {otpCode}");
-
-            TempData["EmailToVerify"] = newUser.Email;
-            TempData["Warning"] = "Tài khoản đã được tạo nhưng đang bị khóa tạm thời. Vui lòng nhập OTP để xác thực và mở khóa tài khoản.";
-
-            return RedirectToAction("VerifyOTP");
         }
-
         [HttpGet]
         public async Task<IActionResult> VerifyOTP()
         {
@@ -409,8 +510,8 @@ namespace BDSKhanhHoa.Controllers
 
             var user = await _db.Users
                 .FirstOrDefaultAsync(u =>
-                    (u.Email == accountName || u.Username == accountName)
-                    && !u.IsDeleted);
+                    (u.Email == accountName || u.Username == accountName) &&
+                    !u.IsDeleted);
 
             if (user != null && PasswordHasher.VerifyPassword(model.Password, user.Password))
             {
@@ -436,16 +537,38 @@ namespace BDSKhanhHoa.Controllers
                     return RedirectToAction("VerifyOTP");
                 }
 
+                var violationLock = await EnforceViolationLockAsync(user);
+
+                if (violationLock.IsLockedByViolation)
+                {
+                    await _auditLogService.LogAsync(
+                        user.UserID,
+                        "Đăng nhập bị chặn - Tài khoản bị khóa do vi phạm chính sách",
+                        "Authentication",
+                        $"Email/Username: {model.AccountName}, ActiveViolations: {violationLock.ActiveViolationCount}/{VIOLATION_LOCK_LIMIT}",
+                        severity: "Danger");
+
+                    ModelState.AddModelError("", violationLock.Message);
+                    TempData["Error"] = violationLock.Message;
+
+                    return View(model);
+                }
+
                 if (user.IsActive == false)
                 {
+                    int activeViolationCount = violationLock.ActiveViolationCount;
+                    string lockedMessage = BuildLockedMessage(user, activeViolationCount);
+
                     await _auditLogService.LogAsync(
                         user.UserID,
                         "Đăng nhập thất bại - Tài khoản bị khóa",
                         "Authentication",
-                        $"Email/Username: {model.AccountName}",
+                        $"Email/Username: {model.AccountName}, ActiveViolations: {activeViolationCount}/{VIOLATION_LOCK_LIMIT}, AdminNote: {user.AdminNote}",
                         severity: "Warning");
 
-                    ModelState.AddModelError("", "Tài khoản của bạn đang bị khóa bởi hệ thống hoặc Ban Quản Trị.");
+                    ModelState.AddModelError("", lockedMessage);
+                    TempData["Error"] = lockedMessage;
+
                     return View(model);
                 }
 
@@ -551,22 +674,50 @@ namespace BDSKhanhHoa.Controllers
             if (user.IsEmailVerified == false || user.IsEmailVerified == null)
             {
                 user.IsEmailVerified = true;
-                user.IsActive = true;
+
+                int currentActiveViolations = await GetActiveViolationCountAsync(user.UserID);
+
+                if (currentActiveViolations < VIOLATION_LOCK_LIMIT &&
+                    string.IsNullOrWhiteSpace(user.AdminNote))
+                {
+                    user.IsActive = true;
+                }
+
                 await _db.SaveChangesAsync();
+            }
+
+            var googleViolationLock = await EnforceViolationLockAsync(user);
+
+            if (googleViolationLock.IsLockedByViolation)
+            {
+                await _auditLogService.LogAsync(
+                    user.UserID,
+                    "Đăng nhập Google bị chặn - Tài khoản bị khóa do vi phạm chính sách",
+                    "Authentication",
+                    $"Email: {email}, ActiveViolations: {googleViolationLock.ActiveViolationCount}/{VIOLATION_LOCK_LIMIT}",
+                    severity: "Danger");
+
+                await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+                TempData["Error"] = googleViolationLock.Message;
+                return RedirectToAction("Login");
             }
 
             if (user.IsActive == false)
             {
+                int activeViolationCount = googleViolationLock.ActiveViolationCount;
+                string lockedMessage = BuildLockedMessage(user, activeViolationCount);
+
                 await _auditLogService.LogAsync(
                     user.UserID,
                     "Đăng nhập thất bại - Google - Tài khoản bị khóa",
                     "Authentication",
-                    $"Email: {email}",
+                    $"Email: {email}, ActiveViolations: {activeViolationCount}/{VIOLATION_LOCK_LIMIT}, AdminNote: {user.AdminNote}",
                     severity: "Warning");
 
                 await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-                TempData["Error"] = "Tài khoản của bạn đã bị khóa bởi hệ thống hoặc Ban Quản Trị.";
+                TempData["Error"] = lockedMessage;
                 return RedirectToAction("Login");
             }
 

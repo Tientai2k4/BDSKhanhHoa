@@ -11,7 +11,7 @@
         ? "~/Views/Shared/_BusinessLayout.cshtml"
         : "~/Views/Shared/_Layout.cshtml";
 
-    ViewData["Title"] = isBusinessMode ? "Quản lý lịch hẹn dự án" : "Lịch hẹn của tôi";
+    ViewData["Title"] = isBusinessMode ? "Lịch hẹn xem dự án" : "Lịch hẹn của tôi";
 
     int currentPage = ViewBag.CurrentPage ?? 1;
     int totalPages = ViewBag.TotalPages ?? 1;
@@ -132,12 +132,12 @@
     {
         if (isSeller && isBuyer)
         {
-            return "Lịch của bạn";
+            return "Lịch nội bộ dự án";
         }
 
         if (isSeller)
         {
-            return "Khách hẹn bạn";
+            return isBusinessMode ? "Khách hẹn dự án" : "Khách hẹn bạn";
         }
 
         if (isBuyer)
@@ -170,8 +170,33 @@
             || statusText == "Khách không đến";
     }
 
-    string GetNextActionText(string statusText, bool isSeller, bool isBuyer, bool hasResult)
+    bool CanDispatch(string statusText, bool isSeller)
     {
+        return isBusinessMode
+            && isSeller
+            && (statusText == "Chờ xác nhận" || statusText == "Đã xác nhận" || statusText == "Đang dời lịch");
+    }
+
+    string GetNextActionText(string statusText, bool isSeller, bool isBuyer, bool hasResult, bool hasStaff)
+    {
+        if (isBusinessMode && isSeller)
+        {
+            return statusText switch
+            {
+                "Chờ xác nhận" => hasStaff
+                    ? "Lịch đã có nhân viên phụ trách. Có thể điều phối lại nếu cần."
+                    : "Việc chính: bấm Điều phối để phân công nhân viên công ty đi gặp khách.",
+                "Đã xác nhận" when !hasStaff => "Lịch đã xác nhận nhưng chưa có nhân viên phụ trách. Nên điều phối nhân viên trước buổi hẹn.",
+                "Đã xác nhận" when !hasResult => "Việc tiếp theo: nhân viên đi gặp khách, sau đó cập nhật kết quả buổi xem.",
+                "Đã xác nhận" => "Đã có kết quả. Có thể sửa kết quả hoặc hoàn tất lịch hẹn.",
+                "Đang dời lịch" => "Đang chờ khách xác nhận giờ mới. Có thể điều phối nhân viên dự kiến nếu cần.",
+                "Đã hoàn tất" => "Lịch đã hoàn tất và bị khóa để lưu lịch sử.",
+                "Đã hủy" => "Lịch đã hủy và bị khóa.",
+                "Khách không đến" => "Lịch đã đóng do khách không đến.",
+                _ => "Cần kiểm tra lại trạng thái lịch hẹn."
+            };
+        }
+
         if (isSeller)
         {
             return statusText switch
@@ -258,7 +283,7 @@
         margin: 0;
         font-size: .88rem;
         line-height: 1.55;
-        max-width: 820px;
+        max-width: 860px;
     }
 
     .lich-quick {
@@ -521,16 +546,130 @@
         color: #475569;
     }
 
-    .lich-note {
+    /* GHI CHÚ: gom gọn, canh trái, không bị nhảy icon/chữ */
+    .lich-note,
+    .lich-note-card {
+        width: 100%;
+        max-width: 100%;
         margin-top: 8px;
-        padding: 8px 10px;
-        border-radius: 13px;
-        background: #fffbeb;
+        padding: 0;
+        border-radius: 14px;
+        background: #fffaf0;
         border: 1px solid #fde68a;
+        color: #78350f;
+        overflow: hidden;
+        text-align: left !important;
+        box-shadow: none;
+        white-space: normal;
+    }
+
+    .lich-note-card {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        align-items: flex-start;
+        gap: 0;
+    }
+
+    .lich-note-icon {
+        width: 34px;
+        min-height: 100%;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 10px;
+        color: #b45309;
+        background: rgba(245, 158, 11, .08);
+        font-size: .92rem;
+        flex-shrink: 0;
+    }
+
+    .lich-note-body {
+        min-width: 0;
+        padding: 9px 11px 10px;
+        text-align: left !important;
+    }
+
+    .lich-note-title {
+        display: block;
+        margin-bottom: 3px;
+        color: #92400e;
+        font-size: .72rem;
+        font-weight: 950;
+        line-height: 1.25;
+        text-transform: uppercase;
+        letter-spacing: .035em;
+    }
+
+    .lich-note-text {
+        display: block;
         color: #78350f;
         font-size: .8rem;
         font-weight: 700;
-        line-height: 1.48;
+        line-height: 1.55;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        white-space: pre-line;
+        text-align: left !important;
+    }
+
+    .lich-note-card.note-system {
+        background: #fffaf0;
+        border-color: #fde68a;
+    }
+
+    .lich-note-card.note-result {
+        background: #f8fafc;
+        border-color: #e2e8f0;
+        color: #334155;
+    }
+
+        .lich-note-card.note-result .lich-note-icon {
+            color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .lich-note-card.note-result .lich-note-title {
+            color: #1d4ed8;
+        }
+
+        .lich-note-card.note-result .lich-note-text {
+            color: #334155;
+        }
+
+    .lich-note-card.note-customer {
+        background: #f8fafc;
+        border-color: #e2e8f0;
+    }
+
+        .lich-note-card.note-customer .lich-note-icon {
+            color: #64748b;
+            background: #f1f5f9;
+        }
+
+        .lich-note-card.note-customer .lich-note-title {
+            color: #475569;
+        }
+
+        .lich-note-card.note-customer .lich-note-text {
+            color: #475569;
+        }
+
+    .staff-box {
+        margin-top: 8px;
+        padding: 10px;
+        border-radius: 14px;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        color: #065f46;
+        font-size: .8rem;
+        font-weight: 750;
+        line-height: 1.55;
+    }
+
+    .staff-box-title {
+        font-weight: 950;
+        color: #047857;
+        margin-bottom: 4px;
     }
 
     .ket-qua-pill {
@@ -562,7 +701,7 @@
         display: grid;
         gap: 8px;
         width: 100%;
-        max-width: 210px;
+        max-width: 220px;
         margin: 0 auto;
     }
 
@@ -586,7 +725,7 @@
         border-radius: 15px;
         box-shadow: 0 16px 34px rgba(15, 23, 42, .14);
         padding: 8px;
-        min-width: 210px;
+        min-width: 230px;
     }
 
     .lich-action-menu .dropdown-item {
@@ -742,9 +881,11 @@
 <div class="container lich-page">
     <div class="lich-hero">
         <div>
-            <h1 class="lich-title">@(isBusinessMode ? "Quản lý lịch hẹn dự án" : "Lịch hẹn của tôi")</h1>
+            <h1 class="lich-title">@(isBusinessMode ? "Lịch hẹn xem dự án" : "Lịch hẹn của tôi")</h1>
             <p class="lich-subtitle">
-                Theo dõi lịch hẹn xem bất động sản. Mỗi lịch chỉ hiển thị thao tác phù hợp với trạng thái hiện tại để tránh xử lý nhầm.
+                @(isBusinessMode
+                                ? "Chủ đầu tư quản lý lịch xem dự án tại đây: điều phối nhân viên đi gặp khách, theo dõi trạng thái, cập nhật kết quả và hoàn tất lịch hẹn."
+                                : "Theo dõi lịch hẹn xem bất động sản. Mỗi lịch chỉ hiển thị thao tác phù hợp với trạng thái hiện tại để tránh xử lý nhầm.")
             </p>
         </div>
 
@@ -813,7 +954,10 @@
                 <select name="tab" class="form-select lich-input">
                     <option value="tat-ca" selected="@(activeTab == "tat-ca" || activeTab == "all")">Tất cả lịch</option>
                     <option value="lich-den" selected="@(activeTab == "lich-den" || activeTab == "incoming")">Khách hẹn mình</option>
-                    <option value="lich-di" selected="@(activeTab == "lich-di" || activeTab == "outgoing")">Mình đặt lịch</option>
+                    @if (!isBusinessMode)
+                    {
+                        <option value="lich-di" selected="@(activeTab == "lich-di" || activeTab == "outgoing")">Mình đặt lịch</option>
+                    }
                     <option value="sap-toi" selected="@(activeTab == "sap-toi" || activeTab == "upcoming")">Cần xử lý</option>
                     <option value="hoan-tat" selected="@(activeTab == "hoan-tat" || activeTab == "completed")">Hoàn tất</option>
                     <option value="da-huy" selected="@(activeTab == "da-huy" || activeTab == "cancelled")">Đã hủy</option>
@@ -849,7 +993,7 @@
                        name="keyword"
                        value="@keyword"
                        class="form-control lich-input"
-                       placeholder="Tên khách, SĐT, điểm hẹn, ghi chú, tiêu đề BĐS..." />
+                       placeholder="Tên khách, SĐT, nhân viên, điểm hẹn, dự án..." />
             </div>
 
             <div class="col-xl-1 col-lg-3 col-md-12 d-grid">
@@ -866,8 +1010,8 @@
             <table class="table lich-table align-middle">
                 <thead>
                     <tr>
-                        <th style="width: 24%;">Thời gian & nguồn</th>
-                        <th style="width: 24%;">Khách hàng & điểm hẹn</th>
+                        <th style="width: 23%;">Thời gian & nguồn</th>
+                        <th style="width: 25%;">Khách hàng & điều phối</th>
                         <th style="width: 32%;">Trạng thái & ghi chú</th>
                         <th style="width: 20%;" class="text-center">Thao tác</th>
                     </tr>
@@ -889,6 +1033,8 @@
                             string resultText = GetResultText(a.ResultStatus);
                             bool hasResult = !string.IsNullOrWhiteSpace(resultText);
                             bool isClosed = IsClosedStatus(statusText);
+                            bool hasStaff = !string.IsNullOrWhiteSpace(a.AssignedStaffName) || !string.IsNullOrWhiteSpace(a.AssignedStaffPhone);
+                            bool canDispatch = CanDispatch(statusText, isSeller);
 
                             <tr>
                                 <td>
@@ -943,23 +1089,35 @@
                                         @(string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa cung cấp điểm hẹn" : a.MeetingLocation)
                                     </div>
 
-                                    @if (!string.IsNullOrWhiteSpace(a.AssignedStaffName) || !string.IsNullOrWhiteSpace(a.AssignedStaffPhone))
+                                    @if (hasStaff)
                                     {
-                                        <div class="lich-small mt-1">
-                                            <i class="bi bi-person-badge-fill text-info me-1"></i>
-                                            Phụ trách:
-                                            @(string.IsNullOrWhiteSpace(a.AssignedStaffName) ? "Chưa rõ tên" : a.AssignedStaffName)
+                                        <div class="staff-box">
+                                            <div class="staff-box-title">
+                                                <i class="bi bi-person-badge-fill me-1"></i>
+                                                Nhân viên phụ trách
+                                            </div>
+                                            <div>@(string.IsNullOrWhiteSpace(a.AssignedStaffName) ? "Chưa rõ tên" : a.AssignedStaffName)</div>
                                             @if (!string.IsNullOrWhiteSpace(a.AssignedStaffPhone))
                                             {
-                                                <span> - @a.AssignedStaffPhone</span>
+                                                <div><i class="bi bi-telephone me-1"></i>@a.AssignedStaffPhone</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(a.AssignedStaffEmail))
+                                            {
+                                                <div><i class="bi bi-envelope me-1"></i>@a.AssignedStaffEmail</div>
                                             }
                                         </div>
                                     }
 
                                     @if (!string.IsNullOrWhiteSpace(a.Note))
                                     {
-                                        <div class="mt-2 text-muted small fst-italic">
-                                            “@a.Note”
+                                        <div class="lich-note-card note-customer">
+                                            <div class="lich-note-icon">
+                                                <i class="bi bi-chat-left-text"></i>
+                                            </div>
+                                            <div class="lich-note-body">
+                                                <span class="lich-note-title">Ghi chú khách đặt lịch</span>
+                                                <span class="lich-note-text">@a.Note</span>
+                                            </div>
                                         </div>
                                     }
                                 </td>
@@ -978,14 +1136,19 @@
 
                                     <div class="next-box">
                                         <i class="bi bi-info-circle-fill me-1"></i>
-                                        @GetNextActionText(statusText, isSeller, isBuyer, hasResult)
+                                        @GetNextActionText(statusText, isSeller, isBuyer, hasResult, hasStaff)
                                     </div>
 
                                     @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
                                     {
-                                        <div class="lich-note">
-                                            <i class="bi bi-chat-left-dots-fill me-1"></i>
-                                            @a.NegotiationNote
+                                        <div class="lich-note-card note-system">
+                                            <div class="lich-note-icon">
+                                                <i class="bi bi-chat-left-dots-fill"></i>
+                                            </div>
+                                            <div class="lich-note-body">
+                                                <span class="lich-note-title">Ghi chú xử lý lịch hẹn</span>
+                                                <span class="lich-note-text">@a.NegotiationNote</span>
+                                            </div>
                                         </div>
                                     }
 
@@ -999,9 +1162,14 @@
 
                                             @if (isSeller && !string.IsNullOrWhiteSpace(a.ResultNote))
                                             {
-                                                <div class="lich-note">
-                                                    <i class="bi bi-journal-text me-1"></i>
-                                                    <strong>Ghi chú nội bộ:</strong> @a.ResultNote
+                                                <div class="lich-note-card note-result">
+                                                    <div class="lich-note-icon">
+                                                        <i class="bi bi-journal-text"></i>
+                                                    </div>
+                                                    <div class="lich-note-body">
+                                                        <span class="lich-note-title">Ghi chú nội bộ</span>
+                                                        <span class="lich-note-text">@a.ResultNote</span>
+                                                    </div>
                                                 </div>
                                             }
 
@@ -1025,9 +1193,23 @@
 
                                 <td class="text-center">
                                     <div class="action-stack">
+                                        @if (canDispatch)
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-primary nut-thao-tac"
+                                                    onclick="openDispatchModal(
+                                                                                @a.AppointmentID,
+                                                                                '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffName ?? ""))',
+                                                                                '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffPhone ?? ""))',
+                                                                                '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffEmail ?? ""))')">
+                                                <i class="bi bi-person-plus-fill"></i>
+                                                @(hasStaff ? "Điều phối lại" : "Điều phối")
+                                            </button>
+                                        }
+
                                         @if (isSeller)
                                         {
-                                            if (statusText == "Chờ xác nhận")
+                                            if (statusText == "Chờ xác nhận" && !isBusinessMode)
                                             {
                                                 <button type="button"
                                                         class="btn btn-success nut-thao-tac"
@@ -1035,7 +1217,10 @@
                                                     <i class="bi bi-check-circle-fill"></i>
                                                     Xác nhận
                                                 </button>
+                                            }
 
+                                            if (statusText == "Chờ xác nhận")
+                                            {
                                                 <div class="dropdown">
                                                     <button class="btn btn-light border btn-more-action w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                                         Tùy chọn
@@ -1054,7 +1239,7 @@
                                             else if (statusText == "Đã xác nhận")
                                             {
                                                 <button type="button"
-                                                        class="btn btn-primary nut-thao-tac"
+                                                        class="btn btn-outline-primary nut-thao-tac"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#feedbackModal"
                                                         data-id="@a.AppointmentID"
@@ -1108,7 +1293,7 @@
                                             }
                                         }
 
-                                        @if (isBuyer)
+                                        @if (isBuyer && !isBusinessMode)
                                         {
                                             if (statusText == "Chờ xác nhận")
                                             {
@@ -1190,6 +1375,8 @@
                     string resultText = GetResultText(a.ResultStatus);
                     bool hasResult = !string.IsNullOrWhiteSpace(resultText);
                     bool isClosed = IsClosedStatus(statusText);
+                    bool hasStaff = !string.IsNullOrWhiteSpace(a.AssignedStaffName) || !string.IsNullOrWhiteSpace(a.AssignedStaffPhone);
+                    bool canDispatch = CanDispatch(statusText, isSeller);
 
                     <div class="lich-mobile-card">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
@@ -1245,49 +1432,66 @@
                             </div>
                         </div>
 
-                        <div class="mobile-line">
-                            <i class="bi bi-clock-history text-muted"></i>
-                            <div>
-                                <strong>Tạo lúc:</strong>
-                                @a.CreatedAt.ToString("HH:mm - dd/MM/yyyy", vi)
-
-                                @if (a.UpdatedAt.HasValue)
+                        @if (hasStaff)
+                        {
+                            <div class="staff-box">
+                                <div class="staff-box-title">
+                                    <i class="bi bi-person-badge-fill me-1"></i>
+                                    Nhân viên phụ trách
+                                </div>
+                                <div>@(string.IsNullOrWhiteSpace(a.AssignedStaffName) ? "Chưa rõ tên" : a.AssignedStaffName)</div>
+                                @if (!string.IsNullOrWhiteSpace(a.AssignedStaffPhone))
                                 {
-                                    <div>
-                                        <strong>Cập nhật:</strong>
-                                        @a.UpdatedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
-                                    </div>
+                                    <div><i class="bi bi-telephone me-1"></i>@a.AssignedStaffPhone</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(a.AssignedStaffEmail))
+                                {
+                                    <div><i class="bi bi-envelope me-1"></i>@a.AssignedStaffEmail</div>
                                 }
                             </div>
-                        </div>
+                        }
 
                         @if (a.ProposedAppointmentDate.HasValue)
                         {
-                            <div class="lich-note">
-                                <i class="bi bi-arrow-right-circle"></i>
-                                Giờ mới:
-                                @a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", vi)
+                            <div class="lich-note-card note-system">
+                                <div class="lich-note-icon">
+                                    <i class="bi bi-arrow-right-circle"></i>
+                                </div>
+                                <div class="lich-note-body">
+                                    <span class="lich-note-title">Giờ hẹn mới đề xuất</span>
+                                    <span class="lich-note-text">@a.ProposedAppointmentDate.Value.ToString("HH:mm - dd/MM/yyyy", vi)</span>
+                                </div>
                             </div>
                         }
 
                         @if (!string.IsNullOrWhiteSpace(a.Note))
                         {
-                            <div class="lich-note">
-                                <i class="bi bi-chat-left-text me-1"></i>
-                                @a.Note
+                            <div class="lich-note-card note-customer">
+                                <div class="lich-note-icon">
+                                    <i class="bi bi-chat-left-text"></i>
+                                </div>
+                                <div class="lich-note-body">
+                                    <span class="lich-note-title">Ghi chú khách đặt lịch</span>
+                                    <span class="lich-note-text">@a.Note</span>
+                                </div>
                             </div>
                         }
 
                         <div class="next-box">
                             <i class="bi bi-info-circle-fill me-1"></i>
-                            @GetNextActionText(statusText, isSeller, isBuyer, hasResult)
+                            @GetNextActionText(statusText, isSeller, isBuyer, hasResult, hasStaff)
                         </div>
 
                         @if (!string.IsNullOrWhiteSpace(a.NegotiationNote))
                         {
-                            <div class="lich-note">
-                                <i class="bi bi-chat-left-dots-fill me-1"></i>
-                                @a.NegotiationNote
+                            <div class="lich-note-card note-system">
+                                <div class="lich-note-icon">
+                                    <i class="bi bi-chat-left-dots-fill"></i>
+                                </div>
+                                <div class="lich-note-body">
+                                    <span class="lich-note-title">Ghi chú xử lý lịch hẹn</span>
+                                    <span class="lich-note-text">@a.NegotiationNote</span>
+                                </div>
                             </div>
                         }
 
@@ -1301,9 +1505,14 @@
 
                                 @if (isSeller && !string.IsNullOrWhiteSpace(a.ResultNote))
                                 {
-                                    <div class="lich-note">
-                                        <i class="bi bi-journal-text me-1"></i>
-                                        <strong>Ghi chú nội bộ:</strong> @a.ResultNote
+                                    <div class="lich-note-card note-result">
+                                        <div class="lich-note-icon">
+                                            <i class="bi bi-journal-text"></i>
+                                        </div>
+                                        <div class="lich-note-body">
+                                            <span class="lich-note-title">Ghi chú nội bộ</span>
+                                            <span class="lich-note-text">@a.ResultNote</span>
+                                        </div>
                                     </div>
                                 }
 
@@ -1316,21 +1525,24 @@
                             </div>
                         }
 
-                        @if (a.CompletedAt.HasValue)
-                        {
-                            <div class="mobile-line">
-                                <i class="bi bi-check2-circle text-success"></i>
-                                <div>
-                                    <strong>Đóng lúc:</strong>
-                                    @a.CompletedAt.Value.ToString("HH:mm - dd/MM/yyyy", vi)
-                                </div>
-                            </div>
-                        }
-
                         <div class="action-stack mt-3">
+                            @if (canDispatch)
+                            {
+                                <button type="button"
+                                        class="btn btn-primary nut-thao-tac"
+                                        onclick="openDispatchModal(
+                                                                    @a.AppointmentID,
+                                                                    '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffName ?? ""))',
+                                                                    '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffPhone ?? ""))',
+                                                                    '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(a.AssignedStaffEmail ?? ""))')">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                    @(hasStaff ? "Điều phối lại" : "Điều phối")
+                                </button>
+                            }
+
                             @if (isSeller)
                             {
-                                if (statusText == "Chờ xác nhận")
+                                if (statusText == "Chờ xác nhận" && !isBusinessMode)
                                 {
                                     <button type="button"
                                             class="btn btn-success nut-thao-tac"
@@ -1338,7 +1550,10 @@
                                         <i class="bi bi-check-circle-fill"></i>
                                         Xác nhận
                                     </button>
+                                }
 
+                                if (statusText == "Chờ xác nhận")
+                                {
                                     <button type="button"
                                             class="btn btn-warning text-dark nut-thao-tac"
                                             onclick="openRescheduleModal(@a.AppointmentID)">
@@ -1356,7 +1571,7 @@
                                 else if (statusText == "Đã xác nhận")
                                 {
                                     <button type="button"
-                                            class="btn btn-primary nut-thao-tac"
+                                            class="btn btn-outline-primary nut-thao-tac"
                                             data-bs-toggle="modal"
                                             data-bs-target="#feedbackModal"
                                             data-id="@a.AppointmentID"
@@ -1408,7 +1623,7 @@
                                 }
                             }
 
-                            @if (isBuyer)
+                            @if (isBuyer && !isBusinessMode)
                             {
                                 if (statusText == "Chờ xác nhận")
                                 {
@@ -1499,6 +1714,97 @@
                 </nav>
             </div>
         }
+    </div>
+</div>
+
+<div class="modal fade" id="dispatchModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-person-plus-fill me-2"></i>
+                    Điều phối nhân viên đi gặp khách
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <form id="frmDispatch" asp-action="DispatchStaff" asp-controller="Appointments" method="post">
+                <div class="modal-body p-4">
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="id" id="dispatchAppointmentId" />
+
+                    <div class="alert alert-info border-0 rounded-4 small fw-bold mb-4">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Dùng cho chủ đầu tư điều phối nhân viên công ty đi gặp khách. Nếu lịch đang “Chờ xác nhận”, sau khi điều phối hệ thống tự chuyển sang “Đã xác nhận”.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">
+                            Tên nhân viên phụ trách
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input type="text"
+                               name="assignedStaffName"
+                               id="dispatchStaffName"
+                               class="form-control lich-input"
+                               required
+                               maxlength="255"
+                               placeholder="VD: Nguyễn Văn A" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">
+                            Số điện thoại nhân viên
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input type="tel"
+                               name="assignedStaffPhone"
+                               id="dispatchStaffPhone"
+                               class="form-control lich-input"
+                               required
+                               maxlength="20"
+                               placeholder="VD: 0901234567" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">
+                            Email nhân viên
+                        </label>
+                        <input type="email"
+                               name="assignedStaffEmail"
+                               id="dispatchStaffEmail"
+                               class="form-control lich-input"
+                               maxlength="255"
+                               placeholder="VD: nhanvien@congty.com" />
+                        <div class="form-text">
+                            Nếu có email, hệ thống sẽ gửi thông tin lịch hẹn cho nhân viên.
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label fw-bold text-dark">
+                            Ghi chú điều phối
+                        </label>
+                        <textarea name="note"
+                                  id="dispatchNote"
+                                  class="form-control lich-input"
+                                  rows="4"
+                                  placeholder="VD: Nhân viên gọi khách trước 30 phút, chuẩn bị bảng giá và hồ sơ pháp lý..."></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light border rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                        Đóng
+                    </button>
+
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        Lưu điều phối
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -1598,7 +1904,7 @@
                                       class="form-control lich-input"
                                       rows="4"
                                       required
-                                      placeholder="Ví dụ: Chủ nhà bận công việc, đề xuất khách sang khung giờ khác..."></textarea>
+                                      placeholder="Ví dụ: Nhân viên phụ trách bận lịch khác, đề xuất khách sang khung giờ mới..."></textarea>
                         </div>
                     </div>
                 </div>
@@ -1636,7 +1942,7 @@
 
                     <div class="alert alert-info border-0 rounded-4 small fw-bold mb-4">
                         <i class="bi bi-info-circle-fill me-1"></i>
-                        Lưu kết quả không khóa lịch hẹn. Người bán vẫn có thể sửa lại. Chỉ khi bấm “Hoàn tất” thì lịch mới bị khóa.
+                        Lưu kết quả không khóa lịch hẹn. Người phụ trách vẫn có thể sửa lại. Chỉ khi bấm “Hoàn tất” thì lịch mới bị khóa.
                     </div>
 
                     <div class="mb-3">
@@ -1655,7 +1961,7 @@
 
                     <div>
                         <label class="form-label fw-bold text-dark">
-                            Ghi chú nội bộ của người bán
+                            Ghi chú nội bộ của người phụ trách
                         </label>
 
                         <textarea name="resultNote"
@@ -1665,7 +1971,7 @@
                                   placeholder="Ví dụ: Khách thích vị trí nhưng cần thương lượng giá, khách muốn xem thêm căn khác..."></textarea>
 
                         <div class="form-text mt-2">
-                            Ghi chú này chỉ hiển thị cho người bán/người phụ trách. Người mua chỉ thấy kết quả tổng quát.
+                            Ghi chú này chỉ hiển thị cho chủ đầu tư/người phụ trách. Người mua chỉ thấy kết quả tổng quát.
                         </div>
                     </div>
                 </div>
@@ -1777,6 +2083,32 @@
             });
         }
 
+        function openDispatchModal(id, staffName, staffPhone, staffEmail) {
+            const idEl = document.getElementById('dispatchAppointmentId');
+            const nameEl = document.getElementById('dispatchStaffName');
+            const phoneEl = document.getElementById('dispatchStaffPhone');
+            const emailEl = document.getElementById('dispatchStaffEmail');
+            const noteEl = document.getElementById('dispatchNote');
+
+            if (!idEl || !nameEl || !phoneEl || !emailEl || !noteEl) {
+                Swal.fire('Lỗi', 'Không tìm thấy modal điều phối.', 'error');
+                return;
+            }
+
+            idEl.value = id;
+            nameEl.value = staffName || '';
+            phoneEl.value = staffPhone || '';
+            emailEl.value = staffEmail || '';
+            noteEl.value = '';
+
+            const modal = new bootstrap.Modal(document.getElementById('dispatchModal'));
+            modal.show();
+
+            setTimeout(function () {
+                nameEl.focus();
+            }, 250);
+        }
+
         function openReasonModal(id, title, actionUrl, placeholder) {
             const titleEl = document.getElementById('reasonModalTitle');
             const idEl = document.getElementById('reasonAppointmentId');
@@ -1871,6 +2203,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            handleModalFormAjax('frmDispatch');
             handleModalFormAjax('frmReason');
             handleModalFormAjax('frmReschedule');
             handleModalFormAjax('frmFeedback');

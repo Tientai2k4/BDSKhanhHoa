@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -72,7 +73,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     (c.Phone != null && EF.Functions.Like(c.Phone, $"%{keyword}%")) ||
                     (c.Email != null && EF.Functions.Like(c.Email, $"%{keyword}%")) ||
                     (c.Property != null && c.Property.Title != null && EF.Functions.Like(c.Property.Title, $"%{keyword}%")) ||
-                    (c.Project != null && c.Project.ProjectName != null && EF.Functions.Like(c.Project.ProjectName, $"%{keyword}%"))
+                    (c.Project != null && c.Project.ProjectName != null && EF.Functions.Like(c.Project.ProjectName, $"%{keyword}%")) ||
+                    (c.AssignedUser != null && c.AssignedUser.FullName != null && EF.Functions.Like(c.AssignedUser.FullName, $"%{keyword}%"))
                 );
             }
 
@@ -142,29 +144,29 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     return Json(new
                     {
                         success = false,
-                        message = "Không tìm thấy dữ liệu."
+                        message = "Không tìm thấy yêu cầu tư vấn."
                     });
                 }
 
-                var sourceName = c.Property?.Title
-                                 ?? c.Project?.ProjectName
-                                 ?? "Bất động sản bị xóa";
+                string sourceName = c.Property?.Title
+                                    ?? c.Project?.ProjectName
+                                    ?? "Bất động sản bị xóa";
 
-                var sourceType = c.PropertyID != null
+                string sourceType = c.PropertyID != null
                     ? "Tin lẻ BĐS"
                     : c.ProjectID != null
                         ? "Dự án"
                         : "Không xác định";
 
-                var handlerName = c.AssignedUser?.FullName
-                                  ?? c.Property?.User?.FullName
-                                  ?? c.Project?.Owner?.FullName
-                                  ?? "Chưa phân công";
+                string handlerName = c.AssignedUser?.FullName
+                                     ?? c.Property?.User?.FullName
+                                     ?? c.Project?.Owner?.FullName
+                                     ?? "Chưa phân công";
 
-                var handlerPhone = c.AssignedUser?.Phone
-                                  ?? c.Property?.User?.Phone
-                                  ?? c.Project?.Owner?.Phone
-                                  ?? "N/A";
+                string handlerPhone = c.AssignedUser?.Phone
+                                     ?? c.Property?.User?.Phone
+                                     ?? c.Project?.Owner?.Phone
+                                     ?? "N/A";
 
                 bool wasReminded = IsReminded(c.SellerNote);
                 string cleanSellerNote = CleanReminderMarker(c.SellerNote);
@@ -175,17 +177,23 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     customerName = c.FullName ?? "Khách vãng lai",
                     customerPhone = c.Phone ?? "N/A",
                     customerEmail = c.Email ?? "Không có",
+
                     sourceName = sourceName,
                     sourceType = sourceType,
+
                     handlerName = handlerName,
                     handlerPhone = handlerPhone,
+
                     note = c.Note ?? "Không có lời nhắn",
+
                     sellerNote = string.IsNullOrWhiteSpace(cleanSellerNote)
-                        ? "Chưa có ghi chú xử lý..."
+                        ? "Chưa có ghi chú xử lý."
                         : cleanSellerNote,
+
                     status = c.Status ?? "N/A",
                     wasReminded = wasReminded,
                     remindedText = wasReminded ? REMIND_DISPLAY_TEXT : "Chưa gửi nhắc nhở",
+
                     createdAt = c.CreatedAt.ToString("HH:mm dd/MM/yyyy"),
                     updatedAt = c.UpdatedAt?.ToString("HH:mm dd/MM/yyyy") ?? "Chưa cập nhật"
                 };
@@ -233,7 +241,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 {
                     success = false,
                     code = "ALREADY_REMINDED",
-                    message = "Yêu cầu này đã từng được gửi thông báo nhắc người bán. Bạn có muốn gửi nhắc lại không?"
+                    message = "Yêu cầu này đã từng được gửi thông báo cho người bán. Bạn có muốn gửi nhắc lại không?"
                 });
             }
 
@@ -276,8 +284,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                                 ?? c.Project?.ProjectName
                                 ?? "nguồn bất động sản không xác định";
 
-            string actionUrl = BuildLeadActionUrl(c);
-
             string customerName = string.IsNullOrWhiteSpace(c.FullName)
                 ? "khách vãng lai"
                 : c.FullName.Trim();
@@ -295,7 +301,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 UserID = targetUserId.Value,
                 Title = notificationTitle,
                 Content = notificationContent,
-                ActionUrl = actionUrl,
+                ActionUrl = BuildLeadActionUrl(c),
                 ActionText = "Xem yêu cầu",
                 CreatedAt = now,
                 IsRead = false
@@ -323,8 +329,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 reminded = true,
                 remindedAt = now.ToString("HH:mm dd/MM/yyyy"),
                 message = force
-                    ? "Đã gửi nhắc lại thành công và cập nhật trạng thái đã thông báo."
-                    : "Đã gửi thông báo nhắc nhở thành công và đánh dấu lead này là đã thông báo."
+                    ? "Đã gửi nhắc lại thành công và vẫn giữ trạng thái đã thông báo."
+                    : "Đã gửi thông báo nhắc nhở thành công và đánh dấu yêu cầu này là đã thông báo."
             });
         }
 
@@ -339,7 +345,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Không tìm thấy dữ liệu."
+                    message = "Không tìm thấy yêu cầu tư vấn."
                 });
             }
 
@@ -347,8 +353,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
 
             string msg = blockSpam
-                ? "Đã xóa yêu cầu rác và liệt IP vào danh sách Blacklist chặn Spam!"
-                : "Đã xóa vĩnh viễn Lead rác khỏi hệ thống.";
+                ? "Đã xóa yêu cầu rác và ghi nhận là Spam."
+                : "Đã xóa vĩnh viễn yêu cầu tư vấn khỏi hệ thống.";
 
             return Json(new
             {
@@ -357,35 +363,83 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             });
         }
 
-        private bool IsReminded(string? sellerNote)
+        [HttpGet]
+        public async Task<IActionResult> ExportCsv()
         {
-            return !string.IsNullOrWhiteSpace(sellerNote)
-                   && sellerNote.Contains(REMIND_MARKER, StringComparison.OrdinalIgnoreCase);
+            var leads = await _context.Consultations
+                .AsNoTracking()
+                .Include(c => c.Property)
+                .Include(c => c.Project)
+                .Include(c => c.AssignedUser)
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
+
+            var builder = new StringBuilder();
+            builder.Append('\uFEFF');
+            builder.AppendLine("Mã Lead,Ngày Tạo,Khách Hàng,SĐT,Email,Nguồn,Người Phụ Trách,Trạng Thái,Đã Nhắc");
+
+            foreach (var c in leads)
+            {
+                string sourceName = c.Property?.Title
+                                    ?? c.Project?.ProjectName
+                                    ?? "N/A";
+
+                string handlerName = c.AssignedUser?.FullName ?? "N/A";
+
+                string statusText = c.Status switch
+                {
+                    "New" => "Mới gửi",
+                    "Contacted" => "Đã liên hệ",
+                    "Closed" => "Đã chốt",
+                    "Cancelled" => "Đã hủy",
+                    "Spam" => "Spam",
+                    _ => c.Status ?? "N/A"
+                };
+
+                string remindedText = IsReminded(c.SellerNote) ? "Đã nhắc" : "Chưa nhắc";
+
+                builder.AppendLine(
+                    $"{c.ConsultID}," +
+                    $"{c.CreatedAt:dd/MM/yyyy HH:mm}," +
+                    $"\"{EscapeCsv(c.FullName ?? "Khách vãng lai")}\"," +
+                    $"\"{EscapeCsv(c.Phone ?? "N/A")}\"," +
+                    $"\"{EscapeCsv(c.Email ?? "N/A")}\"," +
+                    $"\"{EscapeCsv(sourceName)}\"," +
+                    $"\"{EscapeCsv(handlerName)}\"," +
+                    $"\"{EscapeCsv(statusText)}\"," +
+                    $"\"{EscapeCsv(remindedText)}\"");
+            }
+
+            return File(
+                Encoding.UTF8.GetBytes(builder.ToString()),
+                "text/csv",
+                $"ThongKeYeuCauTuVan_BDS_{DateTime.Now:yyyyMMdd}.csv");
         }
 
-        private string CleanReminderMarker(string? sellerNote)
+        private static bool IsReminded(string? text)
         {
-            if (string.IsNullOrWhiteSpace(sellerNote))
-            {
-                return "";
-            }
-
-            return sellerNote.Replace(REMIND_MARKER, "").Trim();
+            return !string.IsNullOrWhiteSpace(text) &&
+                   text.Contains(REMIND_MARKER, StringComparison.OrdinalIgnoreCase);
         }
 
-        private string BuildLeadActionUrl(Consultation c)
+        private static string CleanReminderMarker(string? text)
         {
-            if (c.PropertyID != null)
+            if (string.IsNullOrWhiteSpace(text))
             {
-                return $"/Property/Details/{c.PropertyID}";
+                return string.Empty;
             }
 
-            if (c.ProjectID != null)
-            {
-                return $"/Project/Details/{c.ProjectID}";
-            }
+            return Regex.Replace(text, Regex.Escape(REMIND_MARKER), "", RegexOptions.IgnoreCase).Trim();
+        }
 
-            return "/Account/Profile";
+        private static string EscapeCsv(string value)
+        {
+            return value.Replace("\"", "\"\"");
+        }
+
+        private static string BuildLeadActionUrl(Consultation consultation)
+        {
+            return "/User/Consultations";
         }
     }
 }

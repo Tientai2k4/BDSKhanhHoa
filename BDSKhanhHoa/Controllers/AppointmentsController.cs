@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace BDSKhanhHoa.Controllers
 {
@@ -13,30 +14,6 @@ namespace BDSKhanhHoa.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
-
-        /*
-            Quy ước trạng thái tiếng Việt mới:
-            - Chờ xác nhận
-            - Đã xác nhận
-            - Đã hủy
-            - Đã hoàn tất
-            - Đang dời lịch
-            - Khách không đến
-
-            Quy ước kết quả sau buổi xem:
-            - Khách quan tâm
-            - Khách không quan tâm
-            - Chờ đặt cọc
-            - Cần chăm sóc thêm
-
-            Code vẫn có hàm chuẩn hóa để đọc được dữ liệu cũ:
-            Pending       -> Chờ xác nhận
-            Confirmed     -> Đã xác nhận
-            Cancelled     -> Đã hủy
-            Completed     -> Đã hoàn tất
-            Rescheduled   -> Đang dời lịch
-            NoShow        -> Khách không đến
-        */
 
         private static class TrangThaiLichHen
         {
@@ -55,38 +32,6 @@ namespace BDSKhanhHoa.Controllers
             public const string ChoDatCoc = "Chờ đặt cọc";
             public const string CanChamSocThem = "Cần chăm sóc thêm";
         }
-
-        private static readonly HashSet<string> DanhSachTrangThaiHopLe = new(StringComparer.OrdinalIgnoreCase)
-        {
-            TrangThaiLichHen.ChoXacNhan,
-            TrangThaiLichHen.DaXacNhan,
-            TrangThaiLichHen.DaHuy,
-            TrangThaiLichHen.DaHoanTat,
-            TrangThaiLichHen.DangDoiLich,
-            TrangThaiLichHen.KhachKhongDen,
-
-            // Hỗ trợ dữ liệu cũ tiếng Anh
-            "Pending",
-            "Confirmed",
-            "Cancelled",
-            "Completed",
-            "Rescheduled",
-            "NoShow"
-        };
-
-        private static readonly HashSet<string> DanhSachKetQuaHopLe = new(StringComparer.OrdinalIgnoreCase)
-        {
-            KetQuaLichHen.KhachQuanTam,
-            KetQuaLichHen.KhachKhongQuanTam,
-            KetQuaLichHen.ChoDatCoc,
-            KetQuaLichHen.CanChamSocThem,
-
-            // Hỗ trợ dữ liệu cũ tiếng Anh
-            "Interested",
-            "NotInterested",
-            "DepositPending",
-            "FollowUp"
-        };
 
         public AppointmentsController(ApplicationDbContext context, IEmailService emailService)
         {
@@ -151,31 +96,6 @@ namespace BDSKhanhHoa.Controllers
             };
         }
 
-        private IQueryable<Appointment> BuildBaseQuery(int userId)
-        {
-            return _context.Appointments
-                .AsNoTracking()
-                .Include(a => a.Property).ThenInclude(p => p.Project)
-                .Include(a => a.Project)
-                .Include(a => a.Buyer)
-                .Include(a => a.Seller)
-                .Include(a => a.Lead)
-                .Where(a => a.BuyerID == userId || a.SellerID == userId);
-        }
-
-        private static IQueryable<Appointment> LocTheoTrangThai(IQueryable<Appointment> query, string? statusFilter)
-        {
-            if (string.IsNullOrWhiteSpace(statusFilter) || statusFilter == "Tất cả")
-                return query;
-
-            string trangThai = ChuanHoaTrangThai(statusFilter);
-
-            return query.Where(a =>
-                a.Status == trangThai
-                || a.Status == ChuyenTrangThaiVietSangCu(trangThai)
-            );
-        }
-
         private static string ChuyenTrangThaiVietSangCu(string trangThaiTiengViet)
         {
             return trangThaiTiengViet switch
@@ -202,6 +122,178 @@ namespace BDSKhanhHoa.Controllers
             };
         }
 
+        private IQueryable<Appointment> BuildBaseQuery(int userId)
+        {
+            return _context.Appointments
+                .AsNoTracking()
+                .Include(a => a.Property).ThenInclude(p => p.Project)
+                .Include(a => a.Project)
+                .Include(a => a.Buyer)
+                .Include(a => a.Seller)
+                .Include(a => a.Lead).ThenInclude(l => l.Project)
+                .Where(a => a.BuyerID == userId || a.SellerID == userId);
+        }
+
+        private static IQueryable<Appointment> LocTheoTrangThai(IQueryable<Appointment> query, string? statusFilter)
+        {
+            if (string.IsNullOrWhiteSpace(statusFilter) || statusFilter == "Tất cả")
+                return query;
+
+            string trangThai = ChuanHoaTrangThai(statusFilter);
+
+            return query.Where(a =>
+                a.Status == trangThai ||
+                a.Status == ChuyenTrangThaiVietSangCu(trangThai));
+        }
+
+        private static string CleanText(string? value, int maxLength = 1000)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            string cleaned = value.Trim();
+
+            if (cleaned.Length > maxLength)
+                cleaned = cleaned.Substring(0, maxLength);
+
+            return cleaned;
+        }
+
+        private static bool IsValidPhone(string? phone)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+                return false;
+
+            phone = phone.Trim();
+
+            return Regex.IsMatch(phone, @"^(0|\+84)[0-9\s\.\-]{8,15}$");
+        }
+
+        private static bool IsValidEmail(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return true;
+
+            return Regex.IsMatch(email.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+        }
+
+        private static bool IsFinalAppointmentStatus(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+
+            return status == TrangThaiLichHen.DaHoanTat
+                || status == TrangThaiLichHen.DaHuy
+                || status == TrangThaiLichHen.KhachKhongDen;
+        }
+
+        private static bool CanSellerEditOutcome(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+            return status == TrangThaiLichHen.DaXacNhan;
+        }
+
+        private static bool CanSellerComplete(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+            return status == TrangThaiLichHen.DaXacNhan;
+        }
+
+        private static bool CanSellerReschedule(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+
+            return status == TrangThaiLichHen.ChoXacNhan
+                || status == TrangThaiLichHen.DaXacNhan;
+        }
+
+        private static bool CanSellerReject(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+
+            return status == TrangThaiLichHen.ChoXacNhan
+                || status == TrangThaiLichHen.DaXacNhan
+                || status == TrangThaiLichHen.DangDoiLich;
+        }
+
+        private static bool CanBuyerCancel(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+
+            return status == TrangThaiLichHen.ChoXacNhan
+                || status == TrangThaiLichHen.DaXacNhan;
+        }
+
+        private static bool CanDispatchStaff(string status)
+        {
+            status = ChuanHoaTrangThai(status);
+
+            return status == TrangThaiLichHen.ChoXacNhan
+                || status == TrangThaiLichHen.DaXacNhan
+                || status == TrangThaiLichHen.DangDoiLich;
+        }
+
+        private static string GetSourceName(Appointment appointment)
+        {
+            return appointment.Property?.Title
+                ?? appointment.Project?.ProjectName
+                ?? appointment.Lead?.Project?.ProjectName
+                ?? "bất động sản/dự án";
+        }
+
+        private async Task<bool> KiemTraNhanVienTrungLichAsync(
+            int currentAppointmentId,
+            int sellerId,
+            DateTime appointmentDate,
+            string? staffPhone,
+            string? staffEmail)
+        {
+            DateTime fromTime = appointmentDate.AddMinutes(-45);
+            DateTime toTime = appointmentDate.AddMinutes(45);
+
+            string phone = CleanText(staffPhone, 50);
+            string email = CleanText(staffEmail, 255).ToLowerInvariant();
+
+            IQueryable<Appointment> query = _context.Appointments
+                .AsNoTracking()
+                .Where(a =>
+                    a.AppointmentID != currentAppointmentId &&
+                    a.SellerID == sellerId &&
+                    a.AppointmentDate >= fromTime &&
+                    a.AppointmentDate <= toTime &&
+                    (
+                        a.Status == TrangThaiLichHen.ChoXacNhan ||
+                        a.Status == TrangThaiLichHen.DaXacNhan ||
+                        a.Status == TrangThaiLichHen.DangDoiLich ||
+                        a.Status == "Pending" ||
+                        a.Status == "Confirmed" ||
+                        a.Status == "Rescheduled"
+                    ));
+
+            if (!string.IsNullOrWhiteSpace(phone) && !string.IsNullOrWhiteSpace(email))
+            {
+                return await query.AnyAsync(a =>
+                    a.AssignedStaffPhone == phone ||
+                    (a.AssignedStaffEmail != null && a.AssignedStaffEmail.ToLower() == email));
+            }
+
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                return await query.AnyAsync(a => a.AssignedStaffPhone == phone);
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                return await query.AnyAsync(a =>
+                    a.AssignedStaffEmail != null &&
+                    a.AssignedStaffEmail.ToLower() == email);
+            }
+
+            return false;
+        }
+
+        // =====================================================
+        // DANH SÁCH LỊCH HẸN
+        // =====================================================
         [HttpGet]
         public async Task<IActionResult> Index(
             string? mode = null,
@@ -227,6 +319,11 @@ namespace BDSKhanhHoa.Controllers
 
             IQueryable<Appointment> baseQuery = BuildBaseQuery(userId);
 
+            if (isBusinessMode)
+            {
+                baseQuery = baseQuery.Where(a => a.SellerID == userId && (a.ProjectID != null || a.LeadID != null || (a.Property != null && a.Property.ProjectID != null)));
+            }
+
             baseQuery = LocTheoTrangThai(baseQuery, statusFilter);
 
             if (!string.IsNullOrWhiteSpace(keyword))
@@ -237,6 +334,9 @@ namespace BDSKhanhHoa.Controllers
                     (a.CustomerName != null && EF.Functions.Like(a.CustomerName, $"%{keyword}%")) ||
                     (a.CustomerPhone != null && EF.Functions.Like(a.CustomerPhone, $"%{keyword}%")) ||
                     (a.CustomerEmail != null && EF.Functions.Like(a.CustomerEmail, $"%{keyword}%")) ||
+                    (a.AssignedStaffName != null && EF.Functions.Like(a.AssignedStaffName, $"%{keyword}%")) ||
+                    (a.AssignedStaffPhone != null && EF.Functions.Like(a.AssignedStaffPhone, $"%{keyword}%")) ||
+                    (a.AssignedStaffEmail != null && EF.Functions.Like(a.AssignedStaffEmail, $"%{keyword}%")) ||
                     (a.Note != null && EF.Functions.Like(a.Note, $"%{keyword}%")) ||
                     (a.MeetingLocation != null && EF.Functions.Like(a.MeetingLocation, $"%{keyword}%")) ||
                     (a.Property != null && a.Property.Title != null && EF.Functions.Like(a.Property.Title, $"%{keyword}%")) ||
@@ -282,8 +382,7 @@ namespace BDSKhanhHoa.Controllers
                         a.Status == TrangThaiLichHen.DangDoiLich ||
                         a.Status == "Pending" ||
                         a.Status == "Confirmed" ||
-                        a.Status == "Rescheduled"
-                    );
+                        a.Status == "Rescheduled");
                     break;
 
                 case "hoan-tat":
@@ -299,34 +398,34 @@ namespace BDSKhanhHoa.Controllers
 
             IQueryable<Appointment> fullQuery = BuildBaseQuery(userId);
 
+            if (isBusinessMode)
+            {
+                fullQuery = fullQuery.Where(a => a.SellerID == userId && (a.ProjectID != null || a.LeadID != null || (a.Property != null && a.Property.ProjectID != null)));
+            }
+
             ViewBag.TotalAppointments = await fullQuery.CountAsync();
 
             ViewBag.PendingAppointments = await fullQuery.CountAsync(a =>
                 a.Status == TrangThaiLichHen.ChoXacNhan ||
                 a.Status == TrangThaiLichHen.DangDoiLich ||
                 a.Status == "Pending" ||
-                a.Status == "Rescheduled"
-            );
+                a.Status == "Rescheduled");
 
             ViewBag.ConfirmedAppointments = await fullQuery.CountAsync(a =>
                 a.Status == TrangThaiLichHen.DaXacNhan ||
-                a.Status == "Confirmed"
-            );
+                a.Status == "Confirmed");
 
             ViewBag.CompletedAppointments = await fullQuery.CountAsync(a =>
                 a.Status == TrangThaiLichHen.DaHoanTat ||
-                a.Status == "Completed"
-            );
+                a.Status == "Completed");
 
             ViewBag.CancelledAppointments = await fullQuery.CountAsync(a =>
                 a.Status == TrangThaiLichHen.DaHuy ||
-                a.Status == "Cancelled"
-            );
+                a.Status == "Cancelled");
 
             ViewBag.TodayAppointments = await fullQuery.CountAsync(a =>
                 a.AppointmentDate >= today &&
-                a.AppointmentDate < today.AddDays(1)
-            );
+                a.AppointmentDate < today.AddDays(1));
 
             int totalItems = await baseQuery.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
@@ -342,10 +441,7 @@ namespace BDSKhanhHoa.Controllers
                 .ToListAsync();
 
             ViewBag.ActiveTab = tab;
-            ViewBag.StatusFilter = ChuanHoaTrangThai(statusFilter) == TrangThaiLichHen.ChoXacNhan && statusFilter == "Tất cả"
-                ? "Tất cả"
-                : ChuanHoaTrangThai(statusFilter);
-
+            ViewBag.StatusFilter = statusFilter == "Tất cả" ? "Tất cả" : ChuanHoaTrangThai(statusFilter);
             ViewBag.Keyword = keyword ?? "";
             ViewBag.DateRange = dateRange;
             ViewBag.CurrentPage = page;
@@ -354,6 +450,9 @@ namespace BDSKhanhHoa.Controllers
             return View(appointments);
         }
 
+        // =====================================================
+        // TẠO LỊCH HẸN TỪ PROPERTY / PROJECT / LEAD
+        // =====================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
@@ -430,9 +529,9 @@ namespace BDSKhanhHoa.Controllers
                 LeadID = lead?.LeadID,
                 BuyerID = userId,
                 SellerID = sellerId,
-                CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim(),
-                CustomerPhone = string.IsNullOrWhiteSpace(customerPhone) ? null : customerPhone.Trim(),
-                CustomerEmail = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim(),
+                CustomerName = string.IsNullOrWhiteSpace(customerName) ? lead?.Name : customerName.Trim(),
+                CustomerPhone = string.IsNullOrWhiteSpace(customerPhone) ? lead?.Phone : customerPhone.Trim(),
+                CustomerEmail = string.IsNullOrWhiteSpace(customerEmail) ? lead?.Email : customerEmail.Trim(),
                 AppointmentDate = fullAppointmentDate,
                 Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
                 MeetingLocation = string.IsNullOrWhiteSpace(meetingLocation) ? null : meetingLocation.Trim(),
@@ -447,7 +546,7 @@ namespace BDSKhanhHoa.Controllers
                 UserID = sellerId,
                 Title = "Có lịch hẹn mới",
                 Content = $"Khách hàng {newAppointment.CustomerName ?? "chưa rõ tên"} vừa đặt lịch hẹn vào {fullAppointmentDate:dd/MM/yyyy HH:mm}.",
-                ActionUrl = "/Appointments/Index",
+                ActionUrl = "/Appointments/Index?mode=DoanhNghiep",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
                 CreatedAt = DateTime.Now
@@ -460,13 +559,13 @@ namespace BDSKhanhHoa.Controllers
                 string subject = $"[BDS Khánh Hòa] Có lịch hẹn mới từ {newAppointment.CustomerName ?? "khách hàng"}";
 
                 string htmlMessage =
-                    $"<h3>Bạn có một yêu cầu đặt lịch xem bất động sản mới</h3>" +
+                    $"<h3>Bạn có một yêu cầu đặt lịch xem bất động sản/dự án mới</h3>" +
                     $"<p><strong>Khách hàng:</strong> {newAppointment.CustomerName ?? "Chưa cung cấp"}</p>" +
                     $"<p><strong>Số điện thoại:</strong> {newAppointment.CustomerPhone ?? "Chưa cung cấp"}</p>" +
                     $"<p><strong>Email:</strong> {newAppointment.CustomerEmail ?? "Chưa cung cấp"}</p>" +
                     $"<p><strong>Thời gian hẹn:</strong> {fullAppointmentDate:dd/MM/yyyy HH:mm}</p>" +
                     $"<p><strong>Điểm hẹn:</strong> {newAppointment.MeetingLocation ?? "Chưa cung cấp"}</p>" +
-                    $"<p>Vui lòng đăng nhập hệ thống để xác nhận, dời lịch hoặc từ chối lịch hẹn.</p>";
+                    $"<p>Vui lòng đăng nhập hệ thống để điều phối nhân viên, xác nhận, dời lịch hoặc từ chối lịch hẹn.</p>";
 
                 await _emailService.SendEmailAsync(seller.Email, subject, htmlMessage);
             }
@@ -474,7 +573,220 @@ namespace BDSKhanhHoa.Controllers
             return Json(new
             {
                 success = true,
-                message = "Đã gửi yêu cầu đặt lịch hẹn thành công. Đang chờ người bán xác nhận."
+                message = "Đã gửi yêu cầu đặt lịch hẹn thành công. Đang chờ chủ đầu tư/người phụ trách xác nhận."
+            });
+        }
+
+        // Đặt đúng chỗ: tạo lịch xem dự án từ lead nằm trong AppointmentsController, không đặt ở CRM EditLead.
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateFromLead(
+            int leadId,
+            DateTime appointmentDate,
+            string appointmentTime,
+            string? meetingLocation,
+            string? note)
+        {
+            if (!TryGetCurrentUserId(out int userId))
+                return Json(new { success = false, message = "Vui lòng đăng nhập." });
+
+            if (!TimeSpan.TryParse(appointmentTime, out TimeSpan timeSpan))
+                return Json(new { success = false, message = "Giờ hẹn không hợp lệ." });
+
+            ProjectLead? lead = await _context.ProjectLeads
+                .Include(l => l.Project)
+                .FirstOrDefaultAsync(l =>
+                    l.LeadID == leadId &&
+                    l.Project != null &&
+                    l.Project.OwnerUserID == userId &&
+                    !l.Project.IsDeleted);
+
+            if (lead == null || lead.Project == null)
+                return Json(new { success = false, message = "Không tìm thấy lead hoặc bạn không có quyền tạo lịch cho khách này." });
+
+            DateTime fullAppointmentDate = appointmentDate.Date.Add(timeSpan);
+
+            if (fullAppointmentDate <= DateTime.Now)
+                return Json(new { success = false, message = "Thời gian hẹn phải ở trong tương lai." });
+
+            Appointment appointment = new Appointment
+            {
+                ProjectID = lead.ProjectID,
+                LeadID = lead.LeadID,
+                BuyerID = userId,
+                SellerID = userId,
+                CustomerName = lead.Name,
+                CustomerPhone = lead.Phone,
+                CustomerEmail = lead.Email,
+                AppointmentDate = fullAppointmentDate,
+                MeetingLocation = string.IsNullOrWhiteSpace(meetingLocation)
+                    ? $"Khu dự án {lead.Project.ProjectName}"
+                    : meetingLocation.Trim(),
+                Note = string.IsNullOrWhiteSpace(note)
+                    ? $"Tạo lịch từ lead CRM: {lead.Message}"
+                    : note.Trim(),
+                Status = TrangThaiLichHen.ChoXacNhan,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Appointments.Add(appointment);
+
+            if (lead.LeadStatus == "New" || lead.LeadStatus == "Mới")
+            {
+                lead.LeadStatus = "Contacted";
+            }
+
+            string noteLine = $"[{DateTime.Now:dd/MM/yyyy HH:mm}] Tạo lịch xem dự án: {fullAppointmentDate:dd/MM/yyyy HH:mm}.";
+            lead.Note = string.IsNullOrWhiteSpace(lead.Note)
+                ? noteLine
+                : noteLine + Environment.NewLine + lead.Note;
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                message = "Đã tạo lịch xem dự án từ lead. Vào Lịch hẹn dự án để điều phối nhân viên phụ trách."
+            });
+        }
+
+        // =====================================================
+        // ĐIỀU PHỐI NHÂN VIÊN ĐI GẶP KHÁCH - CHỦ ĐẦU TƯ
+        // =====================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DispatchStaff(
+            int id,
+            string assignedStaffName,
+            string assignedStaffPhone,
+            string? assignedStaffEmail,
+            string? note)
+        {
+            if (!TryGetCurrentUserId(out int userId))
+                return Json(new { success = false, message = "Vui lòng đăng nhập." });
+
+            Appointment? appointment = await _context.Appointments
+                .Include(a => a.Buyer)
+                .Include(a => a.Project)
+                .Include(a => a.Property).ThenInclude(p => p.Project)
+                .Include(a => a.Lead).ThenInclude(l => l.Project)
+                .FirstOrDefaultAsync(a => a.AppointmentID == id);
+
+            if (appointment == null)
+                return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
+
+            if (appointment.SellerID != userId)
+                return Json(new { success = false, message = "Bạn không có quyền điều phối lịch hẹn này." });
+
+            string currentStatus = ChuanHoaTrangThai(appointment.Status);
+
+            if (!CanDispatchStaff(currentStatus))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Lịch hẹn đã đóng nên không thể điều phối nhân viên."
+                });
+            }
+
+            string staffName = CleanText(assignedStaffName, 255);
+            string staffPhone = CleanText(assignedStaffPhone, 20);
+            string staffEmail = CleanText(assignedStaffEmail, 255);
+            string dispatchNote = CleanText(note, 1500);
+
+            if (string.IsNullOrWhiteSpace(staffName))
+                return Json(new { success = false, message = "Vui lòng nhập tên nhân viên phụ trách." });
+
+            if (!IsValidPhone(staffPhone))
+                return Json(new { success = false, message = "Số điện thoại nhân viên không hợp lệ." });
+
+            if (!IsValidEmail(staffEmail))
+                return Json(new { success = false, message = "Email nhân viên không hợp lệ." });
+
+            bool trungLich = await KiemTraNhanVienTrungLichAsync(
+                appointment.AppointmentID,
+                userId,
+                appointment.AppointmentDate,
+                staffPhone,
+                staffEmail);
+
+            if (trungLich)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nhân viên này đang có lịch khác trong khoảng ±45 phút. Vui lòng chọn nhân viên hoặc khung giờ khác."
+                });
+            }
+
+            appointment.AssignedStaffName = staffName;
+            appointment.AssignedStaffPhone = staffPhone;
+            appointment.AssignedStaffEmail = string.IsNullOrWhiteSpace(staffEmail) ? null : staffEmail;
+
+            string dispatchLine =
+                $"[{DateTime.Now:dd/MM/yyyy HH:mm}] Điều phối nhân viên: {staffName} - {staffPhone}" +
+                (string.IsNullOrWhiteSpace(staffEmail) ? "" : $" - {staffEmail}") +
+                (string.IsNullOrWhiteSpace(dispatchNote) ? "" : $". Ghi chú: {dispatchNote}");
+
+            appointment.Note = string.IsNullOrWhiteSpace(appointment.Note)
+                ? dispatchLine
+                : dispatchLine + Environment.NewLine + appointment.Note;
+
+            appointment.NegotiationNote = $"Chủ đầu tư đã điều phối nhân viên {staffName} phụ trách buổi xem dự án.";
+            appointment.UpdatedAt = DateTime.Now;
+
+            if (currentStatus == TrangThaiLichHen.ChoXacNhan)
+            {
+                appointment.Status = TrangThaiLichHen.DaXacNhan;
+            }
+
+            _context.Notifications.Add(new Notification
+            {
+                UserID = appointment.BuyerID,
+                Title = "Lịch xem dự án đã được điều phối",
+                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được điều phối nhân viên {staffName} phụ trách. SĐT nhân viên: {staffPhone}.",
+                ActionUrl = "/Appointments/Index",
+                ActionText = "Xem lịch hẹn",
+                IsRead = false,
+                CreatedAt = DateTime.Now
+            });
+
+            await _context.SaveChangesAsync();
+
+            if (appointment.Buyer != null && !string.IsNullOrWhiteSpace(appointment.Buyer.Email))
+            {
+                await _emailService.SendEmailAsync(
+                    appointment.Buyer.Email,
+                    "[BDS Khánh Hòa] Lịch xem dự án đã được điều phối",
+                    $"<p>Lịch hẹn của bạn vào <strong>{appointment.AppointmentDate:dd/MM/yyyy HH:mm}</strong> đã được chủ đầu tư điều phối nhân viên phụ trách.</p>" +
+                    $"<p><strong>Nhân viên:</strong> {staffName}</p>" +
+                    $"<p><strong>Số điện thoại:</strong> {staffPhone}</p>" +
+                    $"<p><strong>Điểm hẹn:</strong> {appointment.MeetingLocation ?? "Chưa cập nhật"}</p>"
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(staffEmail))
+            {
+                string sourceName = GetSourceName(appointment);
+
+                await _emailService.SendEmailAsync(
+                    staffEmail,
+                    "[BDS Khánh Hòa] Bạn được phân công gặp khách xem dự án",
+                    $"<h3>Bạn được phân công phụ trách một lịch xem dự án</h3>" +
+                    $"<p><strong>Dự án/BĐS:</strong> {sourceName}</p>" +
+                    $"<p><strong>Khách hàng:</strong> {appointment.CustomerName ?? "Chưa cung cấp"}</p>" +
+                    $"<p><strong>SĐT khách:</strong> {appointment.CustomerPhone ?? "Chưa cung cấp"}</p>" +
+                    $"<p><strong>Email khách:</strong> {appointment.CustomerEmail ?? "Chưa cung cấp"}</p>" +
+                    $"<p><strong>Thời gian:</strong> {appointment.AppointmentDate:dd/MM/yyyy HH:mm}</p>" +
+                    $"<p><strong>Điểm hẹn:</strong> {appointment.MeetingLocation ?? "Chưa cập nhật"}</p>" +
+                    $"<p><strong>Ghi chú:</strong> {(string.IsNullOrWhiteSpace(dispatchNote) ? "Không có" : dispatchNote)}</p>"
+                );
+            }
+
+            return Json(new
+            {
+                success = true,
+                message = "Đã điều phối nhân viên phụ trách lịch xem dự án."
             });
         }
 
@@ -483,23 +795,17 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> SellerAccept(int id)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền thao tác lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -513,14 +819,14 @@ namespace BDSKhanhHoa.Controllers
             }
 
             appointment.Status = TrangThaiLichHen.DaXacNhan;
-            appointment.NegotiationNote = "Người bán đã xác nhận lịch hẹn.";
+            appointment.NegotiationNote = "Người bán/chủ đầu tư đã xác nhận lịch hẹn.";
             appointment.UpdatedAt = DateTime.Now;
 
             _context.Notifications.Add(new Notification
             {
                 UserID = appointment.BuyerID,
                 Title = "Lịch hẹn đã được xác nhận",
-                Content = $"Lịch hẹn của bạn vào lúc {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được người bán xác nhận.",
+                Content = $"Lịch hẹn của bạn vào lúc {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được xác nhận.",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -541,31 +847,26 @@ namespace BDSKhanhHoa.Controllers
             return Json(new
             {
                 success = true,
-                message = "Đã xác nhận lịch hẹn. Bạn có thể cập nhật kết quả sau khi gặp khách."
+                message = "Đã xác nhận lịch hẹn."
             });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SellerReject(int id, string reason)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền thao tác lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -581,12 +882,10 @@ namespace BDSKhanhHoa.Controllers
             string lyDo = CleanText(reason, 1000);
 
             if (string.IsNullOrWhiteSpace(lyDo))
-            {
                 return Json(new { success = false, message = "Vui lòng nhập lý do hủy hoặc từ chối lịch hẹn." });
-            }
 
             appointment.Status = TrangThaiLichHen.DaHuy;
-            appointment.NegotiationNote = $"Người bán hủy/từ chối lịch hẹn. Lý do: {lyDo}";
+            appointment.NegotiationNote = $"Người bán/chủ đầu tư hủy/từ chối lịch hẹn. Lý do: {lyDo}";
             appointment.UpdatedAt = DateTime.Now;
             appointment.CompletedAt = DateTime.Now;
 
@@ -594,7 +893,7 @@ namespace BDSKhanhHoa.Controllers
             {
                 UserID = appointment.BuyerID,
                 Title = "Lịch hẹn đã bị hủy",
-                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị người bán hủy/từ chối. Lý do: {lyDo}",
+                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị hủy/từ chối. Lý do: {lyDo}",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -608,39 +907,32 @@ namespace BDSKhanhHoa.Controllers
                 await _emailService.SendEmailAsync(
                     appointment.Buyer.Email,
                     "[BDS Khánh Hòa] Lịch hẹn đã bị hủy",
-                    $"Người bán đã hủy/từ chối lịch hẹn của bạn.<br/>Lý do: {lyDo}"
+                    $"Lịch hẹn của bạn đã bị hủy/từ chối.<br/>Lý do: {lyDo}"
                 );
             }
 
             return Json(new { success = true, message = "Đã hủy/từ chối lịch hẹn." });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SellerReschedule(int id, DateTime proposedDate, string proposedTime, string reason)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             if (!TimeSpan.TryParse(proposedTime, out TimeSpan timeSpan))
-            {
                 return Json(new { success = false, message = "Giờ hẹn không hợp lệ." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền thao tác lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -656,27 +948,23 @@ namespace BDSKhanhHoa.Controllers
             DateTime fullProposedDate = proposedDate.Date.Add(timeSpan);
 
             if (fullProposedDate <= DateTime.Now)
-            {
                 return Json(new { success = false, message = "Thời gian dời lịch phải ở trong tương lai." });
-            }
 
             string lyDo = CleanText(reason, 1000);
 
             if (string.IsNullOrWhiteSpace(lyDo))
-            {
                 return Json(new { success = false, message = "Vui lòng nhập lý do dời lịch." });
-            }
 
             appointment.Status = TrangThaiLichHen.DangDoiLich;
             appointment.ProposedAppointmentDate = fullProposedDate;
-            appointment.NegotiationNote = $"Người bán đề xuất dời lịch. Lý do: {lyDo}";
+            appointment.NegotiationNote = $"Người bán/chủ đầu tư đề xuất dời lịch. Lý do: {lyDo}";
             appointment.UpdatedAt = DateTime.Now;
 
             _context.Notifications.Add(new Notification
             {
                 UserID = appointment.BuyerID,
-                Title = "Người bán đề xuất dời lịch hẹn",
-                Content = $"Người bán muốn dời lịch sang {fullProposedDate:dd/MM/yyyy HH:mm}. Vui lòng kiểm tra và xác nhận.",
+                Title = "Đề xuất dời lịch hẹn",
+                Content = $"Người phụ trách muốn dời lịch sang {fullProposedDate:dd/MM/yyyy HH:mm}. Vui lòng kiểm tra và xác nhận.",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -690,12 +978,13 @@ namespace BDSKhanhHoa.Controllers
                 await _emailService.SendEmailAsync(
                     appointment.Buyer.Email,
                     "[BDS Khánh Hòa] Đề xuất dời lịch hẹn",
-                    $"Người bán đề xuất dời lịch sang <strong>{fullProposedDate:dd/MM/yyyy HH:mm}</strong>.<br/>Lý do: {lyDo}<br/>Vui lòng đăng nhập hệ thống để đồng ý hoặc từ chối."
+                    $"Người phụ trách đề xuất dời lịch sang <strong>{fullProposedDate:dd/MM/yyyy HH:mm}</strong>.<br/>Lý do: {lyDo}<br/>Vui lòng đăng nhập hệ thống để đồng ý hoặc từ chối."
                 );
             }
 
-            return Json(new { success = true, message = "Đã gửi đề xuất dời lịch cho người mua." });
+            return Json(new { success = true, message = "Đã gửi đề xuất dời lịch cho khách hàng." });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BuyerAcceptReschedule(int id)
@@ -721,7 +1010,7 @@ namespace BDSKhanhHoa.Controllers
             appointment.AppointmentDate = appointment.ProposedAppointmentDate.Value;
             appointment.ProposedAppointmentDate = null;
             appointment.Status = TrangThaiLichHen.DaXacNhan;
-            appointment.NegotiationNote = "Người mua đã đồng ý thời gian dời lịch mới.";
+            appointment.NegotiationNote = "Khách hàng đã đồng ý thời gian dời lịch mới.";
             appointment.UpdatedAt = DateTime.Now;
 
             _context.Notifications.Add(new Notification
@@ -729,7 +1018,7 @@ namespace BDSKhanhHoa.Controllers
                 UserID = appointment.SellerID,
                 Title = "Khách hàng đồng ý dời lịch",
                 Content = $"Khách hàng đã đồng ý dời lịch sang {appointment.AppointmentDate:dd/MM/yyyy HH:mm}.",
-                ActionUrl = "/Appointments/Index",
+                ActionUrl = "/Appointments/Index?mode=DoanhNghiep",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
                 CreatedAt = DateTime.Now
@@ -754,23 +1043,17 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> BuyerRejectReschedule(int id, string reason)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Seller)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.BuyerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền thao tác lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -786,13 +1069,11 @@ namespace BDSKhanhHoa.Controllers
             string lyDo = CleanText(reason, 1000);
 
             if (string.IsNullOrWhiteSpace(lyDo))
-            {
                 return Json(new { success = false, message = "Vui lòng nhập lý do không đồng ý giờ mới." });
-            }
 
             appointment.Status = TrangThaiLichHen.DaHuy;
             appointment.ProposedAppointmentDate = null;
-            appointment.NegotiationNote = $"Người mua không đồng ý giờ dời lịch và hủy lịch. Lý do: {lyDo}";
+            appointment.NegotiationNote = $"Khách hàng không đồng ý giờ dời lịch và hủy lịch. Lý do: {lyDo}";
             appointment.UpdatedAt = DateTime.Now;
             appointment.CompletedAt = DateTime.Now;
 
@@ -801,7 +1082,7 @@ namespace BDSKhanhHoa.Controllers
                 UserID = appointment.SellerID,
                 Title = "Khách hàng không đồng ý dời lịch",
                 Content = $"Khách hàng không đồng ý giờ dời lịch và đã hủy lịch. Lý do: {lyDo}",
-                ActionUrl = "/Appointments/Index",
+                ActionUrl = "/Appointments/Index?mode=DoanhNghiep",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
                 CreatedAt = DateTime.Now
@@ -820,35 +1101,28 @@ namespace BDSKhanhHoa.Controllers
 
             return Json(new { success = true, message = "Bạn đã từ chối giờ dời lịch và hủy lịch hẹn." });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateOutcome([FromForm] int id, [FromForm] string resultStatus, [FromForm] string? resultNote)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             string ketQua = ChuanHoaKetQua(resultStatus);
 
             if (string.IsNullOrWhiteSpace(ketQua))
-            {
                 return Json(new { success = false, message = "Kết quả khách hàng không hợp lệ." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
-                return Json(new { success = false, message = "Chỉ người bán/người phụ trách mới được cập nhật kết quả đi xem." });
-            }
+                return Json(new { success = false, message = "Chỉ người bán/chủ đầu tư/người phụ trách mới được cập nhật kết quả đi xem." });
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -867,18 +1141,11 @@ namespace BDSKhanhHoa.Controllers
             appointment.ResultNote = string.IsNullOrWhiteSpace(cleanNote) ? null : cleanNote;
             appointment.UpdatedAt = DateTime.Now;
 
-            /*
-                Lưu ý:
-                Không chuyển Status sang "Đã hoàn tất" ở đây.
-                Người bán có thể cập nhật kết quả nhiều lần.
-                Chỉ khi bấm SellerComplete mới khóa lịch.
-            */
-
             _context.Notifications.Add(new Notification
             {
                 UserID = appointment.BuyerID,
                 Title = "Lịch hẹn đã được cập nhật kết quả",
-                Content = $"Người bán đã cập nhật kết quả buổi xem: {ketQua}.",
+                Content = $"Người phụ trách đã cập nhật kết quả buổi xem: {ketQua}.",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -893,28 +1160,23 @@ namespace BDSKhanhHoa.Controllers
                 message = "Đã lưu kết quả đi xem. Lịch hẹn vẫn đang mở để bạn có thể cập nhật thêm hoặc hoàn tất sau."
             });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SellerComplete(int id)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền hoàn tất lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -944,7 +1206,7 @@ namespace BDSKhanhHoa.Controllers
             {
                 UserID = appointment.BuyerID,
                 Title = "Lịch hẹn đã hoàn tất",
-                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được người bán đánh dấu hoàn tất.",
+                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được đánh dấu hoàn tất.",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -974,23 +1236,17 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> SellerNoShow(int id, string? reason)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Buyer)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.SellerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền thao tác lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -1007,8 +1263,8 @@ namespace BDSKhanhHoa.Controllers
 
             appointment.Status = TrangThaiLichHen.KhachKhongDen;
             appointment.NegotiationNote = string.IsNullOrWhiteSpace(lyDo)
-                ? "Người bán đánh dấu khách không đến buổi hẹn."
-                : $"Người bán đánh dấu khách không đến. Ghi chú: {lyDo}";
+                ? "Người phụ trách đánh dấu khách không đến buổi hẹn."
+                : $"Người phụ trách đánh dấu khách không đến. Ghi chú: {lyDo}";
             appointment.CompletedAt = DateTime.Now;
             appointment.UpdatedAt = DateTime.Now;
 
@@ -1016,7 +1272,7 @@ namespace BDSKhanhHoa.Controllers
             {
                 UserID = appointment.BuyerID,
                 Title = "Lịch hẹn được đánh dấu khách không đến",
-                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được người bán đánh dấu khách không đến.",
+                Content = $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được đánh dấu khách không đến.",
                 ActionUrl = "/Appointments/Index",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
@@ -1031,28 +1287,23 @@ namespace BDSKhanhHoa.Controllers
                 message = "Đã đánh dấu khách không đến. Lịch hẹn đã được khóa."
             });
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BuyerCancel(int id, string reason)
         {
             if (!TryGetCurrentUserId(out int userId))
-            {
                 return Json(new { success = false, message = "Vui lòng đăng nhập." });
-            }
 
             Appointment? appointment = await _context.Appointments
                 .Include(a => a.Seller)
                 .FirstOrDefaultAsync(a => a.AppointmentID == id);
 
             if (appointment == null)
-            {
                 return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
-            }
 
             if (appointment.BuyerID != userId)
-            {
                 return Json(new { success = false, message = "Bạn không có quyền hủy lịch hẹn này." });
-            }
 
             string currentStatus = ChuanHoaTrangThai(appointment.Status);
 
@@ -1068,9 +1319,7 @@ namespace BDSKhanhHoa.Controllers
             string lyDo = CleanText(reason, 1000);
 
             if (string.IsNullOrWhiteSpace(lyDo))
-            {
                 return Json(new { success = false, message = "Vui lòng nhập lý do hủy lịch." });
-            }
 
             appointment.Status = TrangThaiLichHen.DaHuy;
             appointment.NegotiationNote = $"Người mua hủy lịch. Lý do: {lyDo}";
@@ -1082,7 +1331,7 @@ namespace BDSKhanhHoa.Controllers
                 UserID = appointment.SellerID,
                 Title = "Khách hàng hủy lịch hẹn",
                 Content = $"Khách hàng đã hủy lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm}. Lý do: {lyDo}",
-                ActionUrl = "/Appointments/Index",
+                ActionUrl = "/Appointments/Index?mode=DoanhNghiep",
                 ActionText = "Xem lịch hẹn",
                 IsRead = false,
                 CreatedAt = DateTime.Now
@@ -1101,78 +1350,5 @@ namespace BDSKhanhHoa.Controllers
 
             return Json(new { success = true, message = "Bạn đã hủy lịch hẹn thành công." });
         }
-        private static string CleanText(string? value, int maxLength = 1000)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return string.Empty;
-            }
-
-            string cleaned = value.Trim();
-
-            if (cleaned.Length > maxLength)
-            {
-                cleaned = cleaned.Substring(0, maxLength);
-            }
-
-            return cleaned;
-        }
-
-        private static bool IsFinalAppointmentStatus(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.DaHoanTat
-                || status == TrangThaiLichHen.DaHuy
-                || status == TrangThaiLichHen.KhachKhongDen;
-        }
-
-        private static bool CanSellerEditOutcome(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.DaXacNhan;
-        }
-
-        private static bool CanSellerComplete(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.DaXacNhan;
-        }
-
-        private static bool CanSellerReschedule(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.ChoXacNhan
-                || status == TrangThaiLichHen.DaXacNhan;
-        }
-
-        private static bool CanSellerReject(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.ChoXacNhan
-                || status == TrangThaiLichHen.DaXacNhan
-                || status == TrangThaiLichHen.DangDoiLich;
-        }
-
-        private static bool CanBuyerCancel(string status)
-        {
-            status = ChuanHoaTrangThai(status);
-
-            return status == TrangThaiLichHen.ChoXacNhan
-                || status == TrangThaiLichHen.DaXacNhan;
-        }
-
-        private static string GetSourceName(Appointment appointment)
-        {
-            return appointment.Property?.Title
-                ?? appointment.Project?.ProjectName
-                ?? appointment.Lead?.Project?.ProjectName
-                ?? "bất động sản/dự án";
-        }
-
     }
 }

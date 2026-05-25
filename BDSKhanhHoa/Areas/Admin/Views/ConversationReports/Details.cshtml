@@ -1,0 +1,897 @@
+﻿@model BDSKhanhHoa.Models.ConversationReport
+@{
+    Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Chi tiết báo cáo cuộc trò chuyện";
+
+    var messages = ViewBag.Messages as List<BDSKhanhHoa.Models.UserMessage> ?? new List<BDSKhanhHoa.Models.UserMessage>();
+
+    int reportedViolationCount = ViewBag.ReportedUserViolationCount ?? 0;
+    int reportedWarningCount = ViewBag.ReportedUserWarningCount ?? 0;
+    int reportedLockCount = ViewBag.ReportedUserLockCount ?? 0;
+    int violationLimit = ViewBag.ViolationLimit ?? 3;
+
+    bool canProcess = Model.Status == "Pending";
+    bool isDangerUser = reportedViolationCount >= violationLimit;
+    bool isNearLimit = reportedViolationCount == violationLimit - 1;
+
+    string NameOf(BDSKhanhHoa.Models.User? user)
+    {
+        return user?.FullName ?? user?.Username ?? "Người dùng";
+    }
+
+    string ContactOf(BDSKhanhHoa.Models.User? user)
+    {
+        if (user == null) return "Không rõ";
+        if (!string.IsNullOrWhiteSpace(user.Phone)) return user.Phone;
+        if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email;
+        return "Chưa có liên hệ";
+    }
+
+    string StatusText(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "Cần kiểm tra",
+            "Processed" => "Đã xử lý",
+            "Rejected" => "Không chấp nhận",
+            _ => "Không rõ"
+        };
+    }
+
+    string StatusClass(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "status-wait",
+            "Processed" => "status-done",
+            "Rejected" => "status-reject",
+            _ => "status-none"
+        };
+    }
+
+    string AdminActionText(string? action)
+    {
+        return action switch
+        {
+            "WarningOnly" => "Ghi nhận và cảnh báo",
+            "LockReportedUser" => "Khóa tài khoản bị báo cáo",
+            "Reject" => "Không chấp nhận báo cáo",
+            _ => "Chưa xử lý"
+        };
+    }
+
+    string ShortText(string? value, int max = 120)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        value = value.Trim();
+        return value.Length <= max ? value : value.Substring(0, max) + "...";
+    }
+}
+
+<style>
+    .report-detail-page {
+        padding: 10px 0 34px;
+        color: #0f172a;
+        font-size: 14px;
+    }
+
+    .page-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 900;
+        color: #0f172a;
+        letter-spacing: -.02em;
+    }
+
+    .page-sub {
+        margin-top: 4px;
+        color: #64748b;
+        font-size: .86rem;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    .top-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .btn-back,
+    .btn-user {
+        min-height: 36px;
+        border-radius: 999px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        text-decoration: none;
+        font-size: .82rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+    .btn-back {
+        background: #0f172a;
+        color: #fff;
+    }
+
+        .btn-back:hover {
+            color: #fff;
+            background: #1e293b;
+        }
+
+    .btn-user {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+        .btn-user:hover {
+            color: #1d4ed8;
+            background: #dbeafe;
+        }
+
+    .notice {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        border-radius: 15px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .82rem;
+        line-height: 1.5;
+        font-weight: 650;
+    }
+
+        .notice i {
+            color: #ea580c;
+            font-size: 1rem;
+            margin-top: 1px;
+        }
+
+    .rd-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(15,23,42,.05);
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+
+    .rd-head {
+        padding: 12px 14px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: .95rem;
+        font-weight: 900;
+        color: #0f172a;
+    }
+
+    .rd-body {
+        padding: 14px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .info {
+        min-width: 0;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 15px;
+        padding: 11px 12px;
+    }
+
+        .info.danger {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .info.warning {
+            background: #fff7ed;
+            border-color: #fed7aa;
+        }
+
+    .label {
+        color: #64748b;
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 5px;
+    }
+
+    .value {
+        color: #0f172a;
+        font-size: .9rem;
+        font-weight: 850;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+        .value.red {
+            color: #dc2626;
+        }
+
+        .value.blue {
+            color: #2563eb;
+        }
+
+        .value.green {
+            color: #047857;
+        }
+
+    .muted {
+        margin-top: 2px;
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 650;
+        line-height: 1.4;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 900;
+    }
+
+    .status-wait {
+        background: #fff7ed;
+        color: #c2410c;
+    }
+
+    .status-done {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .status-reject {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .note-box {
+        margin-top: 10px;
+        padding: 11px 12px;
+        border-radius: 15px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-size: .88rem;
+        line-height: 1.6;
+        font-weight: 600;
+        white-space: pre-wrap;
+    }
+
+    .result-box {
+        padding: 12px;
+        border-radius: 15px;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        color: #065f46;
+        font-size: .88rem;
+        line-height: 1.65;
+        font-weight: 700;
+        white-space: pre-wrap;
+    }
+
+    .violation-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .violation-item {
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        padding: 12px;
+    }
+
+        .violation-item.warning {
+            background: #fff7ed;
+            border-color: #fed7aa;
+        }
+
+        .violation-item.danger {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+    .violation-label {
+        font-size: .7rem;
+        font-weight: 900;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .violation-number {
+        margin-top: 5px;
+        font-size: 1.35rem;
+        line-height: 1;
+        font-weight: 950;
+        color: #0f172a;
+    }
+
+        .violation-number.red {
+            color: #dc2626;
+        }
+
+    .process-list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 9px;
+    }
+
+    .process-option {
+        display: block;
+        border: 1px solid #e2e8f0;
+        border-radius: 15px;
+        padding: 11px 12px;
+        background: #fff;
+        cursor: pointer;
+        transition: .16s ease;
+    }
+
+        .process-option:hover {
+            border-color: #bfdbfe;
+            background: #f8fafc;
+        }
+
+        .process-option input {
+            margin-right: 8px;
+        }
+
+        .process-option b {
+            color: #0f172a;
+            font-weight: 900;
+        }
+
+        .process-option .danger-text {
+            color: #dc2626;
+        }
+
+        .process-option span {
+            display: block;
+            margin: 4px 0 0 24px;
+            color: #64748b;
+            font-size: .82rem;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+
+    .admin-textarea {
+        min-height: 96px;
+        border-radius: 15px;
+        border: 1px solid #dbe3ef;
+        font-size: .88rem;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+        .admin-textarea:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.08) !important;
+        }
+
+    .btn-save {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 15px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+        font-size: .84rem;
+        font-weight: 900;
+    }
+
+        .btn-save:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            color: #fff;
+        }
+
+    .chat-body {
+        padding: 14px;
+        background: #fff;
+    }
+
+    .message-row {
+        display: flex;
+        margin-bottom: 10px;
+    }
+
+        .message-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-row.left {
+            justify-content: flex-start;
+        }
+
+        .message-row.right {
+            justify-content: flex-end;
+        }
+
+    .message-card {
+        max-width: min(620px, 78%);
+        border-radius: 17px;
+        padding: 10px 12px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 8px 20px rgba(15,23,42,.04);
+    }
+
+    .message-row.right .message-card {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+    }
+
+    .message-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 6px;
+        color: #64748b;
+        font-size: .73rem;
+        font-weight: 800;
+    }
+
+    .message-role {
+        color: #0f172a;
+        font-weight: 900;
+    }
+
+    .message-row.right .message-role {
+        color: #dc2626;
+    }
+
+    .message-content {
+        color: #111827;
+        font-size: .9rem;
+        line-height: 1.55;
+        font-weight: 600;
+        word-break: break-word;
+        white-space: pre-line;
+    }
+
+    .message-img {
+        display: block;
+        max-width: min(330px, 100%);
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .message-file {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 0 13px;
+        border-radius: 13px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border: 1px solid #1d4ed8;
+        color: #fff !important;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 900;
+        box-shadow: 0 8px 18px rgba(37,99,235,.22);
+    }
+
+        .message-file:hover {
+            color: #fff !important;
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+        }
+
+    .empty-chat {
+        padding: 38px 12px;
+        text-align: center;
+        color: #64748b;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 991.98px) {
+        .page-top {
+            display: block;
+        }
+
+        .top-actions {
+            margin-top: 9px;
+            justify-content: flex-start;
+        }
+
+        .info-grid,
+        .violation-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .message-card {
+            max-width: 92%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .report-detail-page {
+            padding-top: 8px;
+        }
+
+        .page-title {
+            font-size: 1.1rem;
+        }
+
+        .message-card {
+            max-width: 96%;
+        }
+    }
+</style>
+
+<div class="report-detail-page">
+
+    <div class="page-top">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-flag-fill text-danger me-1"></i>
+                Chi tiết báo cáo cuộc trò chuyện
+            </h1>
+            <div class="page-sub">
+                Kiểm tra nội dung báo cáo, đối chiếu lịch sử tin nhắn và xử lý theo mức độ vi phạm.
+            </div>
+        </div>
+
+        <div class="top-actions">
+            <a class="btn-back" asp-action="Index">
+                <i class="bi bi-arrow-left"></i>
+                Quay lại
+            </a>
+
+            <a class="btn-user"
+               asp-area="Admin"
+               asp-controller="Users"
+               asp-action="Index"
+               asp-route-searchString="@ContactOf(Model.ReportedUser)"
+               asp-route-verifyStatus="locked">
+                <i class="bi bi-person-lock"></i>
+                Kiểm tra người dùng
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success rounded-4 fw-bold">@TempData["Success"]</div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger rounded-4 fw-bold">@TempData["Error"]</div>
+    }
+
+    <div class="notice">
+        <i class="bi bi-shield-lock-fill"></i>
+        <div>
+            <strong>Quyền riêng tư:</strong>
+            Admin/Staff chỉ xem nội dung trò chuyện để xác minh dấu hiệu vi phạm, không dùng để can thiệp thỏa thuận dân sự giữa người dùng.
+        </div>
+    </div>
+
+    <section class="rd-card">
+        <div class="rd-head">
+            <i class="bi bi-info-circle-fill text-primary me-1"></i>
+            Thông tin báo cáo
+        </div>
+
+        <div class="rd-body">
+            <div class="info-grid">
+                <div class="info">
+                    <div class="label">Trạng thái</div>
+                    <div class="value">
+                        <span class="status-pill @StatusClass(Model.Status)">
+                            @StatusText(Model.Status)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Người báo cáo</div>
+                    <div class="value">@NameOf(Model.Reporter)</div>
+                    <div class="muted">@ContactOf(Model.Reporter)</div>
+                </div>
+
+                <div class="info @(isDangerUser ? "danger" : isNearLimit ? "warning" : "")">
+                    <div class="label">Người bị báo cáo</div>
+                    <div class="value red">@NameOf(Model.ReportedUser)</div>
+                    <div class="muted">@ContactOf(Model.ReportedUser)</div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Tin liên quan</div>
+                    <div class="value blue">@(Model.Property?.Title ?? "Không rõ tin bất động sản")</div>
+                    <div class="muted">Mã tin: @Model.PropertyID</div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Lý do báo cáo</div>
+                    <div class="value">@Model.Reason</div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Thời gian gửi</div>
+                    <div class="value">@Model.CreatedAt.ToString("HH:mm dd/MM/yyyy")</div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Hình thức xử lý</div>
+                    <div class="value">@AdminActionText(Model.AdminAction)</div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Thời gian xử lý</div>
+                    <div class="value">
+                        @(Model.ProcessedAt.HasValue? Model.ProcessedAt.Value.ToString("HH:mm dd/MM/yyyy") : "Chưa xử lý")
+                    </div>
+                </div>
+
+                <div class="info">
+                    <div class="label">Người xử lý</div>
+                    <div class="value">
+                        @if (Model.ProcessedBy != null)
+                        {
+                            @NameOf(Model.ProcessedBy)
+                        }
+                        else if (Model.ProcessedByID.HasValue)
+                        {
+                            @($"ID: {Model.ProcessedByID}")
+                        }
+                        else
+                        {
+                            @("Chưa xử lý")
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="label mt-3">Mô tả từ người báo cáo</div>
+            <div class="note-box">
+                @(string.IsNullOrWhiteSpace(Model.Description) ? "Không có mô tả thêm." : Model.Description)
+            </div>
+        </div>
+    </section>
+
+    <section class="rd-card">
+        <div class="rd-head">
+            <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+            Hồ sơ vi phạm của người bị báo cáo
+        </div>
+
+        <div class="rd-body">
+            <div class="violation-summary">
+                <div class="violation-item @(reportedWarningCount > 0 ? "warning" : "")">
+                    <div class="violation-label">Số lần cảnh báo</div>
+                    <div class="violation-number @(reportedWarningCount > 0 ? "red" : "")">
+                        @reportedWarningCount
+                    </div>
+                    <div class="muted">Các báo cáo đã được ghi nhận và cảnh báo.</div>
+                </div>
+
+                <div class="violation-item @(reportedLockCount > 0 ? "danger" : "")">
+                    <div class="violation-label">Số lần đã bị khóa</div>
+                    <div class="violation-number @(reportedLockCount > 0 ? "red" : "")">
+                        @reportedLockCount
+                    </div>
+                    <div class="muted">Số lần tài khoản từng bị xử lý khóa do báo cáo.</div>
+                </div>
+
+                <div class="violation-item @(isDangerUser ? "danger" : isNearLimit ? "warning" : "")">
+                    <div class="violation-label">Tổng vi phạm</div>
+                    <div class="violation-number @(reportedViolationCount > 0 ? "red" : "")">
+                        @reportedViolationCount/@violationLimit
+                    </div>
+                    <div class="muted">
+                        @if (isDangerUser)
+                        {
+                            @("Đã đạt ngưỡng đề xuất khóa. Admin nên cân nhắc xử lý nghiêm nếu nội dung vi phạm rõ ràng.")
+                        }
+                        else if (isNearLimit)
+                        {
+                            @($"Còn 1 lần nữa sẽ đạt ngưỡng {violationLimit} vi phạm.")
+                        }
+                        else
+                        {
+                            @("Chưa đạt ngưỡng khóa đề xuất.")
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (isDangerUser)
+            {
+                <div class="alert alert-danger rounded-4 mb-0 fw-bold small">
+                    <i class="bi bi-exclamation-octagon-fill me-1"></i>
+                    Tài khoản này đã có @reportedViolationCount/@violationLimit lần vi phạm.
+                    Nếu báo cáo hiện tại có căn cứ rõ ràng, Admin nên cân nhắc chọn <b>Khóa tài khoản bị báo cáo</b>.
+                </div>
+            }
+            else if (isNearLimit)
+            {
+                <div class="alert alert-warning rounded-4 mb-0 fw-bold small">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Tài khoản này hiện có @reportedViolationCount/@violationLimit lần vi phạm.
+                    Nếu chọn <b>Ghi nhận và cảnh báo</b>, hệ thống sẽ tăng lên @(reportedViolationCount + 1)/@violationLimit.
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (canProcess)
+    {
+        <section class="rd-card">
+            <div class="rd-head">
+                <i class="bi bi-tools me-1 text-primary"></i>
+                Xử lý báo cáo
+            </div>
+
+            <div class="rd-body">
+                <form asp-action="Process" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="reportId" value="@Model.ReportID" />
+
+                    <div class="process-list">
+                        <label class="process-option">
+                            <input type="radio" name="adminAction" value="WarningOnly" checked />
+                            <b>Ghi nhận và cảnh báo</b>
+                            <span>
+                                Dùng khi báo cáo có cơ sở nhưng chưa đến mức khóa tài khoản.
+                                Sau khi lưu, hệ thống sẽ cộng thêm 1 lần vi phạm cho người bị báo cáo,
+                                gửi cảnh báo cho người bị báo cáo và thông báo kết quả cho người gửi báo cáo.
+                                Cuộc trò chuyện vẫn được giữ nguyên để làm bằng chứng.
+                            </span>
+                        </label>
+
+                        <label class="process-option">
+                            <input type="radio" name="adminAction" value="LockReportedUser" />
+                            <b class="danger-text">Khóa tài khoản bị báo cáo</b>
+                            <span>
+                                Dùng khi có dấu hiệu lừa đảo, dụ đặt cọc/chuyển tiền, quấy rối,
+                                xúc phạm nghiêm trọng hoặc tài khoản đã vi phạm nhiều lần.
+                                Sau khi khóa, tài khoản sẽ không thể tiếp tục đăng nhập hoặc gửi tin nhắn.
+                            </span>
+                        </label>
+
+                        <label class="process-option">
+                            <input type="radio" name="adminAction" value="Reject" />
+                            <b>Không chấp nhận báo cáo</b>
+                            <span>
+                                Dùng khi báo cáo sai, thiếu bằng chứng hoặc nội dung trò chuyện
+                                không đủ căn cứ để ghi nhận vi phạm. Trường hợp này không cộng lỗi vi phạm.
+                            </span>
+                        </label>
+                    </div>
+
+                    <label class="form-label fw-bold mt-3">Ghi chú xử lý</label>
+                    <textarea class="form-control admin-textarea"
+                          name="adminNote"
+                          maxlength="700"
+                          required
+                          placeholder="Nhập kết luận xử lý ngắn gọn, rõ ràng. Ví dụ: Nội dung có dấu hiệu yêu cầu đặt cọc/chuyển tiền nên hệ thống gửi cảnh báo."></textarea>
+
+                    <div class="alert alert-warning rounded-4 mt-3 mb-0 fw-semibold small">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <b>Ghi nhận và cảnh báo</b>: cộng 1 vi phạm, không khóa tài khoản, không xóa tin nhắn.
+                        <br />
+                        <b>Khóa tài khoản</b>: cộng 1 vi phạm, khóa tài khoản, người bị khóa không thể tiếp tục gửi tin nhắn.
+                        <br />
+                        <b>Không chấp nhận</b>: không cộng vi phạm, không cảnh báo, không khóa.
+                    </div>
+
+                    @if (isDangerUser)
+                    {
+                        <div class="alert alert-danger rounded-4 mt-3 mb-0 fw-bold small">
+                            <i class="bi bi-exclamation-octagon-fill me-1"></i>
+                            Tài khoản này đã có @reportedViolationCount/@violationLimit lần vi phạm.
+                            Admin nên cân nhắc chọn <b>Khóa tài khoản bị báo cáo</b> nếu nội dung vi phạm rõ ràng.
+                        </div>
+                    }
+                    else if (isNearLimit)
+                    {
+                        <div class="alert alert-warning rounded-4 mt-3 mb-0 fw-bold small">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            Nếu chọn <b>Ghi nhận và cảnh báo</b>, tài khoản sẽ tăng lên @(reportedViolationCount + 1)/@violationLimit lần vi phạm.
+                        </div>
+                    }
+
+                    <button type="submit" class="btn-save mt-3">
+                        <i class="bi bi-check2-circle"></i>
+                        Lưu kết quả xử lý
+                    </button>
+                </form>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="rd-card">
+            <div class="rd-head">
+                <i class="bi bi-check2-circle text-success me-1"></i>
+                Kết quả xử lý
+            </div>
+
+            <div class="rd-body">
+                <div class="result-box">
+                    @(string.IsNullOrWhiteSpace(Model.AdminNote) ? "Báo cáo đã được xử lý." : Model.AdminNote)
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="rd-card">
+        <div class="rd-head">
+            <i class="bi bi-chat-left-text-fill text-primary me-1"></i>
+            Lịch sử tin nhắn làm căn cứ
+        </div>
+
+        <div class="chat-body">
+            @if (!messages.Any())
+            {
+                <div class="empty-chat">Không có tin nhắn trong cuộc trò chuyện này.</div>
+            }
+            else
+            {
+                foreach (var m in messages)
+                {
+                    bool right = m.SenderID == Model.ReportedUserID;
+
+                    <div class="message-row @(right ? "right" : "left")">
+                        <div class="message-card">
+                            <div class="message-meta">
+                                <span class="message-role">
+                                    @(m.SenderID == Model.ReportedUserID ? "Người bị báo cáo" : "Người báo cáo")
+                                </span>
+                                <span>@m.CreatedAt.ToString("HH:mm dd/MM/yyyy")</span>
+                            </div>
+
+                            @if (m.MessageType == "Image" && !string.IsNullOrWhiteSpace(m.AttachmentUrl))
+                            {
+                                <img class="message-img" src="@m.AttachmentUrl" alt="Ảnh trong cuộc trò chuyện" />
+                            }
+                            else if (m.MessageType == "File" && !string.IsNullOrWhiteSpace(m.AttachmentUrl))
+                            {
+                                <a class="message-file" href="@m.AttachmentUrl" target="_blank" rel="noopener">
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
+                                    Tệp đính kèm
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="message-content">
+                                    @(string.IsNullOrWhiteSpace(m.MessageContent) ? "(Tin nhắn trống)" : m.MessageContent)
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+</div>

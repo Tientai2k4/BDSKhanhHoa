@@ -1,240 +1,1339 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Comment>
+
 @{
     ViewData["Title"] = "Tương tác khách hàng";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+
     int currentUserId = ViewBag.CurrentUserId;
+
+    string searchString = ViewBag.SearchString as string ?? "";
+    string dateSort = ViewBag.DateSort as string ?? "desc";
+    string filter = ViewBag.Filter as string ?? "all";
+
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalItems = ViewBag.TotalItems ?? 0;
+
+    int totalAll = ViewBag.TotalAll ?? 0;
+    int totalAnswered = ViewBag.TotalAnswered ?? 0;
+    int totalUnanswered = ViewBag.TotalUnanswered ?? 0;
+    int totalHidden = ViewBag.TotalHidden ?? 0;
+    int totalPropertiesHasComments = ViewBag.TotalPropertiesHasComments ?? 0;
+
+    int? selectedPropertyId = ViewBag.PropertyId as int?;
+    var myProperties = ViewBag.MyProperties;
 }
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
 <style>
-    /* CSS hiện đại chuẩn 2026 */
     :root {
-        --glass-bg: rgba(255, 255, 255, 0.85);
-        --radius-lg: 20px;
+        --cc-blue: #2563eb;
+        --cc-blue-soft: #eff6ff;
+        --cc-green: #16a34a;
+        --cc-orange: #f59e0b;
+        --cc-red: #ef4444;
+        --cc-dark: #0f172a;
+        --cc-muted: #64748b;
+        --cc-border: #e2e8f0;
+        --cc-bg: #f6f8fc;
+        --cc-card: #ffffff;
     }
 
     body {
-        background-color: #f8f9fa;
+        background: var(--cc-bg);
     }
 
-    .comment-card {
-        background: var(--glass-bg);
-        backdrop-filter: blur(10px);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-        padding: 30px;
-        border: 1px solid rgba(255,255,255,0.5);
+    .customer-comments-page {
+        margin-top: -48px;
+        padding: 0 0 24px;
     }
 
-    .search-filter-box {
+    .customer-comments-wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 16px;
+    }
+
+    .cc-top {
         background: #fff;
-        border-radius: 50px;
-        padding: 6px 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.02);
-        border: 1px solid #e9ecef;
+        border: 1px solid var(--cc-border);
+        border-radius: 24px;
+        padding: 18px;
+        box-shadow: 0 14px 38px rgba(15, 23, 42, .055);
+        margin-bottom: 14px;
     }
 
-        .search-filter-box input, .search-filter-box select {
-            border: none;
-            background: transparent;
-            box-shadow: none !important;
-        }
-
-        .search-filter-box select {
-            border-left: 1px solid #eee;
-            padding-left: 15px;
-        }
-
-    /* bong bóng chat */
-    .chat-bubble {
-        background: #f1f5f9;
-        padding: 15px 20px;
-        border-radius: 0 18px 18px 18px;
-        display: inline-block;
-        width: 100%;
+    .cc-top-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
     }
 
-    .reply-bubble .chat-bubble {
-        background: #e0f2fe;
-        border-radius: 18px 18px 18px 0;
+    .cc-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        background: var(--cc-blue-soft);
+        color: var(--cc-blue);
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 8px;
     }
 
-    .avatar-md {
-        width: 48px;
-        height: 48px;
+    .cc-title {
+        margin: 0;
+        color: var(--cc-dark);
+        font-weight: 900;
+        font-size: clamp(24px, 3vw, 32px);
+        letter-spacing: -.5px;
+    }
+
+    .cc-desc {
+        margin: 5px 0 0;
+        color: var(--cc-muted);
+        font-size: 14px;
+    }
+
+    .cc-mini-list {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .cc-mini {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: #f8fafc;
+        border: 1px solid var(--cc-border);
+        color: #334155;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .cc-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .cc-stat {
+        border: 1px solid var(--cc-border);
+        background: #f8fafc;
+        border-radius: 18px;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .cc-stat-icon {
+        width: 38px;
+        height: 38px;
         border-radius: 14px;
-        object-fit: cover;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        font-size: 17px;
     }
 
-    .avatar-sm {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        object-fit: cover;
-    }
+        .cc-stat-icon.blue {
+            background: #eff6ff;
+            color: #2563eb;
+        }
 
-    .btn-action-soft {
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        transition: 0.2s;
-    }
+        .cc-stat-icon.green {
+            background: #ecfdf5;
+            color: #16a34a;
+        }
 
-        .btn-action-soft:hover {
+        .cc-stat-icon.orange {
+            background: #fffbeb;
+            color: #d97706;
+        }
+
+        .cc-stat-icon.red {
+            background: #fef2f2;
             color: #ef4444;
         }
+
+    .cc-stat-value {
+        font-size: 21px;
+        line-height: 1;
+        font-weight: 900;
+        color: var(--cc-dark);
+    }
+
+    .cc-stat-label {
+        margin-top: 3px;
+        color: var(--cc-muted);
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cc-panel {
+        background: #fff;
+        border: 1px solid var(--cc-border);
+        border-radius: 24px;
+        box-shadow: 0 14px 38px rgba(15, 23, 42, .05);
+        overflow: hidden;
+    }
+
+    .cc-toolbar {
+        padding: 14px;
+        border-bottom: 1px solid var(--cc-border);
+    }
+
+    .cc-filter-form {
+        display: grid;
+        grid-template-columns: minmax(230px, 1.4fr) minmax(170px, .9fr) minmax(145px, .7fr) minmax(155px, .75fr) auto;
+        gap: 9px;
+        align-items: center;
+    }
+
+    .cc-input-wrap {
+        position: relative;
+    }
+
+    .cc-input-icon {
+        position: absolute;
+        left: 13px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+    }
+
+    .cc-input,
+    .cc-select {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--cc-border);
+        border-radius: 15px;
+        background: #f8fafc;
+        color: var(--cc-dark);
+        outline: none;
+        padding: 9px 13px;
+        font-size: 14px;
+        transition: .18s ease;
+    }
+
+    .cc-input {
+        padding-left: 39px;
+    }
+
+        .cc-input:focus,
+        .cc-select:focus {
+            border-color: #93c5fd;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .1);
+        }
+
+    .cc-btn {
+        min-height: 44px;
+        border: none;
+        border-radius: 15px;
+        padding: 9px 15px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 900;
+        text-decoration: none;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: .18s ease;
+    }
+
+    .cc-btn-primary {
+        background: var(--cc-blue);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, .2);
+    }
+
+        .cc-btn-primary:hover {
+            background: #1d4ed8;
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+    .cc-tabs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 12px 14px 4px;
+        scrollbar-width: thin;
+    }
+
+    .cc-tab {
+        border: 1px solid var(--cc-border);
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .cc-tab:hover {
+            color: var(--cc-blue);
+            background: #f8fafc;
+        }
+
+        .cc-tab.active {
+            background: var(--cc-blue);
+            color: #fff;
+            border-color: var(--cc-blue);
+            box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+        }
+
+    .cc-content {
+        padding: 14px;
+    }
+
+    .cc-thread {
+        border: 1px solid #e8eef7;
+        border-radius: 22px;
+        padding: 14px;
+        background: #fff;
+        margin-bottom: 12px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .035);
+    }
+
+        .cc-thread:last-child {
+            margin-bottom: 0;
+        }
+
+    .cc-main {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .cc-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 1px solid var(--cc-border);
+        background: #f1f5f9;
+    }
+
+    .cc-avatar-sm {
+        width: 36px;
+        height: 36px;
+        border-radius: 13px;
+        object-fit: cover;
+        border: 1px solid var(--cc-border);
+        background: #f1f5f9;
+    }
+
+    .cc-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 7px;
+    }
+
+    .cc-name {
+        color: var(--cc-dark);
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .cc-time {
+        color: var(--cc-muted);
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 3px;
+        white-space: nowrap;
+    }
+
+    .cc-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
+    .cc-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+        .cc-status.waiting {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        .cc-status.answered {
+            background: #ecfdf5;
+            color: #15803d;
+        }
+
+        .cc-status.hidden {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+    .cc-icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        border: 1px solid var(--cc-border);
+        background: #fff;
+        color: #64748b;
+        display: inline-grid;
+        place-items: center;
+        cursor: pointer;
+        transition: .18s ease;
+    }
+
+        .cc-icon-btn:hover {
+            color: var(--cc-red);
+            border-color: #fecaca;
+            background: #fff7f7;
+        }
+
+    .cc-bubble {
+        background: #f1f5f9;
+        color: #1f2937;
+        border-radius: 6px 17px 17px 17px;
+        padding: 12px 15px;
+        line-height: 1.5;
+        font-size: 15px;
+        word-break: break-word;
+        margin: 0;
+    }
+
+        .cc-bubble.hidden {
+            background: #fff1f2;
+            color: #b91c1c;
+            border: 1px dashed #fecdd3;
+        }
+
+    .cc-text {
+        display: block;
+        margin: 0;
+        padding: 0;
+        white-space: normal;
+    }
+
+    .cc-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 9px;
+        font-size: 13px;
+        color: var(--cc-muted);
+    }
+
+    .cc-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--cc-blue);
+        text-decoration: none;
+        font-weight: 900;
+    }
+
+        .cc-link:hover {
+            text-decoration: underline;
+        }
+
+    .cc-property {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--cc-muted);
+        text-decoration: none;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+        .cc-property:hover {
+            color: var(--cc-blue);
+        }
+
+    .cc-property-title {
+        display: inline-block;
+        max-width: 610px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cc-reply-form {
+        display: none;
+        margin: 10px 0 0 60px;
+    }
+
+    .cc-reply-box {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        border: 1px solid var(--cc-border);
+        border-radius: 17px;
+        background: #f8fafc;
+        padding: 7px;
+    }
+
+    .cc-reply-input {
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--cc-dark);
+        min-height: 40px;
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+
+    .cc-send-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        border: none;
+        background: var(--cc-blue);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: .18s ease;
+    }
+
+        .cc-send-btn:hover {
+            background: #1d4ed8;
+        }
+
+    .cc-replies {
+        margin: 12px 0 0 60px;
+        padding-left: 14px;
+        border-left: 2px solid #e2e8f0;
+    }
+
+    .cc-reply-item {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 9px;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+        .cc-reply-item:last-child {
+            margin-bottom: 0;
+        }
+
+    .cc-reply-bubble {
+        background: #e0f2fe;
+        color: #0f172a;
+        border-radius: 16px 16px 16px 6px;
+        padding: 10px 13px;
+        line-height: 1.5;
+        font-size: 14px;
+        word-break: break-word;
+        margin: 0;
+    }
+
+        .cc-reply-bubble.hidden {
+            background: #fff1f2;
+            color: #b91c1c;
+            border: 1px dashed #fecdd3;
+        }
+
+    .cc-reply-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 3px;
+    }
+
+    .cc-reply-name {
+        font-weight: 900;
+        color: #0f172a;
+        font-size: 13px;
+    }
+
+    .cc-reply-content {
+        display: block;
+        margin: 0;
+        padding: 0;
+        white-space: normal;
+    }
+
+    .cc-delete-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 5px;
+        color: var(--cc-red);
+        font-size: 12px;
+        font-weight: 900;
+        text-decoration: none;
+    }
+
+        .cc-delete-link:hover {
+            text-decoration: underline;
+        }
+
+    .cc-empty {
+        text-align: center;
+        padding: 50px 16px;
+    }
+
+    .cc-empty-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 14px;
+        background: var(--cc-blue-soft);
+        color: var(--cc-blue);
+        font-size: 29px;
+    }
+
+    .cc-empty h5 {
+        font-weight: 900;
+        color: var(--cc-dark);
+        margin-bottom: 6px;
+    }
+
+    .cc-empty p {
+        color: var(--cc-muted);
+        margin: 0 auto;
+        max-width: 420px;
+    }
+
+    .cc-pagination {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 7px;
+        padding: 14px;
+        border-top: 1px solid var(--cc-border);
+    }
+
+    .cc-page {
+        min-width: 38px;
+        height: 38px;
+        border-radius: 13px;
+        border: 1px solid var(--cc-border);
+        background: #fff;
+        color: #334155;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+        font-weight: 900;
+        text-decoration: none;
+    }
+
+        .cc-page:hover {
+            background: #f8fafc;
+            color: var(--cc-blue);
+        }
+
+        .cc-page.active {
+            background: var(--cc-blue);
+            color: #fff;
+            border-color: var(--cc-blue);
+        }
+
+        .cc-page.disabled {
+            opacity: .45;
+            pointer-events: none;
+        }
+
+    @@media (max-width: 1200px) {
+        .customer-comments-page {
+            margin-top: -30px;
+        }
+
+        .cc-filter-form {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 992px) {
+        .cc-top-row {
+            flex-direction: column;
+        }
+
+        .cc-mini-list {
+            justify-content: flex-start;
+        }
+
+        .cc-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .customer-comments-page {
+            margin-top: 0;
+            padding-bottom: 18px;
+        }
+
+        .customer-comments-wrap {
+            padding: 0 10px;
+        }
+
+        .cc-top,
+        .cc-panel {
+            border-radius: 20px;
+        }
+
+        .cc-top {
+            padding: 14px;
+        }
+
+        .cc-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .cc-filter-form {
+            grid-template-columns: 1fr;
+        }
+
+        .cc-content,
+        .cc-toolbar {
+            padding: 12px;
+        }
+
+        .cc-thread {
+            padding: 12px;
+            border-radius: 18px;
+        }
+
+        .cc-main {
+            grid-template-columns: 42px minmax(0, 1fr);
+            gap: 9px;
+        }
+
+        .cc-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+        }
+
+        .cc-head {
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .cc-actions {
+            justify-content: flex-start;
+        }
+
+        .cc-bubble {
+            font-size: 14px;
+            padding: 11px 13px;
+        }
+
+        .cc-reply-form,
+        .cc-replies {
+            margin-left: 0;
+        }
+
+        .cc-property-title {
+            max-width: 250px;
+        }
+
+        .cc-tab {
+            padding: 8px 11px;
+        }
+    }
 </style>
 
-<div class="container py-4">
-    <div class="comment-card mx-auto" style="max-width: 950px;">
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-            <div>
-                <h3 class="fw-bold mb-0 text-dark">Hội thoại & Phản hồi</h3>
-                <small class="text-muted">Quản lý trao đổi trên các bài viết của bạn</small>
+<div class="customer-comments-page">
+    @Html.AntiForgeryToken()
+
+    <div class="customer-comments-wrap">
+
+        <section class="cc-top">
+            <div class="cc-top-row">
+                <div>
+                    <div class="cc-kicker">
+                        <i class="bi bi-chat-dots"></i>
+                        Trung tâm phản hồi khách hàng
+                    </div>
+                    <h1 class="cc-title">Hội thoại & Phản hồi</h1>
+                    <p class="cc-desc">
+                        Quản lý bình luận trên tin đăng, phản hồi khách hàng nhanh và gọn gàng hơn.
+                    </p>
+                </div>
+
+                <div class="cc-mini-list">
+                    <span class="cc-mini">
+                        <i class="bi bi-card-list"></i>
+                        @totalItems kết quả
+                    </span>
+                    <span class="cc-mini">
+                        <i class="bi bi-house-check"></i>
+                        @totalPropertiesHasComments tin có tương tác
+                    </span>
+                </div>
             </div>
 
-            <form method="get" action="/Comments/MyPropertyComments" class="search-filter-box d-flex align-items-center">
-                <i class="bi bi-search text-muted ms-2"></i>
-                <input type="text" name="searchString" class="form-control" placeholder="Tìm kiếm..." value="@ViewBag.SearchString" style="max-width: 150px;">
-                <select name="dateSort" class="form-select text-muted" onchange="this.form.submit()">
-                    <option value="desc" selected="@(ViewBag.DateSort == "desc")">Mới nhất</option>
-                    <option value="asc" selected="@(ViewBag.DateSort == "asc")">Cũ nhất</option>
-                </select>
-            </form>
-        </div>
+            <div class="cc-stats">
+                <div class="cc-stat">
+                    <div class="cc-stat-icon blue">
+                        <i class="bi bi-chat-square-text"></i>
+                    </div>
+                    <div>
+                        <div class="cc-stat-value">@totalAll</div>
+                        <div class="cc-stat-label">Tổng bình luận</div>
+                    </div>
+                </div>
 
-        @if (!Model.Any())
-        {
-            <div class="text-center py-5">
-                <img src="/images/empty-chat.svg" alt="Trống" style="width: 120px; opacity: 0.4" class="mb-3" />
-                <h6 class="text-muted">Chưa có bình luận nào khớp với tìm kiếm.</h6>
+                <div class="cc-stat">
+                    <div class="cc-stat-icon green">
+                        <i class="bi bi-check2-circle"></i>
+                    </div>
+                    <div>
+                        <div class="cc-stat-value">@totalAnswered</div>
+                        <div class="cc-stat-label">Đã phản hồi</div>
+                    </div>
+                </div>
+
+                <div class="cc-stat">
+                    <div class="cc-stat-icon orange">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div>
+                        <div class="cc-stat-value">@totalUnanswered</div>
+                        <div class="cc-stat-label">Chưa phản hồi</div>
+                    </div>
+                </div>
+
+                <div class="cc-stat">
+                    <div class="cc-stat-icon red">
+                        <i class="bi bi-eye-slash"></i>
+                    </div>
+                    <div>
+                        <div class="cc-stat-value">@totalHidden</div>
+                        <div class="cc-stat-label">Nội dung bị ẩn</div>
+                    </div>
+                </div>
             </div>
-        }
-        else
-        {
-            foreach (var c in Model)
-            {
-                <div class="mb-4 pb-3 border-bottom" id="thread-@c.CommentID">
-                    <div class="d-flex gap-3">
-                        <img src="@(c.User?.Avatar ?? "/images/default-user.png")" class="avatar-md" />
-                        <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between align-items-end mb-1">
-                                <div>
-                                    <strong class="text-dark">@c.User?.FullName</strong>
-                                    <span class="text-muted small ms-2">@c.TimeAgo</span>
-                                </div>
-                                @if (c.UserID == currentUserId)
-                                {
-                                    <button class="btn-action-soft btn-delete" data-id="@c.CommentID" title="Xóa bình luận của bạn"><i class="bi bi-trash3"></i></button>
-                                }
-                            </div>
+        </section>
 
-                            <div class="chat-bubble">
-                                @if (c.IsHidden)
-                                {
-                                    <span class="text-danger small fw-bold"><i class="bi bi-info-circle"></i> Bình luận này đã bị ẩn bởi Quản trị viên.</span>
-                                }
-                                else
-                                {
-                                    <span class="text-dark" style="white-space: pre-line;">@c.Content</span>
-                                }
-                            </div>
-
-                            <div class="mt-2 text-muted small d-flex gap-3">
-                                <a href="javascript:void(0)" onclick="$('#reply-form-@c.CommentID').slideToggle();" class="text-decoration-none text-primary"><i class="bi bi-reply"></i> Trả lời</a>
-                                <a href="/Property/Details/@c.PropertyID" class="text-decoration-none text-muted"><i class="bi bi-house"></i> Tin: @c.Property?.Title</a>
-                            </div>
-                        </div>
+        <section class="cc-panel">
+            <div class="cc-toolbar">
+                <form method="get" asp-action="MyPropertyComments" asp-controller="Comments" class="cc-filter-form">
+                    <div class="cc-input-wrap">
+                        <i class="bi bi-search cc-input-icon"></i>
+                        <input type="text"
+                               name="searchString"
+                               value="@searchString"
+                               class="cc-input"
+                               placeholder="Tìm nội dung, khách hàng, tin đăng..." />
                     </div>
 
-                    <div id="reply-form-@c.CommentID" class="mt-2 ms-5 ps-2" style="display: none;">
-                        <div class="d-flex gap-2">
-                            <input type="text" class="form-control rounded-pill bg-light" id="txt-reply-@c.CommentID" placeholder="Viết phản hồi...">
-                            <button class="btn btn-primary rounded-circle" onclick="submitReply(@c.CommentID, @c.PropertyID)"><i class="bi bi-send"></i></button>
-                        </div>
-                    </div>
-
-                    @if (c.Replies.Any())
-                    {
-                        <div class="ms-5 mt-3 ps-3" style="border-left: 2px solid #e2e8f0;">
-                            @foreach (var r in c.Replies.OrderBy(r => r.CreatedAt))
+                    <select name="propertyId" class="cc-select">
+                        <option value="">Tất cả tin đăng</option>
+                        @if (myProperties != null)
+                        {
+                            foreach (var p in myProperties)
                             {
-                                <div class="reply-bubble d-flex gap-2 mb-3" id="reply-item-@r.CommentID">
-                                    <img src="@(r.User?.Avatar ?? "/images/default-user.png")" class="avatar-sm" />
-                                    <div class="flex-grow-1">
-                                        <div class="chat-bubble py-2 px-3">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <strong class="small text-dark">@(r.UserID == currentUserId ? "Bạn" : r.User?.FullName)</strong>
-                                                <span class="small text-muted">@r.TimeAgo</span>
+                                <option value="@p.PropertyID" selected="@(selectedPropertyId == p.PropertyID)">
+                                    @p.Title
+                                </option>
+                            }
+                        }
+                    </select>
+
+                    <select name="dateSort" class="cc-select">
+                        <option value="desc" selected="@(dateSort == "desc")">Mới nhất trước</option>
+                        <option value="asc" selected="@(dateSort == "asc")">Cũ nhất trước</option>
+                    </select>
+
+                    <select name="filter" class="cc-select">
+                        <option value="all" selected="@(filter == "all")">Tất cả trạng thái</option>
+                        <option value="unanswered" selected="@(filter == "unanswered")">Chưa phản hồi</option>
+                        <option value="answered" selected="@(filter == "answered")">Đã phản hồi</option>
+                        <option value="hidden" selected="@(filter == "hidden")">Có nội dung bị ẩn</option>
+                        <option value="mine" selected="@(filter == "mine")">Có phản hồi của tôi</option>
+                    </select>
+
+                    <button type="submit" class="cc-btn cc-btn-primary">
+                        <i class="bi bi-funnel"></i>
+                        Lọc
+                    </button>
+                </form>
+            </div>
+
+            <div class="cc-tabs">
+                <a class="cc-tab @(filter == "all" ? "active" : "")"
+                   asp-action="MyPropertyComments"
+                   asp-controller="Comments"
+                   asp-route-searchString="@searchString"
+                   asp-route-dateSort="@dateSort"
+                   asp-route-propertyId="@selectedPropertyId"
+                   asp-route-filter="all">
+                    <i class="bi bi-grid"></i>
+                    Tất cả
+                </a>
+
+                <a class="cc-tab @(filter == "unanswered" ? "active" : "")"
+                   asp-action="MyPropertyComments"
+                   asp-controller="Comments"
+                   asp-route-searchString="@searchString"
+                   asp-route-dateSort="@dateSort"
+                   asp-route-propertyId="@selectedPropertyId"
+                   asp-route-filter="unanswered">
+                    <i class="bi bi-hourglass"></i>
+                    Chưa phản hồi
+                </a>
+
+                <a class="cc-tab @(filter == "answered" ? "active" : "")"
+                   asp-action="MyPropertyComments"
+                   asp-controller="Comments"
+                   asp-route-searchString="@searchString"
+                   asp-route-dateSort="@dateSort"
+                   asp-route-propertyId="@selectedPropertyId"
+                   asp-route-filter="answered">
+                    <i class="bi bi-check2-circle"></i>
+                    Đã phản hồi
+                </a>
+
+                <a class="cc-tab @(filter == "hidden" ? "active" : "")"
+                   asp-action="MyPropertyComments"
+                   asp-controller="Comments"
+                   asp-route-searchString="@searchString"
+                   asp-route-dateSort="@dateSort"
+                   asp-route-propertyId="@selectedPropertyId"
+                   asp-route-filter="hidden">
+                    <i class="bi bi-eye-slash"></i>
+                    Bị ẩn
+                </a>
+
+                <a class="cc-tab"
+                   asp-action="MyPropertyComments"
+                   asp-controller="Comments">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                    Xóa lọc
+                </a>
+            </div>
+
+            <div class="cc-content">
+                @if (Model == null || !Model.Any())
+                {
+                    <div class="cc-empty">
+                        <div class="cc-empty-icon">
+                            <i class="bi bi-chat-heart"></i>
+                        </div>
+                        <h5>Chưa có tương tác phù hợp</h5>
+                        <p>
+                            Không có bình luận nào khớp với bộ lọc hiện tại. Hãy đổi từ khóa hoặc xóa lọc để xem toàn bộ.
+                        </p>
+                    </div>
+                }
+                else
+                {
+                    foreach (var c in Model)
+                    {
+                        bool hasMyReply = c.Replies != null && c.Replies.Any(r => r.UserID == currentUserId && !r.IsHidden);
+                        bool hasHidden = c.IsHidden || (c.Replies != null && c.Replies.Any(r => r.IsHidden));
+                        string avatar = string.IsNullOrWhiteSpace(c.User?.Avatar) ? "/images/default-user.png" : c.User.Avatar;
+                        string customerName = string.IsNullOrWhiteSpace(c.User?.FullName) ? "Khách hàng" : c.User.FullName;
+                        string commentContent = (c.Content ?? "").Trim();
+
+                        <article class="cc-thread" id="thread-@c.CommentID">
+                            <div class="cc-main">
+                                <img src="@avatar" class="cc-avatar" alt="@customerName" />
+
+                                <div>
+                                    <div class="cc-head">
+                                        <div>
+                                            <div class="cc-name">@customerName</div>
+                                            <div class="cc-time">
+                                                <i class="bi bi-clock"></i>
+                                                @c.TimeAgo
                                             </div>
-                                            @if (r.IsHidden)
+                                        </div>
+
+                                        <div class="cc-actions">
+                                            @if (hasHidden)
                                             {
-                                                <span class="text-danger small"><i class="bi bi-eye-slash"></i> Đã bị ẩn bởi Admin</span>
+                                                <span class="cc-status hidden">
+                                                    <i class="bi bi-eye-slash"></i>
+                                                    Có nội dung bị ẩn
+                                                </span>
+                                            }
+                                            else if (hasMyReply)
+                                            {
+                                                <span class="cc-status answered">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                    Đã phản hồi
+                                                </span>
                                             }
                                             else
                                             {
-                                                <span class="small text-dark">@r.Content</span>
+                                                <span class="cc-status waiting">
+                                                    <i class="bi bi-hourglass-split"></i>
+                                                    Chưa phản hồi
+                                                </span>
+                                            }
+
+                                            @if (c.UserID == currentUserId)
+                                            {
+                                                <button type="button"
+                                                        class="cc-icon-btn btn-delete"
+                                                        data-id="@c.CommentID"
+                                                        title="Xóa bình luận của bạn">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
                                             }
                                         </div>
-                                        @if (r.UserID == currentUserId)
+                                    </div>
+
+                                    <div class="cc-bubble @(c.IsHidden ? "hidden" : "")">
+                                        @if (c.IsHidden)
                                         {
-                                            <div class="text-end mt-1">
-                                                <a href="javascript:void(0)" class="text-danger small btn-delete" data-id="@r.CommentID">Xóa</a>
-                                            </div>
+                                            <span class="cc-text"><i class="bi bi-info-circle"></i> Bình luận này đã bị quản trị viên ẩn.</span>
                                         }
+                                        else
+                                        {
+                                            <span class="cc-text">@commentContent</span>
+                                        }
+                                    </div>
+
+                                    <div class="cc-meta">
+                                        @if (!c.IsHidden)
+                                        {
+                                            <a href="javascript:void(0)"
+                                               class="cc-link btn-toggle-reply"
+                                               data-target="#reply-form-@c.CommentID">
+                                                <i class="bi bi-reply"></i>
+                                                Trả lời
+                                            </a>
+                                        }
+
+                                        <a href="@Url.Action("Details", "Property", new { id = c.PropertyID })"
+                                           class="cc-property"
+                                           title="@c.Property?.Title">
+                                            <i class="bi bi-house-door"></i>
+                                            <span>Tin:</span>
+                                            <span class="cc-property-title">
+                                                @(string.IsNullOrWhiteSpace(c.Property?.Title) ? "Không có tiêu đề" : c.Property.Title.Trim())
+                                            </span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (!c.IsHidden)
+                            {
+                                <div id="reply-form-@c.CommentID" class="cc-reply-form">
+                                    <div class="cc-reply-box">
+                                        <input type="text"
+                                               class="cc-reply-input"
+                                               id="txt-reply-@c.CommentID"
+                                               maxlength="1000"
+                                               placeholder="Nhập phản hồi cho khách hàng..." />
+
+                                        <button type="button"
+                                                class="cc-send-btn btn-submit-reply"
+                                                data-parent-id="@c.CommentID"
+                                                title="Gửi phản hồi">
+                                            <i class="bi bi-send-fill"></i>
+                                        </button>
                                     </div>
                                 </div>
                             }
-                        </div>
-                    }
-                </div>
-            }
 
-            @if (ViewBag.TotalPages > 1)
-            {
-                <div class="d-flex justify-content-center gap-2 mt-4">
-                    @for (int i = 1; i <= ViewBag.TotalPages; i++)
-                    {
-                        <a href="/Comments/MyPropertyComments?page=@i&searchString=@ViewBag.SearchString&dateSort=@ViewBag.DateSort" class="btn btn-sm @(i == ViewBag.CurrentPage ? "btn-primary" : "btn-light")">@i</a>
+                            @if (c.Replies != null && c.Replies.Any())
+                            {
+                                <div class="cc-replies">
+                                    @foreach (var r in c.Replies.OrderBy(r => r.CreatedAt))
+                                    {
+                                        string replyAvatar = string.IsNullOrWhiteSpace(r.User?.Avatar) ? "/images/default-user.png" : r.User.Avatar;
+                                        string replyName = r.UserID == currentUserId
+                                        ? "Bạn"
+                                        : string.IsNullOrWhiteSpace(r.User?.FullName) ? "Người dùng" : r.User.FullName;
+
+                                        string replyContent = (r.Content ?? "").Trim();
+
+                                        <div class="cc-reply-item" id="reply-item-@r.CommentID">
+                                            <img src="@replyAvatar" class="cc-avatar-sm" alt="@replyName" />
+
+                                            <div>
+                                                <div class="cc-reply-bubble @(r.IsHidden ? "hidden" : "")">
+                                                    <div class="cc-reply-head">
+                                                        <span class="cc-reply-name">@replyName</span>
+                                                        <span class="cc-time">@r.TimeAgo</span>
+                                                    </div>
+
+                                                    @if (r.IsHidden)
+                                                    {
+                                                        <span class="cc-reply-content"><i class="bi bi-eye-slash"></i> Phản hồi này đã bị quản trị viên ẩn.</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="cc-reply-content">@replyContent</span>
+                                                    }
+                                                </div>
+
+                                                @if (r.UserID == currentUserId)
+                                                {
+                                                    <a href="javascript:void(0)"
+                                                       class="cc-delete-link btn-delete"
+                                                       data-id="@r.CommentID">
+                                                        <i class="bi bi-trash3"></i>
+                                                        Xóa phản hồi
+                                                    </a>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </article>
                     }
+                }
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <div class="cc-pagination">
+                    <a class="cc-page @(currentPage <= 1 ? "disabled" : "")"
+                       asp-action="MyPropertyComments"
+                       asp-controller="Comments"
+                       asp-route-page="@(currentPage - 1)"
+                       asp-route-searchString="@searchString"
+                       asp-route-dateSort="@dateSort"
+                       asp-route-filter="@filter"
+                       asp-route-propertyId="@selectedPropertyId">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+
+                    @{
+                        int startPage = Math.Max(1, currentPage - 2);
+                        int endPage = Math.Min(totalPages, currentPage + 2);
+                    }
+
+                    @if (startPage > 1)
+                    {
+                        <a class="cc-page"
+                           asp-action="MyPropertyComments"
+                           asp-controller="Comments"
+                           asp-route-page="1"
+                           asp-route-searchString="@searchString"
+                           asp-route-dateSort="@dateSort"
+                           asp-route-filter="@filter"
+                           asp-route-propertyId="@selectedPropertyId">1</a>
+
+                        if (startPage > 2)
+                        {
+                            <span class="cc-page disabled">...</span>
+                        }
+                    }
+
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <a class="cc-page @(i == currentPage ? "active" : "")"
+                           asp-action="MyPropertyComments"
+                           asp-controller="Comments"
+                           asp-route-page="@i"
+                           asp-route-searchString="@searchString"
+                           asp-route-dateSort="@dateSort"
+                           asp-route-filter="@filter"
+                           asp-route-propertyId="@selectedPropertyId">
+                            @i
+                        </a>
+                    }
+
+                    @if (endPage < totalPages)
+                    {
+                        if (endPage < totalPages - 1)
+                        {
+                            <span class="cc-page disabled">...</span>
+                        }
+
+                        <a class="cc-page"
+                           asp-action="MyPropertyComments"
+                           asp-controller="Comments"
+                           asp-route-page="@totalPages"
+                           asp-route-searchString="@searchString"
+                           asp-route-dateSort="@dateSort"
+                           asp-route-filter="@filter"
+                           asp-route-propertyId="@selectedPropertyId">@totalPages</a>
+                    }
+
+                    <a class="cc-page @(currentPage >= totalPages ? "disabled" : "")"
+                       asp-action="MyPropertyComments"
+                       asp-controller="Comments"
+                       asp-route-page="@(currentPage + 1)"
+                       asp-route-searchString="@searchString"
+                       asp-route-dateSort="@dateSort"
+                       asp-route-filter="@filter"
+                       asp-route-propertyId="@selectedPropertyId">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
                 </div>
             }
-        }
+        </section>
     </div>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        function submitReply(parentId, propertyId) {
-            let content = $('#txt-reply-' + parentId).val().trim();
-            if (!content) return;
-            $.post('/Comments/Reply', { parentId, propertyId, content }, function (res) {
-                if (res.success) location.reload();
-                else Swal.fire('Lỗi', res.message, 'error');
+        function getAntiForgeryToken() {
+            return $('input[name="__RequestVerificationToken"]').first().val();
+        }
+
+        function toastSuccess(message) {
+            Swal.fire({
+                icon: 'success',
+                title: message || 'Thao tác thành công',
+                timer: 1300,
+                showConfirmButton: false
             });
         }
 
-        $(document).ready(function () {
-            $('.btn-delete').click(function () {
-                var id = $(this).data('id');
-                Swal.fire({
-                    title: 'Xóa bình luận này?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Đồng ý',
-                    cancelButtonText: 'Hủy'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.post('/Comments/Delete', { id: id }, function (res) {
-                            if (res.success) {
-                                // Ẩn khỏi DOM thay vì load lại để UX mượt hơn
-                                $('#thread-' + id).slideUp();
-                                $('#reply-item-' + id).slideUp();
-                            } else {
-                                Swal.fire('Lỗi quyền', res.message, 'error');
+        function toastError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Không thể thực hiện',
+                text: message || 'Đã xảy ra lỗi, vui lòng thử lại.'
+            });
+        }
+
+        $(document).on('click', '.btn-toggle-reply', function () {
+            const target = $(this).data('target');
+            $(target).slideToggle(150);
+
+            setTimeout(function () {
+                $(target).find('input').focus();
+            }, 160);
+        });
+
+        $(document).on('keypress', '.cc-reply-input', function (e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                $(this).closest('.cc-reply-box').find('.btn-submit-reply').trigger('click');
+            }
+        });
+
+        $(document).on('click', '.btn-submit-reply', function () {
+            const btn = $(this);
+            const parentId = btn.data('parent-id');
+            const input = $('#txt-reply-' + parentId);
+            const content = input.val().trim();
+
+            if (!content) {
+                toastError('Vui lòng nhập nội dung phản hồi.');
+                input.focus();
+                return;
+            }
+
+            btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i>');
+
+            $.ajax({
+                url: '@Url.Action("Reply", "Comments")',
+                type: 'POST',
+                data: {
+                    __RequestVerificationToken: getAntiForgeryToken(),
+                    parentId: parentId,
+                    content: content
+                },
+                success: function (res) {
+                    if (res && res.success) {
+                        toastSuccess(res.message);
+                        setTimeout(function () {
+                            location.reload();
+                        }, 650);
+                    } else {
+                        toastError(res.message);
+                        btn.prop('disabled', false).html('<i class="bi bi-send-fill"></i>');
+                    }
+                },
+                error: function () {
+                    toastError('Không gửi được phản hồi. Vui lòng kiểm tra lại kết nối.');
+                    btn.prop('disabled', false).html('<i class="bi bi-send-fill"></i>');
+                }
+            });
+        });
+
+        $(document).on('click', '.btn-delete', function () {
+            const id = $(this).data('id');
+
+            Swal.fire({
+                title: 'Xóa nội dung này?',
+                text: 'Sau khi xóa sẽ không thể khôi phục.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Xóa',
+                cancelButtonText: 'Hủy',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                $.ajax({
+                    url: '@Url.Action("Delete", "Comments")',
+                    type: 'POST',
+                    data: {
+                        __RequestVerificationToken: getAntiForgeryToken(),
+                        id: id
+                    },
+                    success: function (res) {
+                        if (res && res.success) {
+                            toastSuccess(res.message);
+
+                            const thread = $('#thread-' + id);
+                            const reply = $('#reply-item-' + id);
+
+                            if (thread.length) {
+                                thread.slideUp(170, function () {
+                                    $(this).remove();
+                                });
                             }
-                        });
+
+                            if (reply.length) {
+                                reply.slideUp(170, function () {
+                                    $(this).remove();
+                                });
+                            }
+                        } else {
+                            toastError(res.message);
+                        }
+                    },
+                    error: function () {
+                        toastError('Không xóa được nội dung. Vui lòng thử lại.');
                     }
                 });
             });

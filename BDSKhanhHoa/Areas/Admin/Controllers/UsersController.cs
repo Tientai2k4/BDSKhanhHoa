@@ -28,7 +28,58 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             _emailService = emailService;
             _auditLogService = auditLogService;
         }
+        private const int VIOLATION_LOCK_LIMIT = 3;
+        private const string AUTO_LOCK_TAG = "AUTO-KHÓA DO VI PHẠM";
 
+        private async Task AutoLockUsersReachedViolationLimitAsync()
+        {
+            var reachedLimitUserIds = await _context.UserViolations
+                .Where(v => v.Status == "Active")
+                .GroupBy(v => v.UserID)
+                .Where(g => g.Count() >= VIOLATION_LOCK_LIMIT)
+                .Select(g => new
+                {
+                    UserID = g.Key,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            if (!reachedLimitUserIds.Any())
+            {
+                return;
+            }
+
+            var idList = reachedLimitUserIds.Select(x => x.UserID).ToList();
+
+            var usersNeedLock = await _context.Users
+                .Where(u => idList.Contains(u.UserID)
+                            && !u.IsDeleted
+                            && u.IsActive
+                            && u.RoleID != 1)
+                .ToListAsync();
+
+            if (!usersNeedLock.Any())
+            {
+                return;
+            }
+
+            foreach (var user in usersNeedLock)
+            {
+                int violationCount = reachedLimitUserIds.First(x => x.UserID == user.UserID).Count;
+
+                user.IsActive = false;
+
+                string lockNote =
+                    $"[{AUTO_LOCK_TAG} - {DateTime.Now:dd/MM/yyyy HH:mm}] " +
+                    $"Hệ thống tự động khóa tài khoản do có {violationCount}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực.";
+
+                user.AdminNote = string.IsNullOrWhiteSpace(user.AdminNote)
+                    ? lockNote
+                    : user.AdminNote + Environment.NewLine + lockNote;
+            }
+
+            await _context.SaveChangesAsync();
+        }
         private async Task UpdateAdminClaims(User user)
         {
             var role = await _context.Roles.FindAsync(user.RoleID);
@@ -51,6 +102,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(string searchString, int? roleId, string verifyStatus, int page = 1)
         {
+            await AutoLockUsersReachedViolationLimitAsync();
             int pageSize = 15;
 
             var query = _context.Users.Where(u => !u.IsDeleted);
@@ -196,42 +248,58 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(User user, IFormFile AvatarFile)
+        public async Task<IActionResult> Create(User user, IFormFile? AvatarFile)
         {
             ViewBag.RolesList = new SelectList(await _context.Roles.ToListAsync(), "RoleID", "RoleName", user.RoleID);
 
             try
             {
-                if (!ModelState.IsValid)
+                bool userValid = await UserUniqueValidator.ValidateForCreateAsync(_context, user, ModelState);
+
+                if (!userValid || !ModelState.IsValid)
                 {
-                    var errors = string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+                    var errors = string.Join(" | ", ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage));
+
                     TempData["Error"] = "Dữ liệu chưa hợp lệ: " + errors;
-                    return View(user);
-                }
-
-                if (await _context.Users.AnyAsync(u => u.Username == user.Username))
-                {
-                    ModelState.AddModelError("Username", "Tên đăng nhập đã tồn tại.");
-                    TempData["Error"] = "Tên đăng nhập đã tồn tại.";
-                    return View(user);
-                }
-
-                if (await _context.Users.AnyAsync(u => u.Email == user.Email))
-                {
-                    ModelState.AddModelError("Email", "Email này đã được sử dụng trong hệ thống.");
-                    TempData["Error"] = "Email này đã được sử dụng trong hệ thống.";
                     return View(user);
                 }
 
                 if (AvatarFile != null && AvatarFile.Length > 0)
                 {
-                    string uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "avatars");
-                    if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
+                    string[] allowedExts = { ".jpg", ".jpeg", ".png", ".webp" };
+                    string ext = Path.GetExtension(AvatarFile.FileName).ToLowerInvariant();
 
-                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(AvatarFile.FileName);
+                    if (!allowedExts.Contains(ext))
+                    {
+                        ModelState.AddModelError("AvatarFile", "Ảnh đại diện chỉ hỗ trợ JPG, JPEG, PNG hoặc WEBP.");
+                        TempData["Error"] = "Ảnh đại diện chỉ hỗ trợ JPG, JPEG, PNG hoặc WEBP.";
+                        return View(user);
+                    }
+
+                    if (AvatarFile.Length > 2 * 1024 * 1024)
+                    {
+                        ModelState.AddModelError("AvatarFile", "Ảnh đại diện không được vượt quá 2MB.");
+                        TempData["Error"] = "Ảnh đại diện không được vượt quá 2MB.";
+                        return View(user);
+                    }
+
+                    string uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "avatars");
+
+                    if (!Directory.Exists(uploadDir))
+                    {
+                        Directory.CreateDirectory(uploadDir);
+                    }
+
+                    string fileName = Guid.NewGuid().ToString("N") + ext;
                     string filePath = Path.Combine(uploadDir, fileName);
 
-                    using (var stream = new FileStream(filePath, FileMode.Create)) { await AvatarFile.CopyToAsync(stream); }
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await AvatarFile.CopyToAsync(stream);
+                    }
+
                     user.Avatar = "/uploads/avatars/" + fileName;
                 }
                 else
@@ -240,36 +308,55 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 }
 
                 string rawPassword = user.Password;
+
                 user.Password = PasswordHasher.HashPassword(user.Password);
                 user.CreatedAt = DateTime.Now;
                 user.IsDeleted = false;
                 user.IsEmailVerified = true;
+                user.AdminNote = UserInputHelper.Cut(user.AdminNote, 2000);
 
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
-                // GHI LOG
                 int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                await _auditLogService.LogAsync(adminId, "Tạo tài khoản người dùng mới", "Users", $"UserID: {user.UserID} - {user.Email}", severity: "Info");
+
+                await _auditLogService.LogAsync(
+                    adminId,
+                    "Tạo tài khoản người dùng mới",
+                    "Users",
+                    $"UserID: {user.UserID} - {user.Email}",
+                    severity: "Info");
 
                 bool isBusiness = Request.Form["IsBusiness"] == "on";
+
                 if (isBusiness)
                 {
-                    var bizProfile = new BusinessProfile
-                    {
-                        UserID = user.UserID,
-                        BusinessName = Request.Form["BusinessName"],
-                        TaxCode = Request.Form["TaxCode"],
-                        BusinessEmail = Request.Form["BusinessEmail"],
-                        VerificationStatus = "Approved",
-                        CreatedAt = DateTime.Now,
-                        RepresentativeName = user.FullName ?? user.Username,
-                        RepresentativePhone = user.Phone ?? "N/A",
-                        BusinessAddress = user.Address ?? "N/A"
-                    };
+                    string businessName = UserInputHelper.NormalizeText(Request.Form["BusinessName"]);
+                    string taxCode = UserInputHelper.NormalizeText(Request.Form["TaxCode"]);
+                    string businessEmail = UserInputHelper.NormalizeEmail(Request.Form["BusinessEmail"]);
 
-                    _context.BusinessProfiles.Add(bizProfile);
-                    await _context.SaveChangesAsync();
+                    if (string.IsNullOrWhiteSpace(businessName))
+                    {
+                        TempData["Warning"] = "Tài khoản đã tạo thành công, nhưng chưa tạo hồ sơ doanh nghiệp vì thiếu tên doanh nghiệp.";
+                    }
+                    else
+                    {
+                        var bizProfile = new BusinessProfile
+                        {
+                            UserID = user.UserID,
+                            BusinessName = businessName,
+                            TaxCode = taxCode,
+                            BusinessEmail = businessEmail,
+                            VerificationStatus = "Approved",
+                            CreatedAt = DateTime.Now,
+                            RepresentativeName = user.FullName ?? user.Username,
+                            RepresentativePhone = user.Phone ?? "N/A",
+                            BusinessAddress = user.Address ?? "N/A"
+                        };
+
+                        _context.BusinessProfiles.Add(bizProfile);
+                        await _context.SaveChangesAsync();
+                    }
                 }
 
                 try
@@ -278,6 +365,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     string roleName = role?.RoleName ?? "Thành viên";
 
                     string subject = "Cấp tài khoản truy cập hệ thống BĐS Khánh Hòa";
+
                     string htmlContent = $@"
 <div style='font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;border:1px solid #e2e8f0;border-radius:10px;'>
     <h2 style='color:#2563eb;text-align:center;'>CHÀO MỪNG ĐẾN VỚI BĐS KHÁNH HÒA</h2>
@@ -287,12 +375,14 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         <p style='margin:5px 0;'><b>Tên đăng nhập:</b> <span style='color:#dc2626;font-weight:bold;'>{user.Username}</span></p>
         <p style='margin:5px 0;'><b>Mật khẩu:</b> <span style='color:#dc2626;font-weight:bold;'>{rawPassword}</span></p>
         <p style='margin:5px 0;'><b>Email hệ thống:</b> {user.Email}</p>
+        <p style='margin:5px 0;'><b>Số điện thoại:</b> {user.Phone}</p>
     </div>
     <p style='color:#ef4444;font-size:0.9em;'><i>*Vui lòng đổi mật khẩu sau lần đăng nhập đầu tiên.</i></p>
 </div>";
 
                     await _emailService.SendEmailAsync(user.Email, subject, htmlContent);
-                    TempData["Success"] = $"Tạo tài khoản thành công! Đã gửi thông tin đăng nhập đến email: {user.Email}";
+
+                    TempData["Success"] = $"Tạo tài khoản thành công. Đã gửi thông tin đăng nhập đến email: {user.Email}";
                 }
                 catch (Exception exEmail)
                 {
@@ -301,6 +391,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
                 return RedirectToAction(nameof(Index));
             }
+            catch (DbUpdateException)
+            {
+                TempData["Error"] = "Thông tin tài khoản bị trùng. Vui lòng kiểm tra lại tên đăng nhập, email, số điện thoại, Zalo hoặc Facebook.";
+                return View(user);
+            }
             catch (Exception ex)
             {
                 TempData["Error"] = "Lỗi hệ thống khi tạo tài khoản: " + ex.Message;
@@ -308,7 +403,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return View(user);
             }
         }
-
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -326,88 +420,141 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, User user)
         {
-            if (id != user.UserID) return NotFound();
+            if (id != user.UserID)
+            {
+                return NotFound();
+            }
 
-            var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.UserID == id);
-            if (existingUser == null) return NotFound();
+            var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.UserID == id && !u.IsDeleted);
+
+            if (existingUser == null)
+            {
+                return NotFound();
+            }
+
+            ViewBag.RolesList = new SelectList(await _context.Roles.ToListAsync(), "RoleID", "RoleName", user.RoleID);
+            ViewBag.BusinessProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
 
             ModelState.Remove("Password");
             ModelState.Remove("ConfirmPassword");
             ModelState.Remove("Username");
             ModelState.Remove("Email");
+            ModelState.Remove("Avatar");
 
-            if (ModelState.IsValid)
+            try
             {
-                try
+                bool updateValid = await UserUniqueValidator.ValidateForUpdateAsync(_context, user, ModelState);
+
+                if (!updateValid || !ModelState.IsValid)
                 {
-                    var oldData = JsonSerializer.Serialize(new { existingUser.FullName, existingUser.Phone, existingUser.RoleID });
+                    var errors = string.Join(" | ", ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage));
 
-                    existingUser.FullName = user.FullName;
-                    existingUser.Phone = user.Phone;
-                    existingUser.Address = user.Address;
-                    existingUser.Zalo = user.Zalo;
-                    existingUser.Position = user.Position;
-                    existingUser.AdminNote = user.AdminNote;
-                    existingUser.RoleID = user.RoleID;
-                    existingUser.IsActive = user.IsActive;
+                    TempData["Error"] = "Dữ liệu chưa hợp lệ: " + errors;
+                    return View(user);
+                }
 
-                    bool isBusinessChecked = Request.Form["IsBusiness"] == "on";
-                    var bizProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
+                var oldData = JsonSerializer.Serialize(new
+                {
+                    existingUser.FullName,
+                    existingUser.Phone,
+                    existingUser.Zalo,
+                    existingUser.Facebook,
+                    existingUser.RoleID,
+                    existingUser.IsActive
+                });
 
-                    if (isBusinessChecked)
+                existingUser.FullName = user.FullName;
+                existingUser.Phone = user.Phone;
+                existingUser.Address = user.Address;
+                existingUser.Zalo = user.Zalo;
+                existingUser.Facebook = user.Facebook;
+                existingUser.Bio = user.Bio;
+                existingUser.Position = user.Position;
+                existingUser.AdminNote = UserInputHelper.Cut(user.AdminNote, 2000);
+                existingUser.RoleID = user.RoleID;
+                existingUser.IsActive = user.IsActive;
+
+                bool isBusinessChecked = Request.Form["IsBusiness"] == "on";
+
+                var bizProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
+
+                if (isBusinessChecked)
+                {
+                    string businessName = UserInputHelper.NormalizeText(Request.Form["BusinessName"]);
+                    string taxCode = UserInputHelper.NormalizeText(Request.Form["TaxCode"]);
+                    string businessEmail = UserInputHelper.NormalizeEmail(Request.Form["BusinessEmail"]);
+
+                    if (string.IsNullOrWhiteSpace(businessName))
+                    {
+                        TempData["Warning"] = "Thông tin tài khoản đã lưu, nhưng hồ sơ doanh nghiệp chưa đủ tên doanh nghiệp.";
+                    }
+                    else
                     {
                         if (bizProfile == null)
                         {
                             bizProfile = new BusinessProfile
                             {
                                 UserID = existingUser.UserID,
-                                BusinessName = Request.Form["BusinessName"],
-                                TaxCode = Request.Form["TaxCode"],
-                                BusinessEmail = Request.Form["BusinessEmail"],
+                                BusinessName = businessName,
+                                TaxCode = taxCode,
+                                BusinessEmail = businessEmail,
                                 VerificationStatus = "Approved",
                                 CreatedAt = DateTime.Now,
                                 RepresentativeName = existingUser.FullName ?? existingUser.Username,
                                 RepresentativePhone = existingUser.Phone ?? "N/A",
                                 BusinessAddress = existingUser.Address ?? "N/A"
                             };
+
                             _context.BusinessProfiles.Add(bizProfile);
                         }
                         else
                         {
-                            bizProfile.BusinessName = Request.Form["BusinessName"];
-                            bizProfile.TaxCode = Request.Form["TaxCode"];
-                            bizProfile.BusinessEmail = Request.Form["BusinessEmail"];
-                            _context.BusinessProfiles.Update(bizProfile);
+                            bizProfile.BusinessName = businessName;
+                            bizProfile.TaxCode = taxCode;
+                            bizProfile.BusinessEmail = businessEmail;
+                            bizProfile.RepresentativeName = existingUser.FullName ?? existingUser.Username;
+                            bizProfile.RepresentativePhone = existingUser.Phone ?? "N/A";
+                            bizProfile.BusinessAddress = existingUser.Address ?? "N/A";
+                            bizProfile.VerificationStatus = "Approved";
                         }
                     }
-
-                    await _context.SaveChangesAsync();
-
-                    var newData = JsonSerializer.Serialize(new { existingUser.FullName, existingUser.Phone, existingUser.RoleID });
-
-                    // GHI LOG
-                    int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                    await _auditLogService.LogAsync(adminId, "Cập nhật hồ sơ người dùng", "Users", $"UserID: {existingUser.UserID}", oldData, newData, "Info");
-
-                    TempData["Success"] = "Cập nhật hồ sơ " + existingUser.Username + " thành công!";
-                    return RedirectToAction(nameof(Index));
                 }
-                catch (Exception ex)
+                else
                 {
-                    TempData["Error"] = "Lỗi Database: " + ex.Message;
+                    if (bizProfile != null)
+                    {
+                        _context.BusinessProfiles.Remove(bizProfile);
+                    }
                 }
+
+                await _context.SaveChangesAsync();
+
+                int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+                await _auditLogService.LogAsync(
+                    adminId,
+                    "Cập nhật tài khoản người dùng",
+                    "Users",
+                    $"UserID: {existingUser.UserID}. OldData: {oldData}",
+                    severity: "Info");
+
+                TempData["Success"] = "Cập nhật tài khoản thành công.";
+                return RedirectToAction(nameof(Index));
             }
-            else
+            catch (DbUpdateException)
             {
-                var errors = string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
-                TempData["Error"] = "Dữ liệu chưa chuẩn: " + errors;
+                TempData["Error"] = "Thông tin tài khoản bị trùng. Vui lòng kiểm tra lại số điện thoại, Zalo hoặc Facebook.";
+                return View(user);
             }
-
-            ViewBag.RolesList = new SelectList(await _context.Roles.ToListAsync(), "RoleID", "RoleName", user.RoleID);
-            ViewBag.BusinessProfile = await _context.BusinessProfiles.FirstOrDefaultAsync(b => b.UserID == id);
-            return View(user);
+            catch (Exception ex)
+            {
+                TempData["Error"] = "Lỗi khi cập nhật tài khoản: " + ex.Message;
+                ModelState.AddModelError("", ex.Message);
+                return View(user);
+            }
         }
-
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetPassword(int id, string newPassword)

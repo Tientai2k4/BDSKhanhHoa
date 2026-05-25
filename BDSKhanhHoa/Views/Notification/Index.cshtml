@@ -1,6 +1,6 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Notification>
 @{
-    ViewData["Title"] = "Trung tâm Thông báo";
+    ViewData["Title"] = "Trung tâm thông báo";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
 
     string currentFilter = ViewBag.CurrentFilter as string ?? "all";
@@ -16,22 +16,67 @@
         --surface-color: #ffffff;
         --bg-color: #f8fafc;
         --border-color: #e2e8f0;
-        --transition-std: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --text-dark: #0f172a;
+        --text-muted: #64748b;
+        --transition-std: all 0.25s ease;
     }
 
     .noti-shell {
         min-height: 85vh;
+        padding-bottom: 30px;
     }
+
+    .noti-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+
+    .noti-heading {
+        margin: 0;
+        color: var(--text-dark);
+        font-size: 1.45rem;
+        line-height: 1.25;
+        font-weight: 950;
+        letter-spacing: -.02em;
+    }
+
+    .noti-desc {
+        margin: 5px 0 0;
+        color: var(--text-muted);
+        font-size: .92rem;
+        font-weight: 600;
+        line-height: 1.5;
+    }
+
+    .btn-mark-read {
+        min-height: 40px;
+        border: 0;
+        border-radius: 999px;
+        background: #0f172a;
+        color: #fff;
+        padding: 0 15px;
+        font-size: .86rem;
+        font-weight: 850;
+        white-space: nowrap;
+    }
+
+        .btn-mark-read:hover {
+            background: #1e293b;
+            color: #fff;
+        }
 
     .noti-filter-bar {
         background: var(--surface-color);
         border: 1px solid var(--border-color);
-        border-radius: 20px;
-        padding: 12px;
+        border-radius: 18px;
+        padding: 10px;
         display: flex;
         gap: 8px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 20px rgba(15,23,42,0.04);
+        margin-bottom: 16px;
+        box-shadow: 0 6px 22px rgba(15,23,42,0.04);
         flex-wrap: nowrap;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -42,17 +87,18 @@
         }
 
     .filter-btn {
-        padding: 10px 18px;
-        border-radius: 14px;
-        font-weight: 700;
-        font-size: 0.95rem;
+        min-height: 38px;
+        padding: 0 13px;
+        border-radius: 13px;
+        font-weight: 800;
+        font-size: .86rem;
         color: #475569;
         text-decoration: none;
         transition: var(--transition-std);
         border: 1px solid transparent;
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
         white-space: nowrap;
     }
 
@@ -65,7 +111,7 @@
             background: #0f172a;
             color: #ffffff;
             border-color: #0f172a;
-            box-shadow: 0 4px 15px rgba(15,23,42,0.2);
+            box-shadow: 0 4px 15px rgba(15,23,42,0.16);
         }
 
             .filter-btn.active .badge {
@@ -73,25 +119,35 @@
                 color: #0f172a !important;
             }
 
+    .noti-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .noti-row {
+        position: relative;
+    }
+
     .noti-card {
         background: var(--surface-color);
         border: 1px solid var(--border-color);
-        border-radius: 20px;
-        padding: 24px;
-        margin-bottom: 16px;
+        border-radius: 18px;
+        padding: 18px;
         display: flex;
-        gap: 20px;
+        gap: 16px;
         transition: var(--transition-std);
         position: relative;
         overflow: hidden;
         text-decoration: none;
         color: inherit;
+        box-shadow: 0 7px 22px rgba(15,23,42,0.035);
     }
 
         .noti-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 15px 35px rgba(15,23,42,0.08);
+            transform: translateY(-2px);
+            box-shadow: 0 14px 32px rgba(15,23,42,0.08);
             border-color: #cbd5e1;
+            color: inherit;
         }
 
         .noti-card.unread::before {
@@ -100,19 +156,19 @@
             left: 0;
             top: 0;
             bottom: 0;
-            width: 6px;
-            background: #3b82f6;
-            border-radius: 6px 0 0 6px;
+            width: 5px;
+            background: #2563eb;
+            border-radius: 5px 0 0 5px;
         }
 
     .noti-icon-wrap {
-        width: 60px;
-        height: 60px;
-        border-radius: 18px;
+        width: 54px;
+        height: 54px;
+        border-radius: 17px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.6rem;
+        font-size: 1.45rem;
         flex-shrink: 0;
     }
 
@@ -144,50 +200,61 @@
     .noti-content {
         flex-grow: 1;
         min-width: 0;
+        padding-right: 48px;
     }
 
     .noti-title {
-        font-size: 1.15rem;
-        font-weight: 800;
         color: #0f172a;
-        margin-bottom: 8px;
+        margin-bottom: 7px;
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
+        gap: 12px;
     }
 
+        .noti-title span:first-child {
+            min-width: 0;
+            font-size: 1rem;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+
     .noti-text {
-        font-size: 0.95rem;
+        font-size: .9rem;
         color: #475569;
-        line-height: 1.6;
-        margin-bottom: 14px;
+        line-height: 1.58;
+        margin-bottom: 12px;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
+        white-space: pre-line;
     }
 
     .noti-meta {
-        font-size: 0.85rem;
+        flex: 0 0 auto;
+        font-size: .78rem;
         color: #64748b;
-        font-weight: 600;
-        display: flex;
+        font-weight: 700;
+        display: inline-flex;
         align-items: center;
         gap: 6px;
+        white-space: nowrap;
     }
 
     .action-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 8px 16px;
+        min-height: 32px;
+        padding: 0 12px;
         background: #f1f5f9;
         color: #334155;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 800;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: 850;
         border: 1px solid #e2e8f0;
-        transition: 0.2s;
+        transition: .2s;
     }
 
     .noti-card:hover .action-badge {
@@ -196,174 +263,280 @@
         border-color: #0f172a;
     }
 
+        .noti-card:hover .action-badge i {
+            color: #fff !important;
+        }
+
     .btn-delete-noti {
         position: absolute;
-        right: 24px;
-        top: 24px;
-        width: 40px;
-        height: 40px;
+        right: 18px;
+        top: 18px;
+        width: 38px;
+        height: 38px;
         border-radius: 12px;
-        background: #f1f5f9;
+        background: #f8fafc;
         color: #94a3b8;
-        border: none;
+        border: 1px solid #e2e8f0;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: var(--transition-std);
         opacity: 0;
-        z-index: 2;
-        font-size: 1.1rem;
+        z-index: 4;
+        font-size: 1rem;
     }
 
-    .noti-card:hover .btn-delete-noti {
+    .noti-row:hover .btn-delete-noti {
         opacity: 1;
     }
 
     .btn-delete-noti:hover {
         background: #fee2e2;
         color: #dc2626;
-        transform: scale(1.1);
+        transform: scale(1.05);
     }
 
     .empty-state {
         text-align: center;
-        padding: 80px 20px;
+        padding: 70px 20px;
         background: #fff;
-        border-radius: 24px;
+        border-radius: 22px;
         border: 1px dashed #cbd5e1;
     }
 
         .empty-state i {
-            font-size: 5rem;
+            font-size: 4rem;
             color: #e2e8f0;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             display: block;
         }
 
-    @@media (max-width: 576px) {
+    .pagination .page-link {
+        border-radius: 12px !important;
+        margin: 0 3px;
+        min-width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .9rem;
+        font-weight: 850;
+    }
+
+    @@media (max-width: 768px) {
+        .noti-header {
+            display: block;
+        }
+
+        #markAllForm {
+            margin-top: 12px !important;
+        }
+
         .noti-card {
-            padding: 16px;
+            padding: 15px;
             gap: 12px;
         }
 
         .noti-icon-wrap {
-            width: 45px;
-            height: 45px;
+            width: 46px;
+            height: 46px;
             font-size: 1.2rem;
+            border-radius: 15px;
+        }
+
+        .noti-content {
+            padding-right: 38px;
         }
 
         .noti-title {
-            font-size: 1rem;
-            flex-direction: column;
+            display: block;
+        }
+
+            .noti-title span:first-child {
+                font-size: .94rem;
+            }
+
+        .noti-meta {
+            margin-top: 4px;
+            font-size: .74rem;
         }
 
         .btn-delete-noti {
             opacity: 1;
-            top: 16px;
-            right: 16px;
+            top: 14px;
+            right: 14px;
             width: 32px;
             height: 32px;
-            font-size: 0.9rem;
+            font-size: .9rem;
         }
     }
 </style>
 
 <div class="noti-shell animate__animated animate__fadeIn">
-    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div class="noti-header">
         <div>
-            <h3 class="fw-black text-dark mb-1"><i class="bi bi-bell-fill text-primary me-2"></i>Hộp Thư Hệ Thống</h3>
-            <p class="text-muted mb-0 fs-6">Nhận thông tin Lịch hẹn, Yêu cầu tư vấn và Cảnh báo hệ thống.</p>
+            <h3 class="noti-heading">
+                <i class="bi bi-bell-fill text-primary me-2"></i>
+                Hộp thư hệ thống
+            </h3>
+            <p class="noti-desc">
+                Theo dõi lịch hẹn, tư vấn, tin nhắn, báo cáo, cảnh báo vi phạm và các thông báo quan trọng từ hệ thống.
+            </p>
         </div>
+
         @if (unreadCount > 0)
         {
             <form id="markAllForm" class="m-0">
                 @Html.AntiForgeryToken()
-                <button type="button" class="btn btn-dark rounded-pill fw-bold px-4 py-2 shadow-sm" id="btnMarkAllRead">
-                    <i class="bi bi-check2-all me-1"></i> Đánh dấu tất cả đã đọc
+                <button type="button" class="btn-mark-read" id="btnMarkAllRead">
+                    <i class="bi bi-check2-all me-1"></i>
+                    Đánh dấu tất cả đã đọc
                 </button>
             </form>
         }
     </div>
 
-    <!-- BỘ LỌC CHI TIẾT -->
     <div class="noti-filter-bar">
         <a href="/Notification/Index?filter=all" class="filter-btn @(currentFilter == "all" ? "active" : "")">
-            <i class="bi bi-collection"></i> Tất cả hòm thư
+            <i class="bi bi-collection"></i>
+            Tất cả
+            @if (totalCount > 0)
+            {
+                <span class="badge bg-secondary rounded-pill">@totalCount</span>
+            }
         </a>
+
         <a href="/Notification/Index?filter=unread" class="filter-btn @(currentFilter == "unread" ? "active" : "")">
-            <i class="bi bi-envelope-exclamation"></i> Chưa đọc
+            <i class="bi bi-envelope-exclamation"></i>
+            Chưa đọc
             @if (unreadCount > 0)
             {
                 <span class="badge bg-danger rounded-pill">@unreadCount</span>
             }
         </a>
+
         <a href="/Notification/Index?filter=appointment" class="filter-btn @(currentFilter == "appointment" ? "active" : "")">
-            <i class="bi bi-calendar-check text-success"></i> Lịch hẹn báo
+            <i class="bi bi-calendar-check text-success"></i>
+            Lịch hẹn
             @if (appointmentCount > 0)
             {
                 <span class="badge bg-success rounded-pill">@appointmentCount</span>
             }
         </a>
+
         <a href="/Notification/Index?filter=consultation" class="filter-btn @(currentFilter == "consultation" ? "active" : "")">
-            <i class="bi bi-headset text-info"></i> Khách tương tác
+            <i class="bi bi-headset text-info"></i>
+            Tương tác
             @if (consultationCount > 0)
             {
                 <span class="badge bg-info text-dark rounded-pill">@consultationCount</span>
             }
         </a>
+
         <a href="/Notification/Index?filter=action" class="filter-btn @(currentFilter == "action" ? "active" : "")">
-            <i class="bi bi-cursor-fill text-warning"></i> Chờ xử lý
+            <i class="bi bi-cursor-fill text-warning"></i>
+            Có thao tác
             @if (actionCount > 0)
             {
                 <span class="badge bg-warning text-dark rounded-pill">@actionCount</span>
             }
         </a>
+
         <a href="/Notification/Index?filter=system" class="filter-btn @(currentFilter == "system" ? "active" : "")">
-            <i class="bi bi-shield-exclamation text-danger"></i> Cảnh báo hệ thống
+            <i class="bi bi-shield-exclamation text-danger"></i>
+            Hệ thống
         </a>
     </div>
 
-    <!-- DANH SÁCH THÔNG BÁO -->
     <div class="noti-list">
         @if (Model != null && Model.Any())
         {
             foreach (var item in Model)
             {
-                var titleLower = (item.Title ?? "").ToLower();
+                string title = item.Title ?? "Thông báo mới từ hệ thống";
+                string titleLower = title.ToLower();
+                string contentLower = (item.Content ?? "").ToLower();
+                string rawText = titleLower + " " + contentLower;
                 bool hasAction = !string.IsNullOrWhiteSpace(item.ActionUrl);
 
-                // CẬP NHẬT LOGIC NHẬN DIỆN MỚI NHẤT
-                bool isDanger = titleLower.Contains("gỡ bỏ") || titleLower.Contains("khóa") || titleLower.Contains("từ chối") || titleLower.Contains("vi phạm") || titleLower.Contains("thất bại");
-                bool isAppointment = titleLower.Contains("lịch hẹn");
-                bool isConsultation = titleLower.Contains("tư vấn") || titleLower.Contains("liên hệ") || titleLower.Contains("bình luận");
-                bool isSuccess = titleLower.Contains("thành công") || titleLower.Contains("duyệt");
+                bool isDanger =
+                rawText.Contains("gỡ bỏ") ||
+                rawText.Contains("khóa") ||
+                rawText.Contains("từ chối") ||
+                rawText.Contains("vi phạm") ||
+                rawText.Contains("thất bại") ||
+                rawText.Contains("cảnh báo");
+
+                bool isAppointment = rawText.Contains("lịch hẹn");
+
+                bool isConsultation =
+                rawText.Contains("tư vấn") ||
+                rawText.Contains("liên hệ") ||
+                rawText.Contains("bình luận") ||
+                rawText.Contains("khách");
+
+                bool isSuccess =
+                rawText.Contains("thành công") ||
+                rawText.Contains("duyệt") ||
+                rawText.Contains("đã xử lý") ||
+                rawText.Contains("đã tiếp nhận") ||
+                rawText.Contains("ghi nhận");
 
                 string cardClass = item.IsRead ? "" : "unread";
 
-                // Nhận diện Icon thông minh
                 string iconClass = "icon-info bi-info-circle-fill";
-                if (isDanger) iconClass = "icon-danger bi-shield-fill-x";
-                else if (isSuccess) iconClass = "icon-success bi-check-circle-fill";
-                else if (isAppointment) iconClass = "icon-success bi-calendar2-check-fill";
-                else if (isConsultation) iconClass = "icon-consult bi-headset";
-                else if (hasAction) iconClass = "icon-action bi-exclamation-triangle-fill";
+
+                if (isDanger)
+                {
+                    iconClass = "icon-danger bi-shield-fill-exclamation";
+                }
+                else if (isSuccess)
+                {
+                    iconClass = "icon-success bi-check-circle-fill";
+                }
+                else if (isAppointment)
+                {
+                    iconClass = "icon-success bi-calendar2-check-fill";
+                }
+                else if (isConsultation)
+                {
+                    iconClass = "icon-consult bi-headset";
+                }
+                else if (hasAction)
+                {
+                    iconClass = "icon-action bi-exclamation-triangle-fill";
+                }
 
                 string safeContent = "Không có thông tin chi tiết.";
                 if (!string.IsNullOrWhiteSpace(item.Content))
                 {
                     safeContent = System.Text.RegularExpressions.Regex.Replace(item.Content, "<.*?>", string.Empty);
+                    safeContent = System.Net.WebUtility.HtmlDecode(safeContent);
+                    safeContent = System.Text.RegularExpressions.Regex.Replace(safeContent, @"\s+", " ").Trim();
                 }
 
-                <div class="position-relative" id="noti-row-@item.NotificationID">
-                    <a href="/Notification/Details/@item.NotificationID" class="noti-card @cardClass">
+                /*
+                Quan trọng:
+                Bấm vào thông báo LUÔN mở trang chi tiết trước.
+                Không chuyển thẳng sang ProcessAction ở danh sách.
+                */
+                string openUrl = Url.Action("Details", "Notification", new { id = item.NotificationID })!;
+
+                <div class="noti-row" id="noti-row-@item.NotificationID">
+                    <a href="@openUrl" class="noti-card @cardClass">
                         <div class="noti-icon-wrap @iconClass.Split(' ')[0]">
                             <i class="bi @iconClass.Split(' ')[1]"></i>
                         </div>
+
                         <div class="noti-content">
                             <div class="noti-title">
-                                <span>@(item.Title ?? "Thông báo mới từ hệ thống")</span>
-                                <span class="noti-meta"><i class="bi bi-clock-history"></i> @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
+                                <span>@title</span>
+                                <span class="noti-meta">
+                                    <i class="bi bi-clock-history"></i>
+                                    @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
+                                </span>
                             </div>
+
                             <div class="noti-text">
                                 @safeContent
                             </div>
@@ -377,24 +550,29 @@
                                     }
                                     else if (isDanger)
                                     {
-
                                         <i class="bi bi-exclamation-octagon text-danger"></i>
+                                    }
+                                    else if (isSuccess)
+                                    {
+                                        <i class="bi bi-check-circle text-success"></i>
                                     }
                                     else
                                     {
-
                                         <i class="bi bi-box-arrow-up-right text-primary"></i>
                                     }
-                                    @(string.IsNullOrWhiteSpace(item.ActionText) ? "Nhấn vào để truy cập" : item.ActionText)
+
+                                    @(string.IsNullOrWhiteSpace(item.ActionText) ? "Đọc chi tiết" : item.ActionText)
                                 </div>
                             }
                         </div>
                     </a>
 
-                    <!-- Nút Xóa đè bằng CSS -->
                     <form class="d-inline" id="form-del-@item.NotificationID">
                         @Html.AntiForgeryToken()
-                        <button type="button" class="btn-delete-noti shadow-sm" onclick="deleteNoti(event, @item.NotificationID)" title="Xóa thông báo">
+                        <button type="button"
+                                class="btn-delete-noti shadow-sm"
+                                onclick="deleteNoti(event, @item.NotificationID)"
+                                title="Xóa thông báo">
                             <i class="bi bi-trash3-fill"></i>
                         </button>
                     </form>
@@ -406,28 +584,35 @@
             <div class="empty-state">
                 <i class="bi bi-inbox-fill"></i>
                 <h3 class="fw-black text-dark mb-2">Hộp thư gọn gàng</h3>
-                <p class="text-muted fs-5">Bạn không có thông báo nào trong danh mục <strong>"@currentFilter"</strong>.</p>
+                <p class="text-muted fs-5">
+                    Bạn không có thông báo nào trong danh mục <strong>"@currentFilter"</strong>.
+                </p>
             </div>
         }
     </div>
 
-    <!-- PHÂN TRANG -->
     @if (ViewBag.TotalPages > 1)
     {
         <div class="d-flex justify-content-center mt-5">
             <nav>
-                <ul class="pagination pagination-lg">
+                <ul class="pagination pagination-lg flex-wrap">
                     <li class="page-item @(ViewBag.CurrentPage <= 1 ? "disabled" : "")">
-                        <a class="page-link" href="/Notification/Index?filter=@currentFilter&page=@(ViewBag.CurrentPage - 1)"><i class="bi bi-chevron-left"></i></a>
+                        <a class="page-link" href="/Notification/Index?filter=@currentFilter&page=@(ViewBag.CurrentPage - 1)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
                     </li>
+
                     @for (int i = 1; i <= ViewBag.TotalPages; i++)
                     {
                         <li class="page-item @(ViewBag.CurrentPage == i ? "active" : "")">
                             <a class="page-link shadow-sm" href="/Notification/Index?filter=@currentFilter&page=@i">@i</a>
                         </li>
                     }
+
                     <li class="page-item @(ViewBag.CurrentPage >= ViewBag.TotalPages ? "disabled" : "")">
-                        <a class="page-link" href="/Notification/Index?filter=@currentFilter&page=@(ViewBag.CurrentPage + 1)"><i class="bi bi-chevron-right"></i></a>
+                        <a class="page-link" href="/Notification/Index?filter=@currentFilter&page=@(ViewBag.CurrentPage + 1)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
                     </li>
                 </ul>
             </nav>
@@ -437,46 +622,54 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        // Xử lý AJAX: Đánh dấu tất cả đã đọc
-        $('#btnMarkAllRead').click(function () {
-            const form = $('#markAllForm');
-            const token = $('input[name="__RequestVerificationToken"]', form).val();
+        document.addEventListener('DOMContentLoaded', function () {
+            const btnMarkAllRead = document.getElementById('btnMarkAllRead');
 
-            const btn = $(this);
-            const originalText = btn.html();
-            btn.html('<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...');
-            btn.prop('disabled', true);
+            if (btnMarkAllRead) {
+                btnMarkAllRead.addEventListener('click', function () {
+                    const form = document.getElementById('markAllForm');
+                    const tokenInput = form ? form.querySelector('input[name="__RequestVerificationToken"]') : null;
+                    const token = tokenInput ? tokenInput.value : '';
 
-            $.ajax({
-                url: '/Notification/MarkAllAsRead',
-                type: 'POST',
-                data: { __RequestVerificationToken: token },
-                success: function (res) {
-                    if (res.success) {
-                        location.reload();
-                    } else {
-                        Swal.fire('Lỗi', res.message, 'error');
-                        btn.html(originalText);
-                        btn.prop('disabled', false);
-                    }
-                },
-                error: function() {
-                    Swal.fire('Lỗi', 'Lỗi kết nối mạng, vui lòng thử lại.', 'error');
-                    btn.html(originalText);
-                    btn.prop('disabled', false);
-                }
-            });
+                    const originalText = btnMarkAllRead.innerHTML;
+                    btnMarkAllRead.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+                    btnMarkAllRead.disabled = true;
+
+                    const formData = new FormData();
+                    formData.append('__RequestVerificationToken', token);
+
+                    fetch('/Notification/MarkAllAsRead', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(res => {
+                        if (res.success) {
+                            location.reload();
+                        } else {
+                            Swal.fire('Lỗi', res.message || 'Không thể đánh dấu đã đọc.', 'error');
+                            btnMarkAllRead.innerHTML = originalText;
+                            btnMarkAllRead.disabled = false;
+                        }
+                    })
+                    .catch(() => {
+                        Swal.fire('Lỗi', 'Lỗi kết nối mạng, vui lòng thử lại.', 'error');
+                        btnMarkAllRead.innerHTML = originalText;
+                        btnMarkAllRead.disabled = false;
+                    });
+                });
+            }
         });
 
-        // Xử lý AJAX: Xóa một thông báo bằng hiệu ứng trượt
         function deleteNoti(e, id) {
             e.preventDefault();
             e.stopPropagation();
 
             Swal.fire({
                 title: 'Gỡ thông báo này?',
-                text: "Dữ liệu sẽ bị xóa vĩnh viễn khỏi hộp thư.",
+                text: 'Thông báo sau khi xóa sẽ không thể khôi phục.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
@@ -484,29 +677,50 @@
                 confirmButtonText: '<i class="bi bi-trash"></i> Xóa',
                 cancelButtonText: 'Đóng'
             }).then((result) => {
-                if (result.isConfirmed) {
-                    var token = $('input[name="__RequestVerificationToken"]', '#form-del-' + id).val();
-                    $.ajax({
-                        url: '/Notification/Delete',
-                        type: 'POST',
-                        data: { id: id, __RequestVerificationToken: token },
-                        success: function (res) {
-                            if (res.success) {
-                                $('#noti-row-' + id).css({
-                                    'transform': 'translateX(100%)',
-                                    'opacity': '0',
-                                    'transition': 'all 0.4s ease'
-                                });
-                                setTimeout(function() {
-                                    $('#noti-row-' + id).slideUp(300, function() { $(this).remove(); });
-                                }, 400);
-                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Đã xóa tin nhắn', showConfirmButton: false, timer: 2000 });
-                            } else {
-                                Swal.fire('Lỗi', res.message, 'error');
-                            }
+                if (!result.isConfirmed) return;
+
+                const form = document.getElementById('form-del-' + id);
+                const tokenInput = form ? form.querySelector('input[name="__RequestVerificationToken"]') : null;
+                const token = tokenInput ? tokenInput.value : '';
+
+                const formData = new FormData();
+                formData.append('id', id);
+                formData.append('__RequestVerificationToken', token);
+
+                fetch('/Notification/Delete', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(res => {
+                    if (res.success) {
+                        const row = document.getElementById('noti-row-' + id);
+
+                        if (row) {
+                            row.style.transform = 'translateX(100%)';
+                            row.style.opacity = '0';
+                            row.style.transition = 'all 0.35s ease';
+
+                            setTimeout(function () {
+                                row.remove();
+                            }, 350);
                         }
-                    });
-                }
+
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Đã xóa thông báo',
+                            showConfirmButton: false,
+                            timer: 1600
+                        });
+                    } else {
+                        Swal.fire('Lỗi', res.message || 'Không thể xóa thông báo.', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Lỗi', 'Lỗi kết nối đến máy chủ.', 'error');
+                });
             });
         }
     </script>

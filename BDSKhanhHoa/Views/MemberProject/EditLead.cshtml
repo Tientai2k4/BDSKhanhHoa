@@ -327,32 +327,26 @@
         }
 
         @@media (max-width: 1199.98px) {
-            .lead-grid
+            .lead-grid {
+                grid-template-columns: 1fr;
+            }
 
-        {
-            grid-template-columns: 1fr;
-        }
-
-        .lead-card {
-            position: static;
-        }
-
+            .lead-card {
+                position: static;
+            }
         }
 
         @@media (max-width: 575.98px) {
-            .lead-card, .lead-panel, .lead-alert
+            .lead-card, .lead-panel, .lead-alert {
+                border-radius: 20px;
+                padding: 18px;
+            }
 
-        {
-            border-radius: 20px;
-            padding: 18px;
-        }
-
-        .lead-top-actions .btn,
-        .lead-panel .btn {
-            width: 100%;
-            justify-content: center;
-        }
-
+                .lead-top-actions .btn,
+                .lead-panel .btn {
+                    width: 100%;
+                    justify-content: center;
+                }
         }
     </style>
 }
@@ -571,19 +565,62 @@
                 </form>
             </section>
 
-            <section class="lead-panel schedule-panel @(isClosed || hasActiveAppointment ? "locked" : "")">
+            <section class="lead-panel schedule-panel">
                 <div class="lead-panel-title">
                     <span class="lead-title-icon" style="background:#059669;">
-                        <i class="bi bi-calendar2-plus-fill"></i>
+                        <i class="bi bi-telephone-outbound-fill"></i>
                     </span>
-                    <span>Điều phối lịch xem dự án</span>
+                    <span>Thao tác chăm sóc khách tư vấn</span>
+                </div>
+
+                <div class="lead-note mb-4" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af;">
+                    <i class="bi bi-info-circle-fill me-1"></i>
+                    Đây là hồ sơ khách yêu cầu tư vấn dự án. Chủ đầu tư nên gọi khách, ghi nhận kết quả chăm sóc và cập nhật trạng thái CRM.
+                    Việc xác nhận, dời lịch, từ chối hoặc hoàn tất lịch xem dự án được xử lý ở màn hình <strong>Lịch hẹn dự án</strong>.
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="tel:@Model.Phone" class="btn btn-success w-100 rounded-4 fw-bold" style="min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i class="bi bi-telephone-outbound-fill"></i>
+                            Gọi khách ngay
+                        </a>
+                    </div>
+
+                    <div class="col-md-6">
+                        <button type="button"
+                                class="btn btn-lead-primary w-100"
+                                onclick="openQuickCallModal()"
+                                disabled="@isClosed">
+                            <i class="bi bi-journal-plus me-1"></i>
+                            Ghi nhanh kết quả cuộc gọi
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <a href="/Appointments/Index?mode=DoanhNghiep&tab=lich-den&keyword=@Model.Phone"
+                           class="btn btn-lead-dark w-100"
+                           style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                            <i class="bi bi-calendar2-week-fill"></i>
+                            Mở lịch hẹn dự án
+                        </a>
+                    </div>
+
+                    <div class="col-md-6">
+                        <a href="@Url.Action("LeadHistory", "MemberProject", new { id = Model.LeadID })"
+                           class="btn btn-lead-light w-100"
+                           style="display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            Xem lịch sử chăm sóc
+                        </a>
+                    </div>
                 </div>
 
                 @if (hasActiveAppointment && !isClosed)
                 {
-                    <div class="active-appointment-box mb-4">
+                    <div class="active-appointment-box mt-4">
                         <i class="bi bi-calendar2-exclamation-fill me-1"></i>
-                        Khách hàng này đang có lịch hẹn mở. Hãy xử lý lịch hiện tại trước khi tạo lịch mới.
+                        Khách hàng này đang có lịch hẹn mở. Vui lòng xử lý lịch tại màn hình <strong>Lịch hẹn dự án</strong>.
 
                         <div class="mt-2">
                             @foreach (var ap in activeAppointments)
@@ -597,117 +634,8 @@
                         </div>
                     </div>
                 }
-
-                <form asp-action="ScheduleSiteVisit"
-                      asp-controller="MemberProject"
-                      method="post"
-                      class="row g-4 js-confirm-form"
-                      data-confirm-title="Tạo lịch xem dự án?"
-                      data-confirm-text="Hệ thống sẽ tạo lịch hẹn, kiểm tra chống trùng lịch và lưu lịch sử CRM cho khách hàng."
-                      data-confirm-icon="question"
-                      data-confirm-button="Tạo lịch hẹn">
-                    @Html.AntiForgeryToken()
-
-                    <input type="hidden" name="leadId" value="@Model.LeadID" />
-                    <input type="hidden" name="returnUrl" value="@returnUrl" />
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">Ngày xem dự án</label>
-                        <input type="date"
-                               name="appointmentDate"
-                               class="form-control lead-input"
-                               min="@DateTime.Now.ToString("yyyy-MM-dd")"
-                               required
-                               disabled="@(isClosed || hasActiveAppointment)" />
-                    </div>
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">Giờ hẹn</label>
-                        <input type="time"
-                               name="appointmentTime"
-                               class="form-control lead-input"
-                               min="07:00"
-                               max="21:00"
-                               required
-                               disabled="@(isClosed || hasActiveAppointment)" />
-                    </div>
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">Nhân viên phụ trách</label>
-                        <input type="text"
-                               name="assignedStaffName"
-                               class="form-control lead-input"
-                               placeholder="Ví dụ: Nguyễn Văn A"
-                               maxlength="100"
-                               required
-                               disabled="@(isClosed || hasActiveAppointment)" />
-                    </div>
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">SĐT nhân viên</label>
-                        <input type="tel"
-                               name="assignedStaffPhone"
-                               class="form-control lead-input"
-                               placeholder="Ví dụ: 0901234567"
-                               maxlength="20"
-                               disabled="@(isClosed || hasActiveAppointment)" />
-                    </div>
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">Email nhân viên</label>
-                        <input type="email"
-                               name="assignedStaffEmail"
-                               class="form-control lead-input"
-                               placeholder="email@congty.com"
-                               maxlength="255"
-                               disabled="@(isClosed || hasActiveAppointment)" />
-                    </div>
-
-                    <div class="col-md-6 col-xl-4">
-                        <label class="form-label lead-label">Trạng thái tạo lịch</label>
-                        <div class="lead-info-value">
-                            @if (isClosed)
-                            {
-                                <span class="text-danger fw-bold">
-                                    <i class="bi bi-lock-fill me-1"></i>
-                                    Hồ sơ đã khóa
-                                </span>
-                            }
-                            else if (hasActiveAppointment)
-                            {
-                                <span class="text-warning fw-bold">
-                                    <i class="bi bi-hourglass-split me-1"></i>
-                                    Đã có lịch đang mở
-                                </span>
-                            }
-                            else
-                            {
-                                <span class="text-success fw-bold">
-                                    <i class="bi bi-check-circle-fill me-1"></i>
-                                    Có thể tạo lịch mới
-                                </span>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <label class="form-label lead-label">Ghi chú điều phối</label>
-                        <textarea name="note"
-                                  class="form-control lead-input"
-                                  placeholder="Ví dụ: Khách đi 2 người, muốn xem pháp lý, ưu tiên khung 9h sáng, cần nhân viên gọi trước 30 phút..."
-                                  disabled="@(isClosed || hasActiveAppointment)"></textarea>
-                    </div>
-
-                    <div class="col-12 text-end">
-                        <button type="submit"
-                                class="btn btn-lead-primary px-4"
-                                disabled="@(isClosed || hasActiveAppointment)">
-                            <i class="bi bi-calendar-plus-fill me-1"></i>
-                            Tạo lịch xem dự án
-                        </button>
-                    </div>
-                </form>
             </section>
+
         </main>
     </div>
 </div>

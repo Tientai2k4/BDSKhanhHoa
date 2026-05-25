@@ -29,7 +29,6 @@
             --auth-primary: #2563eb;
             --auth-primary-dark: #1d4ed8;
             --auth-purple: #7c3aed;
-            --auth-success: #16a34a;
             --auth-danger: #dc2626;
             --auth-radius: 26px;
         }
@@ -46,14 +45,7 @@
             color: var(--auth-text);
         }
 
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6,
-        .btn,
-        .brand-title {
+        h1, h2, h3, h4, h5, h6, .btn, .brand-title {
             font-family: 'Sora', sans-serif;
         }
 
@@ -98,7 +90,8 @@
                 opacity: .76;
             }
 
-        .auth-left-content {
+        .auth-left-content,
+        .auth-left-footer {
             position: relative;
             z-index: 2;
         }
@@ -192,8 +185,6 @@
             }
 
         .auth-left-footer {
-            position: relative;
-            z-index: 2;
             color: rgba(255,255,255,.62);
             font-size: .8rem;
             line-height: 1.6;
@@ -586,7 +577,7 @@
                     <div>
                         <h2 class="form-title">Tạo tài khoản mới</h2>
                         <p class="form-sub">
-                            Điền thông tin chính xác để đăng ký và nhận mã OTP xác thực qua Email.
+                            Điền thông tin chính xác. Email, số điện thoại không được trùng với tài khoản khác.
                         </p>
                     </div>
 
@@ -639,6 +630,7 @@
                                 <input asp-for="FullName"
                                        class="form-control auth-control"
                                        placeholder="Ví dụ: Nguyễn Văn An"
+                                       maxlength="100"
                                        autocomplete="name" />
                             </div>
 
@@ -655,10 +647,11 @@
                                 <input asp-for="Username"
                                        class="form-control auth-control"
                                        placeholder="Ví dụ: nguyenvanan"
+                                       maxlength="50"
                                        autocomplete="username" />
                             </div>
 
-                            <div class="password-hint">Chỉ dùng chữ, số, dấu gạch dưới hoặc dấu chấm.</div>
+                            <div class="password-hint">Từ 4 ký tự. Chỉ dùng chữ, số, dấu gạch dưới hoặc dấu chấm.</div>
                             <span asp-validation-for="Username" class="validation-message"></span>
                         </div>
 
@@ -670,12 +663,14 @@
                             <div class="input-shell">
                                 <i class="bi bi-telephone input-icon"></i>
                                 <input asp-for="Phone"
-                                       class="form-control auth-control"
+                                       class="form-control auth-control num-only"
                                        placeholder="Ví dụ: 0912345678"
-                                       inputmode="tel"
+                                       maxlength="10"
+                                       inputmode="numeric"
                                        autocomplete="tel" />
                             </div>
 
+                            <div class="password-hint">Bắt đầu bằng 03, 05, 07, 08 hoặc 09 và đủ 10 số.</div>
                             <span asp-validation-for="Phone" class="validation-message"></span>
                         </div>
 
@@ -689,6 +684,7 @@
                                 <input asp-for="Email"
                                        class="form-control auth-control"
                                        placeholder="Ví dụ: tenban@gmail.com"
+                                       maxlength="100"
                                        autocomplete="email" />
                             </div>
 
@@ -705,6 +701,7 @@
                                 <input asp-for="Address"
                                        class="form-control auth-control"
                                        placeholder="Nhập địa chỉ liên hệ nếu có"
+                                       maxlength="255"
                                        autocomplete="street-address" />
                             </div>
 
@@ -773,9 +770,7 @@
                         Đăng ký & nhận mã OTP
                     </button>
 
-                    <div class="auth-divider">
-                        Hoặc
-                    </div>
+                    <div class="auth-divider">Hoặc</div>
 
                     <div class="text-center">
                         <span class="text-muted small">Đã có tài khoản?</span>
@@ -799,9 +794,7 @@
             avatarInput.addEventListener("change", function () {
                 const file = this.files && this.files[0];
 
-                if (!file) {
-                    return;
-                }
+                if (!file) return;
 
                 const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
@@ -827,9 +820,7 @@
             const input = document.getElementById(inputId);
             const icon = document.getElementById(iconId);
 
-            if (!input || !icon) {
-                return;
-            }
+            if (!input || !icon) return;
 
             if (input.type === "password") {
                 input.type = "text";
@@ -841,6 +832,10 @@
                 icon.classList.add("bi-eye-slash");
             }
         }
+
+        $(".num-only").on("input", function () {
+            this.value = this.value.replace(/[^0-9]/g, "").substring(0, 10);
+        });
 
         $("#registerForm").on("submit", function () {
             if ($(this).valid()) {

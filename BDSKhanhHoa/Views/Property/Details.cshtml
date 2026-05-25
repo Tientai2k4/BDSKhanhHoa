@@ -152,6 +152,11 @@
 
     bool isExpiredProperty = Model.Status == "Expired";
     bool isLockedProperty = Model.Status == "Sold" || Model.Status == "Rented" || Model.Status == "Expired";
+    bool isApprovedProperty = Model.Status == "Approved";
+    bool canInteract = isAuthenticated && isApprovedProperty && !isLockedProperty;
+    bool canBuyerInteract = canInteract && !isOwner;
+    string returnUrl = Context.Request.Path.ToString() + Context.Request.QueryString.ToString();
+    string loginUrl = Url.Action("Login", "Account", new { returnUrl = returnUrl }) ?? "/Account/Login";
 
     string lockedTitle = Model.Status switch
     {
@@ -176,6 +181,8 @@
 <meta name="chatbot-context" content="Khách hàng đang trực tiếp xem BĐS có ID: @Model.PropertyID. Tiêu đề: '@Model.Title'. Loại hình: @(isRent ? "Cho thuê" : "Bán") - @Model.PropertyType?.TypeName. Giá: @priceDisplay. Diện tích: @Model.AreaSize m2. Vị trí: @fullAddress. Phòng ngủ: @(bed ?? "0"). Phòng tắm: @(bath ?? "0"). Pháp lý: @(legal ?? "Chưa cập nhật"). Tiện ích: @(amenities ?? "Không có"). Mô tả từ chủ nhà: @Model.Description." />
 
 <style>
+    @@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
+
     :root {
         --pd-primary: #1a56db;
         --pd-primary-dark: #123f9f;
@@ -1487,8 +1494,8 @@
 
 
     /* =====================================================
-           KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
-        ===================================================== */
+                   KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+                ===================================================== */
     .pd-locked-alert {
         display: flex;
         align-items: flex-start;
@@ -1676,6 +1683,201 @@
         filter: grayscale(.25);
     }
 
+
+
+    /* =====================================================
+               FONT DỄ ĐỌC CHO TIẾNG VIỆT - MOBILE & DESKTOP
+               Dùng Be Vietnam Pro, giảm độ đậm quá gắt để tiêu đề và nội dung dễ nhìn hơn.
+               Lưu ý: không đổi icon Bootstrap, chỉ đổi chữ.
+            ===================================================== */
+    body,
+    .pd-page,
+    .pd-page button,
+    .pd-page input,
+    .pd-page select,
+    .pd-page textarea,
+    .pd-page .modal,
+    .pd-page .modal button,
+    .pd-page .modal input,
+    .pd-page .modal select,
+    .pd-page .modal textarea {
+        font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, Arial, sans-serif !important;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    .pd-page {
+        font-size: 15.5px;
+    }
+
+    .pd-title {
+        font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, Arial, sans-serif !important;
+        font-size: clamp(1.42rem, 2vw, 1.86rem);
+        font-weight: 800;
+        line-height: 1.35;
+        letter-spacing: -0.018em;
+        color: #07142f;
+    }
+
+    .pd-address {
+        font-size: .92rem;
+        font-weight: 600;
+        line-height: 1.65;
+        color: #5b677a;
+    }
+
+    .pd-price-main {
+        font-weight: 800;
+        letter-spacing: -0.01em;
+    }
+
+    .pd-price-value {
+        font-weight: 750;
+        letter-spacing: -0.006em;
+    }
+
+    .pd-price-label,
+    .pd-detail-key,
+    .pd-detail-val,
+    .pd-pill,
+    .pd-section-title,
+    .pd-main-action,
+    .pd-util-btn,
+    .pd-social-btn,
+    .pd-phone-reveal,
+    .pd-edit-btn,
+    .form-label {
+        font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, Arial, sans-serif !important;
+    }
+
+    .pd-price-label {
+        font-weight: 700;
+        letter-spacing: .035em;
+    }
+
+    .pd-detail-key {
+        font-weight: 600;
+        color: #64748b;
+    }
+
+    .pd-detail-val {
+        font-weight: 700;
+        color: #10203f;
+    }
+
+    .pd-pill {
+        font-size: .84rem;
+        font-weight: 650;
+        line-height: 1.35;
+    }
+
+    .pd-section-title {
+        font-size: 1.02rem;
+        font-weight: 750;
+        letter-spacing: -0.01em;
+    }
+
+    .pd-desc,
+    .pd-warning ul,
+    .pd-comment-text,
+    .pd-locked-alert-desc,
+    .pd-locked-content p {
+        font-size: .94rem;
+        font-weight: 450;
+        line-height: 1.85;
+        color: #334155;
+    }
+
+    .pd-seller-name,
+    .pd-mini-title,
+    .pd-comment-name {
+        font-weight: 750;
+        letter-spacing: -0.006em;
+    }
+
+    .pd-main-action,
+    .pd-util-btn,
+    .pd-social-btn,
+    .pd-phone-reveal,
+    .pd-phone-copy,
+    .pd-edit-btn,
+    .pd-readmore,
+    .btn {
+        font-weight: 700 !important;
+        letter-spacing: -0.004em;
+    }
+
+    .pd-badge,
+    .pd-photo-count,
+    .pd-owner-badge,
+    .pd-seller-role {
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+
+    .pd-mini-meta,
+    .pd-comment-time,
+    .pd-price-unit {
+        font-weight: 500;
+    }
+
+    @@media (max-width: 767.98px) {
+        .pd-page {
+            font-size: 15px;
+        }
+
+        .pd-title {
+            font-size: 1.22rem;
+            font-weight: 800;
+            line-height: 1.42;
+            letter-spacing: -0.012em;
+        }
+
+        .pd-address {
+            font-size: .84rem;
+            line-height: 1.6;
+        }
+
+        .pd-price-main {
+            font-size: 1.48rem;
+        }
+
+        .pd-price-value {
+            font-size: 1rem;
+        }
+
+        .pd-section-title {
+            font-size: .96rem;
+            line-height: 1.45;
+        }
+
+        .pd-desc,
+        .pd-warning ul,
+        .pd-comment-text {
+            font-size: .9rem;
+            line-height: 1.8;
+        }
+
+        .pd-pill,
+        .pd-amenity,
+        .pd-detail-key,
+        .pd-detail-val {
+            font-size: .78rem;
+            line-height: 1.35;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .pd-title {
+            font-size: 1.14rem;
+            line-height: 1.45;
+        }
+
+        .pd-card-body {
+            padding: 15px;
+        }
+    }
 
 </style>
 
@@ -2031,7 +2233,21 @@
                             <li>Luôn yêu cầu xem sổ đỏ/sổ hồng gốc và công chứng hợp đồng tại văn phòng công chứng.</li>
                             <li>Cẩn thận với các trường hợp yêu cầu đặt cọc trước khi ký hợp đồng chính thức.</li>
                             <li>Hệ thống không chịu trách nhiệm với các nội dung do người dùng tự đăng tải.</li>
-                            <li>Phát hiện tin giả / lừa đảo? <a href="#" data-bs-toggle="modal" data-bs-target="#reportModal" class="fw-bold text-danger">Báo cáo ngay tại đây</a>.</li>
+                            <li>
+                                Phát hiện tin giả / lừa đảo?
+                                @if (canBuyerInteract)
+                                {
+                                    <a href="#" data-bs-toggle="modal" data-bs-target="#reportModal" class="fw-bold text-danger">Báo cáo ngay tại đây</a>
+                                }
+                                else if (!isAuthenticated)
+                                {
+                                    <a href="@loginUrl" class="fw-bold text-primary">Đăng nhập để báo cáo</a>
+                                }
+                                else
+                                {
+                                    <span class="fw-bold text-muted">Chức năng báo cáo chỉ dành cho thành viên đang xem tin của người khác.</span>
+                                }
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -2288,88 +2504,107 @@
                             }
                             else
                             {
-                                <div class="pd-login-lock">
-                                    <div class="pd-login-blur">
-                                        <div class="pd-phone-box mb-2">
-                                            <button type="button" class="pd-phone-reveal w-100">
-                                                <i class="bi bi-telephone-fill"></i>
-                                                0987 *** ***
-                                            </button>
-                                        </div>
-
-                                        <div class="pd-social-row">
-                                            <button type="button" class="pd-social-btn pd-zalo @(isLockedProperty ? "pd-locked-disabled" : "")">Zalo</button>
-                                            <button type="button" class="pd-social-btn pd-facebook @(isLockedProperty ? "pd-locked-disabled" : "")">Facebook</button>
-                                        </div>
+                                <div class="pd-pending-box mb-3" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">
+                                    <i class="bi bi-person-lock d-block fs-3 mb-2"></i>
+                                    <div class="fw-bold mb-1">Khách vãng lai chỉ được xem thông tin bài đăng.</div>
+                                    <div class="small mb-3">
+                                        Đăng nhập tài khoản thành viên để liên hệ người đăng, gửi yêu cầu tư vấn, đặt lịch hẹn, lưu tin, báo cáo hoặc bình luận.
                                     </div>
-
-                                    <div class="pd-login-overlay">
-                                        <i class="bi bi-lock-fill fs-4"></i>
-                                        <span>Đăng nhập để xem liên hệ</span>
-                                        <a href="/Account/Login" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
-                                            Đăng nhập ngay
-                                        </a>
-                                    </div>
+                                    <a href="@loginUrl" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
+                                        <i class="bi bi-box-arrow-in-right me-1"></i>
+                                        Đăng nhập ngay
+                                    </a>
                                 </div>
                             }
 
                             <div class="pd-action-stack">
-                                @if (Model.Status == "Pending")
+                                @if (!isAuthenticated)
+                                {
+                                    <div class="pd-pending-box" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">
+                                        <i class="bi bi-lock-fill d-block fs-4 mb-1"></i>
+                                        Khách vãng lai chưa đăng nhập chỉ được xem thông tin bài đăng.
+                                    </div>
+                                }
+                                else if (Model.Status == "Pending")
                                 {
                                     <div class="pd-pending-box">
                                         <i class="bi bi-lock-fill d-block fs-4 mb-1"></i>
                                         Tin đăng đang chờ duyệt. Các chức năng liên hệ tạm thời bị khóa.
                                     </div>
                                 }
+                                else if (isLockedProperty)
+                                {
+                                    <div class="pd-pending-box">
+                                        <i class="bi bi-lock-fill d-block fs-4 mb-1"></i>
+                                        @lockedMessage
+                                    </div>
+                                }
+                                else if (isOwner)
+                                {
+                                    <div class="pd-pending-box" style="background:#f8fafc;border-color:#e2e8f0;color:#475569;">
+                                        <i class="bi bi-person-check-fill d-block fs-4 mb-1"></i>
+                                        Đây là tin đăng của bạn. Bạn không cần gửi tư vấn, đặt lịch hẹn hoặc chat với chính mình.
+                                    </div>
+                                }
                                 else
                                 {
                                     <button type="button"
-                                            class="pd-main-action pd-action-consult @(isLockedProperty ? "pd-locked-disabled" : "")"
+                                            class="pd-main-action pd-action-consult"
                                             data-bs-toggle="modal"
                                             data-bs-target="#consultationModal">
                                         <i class="bi bi-headset fs-5"></i>
                                         Yêu cầu tư vấn miễn phí
                                     </button>
 
-                                    @if (!isOwner)
-                                    {
-                                        <a href="/UserMessage/Index?receiverId=@Model.UserID&propertyId=@Model.PropertyID"
-                                           class="pd-main-action pd-action-chat @(isLockedProperty ? "pd-locked-disabled" : "")">
-                                            <i class="bi bi-chat-dots-fill fs-5"></i>
-                                            Chat trực tiếp ngay
-                                        </a>
+                                    <a href="/UserMessage/Index?receiverId=@Model.UserID&propertyId=@Model.PropertyID"
+                                       class="pd-main-action pd-action-chat">
+                                        <i class="bi bi-chat-dots-fill fs-5"></i>
+                                        Chat trực tiếp ngay
+                                    </a>
 
-                                        <button type="button"
-                                                class="pd-main-action pd-action-appt @(isLockedProperty ? "pd-locked-disabled" : "")"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#appointmentModal">
-                                            <i class="bi bi-calendar-check-fill fs-5"></i>
-                                            Đặt lịch xem nhà
-                                        </button>
-                                    }
+                                    <button type="button"
+                                            class="pd-main-action pd-action-appt"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#appointmentModal">
+                                        <i class="bi bi-calendar-check-fill fs-5"></i>
+                                        Đặt lịch xem nhà
+                                    </button>
                                 }
                             </div>
 
                             <div class="pd-util-row">
-                                <button type="button"
-                                        class="pd-util-btn @(ViewBag.IsFavorited ? "saved" : "") @(isLockedProperty ? "pd-locked-disabled" : "")"
-                                        id="btnFav"
-                                        data-id="@Model.PropertyID">
-                                    <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
-                                       id="iconFav"
-                                       style="color:@(ViewBag.IsFavorited ? "var(--pd-danger)" : "var(--pd-muted)")"></i>
-                                    <span id="textFav">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
-                                </button>
+                                @if (canBuyerInteract)
+                                {
+                                    <button type="button"
+                                            class="pd-util-btn @(ViewBag.IsFavorited ? "saved" : "")"
+                                            id="btnFav"
+                                            data-id="@Model.PropertyID">
+                                        <i class="bi @(ViewBag.IsFavorited ? "bi-heart-fill" : "bi-heart")"
+                                           id="iconFav"
+                                           style="color:@(ViewBag.IsFavorited ? "var(--pd-danger)" : "var(--pd-muted)")"></i>
+                                        <span id="textFav">@(ViewBag.IsFavorited ? "Đã lưu" : "Lưu tin")</span>
+                                    </button>
+                                }
+                                else if (!isAuthenticated)
+                                {
+                                    <button type="button" class="pd-util-btn" onclick="window.location.href='@loginUrl'">
+                                        <i class="bi bi-lock"></i>
+                                        <span>Đăng nhập</span>
+                                    </button>
+                                }
 
                                 <button type="button" class="pd-util-btn" onclick="copyCurrentLink()">
                                     <i class="bi bi-share" style="color:var(--pd-primary);"></i>
                                     <span>Chia sẻ</span>
                                 </button>
 
-                                <button type="button" class="pd-util-btn @(isLockedProperty ? "pd-locked-disabled" : "")" data-bs-toggle="modal" data-bs-target="#reportModal">
-                                    <i class="bi bi-flag"></i>
-                                    <span>Báo cáo</span>
-                                </button>
+                                @if (canBuyerInteract)
+                                {
+                                    <button type="button" class="pd-util-btn" data-bs-toggle="modal" data-bs-target="#reportModal">
+                                        <i class="bi bi-flag"></i>
+                                        <span>Báo cáo</span>
+                                    </button>
+                                }
                             </div>
                         </div>
                     </section>
@@ -2416,7 +2651,7 @@
     </div>
 </div>
 
-@if (Model.Status != "Pending" && !isOwner && !isLockedProperty)
+@if (canBuyerInteract)
 {
     <div class="pd-mobile-contact-bar">
         <button type="button" class="pd-main-action pd-action-consult @(isLockedProperty ? "pd-locked-disabled" : "")" data-bs-toggle="modal" data-bs-target="#consultationModal">
@@ -2473,174 +2708,178 @@
         </div>
     </div>
 </div>
-<div class="modal fade" id="reportModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header" style="background:#fef2f2;">
-                <h5 class="modal-title fw-bold text-danger">
-                    <i class="bi bi-flag-fill me-2"></i>
-                    Báo cáo vi phạm
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body pt-4">
-                <p class="text-muted small mb-4">Chọn lý do báo cáo. Chúng tôi sẽ xem xét và xử lý trong vòng 24 giờ.</p>
-
-                <div class="mb-3">
-                    <label class="form-label">Lý do vi phạm <span class="text-danger">*</span></label>
-
-                    @foreach (var reason in new[] { "Tin giả, lừa đảo tiền cọc", "Đã bán/cho thuê rồi", "Giá hoặc diện tích sai thực tế", "Hình ảnh giả / không đúng bất động sản", "Lý do khác" })
-                    {
-                        <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="repReason"
-                                   value="@reason"
-                                   id="rep_@reason.GetHashCode()"
-                                   @(reason == "Tin giả, lừa đảo tiền cọc" ? "checked" : "") />
-                            <label class="form-check-label fw-semibold" for="rep_@reason.GetHashCode()">@reason</label>
-                        </div>
-                    }
+@if (canBuyerInteract)
+{
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background:#fef2f2;">
+                    <h5 class="modal-title fw-bold text-danger">
+                        <i class="bi bi-flag-fill me-2"></i>
+                        Báo cáo vi phạm
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Mô tả thêm</label>
-                    <textarea class="form-control" id="repDesc" rows="3" placeholder="Mô tả chi tiết hơn về vấn đề..."></textarea>
-                </div>
-            </div>
+                <div class="modal-body pt-4">
+                    <p class="text-muted small mb-4">Chọn lý do báo cáo. Chúng tôi sẽ xem xét và xử lý trong vòng 24 giờ.</p>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnReport" class="btn btn-danger rounded-pill fw-bold px-4">
-                    <i class="bi bi-send-fill me-1"></i>
-                    Gửi báo cáo
-                </button>
+                    <div class="mb-3">
+                        <label class="form-label">Lý do vi phạm <span class="text-danger">*</span></label>
+
+                        @foreach (var reason in new[] { "Tin giả, lừa đảo tiền cọc", "Đã bán/cho thuê rồi", "Giá hoặc diện tích sai thực tế", "Hình ảnh giả / không đúng bất động sản", "Lý do khác" })
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input"
+                                       type="radio"
+                                       name="repReason"
+                                       value="@reason"
+                                       id="rep_@reason.GetHashCode()"
+                                       @(reason == "Tin giả, lừa đảo tiền cọc" ? "checked" : "") />
+                                <label class="form-check-label fw-semibold" for="rep_@reason.GetHashCode()">@reason</label>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả thêm</label>
+                        <textarea class="form-control" id="repDesc" rows="3" placeholder="Mô tả chi tiết hơn về vấn đề..."></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" id="btnReport" class="btn btn-danger rounded-pill fw-bold px-4">
+                        <i class="bi bi-send-fill me-1"></i>
+                        Gửi báo cáo
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="modal fade" id="appointmentModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header text-white" style="background:linear-gradient(135deg,#16a34a,#15803d);">
-                <h5 class="modal-title fw-bold">
-                    <i class="bi bi-calendar-check-fill me-2"></i>
-                    Đặt lịch xem nhà
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
+    <div class="modal fade" id="appointmentModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:linear-gradient(135deg,#16a34a,#15803d);">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-calendar-check-fill me-2"></i>
+                        Đặt lịch xem nhà
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
 
-            <div class="modal-body pt-4">
-                <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp trực tiếp để tham quan bất động sản này.</p>
+                <div class="modal-body pt-4">
+                    <p class="text-muted small mb-4">Gửi yêu cầu hẹn gặp trực tiếp để tham quan bất động sản này.</p>
 
-                <div class="row g-3">
-                    <div class="col-12">
-                        <label class="form-label">Họ và tên người đi xem <span class="text-danger">*</span></label>
-                        <input type="text" id="apptName" class="form-control" placeholder="Nhập họ tên..." value="@autoName" required />
-                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Họ và tên người đi xem <span class="text-danger">*</span></label>
+                            <input type="text" id="apptName" class="form-control" placeholder="Nhập họ tên..." value="@autoName" required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Số điện thoại liên hệ <span class="text-danger">*</span></label>
-                        <input type="tel"
-                               id="apptPhone"
-                               class="form-control"
-                               placeholder="Ví dụ: 0987654321"
-                               value="@autoPhone"
-                               maxlength="10"
-                               oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
-                               required />
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label">Số điện thoại liên hệ <span class="text-danger">*</span></label>
+                            <input type="tel"
+                                   id="apptPhone"
+                                   class="form-control"
+                                   placeholder="Ví dụ: 0987654321"
+                                   value="@autoPhone"
+                                   maxlength="10"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
+                                   required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Địa điểm hẹn <span class="text-danger">*</span></label>
-                        <input type="text" id="apptLocation" class="form-control" placeholder="Ví dụ: Tại BĐS hoặc quán cafe..." required />
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label">Địa điểm hẹn <span class="text-danger">*</span></label>
+                            <input type="text" id="apptLocation" class="form-control" placeholder="Ví dụ: Tại BĐS hoặc quán cafe..." required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Thời gian hẹn <span class="text-danger">*</span></label>
-                        <input type="datetime-local" id="apptDate" class="form-control" required />
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label">Thời gian hẹn <span class="text-danger">*</span></label>
+                            <input type="datetime-local" id="apptDate" class="form-control" required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Ghi chú thêm</label>
-                        <textarea class="form-control"
+                        <div class="col-12">
+                            <label class="form-label">Ghi chú thêm</label>
+                            <textarea class="form-control"
                                   id="apptNote"
                                   rows="3"
                                   placeholder="Ví dụ: Tôi rảnh chiều các ngày trong tuần, gọi trước 30 phút..."></textarea>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnAppt" class="btn rounded-pill fw-bold px-4 text-white" style="background:var(--pd-success);">
-                    <i class="bi bi-send-check me-1"></i>
-                    Xác nhận đặt lịch
-                </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" id="btnAppt" class="btn rounded-pill fw-bold px-4 text-white" style="background:var(--pd-success);">
+                        <i class="bi bi-send-check me-1"></i>
+                        Xác nhận đặt lịch
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="modal fade" id="consultationModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header text-white" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);">
-                <h5 class="modal-title fw-bold">
-                    <i class="bi bi-headset me-2"></i>
-                    Yêu cầu tư vấn miễn phí
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
+    <div class="modal fade" id="consultationModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-headset me-2"></i>
+                        Yêu cầu tư vấn miễn phí
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
 
-            <div class="modal-body pt-4">
-                <p class="text-muted small mb-4">Để lại thông tin, chuyên viên sẽ gọi lại tư vấn trong thời gian sớm nhất.</p>
+                <div class="modal-body pt-4">
+                    <p class="text-muted small mb-4">Để lại thông tin, chuyên viên sẽ gọi lại tư vấn trong thời gian sớm nhất.</p>
 
-                <div class="row g-3">
-                    <div class="col-12">
-                        <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                        <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" value="@autoName" required />
-                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                            <input type="text" id="csName" class="form-control" placeholder="Nhập họ tên của bạn" value="@autoName" required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel"
-                               id="csPhone"
-                               class="form-control"
-                               placeholder="Ví dụ: 0987654321"
-                               value="@autoPhone"
-                               maxlength="10"
-                               oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
-                               required />
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                            <input type="tel"
+                                   id="csPhone"
+                                   class="form-control"
+                                   placeholder="Ví dụ: 0987654321"
+                                   value="@autoPhone"
+                                   maxlength="10"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);"
+                                   required />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Email</label>
-                        <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" value="@autoEmail" />
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="csEmail" class="form-control" placeholder="email@example.com" value="@autoEmail" />
+                        </div>
 
-                    <div class="col-12">
-                        <label class="form-label">Lời nhắn</label>
-                        <textarea id="csNote"
+                        <div class="col-12">
+                            <label class="form-label">Lời nhắn</label>
+                            <textarea id="csNote"
                                   class="form-control"
                                   rows="3"
                                   placeholder="Ví dụ: Tôi muốn hỏi về giá chốt, pháp lý và tiến độ..."></textarea>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" id="btnConsult" class="btn rounded-pill fw-bold px-4 text-white" style="background:#0ea5e9;">
-                    <i class="bi bi-send-fill me-1"></i>
-                    Gửi yêu cầu
-                </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light rounded-pill fw-bold px-4" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" id="btnConsult" class="btn rounded-pill fw-bold px-4 text-white" style="background:#0ea5e9;">
+                        <i class="bi bi-send-fill me-1"></i>
+                        Gửi yêu cầu
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
+}
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -2648,6 +2887,28 @@
     <script>
 
         const isLockedProperty = @Json.Serialize(isLockedProperty);
+        const isAuthenticated = @Json.Serialize(isAuthenticated);
+        const loginUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(loginUrl));
+
+        function guardAuthAction() {
+            if (isAuthenticated) return false;
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'Yêu cầu đăng nhập',
+                text: 'Khách vãng lai chỉ được xem thông tin bài đăng. Vui lòng đăng nhập để sử dụng chức năng này.',
+                confirmButtonText: 'Đăng nhập ngay',
+                showCancelButton: true,
+                cancelButtonText: 'Để sau',
+                confirmButtonColor: 'var(--pd-primary)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = loginUrl;
+                }
+            });
+
+            return true;
+        }
 
         function guardLockedAction() {
             if (!isLockedProperty) return false;
@@ -2678,6 +2939,7 @@
         }
 
         function toggleReplyForm(commentId) {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             const formBox = document.getElementById('replyForm_' + commentId);
             if (!formBox) return;
@@ -2692,7 +2954,8 @@
         }
 
           async function submitReply(parentId) {
-        if (guardLockedAction()) return;
+        if (guardAuthAction()) return;
+            if (guardLockedAction()) return;
 
         const input = document.getElementById('replyContent_' + parentId);
             const content = input?.value.trim();
@@ -2799,6 +3062,7 @@
 
            if (btnReveal) {
         btnReveal.addEventListener('click', function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
 
             if (!fullPhone) {
@@ -2818,7 +3082,8 @@
 
         if (btnCopyPh) {
          btnCopyPh.addEventListener('click', function () {
-             if (guardLockedAction()) return;
+             if (guardAuthAction()) return;
+            if (guardLockedAction()) return;
              if (!fullPhone) return;
 
                 navigator.clipboard.writeText(fullPhone).then(() => {
@@ -2898,6 +3163,7 @@
         }
 
         document.getElementById('btnFav')?.addEventListener('click', async function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             try {
                 const res = await fetch('/Favorite/ToggleFavorite', {
@@ -2939,6 +3205,7 @@
         });
 
         document.getElementById('btnReport')?.addEventListener('click', async function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             const fd = new FormData();
 
@@ -2952,6 +3219,7 @@
         });
 
         document.getElementById('btnAppt')?.addEventListener('click', async function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             const name = document.getElementById('apptName').value.trim();
             const phone = document.getElementById('apptPhone').value.trim();
@@ -2990,6 +3258,7 @@
         });
 
         document.getElementById('btnConsult')?.addEventListener('click', async function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             const name = document.getElementById('csName').value.trim();
             const phone = document.getElementById('csPhone').value.trim();
@@ -3018,6 +3287,7 @@
         });
 
         document.getElementById('btnComment')?.addEventListener('click', async function () {
+            if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             const content = document.getElementById('commentContent').value.trim();
 

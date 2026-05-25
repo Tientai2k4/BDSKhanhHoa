@@ -39,6 +39,13 @@
     decimal currentMinArea = filters?.minSize != null ? Convert.ToDecimal(filters.minSize) : areaMinLimit;
     decimal currentMaxArea = filters?.maxSize != null ? Convert.ToDecimal(filters.maxSize) : areaMaxLimit;
 
+    bool hasAdvancedFilter =
+        !string.IsNullOrWhiteSpace(Convert.ToString(filters?.bedrooms)) ||
+        !string.IsNullOrWhiteSpace(Convert.ToString(filters?.bathrooms)) ||
+        !string.IsNullOrWhiteSpace(Convert.ToString(filters?.direction)) ||
+        !string.IsNullOrWhiteSpace(Convert.ToString(filters?.legalStatus)) ||
+        currentAmenities.Any();
+
     ViewData["Title"] = transactionType == "rent"
         ? "Cho thuê bất động sản Khánh Hòa"
         : "Mua bán bất động sản Khánh Hòa";
@@ -82,7 +89,7 @@
     }
 
     .search-page {
-        padding: 18px 0 40px;
+        padding: 12px 0 40px;
     }
 
     .filter-shell {
@@ -244,6 +251,43 @@
         background: #e2e8f0;
         pointer-events: none;
     }
+
+    .filter-advanced-toggle {
+        width: 100%;
+        min-height: 44px;
+        margin: 2px 0 14px;
+        border: 1px solid rgba(37,99,235,.18);
+        border-radius: 16px;
+        background: linear-gradient(135deg, #eff6ff, #eef2ff);
+        color: var(--bds-primary-dark);
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all .2s ease;
+    }
+
+        .filter-advanced-toggle:hover {
+            border-color: rgba(37,99,235,.36);
+            background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+        }
+
+        .filter-advanced-toggle i {
+            transition: transform .2s ease;
+        }
+
+        .filter-advanced-toggle[aria-expanded="true"] i.bi-chevron-down {
+            transform: rotate(180deg);
+        }
+
+    .filter-advanced-wrap {
+        display: none;
+    }
+
+        .filter-advanced-wrap.show {
+            display: block;
+        }
 
     .pill-list {
         display: flex;
@@ -656,31 +700,76 @@
         }
 
     @@media (min-width: 992px) {
+        /*
+                FIX DESKTOP:
+                Bỏ khoảng trống lớn phía trên bộ lọc.
+                Nguyên nhân chính là .filter-sticky dùng position: sticky + top: 92px,
+                làm khối bộ lọc bị tụt xuống thấp hơn danh sách kết quả.
+                Đổi sang static để bộ lọc đứng đúng vị trí đầu hàng, không tự trôi/lướt.
+            */
         .filter-sticky {
-            position: sticky;
-            top: 92px;
-            max-height: calc(100vh - 110px);
-            overflow-y: auto;
+            position: static !important;
+            top: auto !important;
             border-radius: var(--bds-radius);
+            overflow: visible;
+            max-height: none;
+            margin-top: 0 !important;
         }
 
-            .filter-sticky::-webkit-scrollbar {
-                width: 6px;
-            }
+        .filter-shell {
+            margin-top: 0 !important;
+        }
 
-            .filter-sticky::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 999px;
-            }
+        .filter-column {
+            padding-top: 0 !important;
+        }
     }
 
     @@media (max-width: 991.98px) {
         .search-page {
-            padding-top: 12px;
+            padding-top: 0;
+        }
+
+        .filter-column {
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+        }
+
+        .filter-sticky {
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+        }
+
+        .offcanvas-lg.offcanvas-start {
+            width: min(92vw, 390px);
+        }
+
+        .offcanvas-lg .filter-shell {
+            border-radius: 0;
+            box-shadow: none;
+            border: 0;
+            min-height: 100%;
+        }
+
+        .offcanvas-lg .offcanvas-body {
+            overflow-y: auto;
+            padding: 0 !important;
+        }
+
+        .mobile-filter-wrap {
+            margin-top: 0;
+            margin-bottom: 14px;
         }
 
         .result-card {
             padding: 13px;
+            border-radius: 22px;
         }
 
         .result-title {
@@ -692,11 +781,36 @@
             min-width: 100%;
         }
     }
+
+    @@media (max-width: 575.98px) {
+        .search-page > .row {
+            --bs-gutter-y: 0;
+        }
+
+        .mobile-filter-btn {
+            border-radius: 0 0 18px 18px;
+            min-height: 64px;
+            font-size: 1rem;
+        }
+
+        .result-card {
+            padding: 16px;
+            border-radius: 22px 22px 0 0;
+        }
+
+        .property-card {
+            border-radius: 20px;
+        }
+
+        .property-media {
+            aspect-ratio: 1 / 1;
+        }
+    }
 </style>
 
 <div class="container search-page">
     <div class="row g-4">
-        <div class="col-lg-3">
+        <div class="col-lg-3 filter-column">
             <div class="filter-sticky">
                 <div class="offcanvas-lg offcanvas-start" tabindex="-1" id="filterPanel" aria-labelledby="filterPanelLabel">
                     <div class="offcanvas-header d-lg-none border-bottom">
@@ -848,81 +962,92 @@
                                         </div>
                                     </div>
 
-                                    <div class="filter-group">
-                                        <label class="filter-label">Phòng ngủ</label>
-                                        <div class="pill-list">
-                                            @foreach (var n in new[] { "1", "2", "3", "4", "5" })
-                                            {
-                                                string id = "bed_" + n;
-                                                bool isChecked = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
+                                    <button type="button"
+                                            id="advancedToggleBtn"
+                                            class="filter-advanced-toggle"
+                                            aria-expanded="@(hasAdvancedFilter ? "true" : "false")"
+                                            aria-controls="advancedFilters">
+                                        <i class="bi bi-chevron-down"></i>
+                                        <span id="advancedToggleText">@(hasAdvancedFilter ? "Thu gọn bộ lọc nâng cao" : "Mở bộ lọc nâng cao")</span>
+                                    </button>
 
-                                                <input class="btn-check" type="radio" name="bedrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
-                                                <label class="pill-item" for="@id">@(n == "5" ? "5+" : n)</label>
-                                            }
+                                    <div id="advancedFilters" class="filter-advanced-wrap @(hasAdvancedFilter ? "show" : "")">
+                                        <div class="filter-group">
+                                            <label class="filter-label">Phòng ngủ</label>
+                                            <div class="pill-list">
+                                                @foreach (var n in new[] { "1", "2", "3", "4", "5" })
+                                                {
+                                                    string id = "bed_" + n;
+                                                    bool isChecked = filters?.bedrooms != null && Convert.ToString(filters.bedrooms) == n;
+
+                                                    <input class="btn-check" type="radio" name="bedrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
+                                                    <label class="pill-item" for="@id">@(n == "5" ? "5+" : n)</label>
+                                                }
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div class="filter-group">
-                                        <label class="filter-label">Phòng tắm</label>
-                                        <div class="pill-list">
-                                            @foreach (var n in new[] { "1", "2", "3", "4" })
-                                            {
-                                                string id = "bath_" + n;
-                                                bool isChecked = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
+                                        <div class="filter-group">
+                                            <label class="filter-label">Phòng tắm</label>
+                                            <div class="pill-list">
+                                                @foreach (var n in new[] { "1", "2", "3", "4" })
+                                                {
+                                                    string id = "bath_" + n;
+                                                    bool isChecked = filters?.bathrooms != null && Convert.ToString(filters.bathrooms) == n;
 
-                                                <input class="btn-check" type="radio" name="bathrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
-                                                <label class="pill-item" for="@id">@(n == "4" ? "4+" : n)</label>
-                                            }
+                                                    <input class="btn-check" type="radio" name="bathrooms" id="@id" value="@n" @(isChecked ? "checked" : "") />
+                                                    <label class="pill-item" for="@id">@(n == "4" ? "4+" : n)</label>
+                                                }
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div class="filter-group">
-                                        <label class="filter-label" for="directionSelect">Hướng nhà</label>
-                                        <select name="direction" id="directionSelect" class="form-select soft-select">
-                                            <option value="">Tất cả hướng</option>
-                                            @foreach (var direction in new[] { "Đông", "Đông Nam", "Nam", "Tây Nam", "Tây", "Tây Bắc", "Bắc", "Đông Bắc" })
-                                            {
-                                                <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">
-                                                    @direction
-                                                </option>
-                                            }
-                                        </select>
-                                    </div>
+                                        <div class="filter-group">
+                                            <label class="filter-label" for="directionSelect">Hướng nhà</label>
+                                            <select name="direction" id="directionSelect" class="form-select soft-select">
+                                                <option value="">Tất cả hướng</option>
+                                                @foreach (var direction in new[] { "Đông", "Đông Nam", "Nam", "Tây Nam", "Tây", "Tây Bắc", "Bắc", "Đông Bắc" })
+                                                {
+                                                    <option value="@direction" selected="@(filters?.direction != null && Convert.ToString(filters.direction) == direction ? "selected" : null)">
+                                                        @direction
+                                                    </option>
+                                                }
+                                            </select>
+                                        </div>
 
-                                    <div class="filter-group">
-                                        <label class="filter-label" for="legalStatusSelect">Pháp lý</label>
-                                        <select name="legalStatus" id="legalStatusSelect" class="form-select soft-select">
-                                            <option value="">Tất cả pháp lý</option>
-                                            @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Đang chờ sổ", "Hợp đồng mua bán" })
-                                            {
-                                                <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">
-                                                    @legal
-                                                </option>
-                                            }
-                                        </select>
-                                    </div>
+                                        <div class="filter-group">
+                                            <label class="filter-label" for="legalStatusSelect">Pháp lý</label>
+                                            <select name="legalStatus" id="legalStatusSelect" class="form-select soft-select">
+                                                <option value="">Tất cả pháp lý</option>
+                                                @foreach (var legal in new[] { "Sổ hồng", "Sổ đỏ", "Giấy tờ hợp lệ", "Đang chờ sổ", "Hợp đồng mua bán" })
+                                                {
+                                                    <option value="@legal" selected="@(filters?.legalStatus != null && Convert.ToString(filters.legalStatus) == legal ? "selected" : null)">
+                                                        @legal
+                                                    </option>
+                                                }
+                                            </select>
+                                        </div>
 
-                                    <div class="filter-group">
-                                        <label class="filter-label">Tiện ích</label>
+                                        <div class="filter-group mb-0">
+                                            <label class="filter-label">Tiện ích</label>
 
-                                        <ul class="amenity-grid">
-                                            @foreach (var item in new[] { "Gần biển", "Gần chợ", "Gần trường học", "Hẻm xe hơi", "Có gara", "Nội thất", "Thang máy", "Hồ bơi" })
-                                            {
-                                                bool checkedAmenity = currentAmenities.Contains(item);
-                                                string id = "amenity_" + item.Replace(" ", "_").Replace("ầ", "a").Replace("ư", "u");
+                                            <ul class="amenity-grid">
+                                                @foreach (var item in new[] { "Gần biển", "Gần chợ", "Gần trường học", "Hẻm xe hơi", "Có gara", "Nội thất", "Thang máy", "Hồ bơi" })
+                                                {
+                                                    bool checkedAmenity = currentAmenities.Contains(item);
+                                                    string id = "amenity_" + item.Replace(" ", "_").Replace("ầ", "a").Replace("ư", "u");
 
-                                                <li class="amenity-box @(checkedAmenity ? "active" : "")">
-                                                    <label class="amenity-label" for="@id">
-                                                        <input type="checkbox"
-                                                               name="amenities"
-                                                               id="@id"
-                                                               value="@item"
-                                                               @(checkedAmenity ? "checked" : "") />
-                                                        <span>@item</span>
-                                                    </label>
-                                                </li>
-                                            }
-                                        </ul>
+                                                    <li class="amenity-box @(checkedAmenity ? "active" : "")">
+                                                        <label class="amenity-label" for="@id">
+                                                            <input type="checkbox"
+                                                                   name="amenities"
+                                                                   id="@id"
+                                                                   value="@item"
+                                                                   @(checkedAmenity ? "checked" : "") />
+                                                            <span>@item</span>
+                                                        </label>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
                                     </div>
 
                                     <div class="filter-actions">
@@ -945,7 +1070,7 @@
         </div>
 
         <div class="col-lg-9">
-            <div class="d-lg-none mb-3">
+            <div class="d-lg-none mobile-filter-wrap">
                 <button class="mobile-filter-btn"
                         type="button"
                         data-bs-toggle="offcanvas"
@@ -1026,6 +1151,9 @@
 
     const suggestBox = document.getElementById('suggestBox');
     const keywordInput = document.getElementById('keywordInput');
+    const advancedToggleBtn = document.getElementById('advancedToggleBtn');
+    const advancedToggleText = document.getElementById('advancedToggleText');
+    const advancedFilters = document.getElementById('advancedFilters');
 
     let filterTimer = null;
     let suggestTimer = null;
@@ -1094,6 +1222,20 @@
         updateRange(areaMinRange, areaMaxRange, areaMinLabel, areaMaxLabel, areaTrack, formatArea);
     }
 
+    function toggleAdvancedFilter(forceOpen = null) {
+        if (!advancedFilters || !advancedToggleBtn || !advancedToggleText) {
+            return;
+        }
+
+        const shouldOpen = forceOpen === null
+            ? !advancedFilters.classList.contains('show')
+            : Boolean(forceOpen);
+
+        advancedFilters.classList.toggle('show', shouldOpen);
+        advancedToggleBtn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        advancedToggleText.innerText = shouldOpen ? 'Thu gọn bộ lọc nâng cao' : 'Mở bộ lọc nâng cao';
+    }
+
     function fillSubTypes(transaction, selectedTypeId) {
         const rootId = getRootIdByTransaction(transaction);
 
@@ -1150,6 +1292,22 @@
 
         if (!params.get('keyword')) {
             params.delete('keyword');
+        }
+
+        if (!params.get('bedrooms')) {
+            params.delete('bedrooms');
+        }
+
+        if (!params.get('bathrooms')) {
+            params.delete('bathrooms');
+        }
+
+        if (!params.get('direction')) {
+            params.delete('direction');
+        }
+
+        if (!params.get('legalStatus')) {
+            params.delete('legalStatus');
         }
 
         return '/Property/Search?' + params.toString();
@@ -1218,6 +1376,7 @@
 
         setActiveTransactionButton('buy');
         fillSubTypes('buy', '');
+        toggleAdvancedFilter(false);
 
         document.querySelectorAll('.amenity-box').forEach(box => {
             box.classList.remove('active');
@@ -1295,6 +1454,10 @@
     }
 
     function bindEvents() {
+        if (advancedToggleBtn) {
+            advancedToggleBtn.addEventListener('click', () => toggleAdvancedFilter());
+        }
+
         document.querySelectorAll('.mode-tab').forEach(button => {
             button.addEventListener('click', () => {
                 const transaction = button.dataset.trans;
@@ -1302,9 +1465,6 @@
                 transTypeInput.value = transaction;
                 pageInput.value = '1';
 
-                // Rất quan trọng:
-                // Đổi Mua bán / Cho thuê thì phải xóa loại cũ.
-                // Nếu không, typeId của bán sẽ đi qua thuê gây sai kết quả.
                 fillSubTypes(transaction, '');
                 subTypeSelect.value = '';
 
@@ -1413,6 +1573,10 @@
         setActiveTransactionButton(initialTransaction);
         updateAllRanges();
         bindEvents();
+
+        if (advancedFilters?.classList.contains('show')) {
+            toggleAdvancedFilter(true);
+        }
 
         if (initialAreaId) {
             await loadWardsByArea(initialAreaId, initialWardId);

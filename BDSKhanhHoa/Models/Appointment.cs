@@ -32,7 +32,6 @@ namespace BDSKhanhHoa.Models
         [Required]
         public DateTime AppointmentDate { get; set; }
 
-        // Ngày giờ đề xuất dời lịch (Nếu Seller dời lịch)
         public DateTime? ProposedAppointmentDate { get; set; }
 
         [StringLength(255)]
@@ -44,12 +43,13 @@ namespace BDSKhanhHoa.Models
         [StringLength(20)]
         public string? AssignedStaffPhone { get; set; }
 
+        [StringLength(255)]
+        public string? AssignedStaffEmail { get; set; }
+
         public string? Note { get; set; }
 
-        // Ghi chú khi thương lượng (Ví dụ: Lý do dời lịch, lý do hủy)
         public string? NegotiationNote { get; set; }
 
-        // Các trạng thái: Pending, Confirmed, Rescheduled, Cancelled, Completed, NoShow
         [StringLength(50)]
         public string Status { get; set; } = "Pending";
 

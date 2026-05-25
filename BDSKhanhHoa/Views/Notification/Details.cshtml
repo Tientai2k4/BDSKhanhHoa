@@ -2,164 +2,479 @@
 
 @{
     ViewData["Title"] = Model.Title ?? "Chi tiết thông báo";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = "~/Views/Shared/_UserLayout.cshtml";
 
     bool hasAction = !string.IsNullOrWhiteSpace(Model.ActionUrl);
-    string titleLower = (Model.Title ?? "").ToLower();
-    
-    bool isWarning = titleLower.Contains("cảnh cáo") || titleLower.Contains("vi phạm") || titleLower.Contains("từ chối");
-    bool isDanger = titleLower.Contains("gỡ bỏ") || titleLower.Contains("khóa");
-    bool isAppointment = titleLower.Contains("lịch hẹn");
-    bool isConsultation = titleLower.Contains("tư vấn") || titleLower.Contains("liên hệ");
 
-    // Dynamic Theme Builder dựa theo Context của thông báo
-    string themeColor = isDanger ? "#ef4444" : (isWarning ? "#f59e0b" : (isAppointment ? "#10b981" : (isConsultation ? "#0891b2" : "#3b82f6")));
-    string bgSoft = isDanger ? "#fef2f2" : (isWarning ? "#fffbeb" : (isAppointment ? "#f0fdf4" : (isConsultation ? "#e0e7ff" : "#eff6ff")));
-    string iconClass = isDanger ? "bi-shield-fill-x" : (isWarning ? "bi-exclamation-octagon-fill" : (isAppointment ? "bi-calendar2-check-fill" : (isConsultation ? "bi-headset" : "bi-info-circle-fill")));
+    string title = Model.Title ?? "Thông báo từ hệ thống";
+    string titleLower = title.ToLower();
+    string contentLower = (Model.Content ?? "").ToLower();
+    string rawText = titleLower + " " + contentLower;
+
+    bool isWarning =
+        rawText.Contains("cảnh cáo") ||
+        rawText.Contains("cảnh báo") ||
+        rawText.Contains("vi phạm") ||
+        rawText.Contains("từ chối") ||
+        rawText.Contains("báo cáo");
+
+    bool isDanger =
+        rawText.Contains("gỡ bỏ") ||
+        rawText.Contains("khóa") ||
+        rawText.Contains("thất bại");
+
+    bool isAppointment = rawText.Contains("lịch hẹn");
+
+    bool isConsultation =
+        rawText.Contains("tư vấn") ||
+        rawText.Contains("liên hệ") ||
+        rawText.Contains("bình luận") ||
+        rawText.Contains("khách");
+
+    bool isSuccess =
+        rawText.Contains("thành công") ||
+        rawText.Contains("duyệt") ||
+        rawText.Contains("đã xử lý") ||
+        rawText.Contains("đã tiếp nhận") ||
+        rawText.Contains("ghi nhận");
+
+    string themeColor = "#2563eb";
+    string bgSoft = "#eff6ff";
+    string iconClass = "bi-info-circle-fill";
+    string themeName = "Thông báo hệ thống";
+
+    if (isDanger)
+    {
+        themeColor = "#dc2626";
+        bgSoft = "#fef2f2";
+        iconClass = "bi-shield-fill-x";
+        themeName = "Cảnh báo quan trọng";
+    }
+    else if (isWarning)
+    {
+        themeColor = "#f59e0b";
+        bgSoft = "#fffbeb";
+        iconClass = "bi-exclamation-octagon-fill";
+        themeName = "Cảnh báo hệ thống";
+    }
+    else if (isSuccess)
+    {
+        themeColor = "#059669";
+        bgSoft = "#ecfdf5";
+        iconClass = "bi-check-circle-fill";
+        themeName = "Thông báo kết quả";
+    }
+    else if (isAppointment)
+    {
+        themeColor = "#10b981";
+        bgSoft = "#f0fdf4";
+        iconClass = "bi-calendar2-check-fill";
+        themeName = "Thông báo lịch hẹn";
+    }
+    else if (isConsultation)
+    {
+        themeColor = "#0891b2";
+        bgSoft = "#e0f2fe";
+        iconClass = "bi-headset";
+        themeName = "Thông báo tương tác";
+    }
+
+    string safeContent = "Không có nội dung chi tiết đính kèm.";
+    if (!string.IsNullOrWhiteSpace(Model.Content))
+    {
+        safeContent = System.Text.RegularExpressions.Regex.Replace(Model.Content, "<.*?>", string.Empty);
+        safeContent = System.Net.WebUtility.HtmlDecode(safeContent);
+        safeContent = safeContent.Trim();
+    }
+
+    string actionText = string.IsNullOrWhiteSpace(Model.ActionText)
+        ? "Mở liên kết liên quan"
+        : Model.ActionText!;
 }
 
 <style>
-    .detail-shell { padding: 50px 0 80px; background: #f8fafc; min-height: 85vh; }
-    
+    .detail-shell {
+        padding: 28px 0 70px;
+        background: #f8fafc;
+        min-height: 85vh;
+    }
+
     .reader-card {
-        background: #fff; border-radius: 28px; box-shadow: 0 15px 50px rgba(15,23,42,0.06);
-        overflow: hidden; border: 1px solid #e2e8f0; position: relative;
+        background: #fff;
+        border-radius: 24px;
+        box-shadow: 0 16px 46px rgba(15,23,42,0.06);
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        position: relative;
     }
 
     .reader-header {
-        padding: 50px 40px 40px; background: @bgSoft; border-bottom: 1px solid rgba(0,0,0,0.05);
-        text-align: center; position: relative;
+        padding: 42px 34px 34px;
+        background: @bgSoft;
+        border-bottom: 1px solid rgba(15,23,42,0.06);
+        text-align: center;
+        position: relative;
     }
 
-    /* Nút Quay Lại */
     .btn-back-reader {
-        position: absolute; left: 30px; top: 30px; background: #fff; color: #475569;
-        border: 1px solid #e2e8f0; width: 48px; height: 48px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center; transition: all 0.3s;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05); font-size: 1.2rem;
+        position: absolute;
+        left: 24px;
+        top: 24px;
+        background: #fff;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        font-size: 1.15rem;
+        text-decoration: none;
     }
-    .btn-back-reader:hover { transform: translateX(-5px); color: #0f172a; background: #f1f5f9; box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
 
-    /* Nút Xóa Thông Báo */
+        .btn-back-reader:hover {
+            transform: translateX(-4px);
+            color: #0f172a;
+            background: #f8fafc;
+        }
+
     .btn-delete-reader {
-        position: absolute; right: 30px; top: 30px; background: #fff; color: #ef4444;
-        border: 1px solid #fee2e2; border-radius: 14px; padding: 10px 20px;
-        display: flex; align-items: center; gap: 8px; transition: all 0.3s;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1); font-weight: 700; cursor: pointer;
+        position: absolute;
+        right: 24px;
+        top: 24px;
+        background: #fff;
+        color: #ef4444;
+        border: 1px solid #fee2e2;
+        border-radius: 14px;
+        padding: 9px 15px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+        font-weight: 800;
+        cursor: pointer;
+        font-size: .88rem;
     }
-    .btn-delete-reader:hover { transform: translateY(-3px); background: #ef4444; color: #fff; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25); }
 
-    .header-icon { font-size: 4rem; color: @themeColor; margin-bottom: 20px; display: inline-block; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1)); }
-    .reader-title { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin-bottom: 12px; line-height: 1.3; }
-    .reader-meta { font-size: 1rem; color: #64748b; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; background: #ffffff; padding: 6px 16px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        .btn-delete-reader:hover {
+            transform: translateY(-2px);
+            background: #ef4444;
+            color: #fff;
+        }
 
-    .reader-body { 
-        padding: 50px; font-size: 1.1rem; color: #334155; line-height: 1.85; 
-        white-space: pre-wrap; word-wrap: break-word; 
+    .header-icon-wrap {
+        width: 78px;
+        height: 78px;
+        border-radius: 24px;
+        background: #fff;
+        margin: 0 auto 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 28px rgba(15,23,42,0.08);
+        border: 1px solid rgba(15,23,42,0.05);
+    }
+
+    .header-icon {
+        font-size: 2.7rem;
+        color: @themeColor;
+        display: inline-block;
+    }
+
+    .reader-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #fff;
+        color: @themeColor;
+        font-size: .78rem;
+        font-weight: 900;
+        margin-bottom: 12px;
+        border: 1px solid rgba(15,23,42,0.06);
+    }
+
+    .reader-title {
+        font-size: 1.55rem;
+        font-weight: 950;
+        color: #0f172a;
+        margin-bottom: 12px;
+        line-height: 1.35;
+        letter-spacing: -.02em;
+    }
+
+    .reader-meta {
+        font-size: .9rem;
+        color: #64748b;
+        font-weight: 750;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #ffffff;
+        padding: 7px 14px;
+        border-radius: 999px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .reader-body {
+        padding: 32px 38px;
+        font-size: 1rem;
+        color: #334155;
+        line-height: 1.75;
+        white-space: pre-line;
+        word-wrap: break-word;
+        font-weight: 600;
+    }
+
+    .content-box {
+        border-radius: 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 18px;
+        white-space: pre-line;
     }
 
     .action-box {
-        margin: 0 50px 50px; padding: 40px; background: #ffffff;
-        border: 2px dashed @themeColor; border-radius: 24px; text-align: center;
-        position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        margin: 0 38px 38px;
+        padding: 30px;
+        background: #ffffff;
+        border: 2px dashed @themeColor;
+        border-radius: 22px;
+        text-align: center;
+        position: relative;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.03);
     }
-    .action-box::before {
-        content: '\F33A'; /* Mặc định là gear */
-        font-family: "bootstrap-icons"; position: absolute; top: -25px; left: 50%;
-        transform: translateX(-50%); background: @themeColor; color: #fff;
-        width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center;
-        justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    /* Ghi đè icon dựa trên context */
-    @if(isAppointment) { <text>.action-box::before { content: '\F23A'; /* Calendar check */ }</text> }
-    @if(isConsultation) { <text>.action-box::before { content: '\F43D'; /* Headset */ }</text> }
-    @if(isDanger || isWarning) { <text>.action-box::before { content: '\F33B'; /* Shield Exclamation */ }</text> }
 
-    .action-title { font-size: 1.4rem; font-weight: 900; color: #0f172a; margin-bottom: 12px; }
-    .action-desc { color: #475569; margin-bottom: 30px; font-size: 1.05rem; }
+        .action-box::before {
+            content: '\F1C5';
+            font-family: "bootstrap-icons";
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: @themeColor;
+            color: #fff;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+        }
+
+    .action-title {
+        font-size: 1.22rem;
+        font-weight: 950;
+        color: #0f172a;
+        margin: 8px 0 10px;
+    }
+
+    .action-desc {
+        color: #475569;
+        margin-bottom: 24px;
+        font-size: .96rem;
+        line-height: 1.6;
+        font-weight: 600;
+    }
 
     .btn-execute {
-        background: @themeColor; color: #fff; padding: 16px 40px; border-radius: 100px;
-        font-size: 1.1rem; font-weight: 900; text-decoration: none; display: inline-flex;
-        align-items: center; gap: 12px; transition: all 0.3s; border: none;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15); animation: pulseAction 2s infinite;
+        background: @themeColor;
+        color: #fff;
+        padding: 13px 26px;
+        border-radius: 999px;
+        font-size: .98rem;
+        font-weight: 950;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.25s ease;
+        border: none;
+        box-shadow: 0 8px 22px rgba(0,0,0,0.14);
     }
-    .btn-execute:hover { background: #0f172a; transform: translateY(-3px); color: #fff; box-shadow: 0 12px 30px rgba(15,23,42,0.3); animation: none; }
 
-    @@keyframes pulseAction {
-        0% { box-shadow: 0 0 0 0 @Html.Raw(themeColor + "66"); }
-        70% { box-shadow: 0 0 0 15px @Html.Raw(themeColor + "00"); }
-        100% { box-shadow: 0 0 0 0 @Html.Raw(themeColor + "00"); }
+        .btn-execute:hover {
+            background: #0f172a;
+            transform: translateY(-2px);
+            color: #fff;
+            box-shadow: 0 12px 30px rgba(15,23,42,0.25);
+        }
+
+    .no-action-box {
+        margin: 0 38px 38px;
+        padding: 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        color: #64748b;
+        font-size: .92rem;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    @@media (max-width: 768px) {
+        .detail-shell {
+            padding: 14px 0 50px;
+        }
+
+        .reader-card {
+            border-radius: 20px;
+        }
+
+        .reader-header {
+            padding: 78px 18px 28px;
+        }
+
+        .btn-back-reader {
+            left: 16px;
+            top: 16px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .btn-delete-reader {
+            right: 16px;
+            top: 16px;
+            min-height: 40px;
+            padding: 0 12px;
+        }
+
+        .reader-title {
+            font-size: 1.2rem;
+        }
+
+        .reader-body {
+            padding: 22px 18px;
+            font-size: .94rem;
+        }
+
+        .action-box,
+        .no-action-box {
+            margin: 0 18px 24px;
+            padding: 24px 16px;
+        }
+
+        .btn-execute {
+            width: 100%;
+            justify-content: center;
+        }
     }
 </style>
 
-<div class="detail-shell animate__animated animate__zoomIn">
+<div class="detail-shell animate__animated animate__fadeIn">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-lg-9 col-xl-8">
-
                 <div class="reader-card">
                     <div class="reader-header">
-                        <!-- Nút Trở Về -->
-                        <a href="/Notification/Index" class="btn-back-reader" title="Trở về danh sách"><i class="bi bi-arrow-left"></i></a>
-                        
-                        <!-- NÚT BỔ SUNG: XÓA THÔNG BÁO -->
+                        <a href="/Notification/Index" class="btn-back-reader" title="Trở về danh sách">
+                            <i class="bi bi-arrow-left"></i>
+                        </a>
+
                         <form id="form-del-@Model.NotificationID" class="m-0">
                             @Html.AntiForgeryToken()
-                            <button type="button" class="btn-delete-reader" onclick="deleteNotiDetail(event, @Model.NotificationID)" title="Xóa thông báo này">
-                                <i class="bi bi-trash3-fill"></i> <span class="d-none d-sm-inline">Xóa</span>
+                            <button type="button"
+                                    class="btn-delete-reader"
+                                    onclick="deleteNotiDetail(event, @Model.NotificationID)"
+                                    title="Xóa thông báo này">
+                                <i class="bi bi-trash3-fill"></i>
+                                <span class="d-none d-sm-inline">Xóa</span>
                             </button>
                         </form>
 
-                        <i class="bi @iconClass header-icon"></i>
-                        <h1 class="reader-title">@(Model.Title ?? "Thông báo từ hệ thống")</h1>
+                        <div class="header-icon-wrap">
+                            <i class="bi @iconClass header-icon"></i>
+                        </div>
+
+                        <div class="reader-type">
+                            <i class="bi bi-tag-fill"></i>
+                            @themeName
+                        </div>
+
+                        <h1 class="reader-title">@title</h1>
+
                         <div class="reader-meta">
-                            <i class="bi bi-envelope-check-fill text-success"></i> Ngày nhận: @Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm")
+                            <i class="bi bi-envelope-check-fill text-success"></i>
+                            Ngày nhận: @Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm")
                         </div>
                     </div>
 
                     <div class="reader-body">
-                        <!-- Hiển thị nội dung, nếu có chứa thẻ HTML thì sẽ render an toàn -->
-                        @if (!string.IsNullOrWhiteSpace(Model.Content))
-                        {
-                            @Html.Raw(Model.Content)
-                        }
-                        else
-                        {
-                            <span class="text-muted fst-italic">Không có nội dung chi tiết đính kèm.</span>
-                        }
+                        <div class="content-box">
+                            @safeContent
+                        </div>
                     </div>
 
                     @if (hasAction)
                     {
                         <div class="action-box">
-                            @if(isAppointment) {
-                                <h3 class="action-title">Hành động Lịch hẹn</h3>
-                                <p class="action-desc">Có một yêu cầu liên quan đến Lịch hẹn cần bạn xác nhận hoặc cập nhật kết quả. Vui lòng kiểm tra ngay.</p>
-                            } else if(isConsultation) {
-                                <h3 class="action-title">Yêu cầu Tư vấn mới</h3>
-                                <p class="action-desc">Khách hàng đang mong chờ cuộc gọi từ bạn. Hãy nhấp vào bên dưới để lấy thông tin liên lạc.</p>
-                            } else if(isWarning || isDanger) {
-                                <h3 class="action-title">Yêu cầu từ Ban Quản Trị</h3>
-                                <p class="action-desc">Vui lòng thực hiện yêu cầu này để tuân thủ quy định của hệ thống. Nếu bỏ qua, tài khoản của bạn có thể bị hạn chế.</p>
-                            } else {
-                                <h3 class="action-title">Thao tác liên kết</h3>
-                                <p class="action-desc">Hệ thống có đính kèm một liên kết để bạn thao tác trực tiếp. Nhấn vào nút bên dưới để thực hiện.</p>
+                            @if (isAppointment)
+                            {
+                                <h3 class="action-title">Liên kết lịch hẹn</h3>
+                                <p class="action-desc">
+                                    Hãy đọc kỹ nội dung thông báo trước khi mở trang liên quan đến lịch hẹn.
+                                </p>
+                            }
+                            else if (isConsultation)
+                            {
+                                <h3 class="action-title">Liên kết tương tác khách hàng</h3>
+                                <p class="action-desc">
+                                    Hệ thống có đính kèm liên kết để bạn xem thông tin tư vấn, bình luận hoặc tương tác liên quan.
+                                </p>
+                            }
+                            else if (isWarning || isDanger)
+                            {
+                                <h3 class="action-title">Liên kết cảnh báo hoặc xử lý</h3>
+                                <p class="action-desc">
+                                    Bạn hãy đọc kỹ nội dung thông báo. Sau đó bấm nút bên dưới để mở trang liên quan nếu cần kiểm tra thêm.
+                                </p>
+                            }
+                            else
+                            {
+                                <h3 class="action-title">Liên kết liên quan</h3>
+                                <p class="action-desc">
+                                    Thông báo này có kèm một liên kết thao tác. Bấm nút bên dưới để chuyển đến trang liên quan.
+                                </p>
                             }
 
-                            <!-- Chuyển hướng qua Action xử lý trung gian -->
                             <a href="/Notification/ProcessAction/@Model.NotificationID" class="btn-execute">
-                                @if (isAppointment) { <i class="bi bi-calendar2-check-fill"></i> }
-                                else if (isConsultation) { <i class="bi bi-telephone-outbound-fill"></i> }
-                                else if (isWarning || isDanger) { <i class="bi bi-shield-lock-fill"></i> }
-                                else { <i class="bi bi-box-arrow-up-right"></i> }
+                                @if (isAppointment)
+                                {
+                                    <i class="bi bi-calendar2-check-fill"></i>
+                                }
+                                else if (isConsultation)
+                                {
+                                    <i class="bi bi-telephone-outbound-fill"></i>
+                                }
+                                else if (isWarning || isDanger)
+                                {
+                                    <i class="bi bi-shield-lock-fill"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                }
 
-                                @(string.IsNullOrWhiteSpace(Model.ActionText) ? "Xử lý yêu cầu ngay" : Model.ActionText)
+                                @actionText
                             </a>
                         </div>
                     }
+                    else
+                    {
+                        <div class="no-action-box">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Thông báo này không có liên kết thao tác. Bạn chỉ cần đọc nội dung để nắm thông tin.
+                        </div>
+                    }
                 </div>
-
             </div>
         </div>
     </div>
@@ -167,14 +482,14 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        // Xử lý Xóa thông báo từ trang chi tiết
         function deleteNotiDetail(e, id) {
             e.preventDefault();
 
             Swal.fire({
                 title: 'Xóa thông báo này?',
-                text: "Thông báo sau khi xóa sẽ không thể khôi phục.",
+                text: 'Thông báo sau khi xóa sẽ không thể khôi phục.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
@@ -182,41 +497,39 @@
                 confirmButtonText: '<i class="bi bi-trash"></i> Xóa ngay',
                 cancelButtonText: 'Hủy'
             }).then((result) => {
-                if (result.isConfirmed) {
-                    // Lấy token bảo mật từ Form
-                    var token = document.querySelector('#form-del-' + id + ' input[name="__RequestVerificationToken"]').value;
-                    
-                    // Dùng Fetch API (tránh phụ thuộc jQuery nếu _Layout chưa load kịp)
-                    const formData = new FormData();
-                    formData.append('id', id);
-                    formData.append('__RequestVerificationToken', token);
+                if (!result.isConfirmed) return;
 
-                    fetch('/Notification/Delete', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(res => {
-                        if (res.success) {
-                            Swal.fire({ 
-                                toast: true, 
-                                position: 'top-end', 
-                                icon: 'success', 
-                                title: 'Đã xóa thông báo', 
-                                showConfirmButton: false, 
-                                timer: 1500 
-                            }).then(() => {
-                                // Điều hướng trở về danh sách thông báo
-                                window.location.href = '/Notification/Index';
-                            });
-                        } else {
-                            Swal.fire('Lỗi', res.message, 'error');
-                        }
-                    })
-                    .catch(error => {
-                        Swal.fire('Lỗi', 'Lỗi kết nối đến máy chủ.', 'error');
-                    });
-                }
+                const tokenInput = document.querySelector('#form-del-' + id + ' input[name="__RequestVerificationToken"]');
+                const token = tokenInput ? tokenInput.value : '';
+
+                const formData = new FormData();
+                formData.append('id', id);
+                formData.append('__RequestVerificationToken', token);
+
+                fetch('/Notification/Delete', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(res => {
+                    if (res.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Đã xóa thông báo',
+                            showConfirmButton: false,
+                            timer: 1500
+                        }).then(() => {
+                            window.location.href = '/Notification/Index';
+                        });
+                    } else {
+                        Swal.fire('Lỗi', res.message || 'Không thể xóa thông báo.', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Lỗi', 'Lỗi kết nối đến máy chủ.', 'error');
+                });
             });
         }
     </script>

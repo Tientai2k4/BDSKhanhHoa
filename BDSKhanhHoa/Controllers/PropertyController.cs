@@ -1881,7 +1881,6 @@ namespace BDSKhanhHoa.Controllers
             return Json(new { success = true, message = "Đã gửi yêu cầu hẹn gặp thành công!" });
         }
         [HttpPost]
-        [AllowAnonymous]
         public async Task<IActionResult> SubmitConsultation(
         [FromForm] int propertyId,
         [FromForm] string fullName,
@@ -1889,6 +1888,12 @@ namespace BDSKhanhHoa.Controllers
         [FromForm] string email,
         [FromForm] string note)
         {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out int senderId))
+            {
+                return Json(new { success = false, message = "Vui lòng đăng nhập để gửi yêu cầu tư vấn." });
+            }
+
             var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
             if (lockCheck.IsLocked)
             {
@@ -1914,17 +1919,9 @@ namespace BDSKhanhHoa.Controllers
                 return Json(new { success = false, message = "Không tìm thấy bất động sản." });
             }
 
-            int? senderId = null;
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int parsedId))
+            if (property.UserID == senderId)
             {
-                senderId = parsedId;
-
-                if (property.UserID == parsedId)
-                {
-                    return Json(new { success = false, message = "Bạn không thể tự gửi yêu cầu tư vấn cho tin của mình." });
-                }
+                return Json(new { success = false, message = "Bạn không thể tự gửi yêu cầu tư vấn cho tin của mình." });
             }
 
             _context.Consultations.Add(new Consultation

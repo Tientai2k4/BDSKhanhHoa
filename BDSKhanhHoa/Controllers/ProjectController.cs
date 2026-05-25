@@ -105,7 +105,6 @@ namespace BDSKhanhHoa.Controllers
             };
 
             int totalResults = await query.CountAsync();
-
             int totalPages = (int)Math.Ceiling(totalResults / (double)pageSize);
 
             if (totalPages < 1)
@@ -200,6 +199,12 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Search", "Project");
             }
 
+            // Dự án liên quan:
+            // - Chỉ lấy dự án đã duyệt, chưa xóa.
+            // - Không lấy chính dự án đang xem.
+            // - Cùng khu vực AreaID với dự án hiện tại.
+            // - Ưu tiên cùng Phường/Xã trước, sau đó ưu tiên lượt xem cao và dự án mới cập nhật.
+            // - Hiển thị tối đa 4 dự án để giao diện gọn trên desktop và mobile.
             var relatedProjects = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Ward)
@@ -212,9 +217,10 @@ namespace BDSKhanhHoa.Controllers
                         p.ApprovalStatus == "Đã duyệt"
                     ) &&
                     p.AreaID == project.AreaID)
-                .OrderByDescending(p => p.Views)
+                .OrderByDescending(p => p.WardID == project.WardID)
+                .ThenByDescending(p => p.Views)
                 .ThenByDescending(p => p.PublishedAt)
-                .Take(3)
+                .Take(4)
                 .ToListAsync();
 
             int leadCount = await _context.ProjectLeads
@@ -243,6 +249,7 @@ namespace BDSKhanhHoa.Controllers
 
             return View(project);
         }
+
         private async Task IncreaseProjectViewAsync(int projectId)
         {
             await _context.Database.ExecuteSqlInterpolatedAsync($@"
