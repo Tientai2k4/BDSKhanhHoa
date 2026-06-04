@@ -18,6 +18,9 @@ namespace BDSKhanhHoa.Controllers.Api
             _logger = logger;
         }
 
+        // =========================================================
+        // GỬI TIN NHẮN CHATBOT AI
+        // =========================================================
         [HttpPost("send")]
         public async Task<IActionResult> SendMessage([FromBody] ChatRequest request)
         {
@@ -48,7 +51,7 @@ namespace BDSKhanhHoa.Controllers.Api
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Lỗi khi xử lý tin nhắn chatbot.");
+                _logger.LogError(ex, "Lỗi khi xử lý tin nhắn chatbot AI.");
 
                 return StatusCode(500, new
                 {

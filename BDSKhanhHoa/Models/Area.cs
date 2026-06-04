@@ -12,11 +12,11 @@ namespace BDSKhanhHoa.Models
 
         [Required(ErrorMessage = "Tên khu vực là bắt buộc.")]
         [StringLength(100)]
-        public string? AreaName { get; set; } // Thêm dấu ? để binding linh hoạt
+        public string? AreaName { get; set; }
 
         [StringLength(255)]
         public string? Description { get; set; }
 
-        public virtual ICollection<Ward>? Wards { get; set; }
+        public virtual ICollection<Ward> Wards { get; set; } = new List<Ward>();
     }
 }

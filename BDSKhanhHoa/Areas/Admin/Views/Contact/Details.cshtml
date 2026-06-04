@@ -2,79 +2,285 @@
 @{
     ViewData["Title"] = "Chi tiết Liên hệ";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string currentStatus = string.IsNullOrWhiteSpace(Model.Status) ? "Chưa xử lý" : Model.Status.Trim();
+
+    bool isNew = currentStatus == "Chưa xử lý";
+    bool isProcessing = currentStatus == "Đang xử lý";
+    bool isDone = currentStatus == "Đã xử lý";
 }
 
+<style>
+    .status-badge-lg {
+        font-size: .95rem;
+        font-weight: 850;
+        border-radius: 999px;
+        padding: 9px 15px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .status-new {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .status-processing {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-done {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .process-step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+    }
+
+    .step-dot {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: .8rem;
+    }
+
+    .step-active {
+        background: #2563eb;
+        color: #fff;
+    }
+
+    .step-done {
+        background: #16a34a;
+        color: #fff;
+    }
+
+    .step-wait {
+        background: #e5e7eb;
+        color: #64748b;
+    }
+
+    .contact-message-box {
+        min-height: 250px;
+        font-size: 1.05rem;
+        line-height: 1.7;
+        color: #334155;
+        white-space: pre-wrap;
+    }
+
+    /* MOBILE COMPACT FIX */
+    @@media (max-width: 767.98px) {
+        .container-fluid {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            padding-top: 12px !important;
+        }
+
+        h4 {
+            font-size: 1.06rem !important;
+            line-height: 1.25 !important;
+        }
+
+        .breadcrumb {
+            display: none !important;
+        }
+
+        .card {
+            border-radius: 17px !important;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .045) !important;
+        }
+
+        .card-header {
+            padding: 12px !important;
+        }
+
+        .card-body {
+            padding: 12px !important;
+        }
+
+        .contact-message-box {
+            min-height: 150px !important;
+            font-size: .88rem !important;
+            line-height: 1.55 !important;
+            padding: 12px !important;
+            border-radius: 14px !important;
+        }
+
+        .status-badge-lg {
+            font-size: .72rem !important;
+            padding: 6px 9px !important;
+        }
+
+        .process-step {
+            padding: 7px 0 !important;
+            gap: 8px !important;
+        }
+
+        .step-dot {
+            width: 24px !important;
+            height: 24px !important;
+            font-size: .7rem !important;
+        }
+
+        .process-step .fw-bold {
+            font-size: .82rem !important;
+        }
+
+        .process-step .small {
+            font-size: .72rem !important;
+            line-height: 1.35 !important;
+        }
+
+        .btn {
+            min-height: 38px !important;
+            border-radius: 12px !important;
+            font-size: .8rem !important;
+        }
+
+        .alert {
+            border-radius: 14px !important;
+            padding: 10px 12px !important;
+            font-size: .82rem !important;
+        }
+    }
+
+</style>
+
 <div class="container-fluid px-4 py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
             <h4 class="fw-bold mb-1 text-dark">
-                <i class="bi bi-envelope-open me-2 text-primary"></i>Chi tiết thư #@Model.ContactID
+                <i class="bi bi-envelope-open me-2 text-primary"></i>
+                Chi tiết thư #@Model.ContactID
             </h4>
+
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 small">
-                    <li class="breadcrumb-item"><a href="/Admin/Dashboard" class="text-decoration-none">Bảng điều khiển</a></li>
-                    <li class="breadcrumb-item"><a href="/Admin/Contact" class="text-decoration-none">Hộp thư</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="/Admin/Dashboard" class="text-decoration-none">Bảng điều khiển</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="/Admin/Contact" class="text-decoration-none">Hộp thư</a>
+                    </li>
                     <li class="breadcrumb-item active" aria-current="page">Chi tiết</li>
                 </ol>
             </nav>
         </div>
+
         <a href="/Admin/Contact" class="btn btn-light border rounded-pill fw-bold shadow-sm">
-            <i class="bi bi-arrow-left me-1"></i> Quay lại
+            <i class="bi bi-arrow-left me-1"></i>
+            Quay lại
         </a>
     </div>
 
     @if (TempData["SuccessMsg"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 d-flex align-items-center" role="alert">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i> @TempData["SuccessMsg"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            @TempData["SuccessMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMsg"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["ErrorMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (TempData["InfoMsg"] != null)
+    {
+        <div class="alert alert-info alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            @TempData["InfoMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
     <div class="row g-4">
-        <!-- CỘT TRÁI: NỘI DUNG THƯ -->
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-header bg-white border-bottom p-4">
-                    <h5 class="fw-bold text-dark mb-1">@Html.Raw(string.IsNullOrEmpty(Model.Subject) ? "<em class='text-muted'>Không có chủ đề</em>" : Model.Subject)</h5>
-                    <div class="text-muted small"><i class="bi bi-clock me-1"></i> Gửi lúc: @Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm:ss")</div>
+                    <h5 class="fw-bold text-dark mb-1">
+                        @if (string.IsNullOrWhiteSpace(Model.Subject))
+                        {
+                            <em class="text-muted">Không có chủ đề</em>
+                        }
+                        else
+                        {
+                            @Model.Subject
+                        }
+                    </h5>
+
+                    <div class="text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Gửi lúc: @Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm:ss")
+                    </div>
                 </div>
+
                 <div class="card-body p-4 p-md-5">
-                    <div class="bg-light p-4 rounded-4 border" style="min-height: 250px; font-size: 1.05rem; line-height: 1.6; color: #334155; white-space: pre-wrap;">@Model.Message</div>
+                    <div class="bg-light p-4 rounded-4 border contact-message-box">
+                        @Model.Message
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- CỘT PHẢI: THÔNG TIN NGƯỜI GỬI & XỬ LÝ -->
         <div class="col-lg-4">
-            <!-- Box Người gửi -->
             <div class="card border-0 shadow-sm rounded-4 mb-4">
                 <div class="card-header bg-white border-bottom p-3">
-                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-person-badge text-primary me-2"></i>Thông tin liên hệ</h6>
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-person-badge text-primary me-2"></i>
+                        Thông tin liên hệ
+                    </h6>
                 </div>
+
                 <div class="card-body p-4">
                     <div class="mb-3">
                         <small class="text-muted fw-bold d-block text-uppercase mb-1">Họ tên khách hàng</small>
                         <div class="fs-6 fw-bold text-dark">@Model.FullName</div>
                     </div>
+
                     <div class="mb-3">
                         <small class="text-muted fw-bold d-block text-uppercase mb-1">Số điện thoại</small>
-                        @if (!string.IsNullOrEmpty(Model.Phone))
+
+                        @if (!string.IsNullOrWhiteSpace(Model.Phone))
                         {
-                            <a href="tel:@Model.Phone" class="fw-bold text-decoration-none fs-6">@Model.Phone</a>
+                            <a href="tel:@Model.Phone" class="fw-bold text-decoration-none fs-6">
+                                @Model.Phone
+                            </a>
                         }
                         else
                         {
                             <span class="text-muted fst-italic">Không cung cấp</span>
                         }
                     </div>
-                    <div class="mb-3">
+
+                    <div class="mb-0">
                         <small class="text-muted fw-bold d-block text-uppercase mb-1">Email phản hồi</small>
-                        @if (!string.IsNullOrEmpty(Model.Email))
+
+                        @if (!string.IsNullOrWhiteSpace(Model.Email))
                         {
-                            <a href="mailto:@Model.Email" class="fw-bold text-decoration-none fs-6 text-break">@Model.Email</a>
-                            <a href="mailto:@Model.Email?subject=Phản hồi từ BDSKhanhHoa&body=Chào bạn @Model.FullName," class="btn btn-sm btn-outline-primary w-100 rounded-pill mt-2 fw-bold">
-                                <i class="bi bi-reply-fill"></i> Trả lời qua Email
+                            <a href="mailto:@Model.Email" class="fw-bold text-decoration-none fs-6 text-break">
+                                @Model.Email
+                            </a>
+
+                            <a href="mailto:@Model.Email?subject=Phản hồi từ BDSKhanhHoa&body=Chào bạn @Model.FullName,"
+                               class="btn btn-sm btn-outline-primary w-100 rounded-pill mt-3 fw-bold">
+                                <i class="bi bi-reply-fill"></i>
+                                Trả lời qua Email
                             </a>
                         }
                         else
@@ -85,39 +291,136 @@
                 </div>
             </div>
 
-            <!-- Box Xử lý trạng thái -->
             <div class="card border-0 shadow-sm rounded-4">
                 <div class="card-header bg-white border-bottom p-3">
-                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-gear-fill text-warning me-2"></i>Trạng thái xử lý</h6>
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-diagram-3-fill text-warning me-2"></i>
+                        Quy trình xử lý
+                    </h6>
                 </div>
+
                 <div class="card-body p-4">
                     <div class="d-flex align-items-center justify-content-between mb-4">
-                        <span class="fw-bold text-muted">Hiện tại:</span>
-                        @if (Model.Status == "Chưa xử lý")
+                        <span class="fw-bold text-muted">Trạng thái hiện tại:</span>
+
+                        @if (isNew)
                         {
-                            <span class="badge bg-danger rounded-pill px-3 py-2 fs-6">Chưa xử lý</span>
+                            <span class="status-badge-lg status-new">
+                                <i class="bi bi-inbox-fill"></i>
+                                Chưa xử lý
+                            </span>
                         }
-                        else if (Model.Status == "Đang xử lý")
+                        else if (isProcessing)
                         {
-                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fs-6">Đang xử lý</span>
+                            <span class="status-badge-lg status-processing">
+                                <i class="bi bi-hourglass-split"></i>
+                                Đang xử lý
+                            </span>
                         }
                         else
                         {
-                            <span class="badge bg-success rounded-pill px-3 py-2 fs-6">Đã xử lý xong</span>
+                            <span class="status-badge-lg status-done">
+                                <i class="bi bi-check2-circle"></i>
+                                Đã xử lý
+                            </span>
                         }
                     </div>
 
-                    <form action="/Admin/Contact/UpdateStatus" method="post">
+                    <div class="border rounded-4 p-3 mb-4 bg-light">
+                        <div class="process-step">
+                            <span class="step-dot @(isNew ? "step-active" : "step-done")">1</span>
+                            <div>
+                                <div class="fw-bold">Chưa xử lý</div>
+                                <div class="small text-muted">Thư mới được gửi vào hệ thống.</div>
+                            </div>
+                        </div>
+
+                        <div class="process-step">
+                            <span class="step-dot @(isProcessing ? "step-active" : isDone ? "step-done" : "step-wait")">2</span>
+                            <div>
+                                <div class="fw-bold">Đang xử lý</div>
+                                <div class="small text-muted">Nhân viên đã tiếp nhận và đang liên hệ.</div>
+                            </div>
+                        </div>
+
+                        <div class="process-step">
+                            <span class="step-dot @(isDone ? "step-done" : "step-wait")">3</span>
+                            <div>
+                                <div class="fw-bold">Đã xử lý</div>
+                                <div class="small text-muted">Yêu cầu đã hoàn tất, không thể lùi trạng thái.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (isDone)
+                    {
+                        <div class="alert alert-success rounded-4 border-0 mb-0">
+                            <i class="bi bi-lock-fill me-1"></i>
+                            Thư này đã xử lý xong. Trạng thái đã được khóa để tránh cập nhật lùi hoặc xử lý trùng.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-grid gap-2">
+                            @if (isNew)
+                            {
+                                <form action="/Admin/Contact/UpdateStatus" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@Model.ContactID" />
+                                    <input type="hidden" name="status" value="Đang xử lý" />
+                                    <button type="submit"
+                                            class="btn btn-warning text-dark w-100 rounded-pill fw-bold shadow-sm"
+                                            onclick="return confirm('Xác nhận tiếp nhận thư này và chuyển sang trạng thái Đang xử lý?');">
+                                        <i class="bi bi-hourglass-split me-1"></i>
+                                        Tiếp nhận xử lý
+                                    </button>
+                                </form>
+
+                                <form action="/Admin/Contact/UpdateStatus" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@Model.ContactID" />
+                                    <input type="hidden" name="status" value="Đã xử lý" />
+                                    <button type="submit"
+                                            class="btn btn-success w-100 rounded-pill fw-bold shadow-sm"
+                                            onclick="return confirm('Xác nhận đánh dấu thư này là Đã xử lý? Sau khi hoàn tất sẽ không thể lùi trạng thái.');">
+                                        <i class="bi bi-check2-circle me-1"></i>
+                                        Đánh dấu đã xử lý
+                                    </button>
+                                </form>
+                            }
+
+                            @if (isProcessing)
+                            {
+                                <form action="/Admin/Contact/UpdateStatus" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@Model.ContactID" />
+                                    <input type="hidden" name="status" value="Đã xử lý" />
+                                    <button type="submit"
+                                            class="btn btn-success w-100 rounded-pill fw-bold shadow-sm"
+                                            onclick="return confirm('Xác nhận hoàn tất xử lý thư này? Sau khi hoàn tất sẽ không thể chuyển lại Đang xử lý.');">
+                                        <i class="bi bi-check2-circle me-1"></i>
+                                        Hoàn tất xử lý
+                                    </button>
+                                </form>
+                            }
+                        </div>
+
+                        <div class="small text-muted mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Quy trình chỉ đi một chiều. Không thể chuyển lùi trạng thái để tránh nhầm lẫn dữ liệu.
+                        </div>
+                    }
+
+                    <hr class="my-4" />
+
+                    <form action="/Admin/Contact/Delete" method="post">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@Model.ContactID" />
-                        <label class="form-label fw-bold small text-muted">Cập nhật sang trạng thái mới:</label>
-                        <select name="status" class="form-select rounded-3 mb-3 fw-bold border-2">
-                            <option value="Chưa xử lý" selected="@(Model.Status == "Chưa xử lý")">Chưa xử lý</option>
-                            <option value="Đang xử lý" selected="@(Model.Status == "Đang xử lý")">Đang xử lý (Đang liên hệ)</option>
-                            <option value="Đã xử lý" selected="@(Model.Status == "Đã xử lý")">Đã xử lý xong</option>
-                        </select>
-                        <button class="btn btn-primary w-100 rounded-pill fw-bold shadow-sm" type="submit">
-                            <i class="bi bi-save2 me-1"></i> Lưu thay đổi
+                        <button type="submit"
+                                class="btn btn-outline-danger w-100 rounded-pill fw-bold"
+                                onclick="return confirm('Bạn có chắc muốn xóa thư liên hệ này khỏi hệ thống?');">
+                            <i class="bi bi-trash me-1"></i>
+                            Xóa thư liên hệ
                         </button>
                     </form>
                 </div>

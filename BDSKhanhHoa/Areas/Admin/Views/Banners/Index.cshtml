@@ -4,47 +4,268 @@
     Layout = "_AdminLayout";
 }
 
-<div class="container-fluid py-3">
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+<style>
+    .admin-compact-page {
+        --c-primary: #2563eb;
+        --c-dark: #0f172a;
+        --c-muted: #64748b;
+        --c-border: #e2e8f0;
+        --c-soft: #f8fafc;
+        --c-card: #fff;
+        padding: 16px;
+        overflow-x: hidden;
     }
 
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-        <div class="card-header bg-white py-3 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
-            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-images me-2 text-primary"></i>QUẢN LÝ BANNER SLIDER</h5>
-            <a asp-action="Create" class="btn btn-primary rounded-pill px-4 shadow-sm align-self-start align-self-sm-auto">
-                <i class="bi bi-plus-lg me-1"></i> Thêm mới
+        .admin-compact-page * {
+            box-sizing: border-box;
+        }
+
+    .compact-shell {
+        max-width: 1280px;
+        margin: 0 auto;
+    }
+
+    .compact-head,
+    .compact-card {
+        background: var(--c-card);
+        border: 1px solid var(--c-border);
+        border-radius: 20px;
+        box-shadow: 0 10px 28px rgba(15,23,42,.055);
+    }
+
+    .compact-head {
+        padding: 16px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .compact-title {
+        margin: 0;
+        color: var(--c-dark);
+        font-weight: 900;
+        letter-spacing: -.03em;
+        line-height: 1.2;
+        font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+    }
+
+    .compact-sub {
+        margin: 4px 0 0;
+        color: var(--c-muted);
+        font-size: .86rem;
+        font-weight: 600;
+    }
+
+    .btn-compact-primary {
+        min-height: 40px;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-weight: 850;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        white-space: nowrap;
+    }
+
+    .desktop-table {
+        display: block;
+    }
+
+    .banner-table {
+        width: 100%;
+        margin: 0;
+        table-layout: fixed;
+    }
+
+        .banner-table thead th {
+            background: #f8fafc;
+            color: var(--c-muted);
+            text-transform: uppercase;
+            letter-spacing: .055em;
+            font-size: .72rem;
+            font-weight: 900;
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--c-border);
+        }
+
+        .banner-table tbody td {
+            padding: 13px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+    .banner-thumb {
+        width: 160px;
+        max-width: 100%;
+        aspect-ratio: 21 / 9;
+        object-fit: cover;
+        border-radius: 14px;
+        border: 1px solid var(--c-border);
+        background: #f1f5f9;
+        box-shadow: 0 5px 14px rgba(15,23,42,.08);
+    }
+
+    .text-cut {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mobile-list {
+        display: none;
+        padding: 10px;
+        background: var(--c-soft);
+    }
+
+    .mobile-banner-card {
+        background: #fff;
+        border: 1px solid var(--c-border);
+        border-radius: 17px;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 6px 18px rgba(15,23,42,.04);
+    }
+
+    .mobile-banner-img {
+        width: 100%;
+        aspect-ratio: 21 / 9;
+        object-fit: cover;
+        border-radius: 14px;
+        border: 1px solid var(--c-border);
+        background: #f1f5f9;
+    }
+
+    .mobile-card-title {
+        color: var(--c-dark);
+        font-weight: 900;
+        font-size: .96rem;
+        line-height: 1.35;
+        margin: 9px 0 3px;
+        word-break: break-word;
+    }
+
+    .mobile-card-sub {
+        color: var(--c-muted);
+        font-size: .82rem;
+        font-weight: 600;
+        line-height: 1.4;
+        margin-bottom: 8px;
+        word-break: break-word;
+    }
+
+    .mobile-meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding-top: 9px;
+        border-top: 1px dashed var(--c-border);
+    }
+
+    .mobile-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-top: 9px;
+    }
+
+        .mobile-actions .btn {
+            min-height: 38px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+    .empty-box {
+        text-align: center;
+        padding: 40px 16px;
+        color: var(--c-muted);
+        font-weight: 700;
+    }
+
+    @@media (max-width: 767.98px) {
+        .admin-compact-page {
+            padding: 10px;
+        }
+
+        .compact-head {
+            padding: 13px;
+            border-radius: 18px;
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .compact-sub {
+            display: none;
+        }
+
+        .btn-compact-primary {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .desktop-table {
+            display: none;
+        }
+
+        .mobile-list {
+            display: block;
+        }
+    }
+</style>
+
+<div class="admin-compact-page">
+    <div class="compact-shell">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-4 border-0 mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <section class="compact-head">
+            <div>
+                <h5 class="compact-title">
+                    <i class="bi bi-images text-primary me-2"></i>Quản lý Banner Slider
+                </h5>
+                <p class="compact-sub">Quản lý ảnh banner hiển thị ở trang chủ.</p>
+            </div>
+
+            <a asp-action="Create" class="btn btn-primary btn-compact-primary shadow-sm">
+                <i class="bi bi-plus-lg"></i> Thêm banner
             </a>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
-                    <thead class="bg-light text-muted small">
+        </section>
+
+        <section class="compact-card overflow-hidden">
+            <div class="desktop-table">
+                <table class="table table-hover align-middle banner-table">
+                    <thead>
                         <tr>
-                            <th class="ps-4" style="width: 25%;">Banner</th>
-                            <th style="width: 35%;">Thông tin hiển thị</th>
-                            <th class="text-center">Thứ tự</th>
-                            <th class="text-center">Trạng thái</th>
-                            <th class="text-end pe-4">Thao tác</th>
+                            <th style="width: 210px;">Banner</th>
+                            <th>Thông tin hiển thị</th>
+                            <th class="text-center" style="width: 90px;">Thứ tự</th>
+                            <th class="text-center" style="width: 130px;">Trạng thái</th>
+                            <th class="text-end" style="width: 120px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var item in Model)
                         {
                             <tr>
-                                <td class="ps-4 py-3">
-                                    <img src="@item.ImageURL" class="rounded-3 shadow-sm border" style="width: 100%; max-width: 180px; aspect-ratio: 21/9; object-fit: cover;">
+                                <td>
+                                    <img src="@item.ImageURL" class="banner-thumb" alt="Banner" onerror="this.src='/images/no-image.jpg'">
                                 </td>
                                 <td>
-                                    <div class="fw-bold text-dark text-truncate" style="max-width: 250px;">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
-                                    <small class="text-muted d-block text-truncate" style="max-width: 250px;">@item.SubTitle</small>
+                                    <div class="fw-bold text-dark text-cut" title="@item.Title">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
+                                    <div class="small text-muted text-cut mt-1" title="@item.SubTitle">@item.SubTitle</div>
                                     @if (!string.IsNullOrEmpty(item.LinkURL))
                                     {
-                                        <a href="@item.LinkURL" target="_blank" class="small text-primary text-decoration-none"><i class="bi bi-link-45deg"></i> Xem Link</a>
+                                        <a href="@item.LinkURL" target="_blank" class="small text-primary text-decoration-none fw-bold">
+                                            <i class="bi bi-link-45deg"></i> Xem link
+                                        </a>
                                     }
                                 </td>
                                 <td class="text-center fw-bold text-secondary">@item.DisplayOrder</td>
@@ -58,20 +279,25 @@
                                         <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">Đang ẩn</span>
                                     }
                                 </td>
-                                <td class="text-end pe-4">
+                                <td class="text-end">
                                     <div class="btn-group shadow-sm rounded-3">
-                                        <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-light btn-sm border text-info" title="Sửa"><i class="bi bi-pencil-fill"></i></a>
-                                        <button onclick="confirmDelete(@item.BannerID)" class="btn btn-light btn-sm border text-danger" title="Xóa"><i class="bi bi-trash3-fill"></i></button>
+                                        <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-light btn-sm border text-info" title="Sửa">
+                                            <i class="bi bi-pencil-fill"></i>
+                                        </a>
+                                        <button type="button" onclick="confirmDelete(@item.BannerID)" class="btn btn-light btn-sm border text-danger" title="Xóa">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
                                     </div>
-                                    <form id="delete-form-@item.BannerID" asp-action="Delete" asp-route-id="@item.BannerID" method="post" style="display:none;"></form>
+                                    <form id="delete-form-@item.BannerID" asp-action="Delete" asp-route-id="@item.BannerID" method="post" class="d-none"></form>
                                 </td>
                             </tr>
                         }
+
                         @if (!Model.Any())
                         {
                             <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-image display-4 d-block mb-2 text-light"></i>
+                                <td colspan="5" class="empty-box">
+                                    <i class="bi bi-image display-5 d-block mb-2 opacity-25"></i>
                                     Chưa có banner nào. Hãy thêm mới!
                                 </td>
                             </tr>
@@ -79,7 +305,66 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+
+            <div class="mobile-list">
+                @if (Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        <article class="mobile-banner-card">
+                            <img src="@item.ImageURL" class="mobile-banner-img" alt="Banner" onerror="this.src='/images/no-image.jpg'">
+
+                            <div class="mobile-card-title">@(string.IsNullOrEmpty(item.Title) ? "[Không có tiêu đề]" : item.Title)</div>
+
+                            @if (!string.IsNullOrWhiteSpace(item.SubTitle))
+                            {
+                                <div class="mobile-card-sub">@item.SubTitle</div>
+                            }
+
+                            <div class="mobile-meta-row">
+                                <span class="badge bg-light text-dark border rounded-pill px-3 py-2">
+                                    <i class="bi bi-sort-numeric-down me-1"></i>Thứ tự @item.DisplayOrder
+                                </span>
+
+                                @if (item.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2">Đang hiện</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2">Đang ẩn</span>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(item.LinkURL))
+                            {
+                                <a href="@item.LinkURL" target="_blank" class="small text-primary text-decoration-none fw-bold d-inline-block mt-2">
+                                    <i class="bi bi-link-45deg"></i> Xem link
+                                </a>
+                            }
+
+                            <div class="mobile-actions">
+                                <a asp-action="Edit" asp-route-id="@item.BannerID" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-pencil-fill me-1"></i>Sửa
+                                </a>
+                                <button type="button" onclick="confirmDelete(@item.BannerID)" class="btn btn-outline-danger btn-sm">
+                                    <i class="bi bi-trash3-fill me-1"></i>Xóa
+                                </button>
+                            </div>
+
+                            <form id="delete-form-mobile-@item.BannerID" asp-action="Delete" asp-route-id="@item.BannerID" method="post" class="d-none"></form>
+                        </article>
+                    }
+                }
+                else
+                {
+                    <div class="empty-box">
+                        <i class="bi bi-image display-5 d-block mb-2 opacity-25"></i>
+                        Chưa có banner nào. Hãy thêm mới!
+                    </div>
+                }
+            </div>
+        </section>
     </div>
 </div>
 
@@ -87,7 +372,8 @@
     <script>
         function confirmDelete(id) {
             if (confirm('Bạn có chắc chắn muốn xóa banner này vĩnh viễn?')) {
-                document.getElementById('delete-form-' + id).submit();
+                const form = document.getElementById('delete-form-' + id) || document.getElementById('delete-form-mobile-' + id);
+                if (form) form.submit();
             }
         }
     </script>

@@ -2,69 +2,463 @@
 @{
     ViewData["Title"] = "Chi tiết dự án: " + Model.ProjectName;
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    string mainImage = string.IsNullOrWhiteSpace(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage;
+    string ownerAvatar = string.IsNullOrWhiteSpace(Model.Owner?.Avatar) ? "/images/avatars/default-user.png" : Model.Owner.Avatar;
+    string projectName = string.IsNullOrWhiteSpace(Model.ProjectName) ? "Dự án chưa đặt tên" : Model.ProjectName;
+    string address = $"{Model.AddressDetail}, {Model.Ward?.WardName}, {Model.Area?.AreaName}";
+    string investor = string.IsNullOrWhiteSpace(Model.Investor) ? "Chưa cập nhật" : Model.Investor;
+    string priceText = $"{Model.PriceMin} - {Model.PriceMax} {Model.PriceUnit}".Trim();
+    string areaText = $"{Model.AreaMin} - {Model.AreaMax} m²";
+    string statusText = string.IsNullOrWhiteSpace(Model.ProjectStatus) ? "Đang cập nhật" : Model.ProjectStatus;
 }
 
-<div class="container-fluid px-4 mt-4">
-    <div class="mb-4 d-flex justify-content-between align-items-center">
-        <a asp-action="Index" class="btn btn-light border fw-bold rounded-pill px-4 shadow-sm"><i class="bi bi-arrow-left me-2"></i>Trở về</a>
-        <a asp-action="Edit" asp-route-id="@Model.ProjectID" class="btn btn-warning fw-bold rounded-pill px-4 shadow-sm"><i class="bi bi-pencil-square me-2"></i>Chỉnh sửa</a>
+<style>
+    .project-detail-admin {
+        --pd-primary: #2563eb;
+        --pd-dark: #0f172a;
+        --pd-muted: #64748b;
+        --pd-border: #e2e8f0;
+        --pd-soft: #f8fafc;
+        background: #f8fafc;
+        min-height: calc(100vh - 70px);
+        padding: 20px;
+        overflow-x: hidden;
+    }
+
+    .pd-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .pd-btn {
+        min-height: 42px;
+        border-radius: 14px;
+        font-weight: 850;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+    }
+
+    .pd-card {
+        background: #fff;
+        border: 1px solid var(--pd-border);
+        border-radius: 22px;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .055);
+        overflow: hidden;
+    }
+
+    .pd-main-image {
+        width: 100%;
+        height: 360px;
+        object-fit: cover;
+        display: block;
+        background: #e2e8f0;
+    }
+
+    .pd-content {
+        padding: 22px;
+    }
+
+    .pd-title {
+        color: var(--pd-dark);
+        font-size: clamp(1.35rem, 2.4vw, 2rem);
+        line-height: 1.22;
+        font-weight: 950;
+        letter-spacing: -.035em;
+        margin: 0 0 8px;
+    }
+
+    .pd-location {
+        color: #2563eb;
+        font-size: .98rem;
+        font-weight: 800;
+        line-height: 1.45;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+    }
+
+        .pd-location i {
+            color: #ef4444;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+    .pd-section-title {
+        color: var(--pd-dark);
+        font-size: .82rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        padding-bottom: 9px;
+        margin: 0 0 12px;
+        border-bottom: 1px solid var(--pd-border);
+    }
+
+    .pd-description {
+        color: #475569;
+        line-height: 1.75;
+        font-weight: 550;
+        margin-bottom: 22px;
+        overflow-wrap: anywhere;
+    }
+
+    .pd-side-card {
+        background: #fff;
+        border: 1px solid var(--pd-border);
+        border-radius: 22px;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .055);
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .pd-side-head {
+        padding: 13px 16px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        border-bottom: 1px solid var(--pd-border);
+        color: var(--pd-dark);
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        font-size: .78rem;
+    }
+
+    .pd-side-body {
+        padding: 16px;
+    }
+
+    .pd-info-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .pd-info-item {
+        padding: 12px;
+        border-radius: 15px;
+        background: var(--pd-soft);
+        border: 1px solid #edf2f7;
+    }
+
+    .pd-info-label {
+        color: var(--pd-muted);
+        font-size: .68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        margin-bottom: 4px;
+    }
+
+    .pd-info-value {
+        color: var(--pd-dark);
+        font-size: .96rem;
+        font-weight: 900;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .pd-price {
+        color: #dc2626;
+        font-size: 1.08rem;
+    }
+
+    .pd-status {
+        display: inline-flex;
+        min-height: 32px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+        font-size: .78rem;
+        font-weight: 950;
+    }
+
+    .pd-owner {
+        background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+        color: #fff;
+    }
+
+        .pd-owner .pd-side-head {
+            background: rgba(255,255,255,.12);
+            color: #fff;
+            border-bottom-color: rgba(255,255,255,.2);
+        }
+
+        .pd-owner .pd-side-body {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+    .pd-owner-img {
+        width: 48px;
+        height: 48px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 2px solid rgba(255,255,255,.86);
+        background: #fff;
+    }
+
+    .pd-owner-name {
+        font-weight: 950;
+        line-height: 1.25;
+    }
+
+    .pd-owner-user {
+        color: rgba(255,255,255,.75);
+        font-size: .82rem;
+        font-weight: 650;
+    }
+
+    .ck-content {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+        .ck-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 16px;
+        }
+
+    @@media (max-width: 991.98px) {
+        .project-detail-admin {
+            padding: 14px;
+        }
+
+        .pd-main-image {
+            height: 300px;
+        }
+
+        .pd-content {
+            padding: 18px;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .project-detail-admin {
+            padding: 10px !important;
+        }
+
+        .pd-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            padding: 8px 0;
+            background: #f8fafc;
+            margin-bottom: 8px;
+        }
+
+            .pd-topbar .btn {
+                flex: 1 1 0;
+                min-height: 38px !important;
+                border-radius: 12px !important;
+                padding: 7px 9px !important;
+                font-size: .78rem !important;
+            }
+
+        .pd-card,
+        .pd-side-card {
+            border-radius: 17px !important;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .045) !important;
+        }
+
+        .pd-main-image {
+            height: 190px !important;
+        }
+
+        .pd-content {
+            padding: 13px !important;
+        }
+
+        .pd-title {
+            font-size: 1.15rem !important;
+            line-height: 1.24 !important;
+            margin-bottom: 6px !important;
+        }
+
+        .pd-location {
+            font-size: .8rem !important;
+            line-height: 1.35 !important;
+            margin-bottom: 12px !important;
+        }
+
+        .pd-section-title {
+            font-size: .68rem !important;
+            padding-bottom: 7px !important;
+            margin-bottom: 9px !important;
+        }
+
+        .pd-description {
+            font-size: .84rem !important;
+            line-height: 1.55 !important;
+            margin-bottom: 14px !important;
+        }
+
+        .pd-side-head {
+            padding: 11px 13px !important;
+            font-size: .68rem !important;
+        }
+
+        .pd-side-body {
+            padding: 11px !important;
+        }
+
+        .pd-info-list {
+            gap: 7px !important;
+        }
+
+        .pd-info-item {
+            padding: 9px 10px !important;
+            border-radius: 13px !important;
+        }
+
+        .pd-info-label {
+            font-size: .58rem !important;
+        }
+
+        .pd-info-value {
+            font-size: .82rem !important;
+        }
+
+        .pd-price {
+            font-size: .9rem !important;
+        }
+
+        .pd-status {
+            min-height: 28px !important;
+            font-size: .7rem !important;
+        }
+
+        .pd-owner-img {
+            width: 42px !important;
+            height: 42px !important;
+        }
+
+        .pd-owner-name {
+            font-size: .88rem !important;
+        }
+
+        .pd-owner-user {
+            font-size: .74rem !important;
+        }
+    }
+</style>
+
+<div class="project-detail-admin">
+    <div class="pd-topbar">
+        <a asp-action="Index" class="btn btn-light border pd-btn shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+            Trở về
+        </a>
+
+        <a asp-action="Edit" asp-route-id="@Model.ProjectID" class="btn btn-warning pd-btn shadow-sm">
+            <i class="bi bi-pencil-square"></i>
+            Chỉnh sửa
+        </a>
     </div>
 
-    <div class="row g-4 mb-5">
+    <div class="row g-3 g-xl-4 mb-4">
         <div class="col-xl-8">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
-                <img src="@(Model.MainImage ?? "/images/no-image.jpg")" class="w-100 shadow-sm" style="height:420px; object-fit:cover;">
-                <div class="card-body p-4">
-                    <h2 class="fw-black text-dark mb-2">@Model.ProjectName</h2>
-                    <p class="text-primary fw-bold mb-4 fs-5"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@Model.AddressDetail, @Model.Ward?.WardName, @Model.Area?.AreaName</p>
+            <div class="pd-card">
+                <img src="@mainImage"
+                     class="pd-main-image"
+                     alt="@projectName"
+                     loading="lazy"
+                     onerror="this.onerror=null;this.src='/images/no-image.jpg';" />
 
-                    <h6 class="fw-bold text-uppercase border-bottom pb-2 mb-3">Giới thiệu tổng quan</h6>
-                    <div class="text-secondary mb-4" style="line-height:1.8;">@Model.Description</div>
+                <div class="pd-content">
+                    <h2 class="pd-title">@projectName</h2>
 
-                    <h6 class="fw-bold text-uppercase border-bottom pb-2 mb-3">Bài viết chi tiết</h6>
-                    <div class="ck-content">@Html.Raw(Model.ContentHtml)</div>
+                    <div class="pd-location">
+                        <i class="bi bi-geo-alt-fill"></i>
+                        <span>@address</span>
+                    </div>
+
+                    <h6 class="pd-section-title">Giới thiệu tổng quan</h6>
+                    <div class="pd-description">
+                        @(string.IsNullOrWhiteSpace(Model.Description) ? "Chưa cập nhật mô tả tổng quan cho dự án này." : Model.Description)
+                    </div>
+
+                    <h6 class="pd-section-title">Bài viết chi tiết</h6>
+                    <div class="ck-content">
+                        @Html.Raw(string.IsNullOrWhiteSpace(Model.ContentHtml) ? "<p class='text-muted fw-semibold mb-0'>Chưa cập nhật bài viết chi tiết.</p>" : Model.ContentHtml)
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="col-xl-4">
-            <div class="card border-0 shadow-sm rounded-4 mb-4">
-                <div class="card-header bg-light py-3 fw-bold">THÔNG SỐ DỰ ÁN</div>
-                <div class="card-body p-4">
-                    <div class="mb-3">
-                        <small class="text-muted d-block uppercase small fw-bold">Chủ đầu tư</small>
-                        <span class="fs-5 fw-bold text-dark">@Model.Investor</span>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block uppercase small fw-bold">Khoảng giá</small>
-                        <span class="fs-4 fw-black text-danger">@Model.PriceMin - @Model.PriceMax @Model.PriceUnit</span>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block uppercase small fw-bold">Diện tích căn hộ</small>
-                        <span class="fs-5 fw-bold text-dark">@Model.AreaMin - @Model.AreaMax m²</span>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block uppercase small fw-bold">Trạng thái hiện tại</small>
-                        <span class="badge bg-success px-3 py-2 rounded-pill">@Model.ProjectStatus</span>
-                    </div>
-                    <div class="mb-0">
-                        <small class="text-muted d-block uppercase small fw-bold">Hồ sơ pháp lý</small>
-                        <a href="@Model.LegalDocs" target="_blank" class="btn btn-outline-danger w-100 mt-2 fw-bold rounded-pill">
-                            <i class="bi bi-file-earmark-pdf-fill me-2"></i>Tải xem File pháp lý
-                        </a>
+            <div class="pd-side-card">
+                <div class="pd-side-head">
+                    <i class="bi bi-list-check me-1"></i>
+                    Thông số dự án
+                </div>
+
+                <div class="pd-side-body">
+                    <div class="pd-info-list">
+                        <div class="pd-info-item">
+                            <div class="pd-info-label">Chủ đầu tư</div>
+                            <div class="pd-info-value">@investor</div>
+                        </div>
+
+                        <div class="pd-info-item">
+                            <div class="pd-info-label">Khoảng giá</div>
+                            <div class="pd-info-value pd-price">@priceText</div>
+                        </div>
+
+                        <div class="pd-info-item">
+                            <div class="pd-info-label">Diện tích căn hộ</div>
+                            <div class="pd-info-value">@areaText</div>
+                        </div>
+
+                        <div class="pd-info-item">
+                            <div class="pd-info-label">Trạng thái hiện tại</div>
+                            <span class="pd-status">@statusText</span>
+                        </div>
+
+                        <div class="pd-info-item">
+                            <div class="pd-info-label">Hồ sơ pháp lý</div>
+
+                            @if (!string.IsNullOrWhiteSpace(Model.LegalDocs))
+                            {
+                                <a href="@Model.LegalDocs" target="_blank" rel="noopener" class="btn btn-outline-danger w-100 mt-1 fw-bold rounded-pill">
+                                    <i class="bi bi-file-earmark-pdf-fill me-1"></i>
+                                    Tải / xem file pháp lý
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="text-muted fw-bold small">Chưa có file pháp lý</div>
+                            }
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card border-0 shadow-sm rounded-4 bg-primary text-white">
-                <div class="card-body p-4">
-                    <h6 class="fw-bold mb-3"><i class="bi bi-person-badge-fill me-2"></i>TÀI KHOẢN QUẢN LÝ</h6>
-                    <div class="d-flex align-items-center gap-3">
-                        <img src="@(Model.Owner?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border border-2 border-white" width="50" height="50">
-                        <div>
-                            <div class="fw-bold">@Model.Owner?.FullName</div>
-                            <small class="opacity-75">@@@Model.Owner?.Username</small>
-                        </div>
+            <div class="pd-side-card pd-owner">
+                <div class="pd-side-head">
+                    <i class="bi bi-person-badge-fill me-1"></i>
+                    Tài khoản quản lý
+                </div>
+
+                <div class="pd-side-body">
+                    <img src="@ownerAvatar"
+                         class="pd-owner-img"
+                         alt="Tài khoản quản lý"
+                         onerror="this.onerror=null;this.src='/images/avatars/default-user.png';" />
+
+                    <div class="min-width-0">
+                        <div class="pd-owner-name">@(Model.Owner?.FullName ?? "Chưa gán tài khoản")</div>
+                        <div class="pd-owner-user">@@@(Model.Owner?.Username ?? "chua-co-username")</div>
                     </div>
                 </div>
             </div>

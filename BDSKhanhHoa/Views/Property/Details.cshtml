@@ -1,6 +1,7 @@
 ﻿@model BDSKhanhHoa.Models.Property
 @using System.Security.Claims
 @using System.Globalization
+@using System.Text.RegularExpressions
 
 @functions {
     private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
@@ -55,6 +56,48 @@
         }
 
         return "/" + image.TrimStart('/');
+    }
+
+
+
+    private string CleanPublicDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return string.Empty;
+        }
+
+        var text = description.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+
+        // Ẩn ghi chú nội bộ của hệ thống như: [HẠ VIP - ...] Tin dùng gói ... đã hết hạn...
+        // Chỉ làm sạch phần hiển thị ở view, không sửa dữ liệu trong SQL.
+        text = Regex.Replace(
+            text,
+            @"(?is)\[(?:HẠ|HA|HẾT|HET|GIA HẠN|GIA HAN|VIP|SYSTEM|HỆ THỐNG|HE THONG)[^\]]*\]\s*Tin\s+dùng\s+gói.*?đến\s+\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s*\.",
+            "").Trim();
+
+        text = Regex.Replace(
+            text,
+            @"(?is)\[(?:HẠ|HA|HẾT|HET|GIA HẠN|GIA HAN|VIP|SYSTEM|HỆ THỐNG|HE THONG)[^\]]*\]",
+            "").Trim();
+
+        text = Regex.Replace(
+            text,
+            @"(?im)^\s*\[(?:HẠ|HA|HẾT|HET|GIA HẠN|GIA HAN|VIP|SYSTEM|HỆ THỐNG|HE THONG)[^\]]*\]\s*$",
+            "").Trim();
+
+        text = Regex.Replace(
+            text,
+            @"(?im)^\s*Tin\s+dùng\s+gói\s+['""].*?(?:đã\s+hết\s+hạn|hết\s+hạn|hạ\s+vip|chuyển\s+về\s+Tin\s+Thường).*?$",
+            "").Trim();
+
+        text = Regex.Replace(
+            text,
+            @"(?im)^\s*Hệ\s+thống\s+tự\s+chuyển.*?$",
+            "").Trim();
+
+        text = Regex.Replace(text, @"\n{3,}", "\n\n").Trim();
+        return text;
     }
 
     private string FormatMiniPrice(decimal? price)
@@ -173,12 +216,57 @@
         "Expired" => "Tin đăng này đã hết hạn hiển thị. Hệ thống chỉ cho xem thông tin lưu trữ và khóa toàn bộ thao tác liên hệ, chat, đặt lịch, lưu tin, báo cáo, bình luận và chỉnh sửa.",
         _ => "Tin đăng này đang bị khóa thao tác."
     };
+
+    string publicDescription = CleanPublicDescription(Model.Description);
+    if (string.IsNullOrWhiteSpace(publicDescription))
+    {
+        publicDescription = "Chủ tin chưa cập nhật mô tả chi tiết.";
+    }
 }
 
 
 
+<meta name="chatbot-page-type" content="PropertyDetail" />
 <meta name="chatbot-property-title" content="@Model.Title" />
-<meta name="chatbot-context" content="Khách hàng đang trực tiếp xem BĐS có ID: @Model.PropertyID. Tiêu đề: '@Model.Title'. Loại hình: @(isRent ? "Cho thuê" : "Bán") - @Model.PropertyType?.TypeName. Giá: @priceDisplay. Diện tích: @Model.AreaSize m2. Vị trí: @fullAddress. Phòng ngủ: @(bed ?? "0"). Phòng tắm: @(bath ?? "0"). Pháp lý: @(legal ?? "Chưa cập nhật"). Tiện ích: @(amenities ?? "Không có"). Mô tả từ chủ nhà: @Model.Description." />
+<meta name="chatbot-property-price" content="@priceDisplay" />
+<meta name="chatbot-property-area" content="@areaDisplay" />
+<meta name="chatbot-property-location" content="@fullAddress" />
+<meta name="chatbot-property-type" content="@(isRent ? "Cho thuê" : "Bán") - @(Model.PropertyType?.TypeName ?? "Đang cập nhật")" />
+<meta name="chatbot-property-legal" content="@(legal ?? "Chưa cập nhật")" />
+<meta name="chatbot-property-description" content="@System.Net.WebUtility.HtmlEncode(publicDescription)" />
+<meta name="chatbot-context" content="
+Người dùng đang xem TRANG CHI TIẾT MỘT TIN BẤT ĐỘNG SẢN.
+Khi người dùng hỏi: tin này, căn này, nhà này, đất này, lô này, ở đây, chỗ này, giá này, pháp lý này, có nên mua không, có nên thuê không, có nên đặt cọc không, cần kiểm tra gì, hãy hiểu là đang hỏi về tin hiện tại.
+
+Tiêu đề: @Model.Title.
+Loại giao dịch: @(isRent ? "Cho thuê" : "Mua bán").
+Loại bất động sản: @(Model.PropertyType?.TypeName ?? "Đang cập nhật").
+Giá: @priceDisplay.
+Diện tích: @areaDisplay.
+Đơn giá: @(string.IsNullOrWhiteSpace(pricePerM2) ? "Chưa tính được" : pricePerM2).
+Vị trí: @fullAddress.
+Khu vực: @(Model.Ward?.Area?.AreaName ?? "Đang cập nhật").
+Phường/Xã: @(Model.Ward?.WardName ?? "Đang cập nhật").
+Dự án liên quan: @(Model.Project?.ProjectName ?? "Không có").
+Phòng ngủ: @(bed ?? "Chưa cập nhật").
+Phòng tắm: @(bath ?? "Chưa cập nhật").
+Hướng nhà: @(direction ?? "Chưa cập nhật").
+Pháp lý: @(legal ?? "Chưa cập nhật").
+Tiện ích: @(amenities ?? "Chưa cập nhật").
+Tình trạng tin: @Model.Status.
+Ngày đăng: @Model.CreatedAt.ToString("dd/MM/yyyy").
+Mô tả người đăng: @System.Net.WebUtility.HtmlEncode(publicDescription).
+
+Quy tắc trả lời khi phân tích tin này:
+1. Không khẳng định pháp lý chắc chắn nếu chỉ có dữ liệu người đăng cung cấp.
+2. Phân tích theo giá, diện tích, vị trí, pháp lý, tiện ích, mục đích mua/thuê, rủi ro và bước tiếp theo.
+3. Nếu người dùng hỏi có nên mua/thuê, hãy hỏi thêm mục đích nếu chưa rõ, nhưng vẫn đưa checklist kiểm tra trước.
+4. Nếu tin đã bán/đã thuê/hết hạn/chờ duyệt, phải nói rõ không nên liên hệ/giao dịch trực tiếp qua tin này.
+" />
+
+<form id="favoriteAntiForgeryForm" method="post" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
 
 <style>
     @@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
@@ -1494,8 +1582,8 @@
 
 
     /* =====================================================
-                   KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
-                ===================================================== */
+                               KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+                            ===================================================== */
     .pd-locked-alert {
         display: flex;
         align-items: flex-start;
@@ -1686,10 +1774,10 @@
 
 
     /* =====================================================
-               FONT DỄ ĐỌC CHO TIẾNG VIỆT - MOBILE & DESKTOP
-               Dùng Be Vietnam Pro, giảm độ đậm quá gắt để tiêu đề và nội dung dễ nhìn hơn.
-               Lưu ý: không đổi icon Bootstrap, chỉ đổi chữ.
-            ===================================================== */
+                           FONT DỄ ĐỌC CHO TIẾNG VIỆT - MOBILE & DESKTOP
+                           Dùng Be Vietnam Pro, giảm độ đậm quá gắt để tiêu đề và nội dung dễ nhìn hơn.
+                           Lưu ý: không đổi icon Bootstrap, chỉ đổi chữ.
+                        ===================================================== */
     body,
     .pd-page,
     .pd-page button,
@@ -2116,11 +2204,6 @@
                             </div>
 
                             <div class="pd-detail-item">
-                                <span class="pd-detail-key"><i class="bi bi-buildings"></i>Dự án</span>
-                                <span class="pd-detail-val">@(Model.Project?.ProjectName ?? "Không có")</span>
-                            </div>
-
-                            <div class="pd-detail-item">
                                 <span class="pd-detail-key"><i class="bi bi-tag"></i>Loại hình</span>
                                 <span class="pd-detail-val">@(Model.PropertyType?.TypeName ?? "Đang cập nhật")</span>
                             </div>
@@ -2193,7 +2276,7 @@
                             Mô tả bất động sản
                         </div>
 
-                        <div id="descBody" class="pd-desc pd-desc-collapsed">@Model.Description</div>
+                        <div id="descBody" class="pd-desc pd-desc-collapsed">@publicDescription</div>
 
                         <button id="readMoreBtn" type="button" class="pd-readmore" onclick="expandDesc()">
                             <i class="bi bi-chevron-down me-1"></i>
@@ -3166,11 +3249,21 @@
             if (guardAuthAction()) return;
             if (guardLockedAction()) return;
             try {
+                const token = document.querySelector('#favoriteAntiForgeryForm input[name="__RequestVerificationToken"]')?.value;
+
                 const res = await fetch('/Favorite/ToggleFavorite', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(@Model.PropertyID)
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token || ''
+                    },
+                    body: JSON.stringify({ propertyId: @Model.PropertyID })
                 });
+
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
 
                 const data = await res.json();
 

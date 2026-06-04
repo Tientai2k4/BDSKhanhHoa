@@ -5,40 +5,33 @@
     ViewData["Title"] = $"Phân tích Log #{Model.LogID}";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
-    // 1. Logic màu sắc và Icon theo Mức độ (Severity)
-    string themeColor = "#3b82f6"; // Mặc định Info (Xanh dương)
+    string themeColor = "#3b82f6";
     string bgSoft = "#eff6ff";
-    string iconClass = "bi-info-circle-fill";
+    string iconClass = "bi-info-circle-fill text-primary";
     string severityDescription = "Sự kiện thông tin hệ thống bình thường, không mang tính rủi ro.";
 
     switch (Model.Severity?.Trim())
     {
         case "Critical":
-            themeColor = "#0f172a"; // Đen
+            themeColor = "#0f172a";
             bgSoft = "#f1f5f9";
             iconClass = "bi-x-octagon-fill text-dark";
             severityDescription = "CẢNH BÁO ĐỎ: Hành vi can thiệp hệ thống cực kỳ nghiêm trọng, có thể gây lỗi hoặc lộ dữ liệu.";
             break;
         case "Danger":
-            themeColor = "#ef4444"; // Đỏ
+            themeColor = "#ef4444";
             bgSoft = "#fef2f2";
             iconClass = "bi-exclamation-triangle-fill text-danger";
             severityDescription = "NGUY HIỂM: Thao tác xóa, phá hủy dữ liệu hoặc vi phạm an ninh hệ thống.";
             break;
         case "Warning":
-            themeColor = "#f59e0b"; // Vàng cam
+            themeColor = "#f59e0b";
             bgSoft = "#fffbeb";
             iconClass = "bi-exclamation-circle-fill text-warning";
             severityDescription = "CẢNH BÁO: Các thao tác nhạy cảm như đổi mật khẩu, phân quyền hoặc đăng nhập thất bại.";
             break;
-        default: // Info
-            themeColor = "#3b82f6";
-            bgSoft = "#eff6ff";
-            iconClass = "bi-info-circle-fill text-primary";
-            break;
     }
 
-    // 2. Logic kiểm tra xem có JSON Payload hay không
     bool hasPayload = !string.IsNullOrWhiteSpace(Model.OldValues) || !string.IsNullOrWhiteSpace(Model.NewValues);
 
     string roleName = "Hệ thống / Guest";
@@ -49,86 +42,269 @@
 }
 
 <style>
-    /* Bố cục tổng thể */
+    :root {
+        --log-dark: #0f172a;
+        --log-muted: #64748b;
+        --log-border: #e2e8f0;
+        --log-soft: #f8fafc;
+        --log-primary: #2563eb;
+    }
+
+    .audit-detail-page {
+        color: var(--log-dark);
+    }
+
+    .detail-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .back-btn-compact {
+        min-height: 42px;
+        border-radius: 999px;
+        padding: 0 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-weight: 900;
+        background: #fff;
+        border: 1px solid var(--log-border);
+        color: var(--log-dark);
+        text-decoration: none;
+        box-shadow: 0 7px 18px rgba(15,23,42,.05);
+    }
+
+    .detail-label-top {
+        color: var(--log-muted);
+        font-weight: 850;
+        font-size: .86rem;
+    }
+
     .detail-wrap {
         background: #fff;
         border-radius: 20px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, .04);
+        border: 1px solid var(--log-border);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .05);
         overflow: hidden;
     }
 
     .detail-header {
-        padding: 35px 40px;
+        padding: 22px;
         background: @bgSoft;
-        border-bottom: 2px dashed rgba(0,0,0,0.05);
-        position: relative;
+        border-bottom: 1px solid rgba(148,163,184,.22);
     }
 
-    /* Thẻ thông tin (Cards) */
-    .info-card {
+    .log-summary-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .log-title-line {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        min-width: 0;
+    }
+
+    .log-icon-main {
+        width: 52px;
+        height: 52px;
+        border-radius: 17px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 25px;
-        height: 100%;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        transition: all 0.3s ease;
+        box-shadow: 0 7px 18px rgba(15,23,42,.06);
+        flex-shrink: 0;
+        font-size: 1.55rem;
     }
 
-        .info-card:hover {
-            border-color: #cbd5e1;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.05);
-        }
+    .log-title {
+        margin: 0;
+        font-size: 1.72rem;
+        font-weight: 950;
+        letter-spacing: -.04em;
+        color: #111827;
+        line-height: 1.1;
+    }
 
-    .info-card-title {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
+    .log-time {
+        margin-top: 7px;
+        color: #475569;
+        font-size: .93rem;
         font-weight: 800;
-        color: #64748b;
-        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .severity-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 38px;
+        padding: 0 15px;
+        border-radius: 999px;
+        border: 1px solid @themeColor;
+        color: @themeColor;
+        background: #fff;
+        font-size: .86rem;
+        font-weight: 950;
+        white-space: nowrap;
+        box-shadow: 0 6px 15px rgba(15,23,42,.05);
+    }
+
+    .severity-note {
+        margin: 9px 0 0;
+        color: #475569;
+        font-size: .8rem;
+        font-weight: 650;
+        line-height: 1.45;
+        max-width: 380px;
+        text-align: right;
+    }
+
+    .detail-body {
+        padding: 18px;
+    }
+
+    .section-title-compact {
+        margin: 0 0 12px;
+        color: var(--log-dark);
+        font-weight: 950;
+        font-size: 1.05rem;
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .info-card {
+        background: #fff;
+        border: 1px solid var(--log-border);
+        border-radius: 16px;
+        padding: 14px;
+        min-width: 0;
+        box-shadow: 0 6px 16px rgba(15,23,42,.035);
+    }
+
+    .info-card-title {
+        font-size: .68rem;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        font-weight: 950;
+        color: #64748b;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .info-person {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        margin-bottom: 9px;
+    }
+
+    .info-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        object-fit: cover;
+        border: 1px solid var(--log-border);
+        flex-shrink: 0;
+    }
+
     .info-value {
-        font-weight: 800;
-        font-size: 1.1rem;
-        color: #0f172a;
+        font-weight: 900;
+        font-size: .96rem;
+        color: var(--log-dark);
         word-break: break-word;
+        line-height: 1.35;
     }
 
     .info-sub {
-        color: #64748b;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-top: 6px;
+        color: var(--log-muted);
+        font-size: .78rem;
+        font-weight: 700;
+        margin-top: 5px;
+        line-height: 1.4;
+        word-break: break-word;
     }
 
-    /* Terminal UI cho JSON */
+    .mini-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        border: 1px solid var(--log-border);
+        background: #f8fafc;
+        color: #334155;
+        padding: 6px 10px;
+        font-size: .78rem;
+        font-weight: 850;
+        max-width: 100%;
+        word-break: break-word;
+    }
+
+    .target-box,
+    .agent-box {
+        background: #f8fafc;
+        border: 1px solid #edf2f7;
+        border-radius: 12px;
+        padding: 9px 10px;
+        font-size: .78rem;
+        font-weight: 750;
+        color: #475569;
+        line-height: 1.45;
+        word-break: break-word;
+        max-height: 92px;
+        overflow-y: auto;
+    }
+
+    .payload-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
     .code-window {
         background-color: #0f172a;
-        border-radius: 14px;
+        border-radius: 15px;
         overflow: hidden;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        box-shadow: 0 8px 18px rgba(15,23,42,.10);
         border: 1px solid #334155;
-        height: 100%;
+        min-width: 0;
     }
 
     .code-header {
         background: #1e293b;
-        padding: 12px 20px;
+        padding: 9px 12px;
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
         border-bottom: 1px solid #334155;
     }
 
     .code-dot {
-        width: 12px;
-        height: 12px;
+        width: 9px;
+        height: 9px;
         border-radius: 50%;
     }
 
@@ -146,23 +322,28 @@
 
     .code-title {
         color: #94a3b8;
-        font-size: 0.85rem;
+        font-size: .74rem;
         font-family: 'Consolas', monospace;
-        font-weight: bold;
+        font-weight: 800;
         margin-left: auto;
     }
 
     .code-body {
-        padding: 20px;
+        padding: 13px;
         font-family: 'Consolas', 'Courier New', monospace;
-        font-size: 0.95rem;
-        line-height: 1.6;
+        font-size: .82rem;
+        line-height: 1.55;
         color: #e2e8f0;
-        max-height: 500px;
-        overflow-y: auto;
+        max-height: 380px;
+        overflow: auto;
     }
 
-    /* Syntax Highlighting */
+        .code-body pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
     .json-key {
         color: #7dd3fc;
     }
@@ -181,165 +362,320 @@
 
     .json-null {
         color: #f87171;
-        font-weight: bold;
+        font-weight: 900;
     }
 
-    /* Trạng thái trống (Empty State) */
     .empty-payload {
         background: #f8fafc;
-        border: 2px dashed #cbd5e1;
+        border: 1px dashed #cbd5e1;
         border-radius: 16px;
-        padding: 50px 20px;
+        padding: 28px 16px;
         text-align: center;
     }
 
     .empty-icon {
-        font-size: 3rem;
+        font-size: 2.3rem;
         color: #cbd5e1;
-        margin-bottom: 15px;
+        margin-bottom: 8px;
+    }
+
+    @@media (max-width: 991.98px) {
+        .log-summary-grid,
+        .info-grid,
+        .payload-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .severity-note {
+            text-align: left;
+            max-width: none;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .detail-toolbar {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .back-btn-compact {
+            width: 100%;
+            min-height: 39px;
+            font-size: .86rem;
+        }
+
+        .detail-label-top {
+            display: none;
+        }
+
+        .detail-wrap {
+            border-radius: 17px;
+            box-shadow: none;
+        }
+
+        .detail-header {
+            padding: 14px;
+        }
+
+        .log-title-line {
+            gap: 10px;
+        }
+
+        .log-icon-main {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            font-size: 1.28rem;
+        }
+
+        .log-title {
+            font-size: 1.36rem;
+        }
+
+        .log-time {
+            font-size: .84rem;
+            margin-top: 5px;
+        }
+
+        .severity-pill {
+            margin-top: 10px;
+            min-height: 34px;
+            padding: 0 12px;
+            font-size: .78rem;
+            width: 100%;
+        }
+
+        .severity-note {
+            margin-top: 7px;
+            font-size: .74rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .detail-body {
+            padding: 12px;
+        }
+
+        .section-title-compact {
+            font-size: .95rem;
+            margin-bottom: 9px;
+        }
+
+        .info-grid {
+            gap: 9px;
+            margin-bottom: 14px;
+        }
+
+        .info-card {
+            padding: 11px;
+            border-radius: 14px;
+            box-shadow: 0 5px 13px rgba(15,23,42,.035);
+        }
+
+        .info-card-title {
+            font-size: .61rem;
+            margin-bottom: 7px;
+        }
+
+        .info-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+        }
+
+        .info-value {
+            font-size: .87rem;
+        }
+
+        .info-sub,
+        .mini-chip,
+        .target-box,
+        .agent-box {
+            font-size: .72rem;
+        }
+
+        .target-box,
+        .agent-box {
+            padding: 8px;
+            max-height: 82px;
+        }
+
+        .payload-grid {
+            gap: 10px;
+        }
+
+        .code-window {
+            border-radius: 13px;
+        }
+
+        .code-header {
+            padding: 8px 10px;
+        }
+
+        .code-title {
+            font-size: .68rem;
+        }
+
+        .code-body {
+            padding: 10px;
+            font-size: .72rem;
+            max-height: 300px;
+        }
+
+        .empty-payload {
+            padding: 22px 12px;
+        }
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <a asp-action="Index" class="btn btn-light bg-white border fw-bold shadow-sm rounded-pill px-4 py-2">
-        <i class="bi bi-arrow-left me-2"></i> Trở về danh sách
-    </a>
-    <div class="text-muted fw-bold">Chi tiết sự kiện bảo mật</div>
-</div>
-
-<div class="detail-wrap">
-    <div class="detail-header">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <div class="d-flex align-items-center gap-3 mb-2">
-                    <i class="bi @iconClass" style="font-size: 2.5rem;"></i>
-                    <h2 class="fw-black mb-0 text-dark" style="font-size: 2.2rem; letter-spacing: -0.02em;">Log #@Model.LogID</h2>
-                </div>
-                <div class="text-muted fw-bold ms-1" style="font-size: 1.1rem;">
-                    <i class="bi bi-clock-history me-1"></i> Xảy ra lúc: <span class="text-dark">@Model.CreatedAt.ToString("HH:mm:ss - dd/MM/yyyy")</span>
-                </div>
-            </div>
-            <div class="col-md-4 text-md-end mt-4 mt-md-0">
-                <span class="badge border bg-white px-4 py-2 rounded-pill shadow-sm fs-6" style="color: @themeColor; border-color: @themeColor !important;">
-                    <i class="bi bi-shield-check me-1"></i> MỨC ĐỘ: @Model.Severity?.ToUpper()
-                </span>
-                <p class="mt-3 mb-0 text-muted small fw-medium text-wrap text-md-end">@severityDescription</p>
-            </div>
-        </div>
+<div class="audit-detail-page">
+    <div class="detail-toolbar">
+        <a asp-action="Index" class="back-btn-compact">
+            <i class="bi bi-arrow-left"></i>
+            Trở về danh sách
+        </a>
+        <div class="detail-label-top">Chi tiết sự kiện bảo mật</div>
     </div>
 
-    <div class="p-4 p-md-5">
+    <div class="detail-wrap">
+        <div class="detail-header">
+            <div class="log-summary-grid">
+                <div class="log-title-line">
+                    <span class="log-icon-main">
+                        <i class="bi @iconClass"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h1 class="log-title">Log #@Model.LogID</h1>
+                        <div class="log-time">
+                            <i class="bi bi-clock-history"></i>
+                            <span>@Model.CreatedAt.ToString("HH:mm:ss - dd/MM/yyyy")</span>
+                        </div>
+                    </div>
+                </div>
 
-        <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-diagram-3-fill text-primary me-2"></i>Bối cảnh sự kiện (Event Context)</h5>
+                <div>
+                    <span class="severity-pill">
+                        <i class="bi bi-shield-check"></i>
+                        Mức độ: @Model.Severity?.ToUpper()
+                    </span>
+                    <p class="severity-note">@severityDescription</p>
+                </div>
+            </div>
+        </div>
 
-        <div class="row g-4 mb-5">
-            <div class="col-xl-4 col-md-6">
-                <div class="info-card border-top border-4 border-primary">
-                    <div class="info-card-title"><i class="bi bi-person-bounding-box fs-5"></i> Người Khởi Tạo</div>
+        <div class="detail-body">
+            <h5 class="section-title-compact">
+                <i class="bi bi-diagram-3-fill text-primary"></i>
+                Bối cảnh sự kiện
+            </h5>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-card-title"><i class="bi bi-person-bounding-box"></i> Người khởi tạo</div>
 
                     @if (Model.User != null)
                     {
-                        <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="info-person">
                             <img src="@(string.IsNullOrEmpty(Model.User.Avatar) ? "/images/avatars/default-user.png" : Model.User.Avatar)"
-                                 class="rounded-circle border" style="width: 50px; height: 50px; object-fit: cover;" alt="Avatar" onerror="this.src='/images/avatars/default-user.png'" />
-                            <div>
+                                 class="info-avatar"
+                                 alt="Avatar"
+                                 onerror="this.src='/images/avatars/default-user.png'" />
+                            <div class="min-w-0">
                                 <div class="info-value text-primary">@Model.User.FullName</div>
                                 <div class="info-sub mt-0">@Model.User.Email</div>
                             </div>
                         </div>
-                        <div class="info-sub"><i class="bi bi-hash"></i> ID Tài khoản: <strong class="text-dark">@Model.UserID</strong></div>
+                        <div class="info-sub"><i class="bi bi-hash"></i> ID tài khoản: <strong class="text-dark">@Model.UserID</strong></div>
                         <div class="info-sub"><i class="bi bi-shield-lock"></i> Vai trò: <strong class="text-dark">@roleName</strong></div>
                     }
                     else
                     {
-                        <div class="d-flex align-items-center gap-3 mb-3">
-                            <div class="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px;">
-                                <i class="bi bi-robot fs-3"></i>
+                        <div class="info-person">
+                            <div class="info-avatar bg-light d-flex align-items-center justify-content-center text-muted">
+                                <i class="bi bi-robot fs-5"></i>
                             </div>
                             <div>
                                 <div class="info-value text-muted">Hệ thống / Tự động</div>
                                 <div class="info-sub mt-0">Unauthenticated/System</div>
                             </div>
                         </div>
-                        <div class="info-sub"><i class="bi bi-hash"></i> ID Tài khoản: <strong class="text-dark">N/A</strong></div>
+                        <div class="info-sub"><i class="bi bi-hash"></i> ID tài khoản: <strong class="text-dark">N/A</strong></div>
                     }
                 </div>
-            </div>
 
-            <div class="col-xl-4 col-md-6">
-                <div class="info-card border-top border-4 border-success">
-                    <div class="info-card-title"><i class="bi bi-activity fs-5"></i> Thao Tác Thực Hiện</div>
+                <div class="info-card">
+                    <div class="info-card-title"><i class="bi bi-activity"></i> Thao tác thực hiện</div>
                     <div class="info-value mb-2">@Model.Action</div>
 
-                    <div class="info-sub mt-3"><i class="bi bi-hdd-stack"></i> Phân khu (Module): </div>
-                    <span class="badge bg-light text-dark border px-3 py-2 mt-1 fs-6">@(string.IsNullOrWhiteSpace(Model.ModuleName) ? "Hệ thống chung" : Model.ModuleName)</span>
+                    <div class="info-sub"><i class="bi bi-hdd-stack"></i> Phân khu</div>
+                    <span class="mini-chip mt-1">@(string.IsNullOrWhiteSpace(Model.ModuleName) ? "Hệ thống chung" : Model.ModuleName)</span>
 
-                    <div class="info-sub mt-3"><i class="bi bi-bullseye"></i> Đối tượng tác động (Target):</div>
-                    <div class="p-2 bg-light border rounded mt-1 fw-bold text-primary" style="word-break: break-all;">
+                    <div class="info-sub mt-2"><i class="bi bi-bullseye"></i> Đối tượng tác động</div>
+                    <div class="target-box mt-1">
                         @(string.IsNullOrWhiteSpace(Model.Target) ? "Không xác định đối tượng cụ thể" : Model.Target)
                     </div>
                 </div>
-            </div>
 
-            <div class="col-xl-4 col-md-12">
-                <div class="info-card border-top border-4 border-dark">
-                    <div class="info-card-title"><i class="bi bi-router-fill fs-5"></i> Dấu Vết Mạng & Thiết Bị</div>
+                <div class="info-card">
+                    <div class="info-card-title"><i class="bi bi-router-fill"></i> Dấu vết mạng & thiết bị</div>
 
-                    <div class="info-sub mb-1"><i class="bi bi-geo-alt-fill text-danger"></i> Địa chỉ IP truy cập:</div>
-                    <div class="info-value mb-3">@(string.IsNullOrWhiteSpace(Model.IPAddress) ? "Không ghi nhận (Internal)" : Model.IPAddress)</div>
+                    <div class="info-sub mb-1"><i class="bi bi-geo-alt-fill text-danger"></i> IP truy cập</div>
+                    <div class="info-value mb-2">@(string.IsNullOrWhiteSpace(Model.IPAddress) ? "Không ghi nhận" : Model.IPAddress)</div>
 
-                    <div class="info-sub mb-1"><i class="bi bi-laptop text-info"></i> Thông tin thiết bị (User-Agent):</div>
-                    <div class="p-3 bg-light border rounded mt-1 text-muted small" style="word-break: break-all; max-height: 100px; overflow-y: auto;">
+                    <div class="info-sub mb-1"><i class="bi bi-laptop text-info"></i> User-Agent</div>
+                    <div class="agent-box">
                         @(string.IsNullOrWhiteSpace(Model.UserAgent) ? "Không có thông tin trình duyệt" : Model.UserAgent)
                     </div>
                 </div>
             </div>
-        </div>
 
-        <h5 class="fw-bold mb-4 text-dark"><i class="bi bi-braces text-primary me-2"></i>Dữ liệu thay đổi (Data Payload)</h5>
+            <h5 class="section-title-compact">
+                <i class="bi bi-braces text-primary"></i>
+                Dữ liệu thay đổi
+            </h5>
 
-        @if (hasPayload)
-        {
-            <div class="row g-4">
-                <div class="col-xl-6">
+            @if (hasPayload)
+            {
+                <div class="payload-grid">
                     <div class="code-window">
                         <div class="code-header">
                             <div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div>
-                            <div class="code-title">Old_Values.json (Trước)</div>
+                            <div class="code-title">Old_Values.json</div>
                         </div>
                         <div class="code-body">
                             <pre><code id="oldJson">@Html.Raw(string.IsNullOrWhiteSpace(Model.OldValues) ? "null" : Model.OldValues)</code></pre>
                         </div>
                     </div>
-                </div>
-                <div class="col-xl-6">
+
                     <div class="code-window">
                         <div class="code-header">
                             <div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div>
-                            <div class="code-title">New_Values.json (Sau)</div>
+                            <div class="code-title">New_Values.json</div>
                         </div>
                         <div class="code-body">
                             <pre><code id="newJson">@Html.Raw(string.IsNullOrWhiteSpace(Model.NewValues) ? "null" : Model.NewValues)</code></pre>
                         </div>
                     </div>
                 </div>
-            </div>
-        }
-        else
-        {
-            <div class="empty-payload animate__animated animate__fadeIn">
-                <i class="bi bi-inboxes empty-icon"></i>
-                <h4 class="fw-bold text-dark">Sự kiện này không có dữ liệu thay đổi</h4>
-                <p class="text-muted mb-0">Hành động "@Model.Action" là hành vi tương tác một chiều (như đăng nhập, xem dữ liệu, xuất file) nên không phát sinh việc cập nhật hay ghi đè dữ liệu JSON vào cơ sở dữ liệu.</p>
-            </div>
-        }
-
+            }
+            else
+            {
+                <div class="empty-payload animate__animated animate__fadeIn">
+                    <i class="bi bi-inboxes empty-icon"></i>
+                    <h5 class="fw-bold text-dark mb-2">Sự kiện này không có dữ liệu thay đổi</h5>
+                    <p class="text-muted mb-0 small">Hành động "@Model.Action" là hành vi tương tác một chiều nên không phát sinh dữ liệu JSON cũ/mới.</p>
+                </div>
+            }
+        </div>
     </div>
 </div>
 
 @section Scripts {
     <script>
-        // Hàm làm đẹp JSON
         function syntaxHighlight(json) {
             if (json === "null" || !json || json.trim() === "") return "<span class='json-null'>Không có dữ liệu</span>";
             try {
@@ -356,12 +692,10 @@
                     return '<span class="' + cls + '">' + match + '</span>';
                 });
             } catch (e) {
-                // Nếu không phải định dạng JSON (chỉ là chuỗi text)
                 return "<span class='json-string'>\"" + json + "\"</span>";
             }
         }
 
-        // Chỉ format nếu DOM tồn tại (khi hasPayload = true)
         const oldJsonEl = document.getElementById('oldJson');
         const newJsonEl = document.getElementById('newJson');
 

@@ -1,152 +1,947 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.PropertyFeature>
+@using Microsoft.AspNetCore.Mvc.Rendering
+
 @{
-    ViewData["Title"] = "Quản lý Danh mục Tiện ích gốc";
+    ViewData["Title"] = "Quản lý danh mục tiện ích";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
-    var featureGroups = ViewBag.FeatureGroups as List<SelectListItem>;
+
+    var featureGroups = ViewBag.FeatureGroups as List<SelectListItem> ?? new List<SelectListItem>();
+    string keyword = ViewBag.Keyword as string ?? "";
+
+    var features = Model ?? Enumerable.Empty<BDSKhanhHoa.Models.PropertyFeature>();
+    var groupedFeatures = features
+        .GroupBy(f => f.FeatureGroup ?? "Chưa phân nhóm")
+        .OrderBy(g => g.Key)
+        .ToList();
+
+    int totalGroups = groupedFeatures.Count;
+    int totalFeatures = features.Count();
 }
 
-<div class="container-fluid py-4">
-    <div class="row align-items-center mb-4">
-       
-        <div class="col-md-6 d-flex justify-content-end gap-2">
-            <form action="/Admin/PropertyFeatures/Index" method="get" class="d-flex w-100" style="max-width: 350px;">
-                <div class="input-group shadow-sm">
-                    <input type="text" name="keyword" value="@ViewBag.Keyword" class="form-control border-0" placeholder="Tìm tên lớp con...">
-                    <button class="btn btn-primary px-3" type="submit"><i class="bi bi-search"></i></button>
-                </div>
-            </form>
-            <button class="btn btn-success shadow-sm fw-bold text-nowrap" data-bs-toggle="modal" data-bs-target="#addFeatureModal">
-                <i class="bi bi-plus-lg me-1"></i> Thêm dữ liệu
-            </button>
-        </div>
-    </div>
-
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 fw-medium" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
+<style>
+    .feature-page {
+        padding: 14px 0 42px;
     }
 
-    @if (!Model.Any())
-    {
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white text-center py-5">
-            <i class="bi bi-inboxes display-4 text-muted opacity-25 d-block mb-3"></i>
-            <h6 class="text-muted fw-bold">Chưa có danh mục nào được tạo.</h6>
-        </div>
+    .feature-wrap {
+        max-width: 1380px;
+        margin: 0 auto;
     }
-    else
-    {
-        // Hiển thị nhóm theo Lớp Cha (FeatureGroup)
-        var groupedFeatures = Model.GroupBy(f => f.FeatureGroup).ToList();
 
-        <div class="row g-4">
-            @foreach (var group in groupedFeatures)
-            {
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm rounded-4 h-100">
-                        <div class="card-header bg-light border-bottom-0 pt-3 pb-2">
-                            <h5 class="fw-bold text-primary mb-0"><i class="bi bi-collection me-2"></i>Nhóm: @group.Key</h5>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <tbody>
-                                        @foreach (var item in group)
-                                        {
-                                            <tr>
-                                                <td class="ps-4 py-3 fw-bold text-dark w-75">
-                                                    <i class="bi bi-arrow-return-right text-muted me-2"></i>@item.FeatureName
-                                                </td>
-                                                <td class="text-end pe-4 py-3">
-                                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-3 shadow-sm me-1" title="Sửa"
-                                                            onclick="openEditModal(@item.FeatureID, '@item.FeatureGroup', '@item.FeatureName')">
-                                                        <i class="bi bi-pencil-square"></i>
-                                                    </button>
-                                                    <form action="/Admin/PropertyFeatures/Delete" method="post" class="d-inline" onsubmit="return confirm('Xóa sẽ làm mất tùy chọn này ở trang của Client. Bạn có chắc chắn?');">
-                                                        @Html.AntiForgeryToken()
-                                                        <input type="hidden" name="id" value="@item.FeatureID" />
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 shadow-sm" title="Xóa">
-                                                            <i class="bi bi-trash3-fill"></i>
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    .feature-alert {
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .07);
+        font-weight: 700;
+    }
+
+    .feature-top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: end;
+        margin-bottom: 14px;
+    }
+
+    .feature-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        color: #2563eb;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        font-size: .78rem;
+        font-weight: 900;
+        margin-bottom: 8px;
+    }
+
+    .feature-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 1.45rem;
+        font-weight: 900;
+        letter-spacing: -.025em;
+        line-height: 1.2;
+    }
+
+    .feature-subtitle {
+        margin: 6px 0 0;
+        color: #64748b;
+        font-size: .92rem;
+        font-weight: 500;
+    }
+
+    .feature-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .feature-search {
+        width: 360px;
+        max-width: 100%;
+    }
+
+        .feature-search .input-group {
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid #dbe4ef;
+            background: #fff;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, .055);
+        }
+
+        .feature-search .form-control {
+            min-height: 44px;
+            border: 0;
+            box-shadow: none;
+            color: #0f172a;
+            font-size: .92rem;
+            font-weight: 600;
+            padding-left: 16px;
+        }
+
+            .feature-search .form-control:focus {
+                box-shadow: none;
             }
-        </div>
+
+        .feature-search .btn {
+            width: 48px;
+            border: 0;
+            background: #2563eb;
+            color: #fff;
+        }
+
+    .feature-btn {
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-size: .9rem;
+        font-weight: 900;
+        white-space: nowrap;
     }
+
+    .feature-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 78px;
+        padding: 14px 16px;
+        border-radius: 20px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .055);
+    }
+
+    .stat-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: #2563eb;
+        background: #eff6ff;
+        font-size: 1.15rem;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+        margin-bottom: 3px;
+    }
+
+    .stat-value {
+        color: #0f172a;
+        font-size: 1.28rem;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    .group-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .group-card {
+        min-width: 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        background: #fff;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
+        overflow: hidden;
+    }
+
+    .group-head {
+        padding: 16px 18px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+    }
+
+    .group-title {
+        min-width: 0;
+        margin: 0;
+        color: #0f172a;
+        font-size: 1rem;
+        line-height: 1.35;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+    }
+
+        .group-title i {
+            width: 34px;
+            height: 34px;
+            border-radius: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+            background: #eff6ff;
+            flex-shrink: 0;
+        }
+
+        .group-title span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    .group-count {
+        min-height: 30px;
+        padding: 0 11px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #047857;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        font-size: .8rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .feature-list {
+        display: grid;
+        gap: 0;
+    }
+
+    .feature-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 13px 18px;
+        border-bottom: 1px solid #edf2f7;
+        transition: .18s ease;
+    }
+
+        .feature-item:last-child {
+            border-bottom: 0;
+        }
+
+        .feature-item:hover {
+            background: #f8fafc;
+        }
+
+    .feature-name {
+        min-width: 0;
+        color: #0f172a;
+        font-size: .92rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        word-break: break-word;
+    }
+
+        .feature-name i {
+            color: #94a3b8;
+            flex-shrink: 0;
+        }
+
+    .item-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .icon-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        transition: .18s ease;
+    }
+
+        .icon-btn.edit {
+            color: #2563eb;
+        }
+
+            .icon-btn.edit:hover {
+                color: #fff;
+                background: #2563eb;
+                border-color: #2563eb;
+            }
+
+        .icon-btn.delete {
+            color: #dc2626;
+        }
+
+            .icon-btn.delete:hover {
+                color: #fff;
+                background: #dc2626;
+                border-color: #dc2626;
+            }
+
+    .empty-card {
+        padding: 46px 18px;
+        border-radius: 22px;
+        background: #fff;
+        border: 1px dashed #cbd5e1;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .055);
+        text-align: center;
+    }
+
+        .empty-card i {
+            display: block;
+            margin-bottom: 12px;
+            color: #94a3b8;
+            font-size: 2.4rem;
+        }
+
+    .empty-title {
+        margin: 0 0 6px;
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 900;
+    }
+
+    .empty-text {
+        margin: 0;
+        color: #64748b;
+        font-size: .92rem;
+        font-weight: 500;
+    }
+
+    .feature-modal .modal-content {
+        border: 0;
+        border-radius: 22px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+        overflow: hidden;
+    }
+
+    .feature-modal .modal-header {
+        padding: 18px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .feature-modal .modal-title {
+        color: #0f172a;
+        font-size: 1.05rem;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .feature-modal .modal-body {
+        padding: 20px;
+    }
+
+    .feature-modal .modal-footer {
+        padding: 14px 20px 18px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .modal-label {
+        color: #334155;
+        font-size: .8rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 7px;
+    }
+
+    .modal-control {
+        min-height: 46px;
+        border-radius: 15px;
+        border: 1.5px solid #dbe4ef;
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: .94rem;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+        .modal-control:focus {
+            background: #fff;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .10) !important;
+        }
+
+    @@media (max-width: 1199.98px) {
+        .group-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .feature-top {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .feature-actions {
+            justify-content: stretch;
+        }
+
+        .feature-search {
+            width: 100%;
+        }
+
+        .feature-btn {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .feature-page {
+            padding-top: 10px;
+        }
+
+        .feature-title {
+            font-size: 1.24rem;
+        }
+
+        .feature-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .stat-card {
+            min-height: 68px;
+            padding: 12px;
+        }
+
+        .feature-item {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            padding: 13px 14px;
+        }
+
+        .item-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .icon-btn {
+            width: 100%;
+            height: 38px;
+        }
+
+        .group-head {
+            padding: 14px;
+        }
+
+        .group-title span {
+            white-space: normal;
+        }
+
+        .feature-modal .modal-dialog {
+            margin: 12px;
+        }
+
+        .feature-modal .modal-footer {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+            .feature-modal .modal-footer .btn {
+                width: 100%;
+            }
+    }
+
+
+    /* ===== MOBILE COMPACT PATCH - không cuộn ngang ===== */
+    .feature-page, .feature-page * {
+        box-sizing: border-box;
+    }
+
+    .feature-page {
+        overflow-x: hidden;
+    }
+
+    @@media (max-width: 767.98px) {
+        html, body
+
+    {
+        overflow-x: hidden !important;
+    }
+
+    .container-fluid.feature-page {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .feature-wrap {
+        max-width: 100% !important;
+    }
+
+    .feature-kicker {
+        min-height: 26px;
+        padding: 0 9px;
+        font-size: .68rem;
+        margin-bottom: 6px;
+    }
+
+    .feature-title {
+        font-size: 1.05rem !important;
+        line-height: 1.25;
+    }
+
+    .feature-subtitle {
+        display: none;
+    }
+
+    .feature-top {
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .feature-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .feature-search .input-group {
+        border-radius: 15px;
+        box-shadow: 0 5px 16px rgba(15,23,42,.045);
+    }
+
+    .feature-search .form-control {
+        min-height: 40px;
+        font-size: .84rem;
+        padding-left: 12px;
+    }
+
+    .feature-search .btn {
+        width: 44px;
+    }
+
+    .feature-btn {
+        min-height: 40px;
+        border-radius: 14px;
+        font-size: .84rem;
+    }
+
+    .feature-stats {
+        grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .stat-card {
+        min-height: 58px !important;
+        padding: 9px 10px !important;
+        border-radius: 15px;
+        gap: 8px;
+        box-shadow: 0 5px 14px rgba(15,23,42,.04);
+    }
+
+    .stat-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        font-size: .95rem;
+    }
+
+    .stat-label {
+        font-size: .6rem;
+        letter-spacing: .025em;
+        margin-bottom: 1px;
+    }
+
+    .stat-value {
+        font-size: 1.05rem;
+    }
+
+    .group-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+    }
+
+    .group-card {
+        border-radius: 17px;
+        box-shadow: 0 6px 16px rgba(15,23,42,.045);
+    }
+
+    .group-head {
+        padding: 10px 11px !important;
+    }
+
+    .group-title {
+        font-size: .88rem;
+        gap: 7px;
+    }
+
+        .group-title i {
+            width: 30px;
+            height: 30px;
+            border-radius: 11px;
+        }
+
+    .group-count {
+        min-height: 26px;
+        padding: 0 8px;
+        font-size: .7rem;
+    }
+
+    .feature-item {
+        grid-template-columns: minmax(0,1fr) 78px !important;
+        gap: 8px;
+        padding: 9px 11px !important;
+        align-items: center;
+    }
+
+    .feature-name {
+        font-size: .82rem;
+        line-height: 1.35;
+    }
+
+    .item-actions {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+    }
+
+    .icon-btn {
+        width: 36px !important;
+        height: 34px !important;
+        border-radius: 11px;
+    }
+
+    .empty-card {
+        padding: 26px 14px;
+        border-radius: 17px;
+    }
+
+    .feature-modal .modal-dialog {
+        margin: 8px !important;
+    }
+
+    .feature-modal .modal-header {
+        padding: 13px 14px;
+    }
+
+    .feature-modal .modal-body {
+        padding: 14px;
+    }
+
+    .feature-modal .modal-footer {
+        padding: 12px 14px;
+    }
+
+    }
+</style>
+
+<div class="container-fluid feature-page">
+    <div class="feature-wrap">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show feature-alert mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show feature-alert mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        <section class="feature-top">
+            <div>
+                <div class="feature-kicker">
+                    <i class="bi bi-sliders"></i>
+                    Danh mục tiện ích
+                </div>
+
+                <h1 class="feature-title">Quản lý danh mục tiện ích gốc</h1>
+
+                <p class="feature-subtitle">
+                    Quản lý các tùy chọn hiển thị khi người dùng đăng tin bất động sản.
+                </p>
+            </div>
+
+            <div class="feature-actions">
+                <form action="/Admin/PropertyFeatures/Index" method="get" class="feature-search">
+                    <div class="input-group">
+                        <input type="text"
+                               name="keyword"
+                               value="@keyword"
+                               class="form-control"
+                               placeholder="Tìm tiện ích..." />
+
+                        <button class="btn" type="submit" title="Tìm kiếm">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <button type="button"
+                        class="btn btn-success feature-btn"
+                        data-bs-toggle="modal"
+                        data-bs-target="#addFeatureModal">
+                    <i class="bi bi-plus-lg"></i>
+                    Thêm dữ liệu
+                </button>
+            </div>
+        </section>
+
+        <section class="feature-stats">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="bi bi-collection-fill"></i>
+                </div>
+
+                <div>
+                    <div class="stat-label">Tổng nhóm</div>
+                    <div class="stat-value">@totalGroups</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="color:#047857;background:#ecfdf5;">
+                    <i class="bi bi-list-check"></i>
+                </div>
+
+                <div>
+                    <div class="stat-label">Tổng tiện ích</div>
+                    <div class="stat-value">@totalFeatures</div>
+                </div>
+            </div>
+        </section>
+
+        @if (!features.Any())
+        {
+            <section class="empty-card">
+                <i class="bi bi-inboxes"></i>
+                <h3 class="empty-title">Chưa có danh mục tiện ích</h3>
+                <p class="empty-text">
+                    Bấm “Thêm dữ liệu” để tạo tiện ích đầu tiên cho hệ thống.
+                </p>
+            </section>
+        }
+        else
+        {
+            <section class="group-grid">
+                @foreach (var group in groupedFeatures)
+                {
+                    <article class="group-card">
+                        <header class="group-head">
+                            <h2 class="group-title" title="@group.Key">
+                                <i class="bi bi-folder2-open"></i>
+                                <span>@group.Key</span>
+                            </h2>
+
+                            <span class="group-count">
+                                @group.Count() mục
+                            </span>
+                        </header>
+
+                        <div class="feature-list">
+                            @foreach (var item in group.OrderBy(x => x.FeatureName))
+                            {
+                                string safeGroup = (item.FeatureGroup ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
+                                string safeName = (item.FeatureName ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
+
+                                <div class="feature-item">
+                                    <div class="feature-name">
+                                        <i class="bi bi-arrow-return-right"></i>
+                                        <span>@item.FeatureName</span>
+                                    </div>
+
+                                    <div class="item-actions">
+                                        <button type="button"
+                                                class="icon-btn edit"
+                                                title="Sửa"
+                                                onclick="openEditModal(@item.FeatureID, '@safeGroup', '@safeName')">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+
+                                        <form action="/Admin/PropertyFeatures/Delete"
+                                              method="post"
+                                              onsubmit="return confirm('Xóa tiện ích này sẽ làm mất tùy chọn ở trang đăng tin. Bạn chắc chắn muốn xóa?');">
+                                            @Html.AntiForgeryToken()
+
+                                            <input type="hidden" name="id" value="@item.FeatureID" />
+
+                                            <button type="submit" class="icon-btn delete" title="Xóa">
+                                                <i class="bi bi-trash3-fill"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </article>
+                }
+            </section>
+        }
+    </div>
 </div>
 
-<div class="modal fade" id="addFeatureModal" tabindex="-1">
+<div class="modal fade feature-modal" id="addFeatureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light border-bottom-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle-fill text-success me-2"></i>Thêm Lớp Con (Tùy chọn hiển thị)</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form action="/Admin/PropertyFeatures/Create" method="post">
+        <div class="modal-content">
+            <form action="/Admin/PropertyFeatures/Create" method="post" autocomplete="off">
                 @Html.AntiForgeryToken()
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle-fill text-success"></i>
+                        Thêm tiện ích mới
+                    </h5>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small">Lớp cha (Nhóm hiển thị) <span class="text-danger">*</span></label>
-                        <select name="FeatureGroup" class="form-select" required>
-                            <option value="">-- Chọn nhóm gốc --</option>
+                        <label class="form-label modal-label">
+                            Nhóm hiển thị <span class="text-danger">*</span>
+                        </label>
+
+                        <select name="FeatureGroup" class="form-select modal-control" required>
+                            <option value="">-- Chọn nhóm tiện ích --</option>
                             @foreach (var g in featureGroups)
                             {
                                 <option value="@g.Value">@g.Text</option>
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small">Lớp con (Tên hiển thị ra Client) <span class="text-danger">*</span></label>
-                        <input type="text" name="FeatureName" class="form-control" placeholder="VD: Đông Nam, Sổ hồng, Hồ bơi..." required />
+
+                    <div class="mb-0">
+                        <label class="form-label modal-label">
+                            Tên tiện ích <span class="text-danger">*</span>
+                        </label>
+
+                        <input type="text"
+                               name="FeatureName"
+                               class="form-control modal-control"
+                               placeholder="Ví dụ: Đông Nam, Sổ hồng, Hồ bơi..."
+                               maxlength="255"
+                               required />
                     </div>
                 </div>
-                <div class="modal-footer border-top-0 bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-success fw-bold px-4">Tạo mới</button>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                        Hủy
+                    </button>
+
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                        <i class="bi bi-check2 me-1"></i>
+                        Tạo mới
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="editFeatureModal" tabindex="-1">
+<div class="modal fade feature-modal" id="editFeatureModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-light border-bottom-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i>Sửa Thông Tin</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form action="/Admin/PropertyFeatures/Edit" method="post">
+        <div class="modal-content">
+            <form action="/Admin/PropertyFeatures/Edit" method="post" autocomplete="off">
                 @Html.AntiForgeryToken()
+
                 <input type="hidden" name="FeatureID" id="edit_FeatureID" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-pencil-square text-primary"></i>
+                        Sửa tiện ích
+                    </h5>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small">Lớp cha (Nhóm hiển thị)</label>
-                        <select name="FeatureGroup" id="edit_FeatureGroup" class="form-select" required>
+                        <label class="form-label modal-label">
+                            Nhóm hiển thị <span class="text-danger">*</span>
+                        </label>
+
+                        <select name="FeatureGroup" id="edit_FeatureGroup" class="form-select modal-control" required>
                             @foreach (var g in featureGroups)
                             {
                                 <option value="@g.Value">@g.Text</option>
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small">Lớp con (Tên hiển thị ra Client)</label>
-                        <input type="text" name="FeatureName" id="edit_FeatureName" class="form-control" required />
+
+                    <div class="mb-0">
+                        <label class="form-label modal-label">
+                            Tên tiện ích <span class="text-danger">*</span>
+                        </label>
+
+                        <input type="text"
+                               name="FeatureName"
+                               id="edit_FeatureName"
+                               class="form-control modal-control"
+                               maxlength="255"
+                               required />
                     </div>
                 </div>
-                <div class="modal-footer border-top-0 bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-primary fw-bold px-4">Lưu thay đổi</button>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                        Hủy
+                    </button>
+
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="bi bi-check2 me-1"></i>
+                        Lưu thay đổi
+                    </button>
                 </div>
             </form>
         </div>
@@ -156,10 +951,20 @@
 @section Scripts {
     <script>
         function openEditModal(id, group, name) {
-            document.getElementById('edit_FeatureID').value = id;
-            document.getElementById('edit_FeatureGroup').value = group;
-            document.getElementById('edit_FeatureName').value = name;
-            var editModal = new bootstrap.Modal(document.getElementById('editFeatureModal'));
+            const idInput = document.getElementById('edit_FeatureID');
+            const groupInput = document.getElementById('edit_FeatureGroup');
+            const nameInput = document.getElementById('edit_FeatureName');
+            const modalElement = document.getElementById('editFeatureModal');
+
+            if (!idInput || !groupInput || !nameInput || !modalElement) {
+                return;
+            }
+
+            idInput.value = id;
+            groupInput.value = group;
+            nameInput.value = name;
+
+            const editModal = new bootstrap.Modal(modalElement);
             editModal.show();
         }
     </script>

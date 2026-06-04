@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -29,8 +28,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         [HttpGet]
         public async Task<IActionResult> Index(
-            string? status = "All",
-            string? resultStatus = "All",
             string? keyword = null,
             string? source = "All",
             string dateRange = "all",
@@ -44,20 +41,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Include(a => a.Project)
                 .Include(a => a.Buyer)
                 .Include(a => a.Seller)
-                .Include(a => a.Lead)
+                .Include(a => a.Lead).ThenInclude(l => l.Project)
                 .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(status) &&
-                !status.Equals("All", StringComparison.OrdinalIgnoreCase))
-            {
-                query = query.Where(a => a.Status == status);
-            }
-
-            if (!string.IsNullOrWhiteSpace(resultStatus) &&
-                !resultStatus.Equals("All", StringComparison.OrdinalIgnoreCase))
-            {
-                query = query.Where(a => a.ResultStatus == resultStatus);
-            }
 
             if (!string.IsNullOrWhiteSpace(source) &&
                 !source.Equals("All", StringComparison.OrdinalIgnoreCase))
@@ -88,7 +73,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     (a.Buyer != null && a.Buyer.FullName != null && EF.Functions.Like(a.Buyer.FullName, $"%{keyword}%")) ||
                     (a.Seller != null && a.Seller.FullName != null && EF.Functions.Like(a.Seller.FullName, $"%{keyword}%")) ||
                     (a.Property != null && a.Property.Title != null && EF.Functions.Like(a.Property.Title, $"%{keyword}%")) ||
-                    (a.Project != null && a.Project.ProjectName != null && EF.Functions.Like(a.Project.ProjectName, $"%{keyword}%"))
+                    (a.Project != null && a.Project.ProjectName != null && EF.Functions.Like(a.Project.ProjectName, $"%{keyword}%")) ||
+                    (a.Lead != null && a.Lead.Project != null && a.Lead.Project.ProjectName != null && EF.Functions.Like(a.Lead.Project.ProjectName, $"%{keyword}%"))
                 );
             }
 
@@ -115,10 +101,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             ViewBag.CompletedAppointments = await query.CountAsync(a => a.Status == "Completed");
             ViewBag.CancelledAppointments = await query.CountAsync(a => a.Status == "Cancelled");
             ViewBag.InterestedCount = await query.CountAsync(a => a.ResultStatus == "Interested" || a.ResultStatus == "DepositPending");
-
-            ViewBag.RemindedAppointments = await query.CountAsync(a =>
-                a.NegotiationNote != null &&
-                a.NegotiationNote.Contains(REMIND_MARKER));
+            ViewBag.RemindedAppointments = await query.CountAsync(a => a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER));
 
             int totalItems = await query.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
@@ -132,11 +115,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            ViewBag.Status = status;
-            ViewBag.ResultStatus = resultStatus;
             ViewBag.Keyword = keyword;
-            ViewBag.Source = source;
-            ViewBag.DateRange = dateRange;
+            ViewBag.Source = string.IsNullOrWhiteSpace(source) ? "All" : source;
+            ViewBag.DateRange = string.IsNullOrWhiteSpace(dateRange) ? "all" : dateRange;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
 
@@ -277,15 +258,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 });
             }
 
-            if (targetUserId == null || targetUserId.Value <= 0)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Lịch hẹn này chưa xác định được người bán hoặc người phụ trách để nhắc nhở."
-                });
-            }
-
             var targetUser = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u =>
@@ -305,7 +277,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             DateTime now = DateTime.Now;
 
             string actorName = User.FindFirst("FullName")?.Value
-                               ?? User.FindFirstValue(ClaimTypes.Name)
+                               ?? User.Identity?.Name
                                ?? "Admin/Staff";
 
             string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)

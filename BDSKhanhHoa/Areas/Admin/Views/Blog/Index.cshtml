@@ -4,118 +4,458 @@
     ViewData["Title"] = "Quản lý Bài viết (Blog)";
 }
 
-<div class="row align-items-center mb-4 g-3">
-    <div class="col-lg-5">
-        <h3 class="fw-bold text-dark mb-1"><i class="bi bi-newspaper text-primary me-2"></i>Tin tức & Bài viết</h3>
-        <p class="text-muted small mb-0">Hệ thống bài viết giúp SEO website và cung cấp kiến thức BĐS.</p>
-    </div>
+<style>
+    .blog-admin-page {
+        --ba-primary: #2563eb;
+        --ba-dark: #0f172a;
+        --ba-muted: #64748b;
+        --ba-border: #e2e8f0;
+        --ba-soft: #f8fafc;
+        padding: 16px;
+        overflow-x: hidden;
+    }
 
-    <div class="col-lg-7 d-flex justify-content-lg-end gap-2">
-        <form action="/Admin/Blog/Index" method="get" class="d-flex gap-2">
-            <select name="category" class="form-select fw-bold bg-white shadow-sm border-0" onchange="this.form.submit()" style="min-width: 220px;">
-                <option value="">-- Tất cả danh mục --</option>
-                @foreach (var cat in ViewBag.Categories)
-                {
-                    <option value="@cat" selected="@(ViewBag.CurrentCategory == cat ? "selected" : null)">@cat</option>
-                }
-            </select>
-        </form>
+        .blog-admin-page * {
+            box-sizing: border-box;
+        }
 
-        <a href="/Admin/Blog/Create" class="btn btn-primary shadow-sm px-4 fw-bold rounded-3 text-nowrap">
-            <i class="bi bi-pencil-square me-2"></i> Soạn bài mới
-        </a>
-    </div>
-</div>
+    .blog-head,
+    .blog-stat,
+    .blog-card-shell {
+        background: #fff;
+        border: 1px solid var(--ba-border);
+        border-radius: 20px;
+        box-shadow: 0 10px 28px rgba(15,23,42,.055);
+    }
 
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm rounded-4 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-                <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-3"><i class="bi bi-journal-text fs-3"></i></div>
-                <div>
-                    <p class="text-muted small fw-bold mb-0 text-uppercase">Số bài viết @(string.IsNullOrEmpty(ViewBag.CurrentCategory) ? "" : $"({ViewBag.CurrentCategory})")</p>
-                    <h3 class="fw-bold mb-0 text-dark">@ViewBag.TotalPosts</h3>
-                </div>
+    .blog-head {
+        padding: 15px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .blog-title {
+        color: var(--ba-dark);
+        font-weight: 900;
+        margin: 0;
+        line-height: 1.2;
+        letter-spacing: -.03em;
+        font-size: clamp(1.12rem, 2vw, 1.45rem);
+    }
+
+    .blog-sub {
+        margin: 4px 0 0;
+        color: var(--ba-muted);
+        font-size: .86rem;
+        font-weight: 600;
+    }
+
+    .blog-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+        .blog-actions .form-select {
+            min-height: 40px;
+            border-radius: 999px;
+            font-weight: 800;
+            border-color: var(--ba-border);
+            min-width: 220px;
+            box-shadow: none !important;
+        }
+
+        .blog-actions .btn {
+            min-height: 40px;
+            border-radius: 999px;
+            font-weight: 850;
+            white-space: nowrap;
+        }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .blog-stat {
+        padding: 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .stat-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+    }
+
+    .stat-label {
+        color: var(--ba-muted);
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        line-height: 1.25;
+    }
+
+    .stat-value {
+        color: var(--ba-dark);
+        font-size: 1.45rem;
+        font-weight: 950;
+        line-height: 1;
+        margin-top: 4px;
+    }
+
+    .desktop-blog-table {
+        display: block;
+    }
+
+    .blog-table {
+        width: 100%;
+        table-layout: fixed;
+        margin: 0;
+    }
+
+        .blog-table thead th {
+            background: var(--ba-soft);
+            color: var(--ba-muted);
+            text-transform: uppercase;
+            letter-spacing: .055em;
+            font-size: .7rem;
+            font-weight: 950;
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--ba-border);
+        }
+
+        .blog-table tbody td {
+            padding: 13px 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+    .blog-thumb {
+        width: 100px;
+        height: 65px;
+        object-fit: cover;
+        border-radius: 13px;
+        border: 1px solid var(--ba-border);
+        background: #f1f5f9;
+    }
+
+    .text-cut {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mobile-blog-list {
+        display: none;
+        padding: 10px;
+        background: var(--ba-soft);
+    }
+
+    .mobile-blog-card {
+        background: #fff;
+        border: 1px solid var(--ba-border);
+        border-radius: 17px;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 6px 18px rgba(15,23,42,.04);
+    }
+
+    .mobile-blog-card-top {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+    }
+
+    .mobile-blog-img {
+        width: 92px;
+        height: 68px;
+        object-fit: cover;
+        border-radius: 13px;
+        border: 1px solid var(--ba-border);
+        background: #f1f5f9;
+    }
+
+    .mobile-blog-title {
+        color: var(--ba-dark);
+        font-weight: 900;
+        font-size: .92rem;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .mobile-blog-meta {
+        margin-top: 6px;
+        color: var(--ba-muted);
+        font-size: .76rem;
+        font-weight: 650;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+    }
+
+    .mobile-blog-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px dashed var(--ba-border);
+    }
+
+        .mobile-blog-actions .btn {
+            border-radius: 12px;
+            font-weight: 850;
+            min-height: 36px;
+        }
+
+    .empty-box {
+        text-align: center;
+        padding: 40px 16px;
+        color: var(--ba-muted);
+        font-weight: 700;
+    }
+
+    @@media (max-width: 767.98px) {
+        .blog-admin-page {
+            padding: 10px;
+        }
+
+        .blog-head {
+            display: block;
+            padding: 13px;
+            border-radius: 18px;
+        }
+
+        .blog-sub {
+            display: none;
+        }
+
+        .blog-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            margin-top: 10px;
+        }
+
+            .blog-actions .form-select,
+            .blog-actions .btn {
+                width: 100%;
+                min-width: 0;
+            }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .blog-stat {
+            padding: 10px;
+            border-radius: 16px;
+        }
+
+        .stat-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 14px;
+        }
+
+        .stat-value {
+            font-size: 1.18rem;
+        }
+
+        .stat-label {
+            font-size: .62rem;
+        }
+
+        .desktop-blog-table {
+            display: none;
+        }
+
+        .mobile-blog-list {
+            display: block;
+        }
+    }
+</style>
+
+<div class="blog-admin-page">
+    <section class="blog-head">
+        <div>
+            <h3 class="blog-title">
+                <i class="bi bi-newspaper text-primary me-2"></i>Tin tức & Bài viết
+            </h3>
+            <p class="blog-sub">Quản lý bài viết SEO và kiến thức bất động sản.</p>
+        </div>
+
+        <div class="blog-actions">
+            <form action="/Admin/Blog/Index" method="get">
+                <select name="category" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Tất cả danh mục --</option>
+                    @foreach (var cat in ViewBag.Categories)
+                    {
+                        <option value="@cat" selected="@(ViewBag.CurrentCategory == cat ? "selected" : null)">@cat</option>
+                    }
+                </select>
+            </form>
+
+            <a href="/Admin/Blog/Create" class="btn btn-primary shadow-sm px-4">
+                <i class="bi bi-pencil-square me-1"></i> Soạn bài mới
+            </a>
+        </div>
+    </section>
+
+    <section class="stat-grid">
+        <div class="blog-stat">
+            <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                <i class="bi bi-journal-text fs-4"></i>
+            </div>
+            <div>
+                <div class="stat-label">Số bài viết @(string.IsNullOrEmpty(ViewBag.CurrentCategory) ? "" : $"({ViewBag.CurrentCategory})")</div>
+                <div class="stat-value">@ViewBag.TotalPosts</div>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm rounded-4 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-                <div class="bg-success bg-opacity-10 text-success p-3 rounded-3"><i class="bi bi-eye fs-3"></i></div>
-                <div>
-                    <p class="text-muted small fw-bold mb-0 text-uppercase">Tổng lượt xem</p>
-                    <h3 class="fw-bold mb-0 text-dark">@ViewBag.TotalViews</h3>
-                </div>
+
+        <div class="blog-stat">
+            <div class="stat-icon bg-success bg-opacity-10 text-success">
+                <i class="bi bi-eye fs-4"></i>
+            </div>
+            <div>
+                <div class="stat-label">Tổng lượt xem</div>
+                <div class="stat-value">@ViewBag.TotalViews</div>
             </div>
         </div>
-    </div>
-</div>
+    </section>
 
-<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0 bg-white">
-            <thead class="table-light">
-                <tr>
-                    <th class="ps-4 py-3 text-uppercase small fw-bold text-secondary" style="width: 120px;">Hình ảnh</th>
-                    <th class="py-3 text-uppercase small fw-bold text-secondary">Thông tin bài viết</th>
-                    <th class="py-3 text-uppercase small fw-bold text-secondary">Tác giả</th>
-                    <th class="text-center py-3 text-uppercase small fw-bold text-secondary">Lượt xem</th>
-                    <th class="text-end pe-4 py-3 text-uppercase small fw-bold text-secondary">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model != null && Model.Any())
-                {
-                    foreach (var item in Model)
+    <section class="blog-card-shell overflow-hidden">
+        <div class="desktop-blog-table">
+            <table class="table table-hover align-middle blog-table bg-white">
+                <thead>
+                    <tr>
+                        <th style="width: 130px;">Hình ảnh</th>
+                        <th>Thông tin bài viết</th>
+                        <th style="width: 180px;">Tác giả</th>
+                        <th class="text-center" style="width: 110px;">Lượt xem</th>
+                        <th class="text-end" style="width: 110px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.jpg" : item.ImageURL)"
+                                         class="blog-thumb"
+                                         onerror="this.src='/images/no-image.jpg'"
+                                         alt="@item.Title">
+                                </td>
+                                <td>
+                                    <div class="badge bg-light text-primary border mb-2">@item.Category</div>
+                                    <div class="fw-bold text-dark text-cut" title="@item.Title">@item.Title</div>
+                                    <div class="text-muted small fw-medium mt-1">
+                                        <i class="bi bi-clock me-1"></i> @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border fw-medium px-2 py-1">
+                                        <i class="bi bi-person-fill text-secondary me-1"></i> @(item.User?.FullName ?? "Hệ thống")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill">
+                                        <i class="bi bi-eye"></i> @item.Views
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group shadow-sm rounded-3">
+                                        <a href="/Admin/Blog/Edit/@item.BlogID" class="btn btn-sm btn-light border text-primary" title="Sửa bài">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-light border text-danger" onclick="confirmDelete(@item.BlogID)" title="Xóa bài">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </div>
+                                    <form id="deleteForm-@item.BlogID" action="/Admin/Blog/Delete/@item.BlogID" method="post" class="d-none">
+                                        @Html.AntiForgeryToken()
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
                     {
                         <tr>
-                            <td class="ps-4 py-3">
-                                <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.jpg" : item.ImageURL)"
-                                     class="rounded-3 border shadow-sm object-fit-cover" style="width: 100px; height: 65px;"
-                                     onerror="this.src='/images/no-image.jpg'">
-                            </td>
-                            <td class="py-3">
-                                <div class="badge bg-light text-primary border mb-2">@item.Category</div>
-                                <div class="fw-bold text-dark mb-1 text-truncate" style="max-width: 350px;" title="@item.Title">@item.Title</div>
-                                <div class="text-muted small fw-medium"><i class="bi bi-clock me-1"></i> @item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
-                            </td>
-                            <td class="py-3">
-                                <span class="badge bg-light text-dark border fw-medium px-2 py-1">
-                                    <i class="bi bi-person-fill text-secondary me-1"></i> @(item.User?.FullName ?? "Hệ thống")
-                                </span>
-                            </td>
-                            <td class="py-3 text-center">
-                                <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill"><i class="bi bi-eye"></i> @item.Views</span>
-                            </td>
-                            <td class="py-3 text-end pe-4">
-                                <div class="btn-group shadow-sm rounded-3">
-                                    <a href="/Admin/Blog/Edit/@item.BlogID" class="btn btn-sm btn-light border text-primary" title="Sửa bài">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-light border text-danger" onclick="confirmDelete(@item.BlogID)" title="Xóa bài">
-                                        <i class="bi bi-trash3-fill"></i>
-                                    </button>
-                                </div>
-                                <form id="deleteForm-@item.BlogID" action="/Admin/Blog/Delete/@item.BlogID" method="post" style="display:none;">
-                                    @Html.AntiForgeryToken()
-                                </form>
+                            <td colspan="5" class="empty-box">
+                                <i class="bi bi-journal-x display-5 opacity-25 d-block mb-2"></i>
+                                Không tìm thấy bài viết nào thuộc danh mục này.
                             </td>
                         </tr>
                     }
-                }
-                else
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mobile-blog-list">
+            @if (Model != null && Model.Any())
+            {
+                foreach (var item in Model)
                 {
-                    <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <i class="bi bi-journal-x display-4 text-muted opacity-25 d-block mb-3"></i>
-                            <h6 class="text-muted fw-bold">Không tìm thấy bài viết nào thuộc danh mục này.</h6>
-                        </td>
-                    </tr>
+                    <article class="mobile-blog-card">
+                        <div class="mobile-blog-card-top">
+                            <img src="@(string.IsNullOrEmpty(item.ImageURL) ? "/images/no-image.jpg" : item.ImageURL)"
+                                 class="mobile-blog-img"
+                                 onerror="this.src='/images/no-image.jpg'"
+                                 alt="@item.Title">
+
+                            <div class="min-w-0">
+                                <div class="badge bg-light text-primary border mb-1">@item.Category</div>
+                                <div class="mobile-blog-title" title="@item.Title">@item.Title</div>
+                                <div class="mobile-blog-meta">
+                                    <span><i class="bi bi-clock"></i> @item.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                    <span><i class="bi bi-eye"></i> @item.Views</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mobile-blog-meta mt-2">
+                            <span><i class="bi bi-person-fill"></i> @(item.User?.FullName ?? "Hệ thống")</span>
+                        </div>
+
+                        <div class="mobile-blog-actions">
+                            <a href="/Admin/Blog/Edit/@item.BlogID" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-pencil-square me-1"></i>Sửa
+                            </a>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(@item.BlogID)">
+                                <i class="bi bi-trash3-fill me-1"></i>Xóa
+                            </button>
+                        </div>
+                    </article>
                 }
-            </tbody>
-        </table>
-    </div>
+            }
+            else
+            {
+                <div class="empty-box">
+                    <i class="bi bi-journal-x display-5 opacity-25 d-block mb-2"></i>
+                    Không tìm thấy bài viết nào thuộc danh mục này.
+                </div>
+            }
+        </div>
+    </section>
 </div>
 
 @section Scripts {
@@ -137,11 +477,11 @@
         }
         @if (TempData["Success"] != null)
         {
-            <text>Swal.fire({ icon: 'success', title: 'Thành công!', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false });</text>
+                <text>Swal.fire({ icon: 'success', title: 'Thành công!', text: '@Html.Raw(TempData["Success"])', timer: 3000, showConfirmButton: false });</text>
         }
         @if (TempData["Error"] != null)
         {
-            <text>Swal.fire({ icon: 'error', title: 'Lỗi!', text: '@Html.Raw(TempData["Error"])' });</text>
+                <text>Swal.fire({ icon: 'error', title: 'Lỗi!', text: '@Html.Raw(TempData["Error"])' });</text>
         }
     </script>
 }

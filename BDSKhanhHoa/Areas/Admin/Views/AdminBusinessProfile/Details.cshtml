@@ -2,127 +2,614 @@
 @{
     ViewData["Title"] = "Hồ sơ Chủ Đầu Tư";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    bool isApproved = Model.VerificationStatus == "Approved";
+    string businessEmail = string.IsNullOrWhiteSpace(Model.BusinessEmail) ? "Không có dữ liệu" : Model.BusinessEmail;
+    string avatar = Model.User == null || string.IsNullOrWhiteSpace(Model.User.Avatar) ? "/images/avatars/default.png" : Model.User.Avatar;
 }
 
-<div class="container-fluid px-4 mt-4 animate__animated animate__fadeIn">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a asp-action="Index" class="text-decoration-none">Mạng lưới Đối tác</a></li>
-                <li class="breadcrumb-item active fw-bold text-dark">Hồ sơ: @Model.BusinessName</li>
+<style>
+    .biz-detail-page {
+        --bd-primary: #2563eb;
+        --bd-success: #059669;
+        --bd-danger: #dc2626;
+        --bd-warning: #d97706;
+        --bd-text: #0f172a;
+        --bd-body: #334155;
+        --bd-muted: #64748b;
+        --bd-border: #e2e8f0;
+        --bd-soft: #f8fafc;
+        padding: 20px 20px 28px;
+        overflow-x: hidden;
+    }
+
+    .bd-shell {
+        max-width: 1380px;
+        margin: 0 auto;
+    }
+
+    .bd-topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .bd-breadcrumb {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        color: var(--bd-muted);
+        font-size: .84rem;
+        font-weight: 750;
+    }
+
+        .bd-breadcrumb a {
+            color: var(--bd-primary);
+            text-decoration: none;
+            font-weight: 900;
+        }
+
+    .bd-back-btn {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid var(--bd-border);
+        background: #fff;
+        color: var(--bd-body);
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: .84rem;
+        font-weight: 900;
+        text-decoration: none;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, .045);
+    }
+
+        .bd-back-btn:hover {
+            color: var(--bd-primary);
+            background: #eff6ff;
+        }
+
+    .bd-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 18px;
+        margin-bottom: 16px;
+        border-radius: 24px;
+        border: 1px solid var(--bd-border);
+        background: radial-gradient(circle at top right, rgba(37, 99, 235, .12), transparent 36%), linear-gradient(135deg, #fff, #f8fbff);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+    }
+
+    .bd-hero-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        min-width: 0;
+    }
+
+    .bd-hero-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+        box-shadow: 0 12px 24px rgba(37, 99, 235, .23);
+        flex: 0 0 auto;
+    }
+
+    .bd-title {
+        margin: 0;
+        color: var(--bd-text);
+        font-size: clamp(1.18rem, 2.1vw, 1.75rem);
+        line-height: 1.22;
+        font-weight: 950;
+        letter-spacing: -.04em;
+        overflow-wrap: anywhere;
+    }
+
+    .bd-subtitle {
+        margin: 5px 0 0;
+        color: var(--bd-muted);
+        font-size: .9rem;
+        line-height: 1.45;
+        font-weight: 650;
+    }
+
+    .bd-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 0 13px;
+        border-radius: 999px;
+        font-size: .82rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+        .bd-status.active {
+            background: #ecfdf5;
+            color: var(--bd-success);
+            border: 1px solid #bbf7d0;
+        }
+
+        .bd-status.locked {
+            background: #fef2f2;
+            color: var(--bd-danger);
+            border: 1px solid #fecaca;
+        }
+
+    .bd-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 16px;
+        align-items: start;
+    }
+
+    .bd-card {
+        border: 1px solid var(--bd-border);
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+        overflow: hidden;
+    }
+
+    .bd-card-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--bd-border);
+        background: #fff;
+    }
+
+    .bd-card-head-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: #eff6ff;
+        color: var(--bd-primary);
+        flex: 0 0 auto;
+    }
+
+    .bd-card-title {
+        margin: 0;
+        color: var(--bd-text);
+        font-size: 1rem;
+        font-weight: 950;
+        line-height: 1.25;
+    }
+
+    .bd-card-body {
+        padding: 18px;
+    }
+
+    .bd-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .bd-info-box {
+        min-height: 82px;
+        padding: 13px;
+        border: 1px solid var(--bd-border);
+        border-radius: 18px;
+        background: linear-gradient(180deg, #fff, #f8fafc);
+    }
+
+        .bd-info-box.full {
+            grid-column: 1 / -1;
+        }
+
+    .bd-label {
+        margin-bottom: 5px;
+        color: var(--bd-muted);
+        font-size: .72rem;
+        line-height: 1.25;
+        text-transform: uppercase;
+        letter-spacing: .055em;
+        font-weight: 950;
+    }
+
+    .bd-value {
+        color: var(--bd-text);
+        font-size: .96rem;
+        line-height: 1.45;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+    }
+
+        .bd-value.primary {
+            color: var(--bd-primary);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+    .bd-side-stack {
+        display: grid;
+        gap: 16px;
+    }
+
+    .bd-user-card {
+        padding: 18px;
+    }
+
+    .bd-user-top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid var(--bd-border);
+    }
+
+    .bd-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        object-fit: cover;
+        border: 3px solid #fff;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, .12);
+        flex: 0 0 auto;
+    }
+
+    .bd-user-name {
+        color: var(--bd-text);
+        font-weight: 950;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .bd-user-handle {
+        margin-top: 3px;
+        color: var(--bd-muted);
+        font-size: .8rem;
+        font-weight: 750;
+    }
+
+    .bd-note-box {
+        padding: 13px;
+        border-radius: 18px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .84rem;
+        line-height: 1.55;
+        font-weight: 750;
+        white-space: pre-wrap;
+    }
+
+    .bd-edit-btn {
+        min-height: 44px;
+        width: 100%;
+        margin-top: 14px;
+        border: 0;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--bd-primary), #0ea5e9);
+        font-weight: 950;
+        text-decoration: none;
+        box-shadow: 0 12px 24px rgba(37, 99, 235, .22);
+    }
+
+        .bd-edit-btn:hover {
+            color: #fff;
+        }
+
+    .bd-timeline {
+        padding: 18px;
+    }
+
+    .bd-timeline-item {
+        position: relative;
+        padding-left: 26px;
+        padding-bottom: 15px;
+        border-left: 2px solid #dbeafe;
+        margin-left: 6px;
+    }
+
+        .bd-timeline-item:last-child {
+            padding-bottom: 0;
+            border-left-color: transparent;
+        }
+
+    .bd-timeline-dot {
+        position: absolute;
+        left: -7px;
+        top: 1px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--bd-primary);
+        box-shadow: 0 0 0 4px #eff6ff;
+    }
+
+        .bd-timeline-dot.warning {
+            background: var(--bd-warning);
+            box-shadow: 0 0 0 4px #fffbeb;
+        }
+
+    .bd-timeline-label {
+        color: var(--bd-muted);
+        font-size: .74rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .bd-timeline-value {
+        margin-top: 4px;
+        color: var(--bd-text);
+        font-weight: 950;
+        line-height: 1.35;
+    }
+
+    @@media (max-width: 991.98px) {
+        .biz-detail-page {
+            padding: 14px 10px 22px;
+        }
+
+        .bd-topbar {
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .bd-breadcrumb {
+            font-size: .78rem;
+            max-width: 66%;
+        }
+
+        .bd-back-btn {
+            min-height: 34px;
+            padding: 0 11px;
+            font-size: .78rem;
+        }
+
+        .bd-hero {
+            padding: 13px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+        }
+
+        .bd-hero-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 15px;
+        }
+
+        .bd-title {
+            font-size: 1.08rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .bd-subtitle {
+            display: none;
+        }
+
+        .bd-status {
+            min-height: 30px;
+            padding: 0 10px;
+            font-size: .7rem;
+        }
+
+        .bd-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .bd-card {
+            border-radius: 20px;
+        }
+
+        .bd-card-head {
+            padding: 12px 13px;
+        }
+
+        .bd-card-head-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 13px;
+        }
+
+        .bd-card-title {
+            font-size: .92rem;
+        }
+
+        .bd-card-body,
+        .bd-user-card,
+        .bd-timeline {
+            padding: 13px;
+        }
+
+        .bd-info-grid {
+            grid-template-columns: 1fr;
+            gap: 9px;
+        }
+
+        .bd-info-box {
+            min-height: unset;
+            padding: 11px;
+            border-radius: 15px;
+        }
+
+        .bd-label {
+            font-size: .66rem;
+        }
+
+        .bd-value {
+            font-size: .88rem;
+        }
+
+        .bd-user-top {
+            padding-bottom: 11px;
+            margin-bottom: 11px;
+        }
+
+        .bd-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+        }
+
+        .bd-note-box {
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: .8rem;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .bd-hero {
+            display: block;
+        }
+
+        .bd-hero-left {
+            margin-bottom: 10px;
+        }
+
+        .bd-status {
+            width: fit-content;
+        }
+    }
+</style>
+
+<div class="container-fluid biz-detail-page animate__animated animate__fadeIn">
+    <div class="bd-shell">
+        <div class="bd-topbar">
+            <ol class="bd-breadcrumb" aria-label="breadcrumb">
+                <li><a asp-action="Index">Mạng lưới đối tác</a></li>
+                <li><i class="bi bi-chevron-right small"></i></li>
+                <li>Hồ sơ doanh nghiệp</li>
             </ol>
-        </nav>
-        <a asp-action="Index" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold">
-            <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách
-        </a>
-    </div>
 
-    <div class="row g-4">
-        <!-- CỘT TRÁI: THÔNG TIN DOANH NGHIỆP -->
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
-                    <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
-                        <i class="bi bi-building-fill fs-5"></i>
-                    </div>
-                    <h5 class="mb-0 fw-bold">Định danh Doanh nghiệp / Pháp nhân</h5>
-                </div>
-
-                <div class="card-body p-4 p-md-5">
-                    <div class="row g-4">
-                        <div class="col-md-8">
-                            <label class="small fw-bold text-muted text-uppercase mb-1">Tên doanh nghiệp / Chủ đầu tư</label>
-                            <h4 class="fw-bold text-dark mb-0">@Model.BusinessName</h4>
-                        </div>
-                        <div class="col-md-4 text-md-end align-self-end">
-                            @if (Model.VerificationStatus == "Approved")
-                            {
-                                <span class="badge bg-success px-4 py-2 rounded-pill fs-6 border border-success"><i class="bi bi-check-circle-fill me-2"></i>Đang hoạt động</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger px-4 py-2 rounded-pill fs-6 border border-danger"><i class="bi bi-lock-fill me-2"></i>Đang đình chỉ</span>
-                            }
-                        </div>
-
-                        <div class="col-12"><hr class="opacity-10 my-1"></div>
-
-                        <div class="col-md-5">
-                            <div class="p-3 bg-light rounded-3 border h-100">
-                                <label class="small text-muted mb-1 fw-bold"><i class="bi bi-upc-scan me-1"></i> Mã số thuế (MST)</label>
-                                <div class="fw-bold text-primary font-monospace fs-5">@Model.TaxCode</div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-7">
-                            <div class="p-3 bg-light rounded-3 border h-100">
-                                <label class="small text-muted mb-1 fw-bold"><i class="bi bi-envelope-at me-1"></i> Email doanh nghiệp (Nhận văn bản)</label>
-                                <div class="fw-bold text-dark fs-6">@(string.IsNullOrEmpty(Model.BusinessEmail) ? "Không có dữ liệu" : Model.BusinessEmail)</div>
-                            </div>
-                        </div>
-
-                        <div class="col-12"><hr class="opacity-10 my-1"></div>
-
-                        <div class="col-md-6">
-                            <label class="small text-muted mb-1 fw-bold">Đại diện pháp luật</label>
-                            <div class="fw-bold fs-6 border-bottom pb-2 border-primary-subtle text-dark">@Model.RepresentativeName</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="small text-muted mb-1 fw-bold">Điện thoại doanh nghiệp</label>
-                            <div class="fw-bold fs-6 border-bottom pb-2 border-primary-subtle text-dark">@Model.RepresentativePhone</div>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="small text-muted mb-1 fw-bold">Địa chỉ Trụ sở / Văn phòng làm việc</label>
-                            <div class="fw-bold fs-6 border p-3 rounded-3 bg-light bg-opacity-50 text-dark">
-                                <i class="bi bi-geo-alt-fill text-danger me-2"></i> @Model.BusinessAddress
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <a asp-action="Index" class="bd-back-btn">
+                <i class="bi bi-arrow-left"></i>
+                Quay lại
+            </a>
         </div>
 
-        <!-- CỘT PHẢI: THÔNG TIN TÀI KHOẢN QUẢN LÝ (Gắn với AdminNote & Position) -->
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm rounded-4 mb-4 border-top border-primary border-4">
-                <div class="card-body p-4">
-                    <h6 class="fw-bold mb-4 text-primary text-uppercase" style="letter-spacing: 0.5px;">
-                        <i class="bi bi-person-badge me-2"></i>Tài khoản Quản trị Dự án
-                    </h6>
+        <section class="bd-hero">
+            <div class="bd-hero-left">
+                <div class="bd-hero-icon">
+                    <i class="bi bi-building-fill fs-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="bd-title">@Model.BusinessName</h1>
+                    <p class="bd-subtitle">Hồ sơ pháp nhân, tài khoản quản lý dự án và nhật ký hệ thống.</p>
+                </div>
+            </div>
 
-                    @if (Model.User != null)
-                    {
-                        <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
-                            <img src="@(string.IsNullOrEmpty(Model.User.Avatar) ? "/images/avatars/default.png" : Model.User.Avatar)"
-                                 class="rounded-circle border border-2 shadow-sm me-3" width="60" height="60" style="object-fit: cover;">
-                            <div>
-                                <div class="fw-bold text-dark fs-6">@Model.User.FullName</div>
-                                <div class="small text-muted">@@@Model.User.Username</div>
-                            </div>
+            @if (isApproved)
+            {
+                <span class="bd-status active"><i class="bi bi-check-circle-fill"></i>Đang hoạt động</span>
+            }
+            else
+            {
+                <span class="bd-status locked"><i class="bi bi-lock-fill"></i>Đang đình chỉ</span>
+            }
+        </section>
+
+        <div class="bd-grid">
+            <section class="bd-card">
+                <div class="bd-card-head">
+                    <div class="bd-card-head-icon">
+                        <i class="bi bi-buildings-fill"></i>
+                    </div>
+                    <h5 class="bd-card-title">Định danh doanh nghiệp / pháp nhân</h5>
+                </div>
+
+                <div class="bd-card-body">
+                    <div class="bd-info-grid">
+                        <div class="bd-info-box full">
+                            <div class="bd-label">Tên doanh nghiệp / Chủ đầu tư</div>
+                            <div class="bd-value">@Model.BusinessName</div>
                         </div>
 
-                        <!-- BỔ SUNG CHỨC DANH -->
-                        <div class="mb-3">
-                            <label class="small text-muted mb-1">Chức danh / Vị trí:</label>
-                            <div class="fw-bold text-dark">
-                                @if (!string.IsNullOrEmpty(Model.User.Position))
-                                {
-                                    <i class="bi bi-briefcase-fill text-secondary me-1"></i> 
-                                    @Model.User.Position
-                                }
-                                else
-                                {
-                                    <span class="text-muted fst-italic">Chưa cập nhật chức danh</span>
-                                }
-                            </div>
+                        <div class="bd-info-box">
+                            <div class="bd-label"><i class="bi bi-upc-scan me-1"></i>Mã số thuế</div>
+                            <div class="bd-value primary">@Model.TaxCode</div>
                         </div>
 
-                        <!-- BỔ SUNG GHI CHÚ CỦA ADMIN -->
-                        <div class="mb-4">
-                            <label class="small text-muted mb-1 text-danger fw-bold"><i class="bi bi-journal-bookmark-fill me-1"></i> Ghi chú nội bộ Admin:</label>
-                            <div class="p-3 bg-danger bg-opacity-10 border border-danger-subtle rounded-3 text-danger fw-medium small" style="line-height: 1.6;">
-                                @if (!string.IsNullOrEmpty(Model.User.AdminNote))
+                        <div class="bd-info-box">
+                            <div class="bd-label"><i class="bi bi-envelope-at me-1"></i>Email doanh nghiệp</div>
+                            <div class="bd-value">@businessEmail</div>
+                        </div>
+
+                        <div class="bd-info-box">
+                            <div class="bd-label">Đại diện pháp luật</div>
+                            <div class="bd-value">@Model.RepresentativeName</div>
+                        </div>
+
+                        <div class="bd-info-box">
+                            <div class="bd-label">Điện thoại doanh nghiệp</div>
+                            <div class="bd-value">@Model.RepresentativePhone</div>
+                        </div>
+
+                        <div class="bd-info-box full">
+                            <div class="bd-label">Địa chỉ trụ sở / văn phòng</div>
+                            <div class="bd-value"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@Model.BusinessAddress</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="bd-side-stack">
+                <section class="bd-card">
+                    <div class="bd-card-head">
+                        <div class="bd-card-head-icon">
+                            <i class="bi bi-person-badge"></i>
+                        </div>
+                        <h5 class="bd-card-title">Tài khoản quản trị dự án</h5>
+                    </div>
+
+                    <div class="bd-user-card">
+                        @if (Model.User != null)
+                        {
+                            <div class="bd-user-top">
+                                <img src="@avatar" class="bd-avatar" alt="Avatar" />
+                                <div class="min-w-0">
+                                    <div class="bd-user-name">@Model.User.FullName</div>
+                                    <div class="bd-user-handle">@@@Model.User.Username</div>
+                                </div>
+                            </div>
+
+                            <div class="bd-info-box mb-3">
+                                <div class="bd-label">Chức danh / Vị trí</div>
+                                <div class="bd-value">
+                                    @if (!string.IsNullOrWhiteSpace(Model.User.Position))
+                                    {
+                                        <span><i class="bi bi-briefcase-fill text-secondary me-1"></i>@Model.User.Position</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">Chưa cập nhật chức danh</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="bd-label text-danger"><i class="bi bi-journal-bookmark-fill me-1"></i>Ghi chú nội bộ Admin</div>
+                            <div class="bd-note-box">
+                                @if (!string.IsNullOrWhiteSpace(Model.User.AdminNote))
                                 {
                                     @Model.User.AdminNote
                                 }
@@ -131,43 +618,48 @@
                                     <span class="opacity-75 fst-italic">Không có ghi chú nào cho tài khoản này.</span>
                                 }
                             </div>
+
+                            <a href="/Admin/Users/Edit/@Model.UserID" class="bd-edit-btn">
+                                <i class="bi bi-pencil-square"></i>
+                                Chỉnh sửa hồ sơ
+                            </a>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning border-0 rounded-4 mb-0 fw-bold">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                Không tìm thấy tài khoản liên kết.
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                <section class="bd-card">
+                    <div class="bd-card-head">
+                        <div class="bd-card-head-icon">
+                            <i class="bi bi-clock-history"></i>
                         </div>
-
-                        <a href="/Admin/Users/Edit/@Model.UserID" class="btn btn-primary w-100 rounded-pill fw-bold shadow-sm">
-                            <i class="bi bi-pencil-square me-2"></i> Chỉnh sửa Hồ sơ
-                        </a>
-                    }
-                    else
-                    {
-                        <div class="alert alert-warning border-0 rounded-3 mb-0">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i> Lỗi: Không tìm thấy tài khoản liên kết!
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <div class="card border-0 shadow-sm rounded-4 bg-light">
-                <div class="card-body p-4">
-                    <h6 class="fw-bold text-dark mb-4 text-uppercase" style="letter-spacing: 0.5px;">
-                        <i class="bi bi-clock-history me-2"></i>Nhật ký Hệ thống
-                    </h6>
-
-                    <div class="position-relative border-start border-2 border-primary ms-2 ps-3 py-1 mb-3">
-                        <div class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -7px; top: 12px;"></div>
-                        <div class="small text-muted fw-bold mb-1">Khởi tạo hệ thống</div>
-                        <div class="fw-bold fs-6 text-dark">@Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm")</div>
+                        <h5 class="bd-card-title">Nhật ký hệ thống</h5>
                     </div>
 
-                    @if (Model.UpdatedAt.HasValue)
-                    {
-                        <div class="position-relative border-start border-2 border-warning ms-2 ps-3 py-1">
-                            <div class="position-absolute bg-warning rounded-circle shadow-sm" style="width: 12px; height: 12px; left: -7px; top: 12px;"></div>
-                            <div class="small text-muted fw-bold mb-1">Lần cập nhật cuối</div>
-                            <div class="fw-bold fs-6 text-dark">@Model.UpdatedAt.Value.ToString("dd/MM/yyyy - HH:mm")</div>
+                    <div class="bd-timeline">
+                        <div class="bd-timeline-item">
+                            <span class="bd-timeline-dot"></span>
+                            <div class="bd-timeline-label">Khởi tạo hệ thống</div>
+                            <div class="bd-timeline-value">@Model.CreatedAt.ToString("dd/MM/yyyy - HH:mm")</div>
                         </div>
-                    }
-                </div>
-            </div>
+
+                        @if (Model.UpdatedAt.HasValue)
+                        {
+                            <div class="bd-timeline-item">
+                                <span class="bd-timeline-dot warning"></span>
+                                <div class="bd-timeline-label">Lần cập nhật cuối</div>
+                                <div class="bd-timeline-value">@Model.UpdatedAt.Value.ToString("dd/MM/yyyy - HH:mm")</div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            </aside>
         </div>
     </div>
 </div>

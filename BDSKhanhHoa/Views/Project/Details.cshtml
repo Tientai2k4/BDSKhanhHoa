@@ -159,8 +159,38 @@
     string relatedSearchUrl = "/Project/Search?areaId=" + Model.AreaID + "&sort=popular";
 }
 
-<meta name="chatbot-context" content="Khách hàng đang xem chi tiết Dự án tên là: '@Model.ProjectName'. Giá bán: @priceText. Chủ đầu tư: @investorText. Vị trí: @detailAddress. Quy mô: @scaleText. Mật độ xây dựng: @densityText." />
+<meta name="chatbot-page-type" content="ProjectDetail" />
+<meta name="chatbot-project-name" content="@Model.ProjectName" />
+<meta name="chatbot-project-price" content="@priceText" />
+<meta name="chatbot-project-location" content="@detailAddress" />
+<meta name="chatbot-project-investor" content="@investorText" />
+<meta name="chatbot-project-scale" content="@scaleText" />
+<meta name="chatbot-project-status" content="@statusText" />
+<meta name="chatbot-project-description" content="@System.Net.WebUtility.HtmlEncode(descriptionText ?? "")" />
 
+<meta name="chatbot-context" content="
+Người dùng đang trực tiếp xem TRANG CHI TIẾT DỰ ÁN.
+Đây là trang dự án, không phải tin lẻ bất động sản.
+
+Tên dự án: @Model.ProjectName.
+Loại dự án: @projectTypeText.
+Trạng thái dự án: @statusText.
+Giá dự kiến: @priceText.
+Diện tích sản phẩm: @areaText.
+Chủ đầu tư: @investorText.
+Vị trí: @detailAddress.
+Khu vực: @(Model.Area?.AreaName ?? "Khánh Hòa").
+Phường/Xã: @(Model.Ward?.WardName ?? "Đang cập nhật").
+Quy mô: @scaleText.
+Mật độ xây dựng: @densityText.
+Tiện ích: @System.Net.WebUtility.HtmlEncode(utilitiesText ?? "Đang cập nhật").
+Mô tả dự án: @System.Net.WebUtility.HtmlEncode(descriptionText ?? "Đang cập nhật").
+Tổng lượt xem: @totalViews.
+Số khách quan tâm: @leadCount.
+Số tin trong dự án: @totalProperties.
+
+Khi người dùng hỏi các câu như: dự án này, ở đây, chỗ này, giá dự án, chủ đầu tư, pháp lý dự án, tiến độ, có nên đầu tư không, đặt lịch xem dự án, nhận bảng giá, gửi yêu cầu tư vấn, thì phải hiểu là người dùng đang hỏi về dự án này.
+" />
 <style>
     @@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
 
@@ -1021,8 +1051,8 @@
         margin: 0;
     }
     /* =========================
-               LOAN CALCULATOR - NEW UI
-            ========================= */
+                   LOAN CALCULATOR - NEW UI
+                ========================= */
 
     .pj-loan-grid {
         display: grid;
@@ -2862,23 +2892,20 @@
         }
 
     @@media print {
-        .pj-nav-strip, .pj-mobile-bar, .pj-overview-actions, .pj-sidebar
+        .pj-nav-strip, .pj-mobile-bar, .pj-overview-actions, .pj-sidebar {
+            display: none !important;
+        }
 
-    {
-        display: none !important;
-    }
+        .pj-layout {
+            display: block !important;
+        }
 
-    .pj-layout {
-        display: block !important;
-    }
-
-    .pj-section,
-    .pj-overview-section,
-    .pj-loan-form,
-    .pj-loan-result {
-        box-shadow: none !important;
-    }
-
+        .pj-section,
+        .pj-overview-section,
+        .pj-loan-form,
+        .pj-loan-result {
+            box-shadow: none !important;
+        }
     }
 
     @@media (max-width: 991.98px) {
@@ -3102,6 +3129,115 @@
         .pj-related-img-wrap {
             height: 190px !important;
         }
+    }
+
+
+
+    /* =========================================================
+           MOBILE PATCH: Thu gọn 2 nút trong popup Tư vấn / Đặt lịch
+           Chỉ chỉnh giao diện, không đổi chức năng Bootstrap tab.
+        ========================================================= */
+    @@media (max-width: 767.98px) {
+        .pj-modal .modal-dialog {
+            margin: 8px;
+        }
+
+        .pj-modal .modal-content {
+            border-radius: 22px;
+            max-height: calc(100vh - 16px);
+        }
+
+        .pj-modal-header {
+            padding: 18px 18px 12px;
+        }
+
+        .pj-modal-title {
+            font-size: 1.22rem;
+            line-height: 1.18;
+            letter-spacing: -.035em;
+            margin-bottom: 4px;
+        }
+
+        .pj-modal-sub {
+            font-size: .9rem;
+            line-height: 1.45;
+            max-width: 92%;
+        }
+
+        .pj-modal-body {
+            padding: 14px 18px 18px;
+        }
+
+        .pj-modal .pj-tabs {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            padding: 5px;
+            margin-bottom: 16px;
+            border-radius: 18px;
+            overflow: visible;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+            .pj-modal .pj-tabs .nav-item {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .pj-modal .pj-tabs .nav-link {
+                width: 100%;
+                min-height: 36px;
+                padding: 0 8px;
+                border-radius: 14px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+                font-size: .78rem;
+                line-height: 1.12;
+                font-weight: 950;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                box-shadow: none;
+            }
+
+                .pj-modal .pj-tabs .nav-link i {
+                    margin-right: 0 !important;
+                    font-size: .9rem;
+                    line-height: 1;
+                    flex: 0 0 auto;
+                }
+
+                .pj-modal .pj-tabs .nav-link.active {
+                    box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+                }
+    }
+
+    @@media (max-width: 420px) {
+        .pj-modal-header {
+            padding: 16px 16px 10px;
+        }
+
+        .pj-modal-body {
+            padding: 12px 16px 16px;
+        }
+
+        .pj-modal .pj-tabs {
+            gap: 5px;
+            padding: 4px;
+            border-radius: 16px;
+            margin-bottom: 14px;
+        }
+
+            .pj-modal .pj-tabs .nav-link {
+                min-height: 34px;
+                padding: 0 6px;
+                border-radius: 13px;
+                font-size: .74rem;
+            }
     }
 
 </style>

@@ -192,6 +192,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         // =====================================================
         // DUYỆT / TỪ CHỐI GIAO DỊCH
         // =====================================================
+        // =====================================================
+        // DUYỆT / TỪ CHỐI GIAO DỊCH
+        // =====================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateStatus(
@@ -228,84 +231,89 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var transactions = await _context.Transactions
-                .Include(t => t.User)
-                .Include(t => t.Property)
-                .Include(t => t.Package)
-                .Where(t =>
-                    t.TransactionCode == baseCode ||
-                    t.TransactionCode.StartsWith(baseCode + "_"))
-                .OrderBy(t => t.TransactionID)
-                .ToListAsync();
-
-            if (!transactions.Any())
-            {
-                TempData["Error"] = "Không tìm thấy thông tin đơn hàng.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            if (transactions.All(t => t.Status != "Pending"))
-            {
-                TempData["Error"] = "Đơn hàng này đã được xử lý trước đó, không thể xử lý lại.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            string oldValues = BuildTransactionAuditJson(transactions, "Trước khi Admin xử lý giao dịch.");
-
-            await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+            string oldValues = "";
+            string newValues = "";
 
             try
             {
-                decimal totalAmount = transactions.Sum(t => t.Amount);
-                int userId = transactions.First().UserID;
+                var strategy = _context.Database.CreateExecutionStrategy();
 
-                foreach (var transaction in transactions)
+                await strategy.ExecuteAsync(async () =>
                 {
-                    if (transaction.Status != "Pending")
+                    await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                    try
                     {
-                        continue;
+                        var transactions = await _context.Transactions
+                            .Include(t => t.User)
+                            .Include(t => t.Property)
+                            .Include(t => t.Package)
+                            .Where(t =>
+                                t.TransactionCode == baseCode ||
+                                t.TransactionCode.StartsWith(baseCode + "_"))
+                            .OrderBy(t => t.TransactionID)
+                            .ToListAsync();
+
+                        if (!transactions.Any())
+                        {
+                            throw new InvalidOperationException("Không tìm thấy thông tin đơn hàng.");
+                        }
+
+                        if (transactions.All(t => t.Status != "Pending"))
+                        {
+                            throw new InvalidOperationException("Đơn hàng này đã được xử lý trước đó, không thể xử lý lại.");
+                        }
+
+                        oldValues = BuildTransactionAuditJson(
+                            transactions,
+                            "Trước khi Admin xử lý giao dịch.");
+
+                        int userId = transactions.First().UserID;
+
+                        foreach (var transaction in transactions)
+                        {
+                            if (transaction.Status != "Pending")
+                            {
+                                continue;
+                            }
+
+                            transaction.Status = status;
+
+                            if (status == "Success")
+                            {
+                                await ApplyPackageAfterSuccessAsync(transaction);
+                            }
+                        }
+
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = userId,
+                            Title = status == "Success" ? "Thanh toán thành công" : "Giao dịch bị từ chối",
+                            Content = status == "Success"
+                                ? $"Đơn hàng #{baseCode} đã được duyệt. Hệ thống đã ghi nhận thanh toán và kích hoạt gói dịch vụ tương ứng."
+                                : $"Đơn hàng #{baseCode} không được duyệt. Lý do: {adminNote ?? "Thông tin thanh toán chưa chính xác."}",
+                            CreatedAt = DateTime.Now,
+                            IsRead = false,
+                            ActionUrl = "/Payment/History",
+                            ActionText = "Xem lịch sử giao dịch"
+                        });
+
+                        await _context.SaveChangesAsync();
+                        await dbTransaction.CommitAsync();
+
+                        newValues = BuildTransactionAuditJson(
+                            transactions,
+                            status == "Success"
+                                ? "Sau khi Admin duyệt giao dịch."
+                                : "Sau khi Admin từ chối giao dịch.",
+                            adminNote);
                     }
-
-                    transaction.Status = status;
-
-                    if (status == "Success")
+                    catch
                     {
-                        await ApplyPackageAfterSuccessAsync(transaction);
+                        await dbTransaction.RollbackAsync();
+                        throw;
                     }
-                }
-
-                _context.Notifications.Add(new Notification
-                {
-                    UserID = userId,
-                    Title = status == "Success" ? "Thanh toán thành công" : "Giao dịch bị từ chối",
-                    Content = status == "Success"
-                        ? $"Đơn hàng #{baseCode} đã được duyệt. Hệ thống đã ghi nhận thanh toán và kích hoạt gói dịch vụ tương ứng."
-                        : $"Đơn hàng #{baseCode} không được duyệt. Lý do: {adminNote ?? "Thông tin thanh toán chưa chính xác."}",
-                    CreatedAt = DateTime.Now,
-                    IsRead = false,
-                    ActionUrl = "/Payment/History",
-                    ActionText = "Xem lịch sử giao dịch"
                 });
-
-                await _context.SaveChangesAsync();
-                await dbTransaction.CommitAsync();
-
-                var updatedTransactions = await _context.Transactions
-                    .Include(t => t.User)
-                    .Include(t => t.Property)
-                    .Include(t => t.Package)
-                    .Where(t =>
-                        t.TransactionCode == baseCode ||
-                        t.TransactionCode.StartsWith(baseCode + "_"))
-                    .OrderBy(t => t.TransactionID)
-                    .ToListAsync();
-
-                string newValues = BuildTransactionAuditJson(
-                    updatedTransactions,
-                    status == "Success"
-                        ? "Sau khi Admin duyệt giao dịch."
-                        : "Sau khi Admin từ chối giao dịch.",
-                    adminNote);
 
                 await _auditLogService.LogAsync(
                     adminId,
@@ -322,7 +330,10 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             }
             catch (Exception ex)
             {
-                await dbTransaction.RollbackAsync();
+                // Rất quan trọng:
+                // Nếu SaveChanges lỗi, các entity đã sửa vẫn đang được DbContext track.
+                // Clear để tránh LogAsync vô tình lưu luôn giao dịch/notification bị lỗi.
+                _context.ChangeTracker.Clear();
 
                 await _auditLogService.LogAsync(
                     adminId,
@@ -338,7 +349,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             return RedirectToAction(nameof(Index));
         }
-
         // =====================================================
         // XUẤT CSV
         // =====================================================

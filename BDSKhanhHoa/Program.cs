@@ -1,6 +1,7 @@
 ﻿using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Helpers;
 using BDSKhanhHoa.Services;
+using BDSKhanhHoa.Services.AI;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -10,10 +11,7 @@ using System.IO.Compression;
 var builder = WebApplication.CreateBuilder(args);
 
 // MVC
-builder.Services.AddControllersWithViews(options =>
-{
-    // Tạm thời chưa bật cache toàn cục để tránh lỗi trang đăng nhập/admin bị cache sai.
-});
+builder.Services.AddControllersWithViews();
 
 // DATABASE
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -22,7 +20,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection"),
         sqlOptions =>
         {
-            sqlOptions.CommandTimeout(60);
+            sqlOptions.CommandTimeout(120);
             sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 3,
                 maxRetryDelay: TimeSpan.FromSeconds(5),
@@ -31,12 +29,23 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         }
     );
 
-    // Không bật QueryTrackingBehavior.NoTracking toàn cục vì nhiều controller có thể đang sửa dữ liệu bằng entity tracking.
-    // Nếu muốn tối ưu tiếp, chỉ thêm .AsNoTracking() ở các query chỉ đọc.
+    // Chỉ bật khi cần soi SQL. Bình thường để tắt cho nhẹ.
+    // if (builder.Environment.IsDevelopment())
+    // {
+    //     options.EnableDetailedErrors();
+    //     options.EnableSensitiveDataLogging();
+    //     options.LogTo(
+    //         Console.WriteLine,
+    //         new[] { DbLoggerCategory.Database.Command.Name },
+    //         LogLevel.Information
+    //     );
+    // }
 });
 
-// BẮT BUỘC: Đăng ký IHttpContextAccessor để lấy được IP Address của người dùng
 builder.Services.AddHttpContextAccessor();
+
+// CACHE
+builder.Services.AddMemoryCache();
 
 // SESSION
 builder.Services.AddDistributedMemoryCache();
@@ -50,7 +59,8 @@ builder.Services.AddSession(options =>
     options.Cookie.SameSite = SameSiteMode.Lax;
 });
 
-// NÉN RESPONSE: giúp CSS/JS/HTML nhẹ hơn
+// NÉN RESPONSE: chỉ dùng khi publish/production.
+// Không bật Development để tránh BrowserLink/BrowserRefresh báo lỗi Content-Encoding: br.
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
@@ -71,10 +81,7 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 // EMAIL SERVICE
 builder.Services.AddScoped<IEmailService, EmailSender>();
 
-// CHATBOT
-builder.Services.AddScoped<ChatbotService>();
-
-// Ghi Log Hệ thống
+// AUDIT LOG
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // AUTHENTICATION
@@ -101,6 +108,15 @@ builder.Services.AddAuthentication(options =>
     options.CallbackPath = "/signin-google";
 });
 
+// AI CHATBOT - CHỈ DÙNG GEMINI, KHÔNG DÙNG OLLAMA
+builder.Services.Configure<AIProviderSettings>(
+    builder.Configuration.GetSection("AIProviderSettings"));
+
+builder.Services.AddHttpClient<GeminiAIClient>();
+
+builder.Services.AddScoped<IAIModelClient, GeminiAIClient>();
+builder.Services.AddScoped<ChatbotService>();
+
 var app = builder.Build();
 
 // PIPELINE
@@ -110,7 +126,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-// Middleware đo request chậm để biết link nào đang quay lâu
+// Middleware đo request chậm
 app.Use(async (context, next) =>
 {
     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -121,16 +137,20 @@ app.Use(async (context, next) =>
 
     if (sw.ElapsedMilliseconds >= 1000)
     {
+        var endpoint = context.GetEndpoint()?.DisplayName ?? "Không xác định endpoint";
+
         var logger = context.RequestServices
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("SlowRequest");
 
         logger.LogWarning(
-            "SLOW REQUEST {Method} {Path} => {StatusCode} in {Elapsed}ms",
+            "SLOW REQUEST {Method} {Path}{QueryString} => {StatusCode} in {Elapsed}ms | Endpoint: {Endpoint}",
             context.Request.Method,
             context.Request.Path,
+            context.Request.QueryString,
             context.Response.StatusCode,
-            sw.ElapsedMilliseconds
+            sw.ElapsedMilliseconds,
+            endpoint
         );
     }
 });
@@ -141,7 +161,7 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseResponseCompression();
 }
-// Static files: cache ảnh/css/js để chuyển trang nhanh hơn
+
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>

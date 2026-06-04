@@ -6,9 +6,14 @@
 
         public int UserId { get; set; }
 
-        // Frontend gửi ngữ cảnh trang hiện tại vào đây.
-        // Ví dụ khi khách đang xem chi tiết BĐS:
-        // Tiêu đề, giá, diện tích, vị trí, loại BĐS...
+        public string? SessionId { get; set; }
+
         public string? PageContext { get; set; }
+
+        public string? PageUrl { get; set; }
+
+        public string? PageType { get; set; }
+
+        public string? PageTitle { get; set; }
     }
 }

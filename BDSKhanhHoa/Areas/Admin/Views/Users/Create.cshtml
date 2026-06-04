@@ -3,36 +3,43 @@
 @{
     ViewData["Title"] = "Cấp tài khoản hệ thống";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    bool isBusinessSelected = ViewBag.IsBusiness == true;
+    string businessNameValue = ViewBag.BusinessName as string ?? "";
+    string taxCodeValue = ViewBag.TaxCode as string ?? "";
+    string businessEmailValue = ViewBag.BusinessEmail as string ?? "";
+    string businessAddressValue = ViewBag.BusinessAddress as string ?? "";
 }
 
 <style>
     .user-form-page {
         background: #f8fafc;
         min-height: calc(100vh - 80px);
-        padding: 18px 0 40px;
+        padding: 0 0 32px;
+        margin-top: -24px;
     }
 
     .form-card {
         border: 0;
-        border-radius: 24px;
+        border-radius: 22px;
         overflow: hidden;
-        box-shadow: 0 18px 50px rgba(15,23,42,.08);
+        box-shadow: 0 14px 36px rgba(15,23,42,.07);
     }
 
     .form-header {
         background: linear-gradient(135deg, #1d4ed8, #2563eb);
         color: #fff;
-        padding: 18px 22px;
+        padding: 14px 18px;
     }
 
     .section-title {
-        font-size: .82rem;
+        font-size: .8rem;
         font-weight: 900;
         color: #1d4ed8;
         text-transform: uppercase;
-        letter-spacing: .06em;
-        padding-bottom: 8px;
-        margin-bottom: 18px;
+        letter-spacing: .055em;
+        padding-bottom: 7px;
+        margin-bottom: 14px;
         border-bottom: 2px solid #bfdbfe;
     }
 
@@ -109,24 +116,116 @@
         padding-right: 28px;
     }
 
+
+    .user-form-page .container {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .user-form-page .row.g-4 {
+        --bs-gutter-x: 1rem;
+        --bs-gutter-y: 1rem;
+    }
+
+    .user-form-page .card-body {
+        padding: 22px !important;
+    }
+
+    .user-form-page form > .row.mb-4 {
+        margin-bottom: 1rem !important;
+    }
+
+    .user-form-page .mt-5 {
+        margin-top: 1.5rem !important;
+    }
+
+    .user-form-page .pt-4 {
+        padding-top: 1rem !important;
+    }
+
     @@media (max-width: 767.98px) {
-        .form-header {
-            display: block !important;
+        .user-form-page {
+            padding-top: 0 !important;
+            padding-bottom: 22px !important;
+            margin-top: -54px !important;
         }
 
-            .form-header a {
-                margin-top: 10px;
-                width: 100%;
+        .form-card {
+            border-radius: 18px;
+            box-shadow: 0 10px 26px rgba(15,23,42,.06);
+        }
+
+        .form-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 10px;
+            padding: 12px 14px !important;
+        }
+
+            .form-header h5 {
+                font-size: 1rem;
+                line-height: 1.25;
+                min-width: 0;
             }
+
+            .form-header a {
+                margin-top: 0 !important;
+                width: auto !important;
+                min-width: 92px;
+                padding: 6px 12px !important;
+                font-size: .82rem;
+                flex-shrink: 0;
+            }
+
+        .user-form-page .card-body {
+            padding: 16px 14px !important;
+        }
+
+        .section-title {
+            font-size: .74rem;
+            line-height: 1.35;
+            margin-bottom: 12px;
+        }
+
+        .form-label {
+            font-size: .75rem;
+            margin-bottom: 5px;
+        }
+
+        .form-control,
+        .form-select {
+            min-height: 40px;
+            border-radius: 12px;
+            font-size: .86rem;
+        }
+
+        .pwd-input {
+            border-radius: 12px 0 0 12px !important;
+        }
+
+        .input-group-text-pwd {
+            border-radius: 0 12px 12px 0 !important;
+        }
+
+        .hint {
+            font-size: .68rem;
+        }
+
+        .business-box {
+            padding: 13px;
+            border-radius: 16px;
+        }
 
         .btn-submit-main {
             width: 100%;
+            min-height: 42px;
         }
     }
 </style>
 
 <div class="user-form-page animate__animated animate__fadeIn">
-    <div class="container py-3">
+    <div class="container py-0">
         <div class="row justify-content-center">
             <div class="col-xl-10">
                 <div class="card form-card">
@@ -352,7 +451,8 @@
                                         <input class="form-check-input fs-4"
                                                type="checkbox"
                                                id="checkIsBusiness"
-                                               name="IsBusiness" />
+                                               name="IsBusiness"
+                                               @(isBusinessSelected ? "checked" : "") />
 
                                         <label class="form-check-label fw-bold text-dark fs-5 ms-2" for="checkIsBusiness">
                                             Kích hoạt đặc quyền Chủ đầu tư / Sàn giao dịch
@@ -365,7 +465,7 @@
                                 </div>
                             </div>
 
-                            <div id="businessDetailsSection" style="display:none;">
+                            <div id="businessDetailsSection" style="display:@(isBusinessSelected ? "block" : "none");">
                                 <h6 class="section-title mt-5 text-success" style="border-bottom-color:#bbf7d0;">
                                     II. Thông tin chuyên viên / quản lý dự án
                                 </h6>
@@ -378,9 +478,11 @@
 
                                         <input type="text"
                                                name="BusinessName"
+                                               value="@businessNameValue"
                                                class="form-control"
                                                maxlength="255"
                                                placeholder="VD: Công ty BĐS Khánh Hòa..." />
+                                        <span class="validation-message">@Html.ValidationMessage("BusinessName")</span>
                                     </div>
 
                                     <div class="col-md-3">
@@ -390,9 +492,11 @@
 
                                         <input type="text"
                                                name="TaxCode"
+                                               value="@taxCodeValue"
                                                class="form-control"
                                                maxlength="20"
                                                placeholder="0123456789" />
+                                        <span class="validation-message">@Html.ValidationMessage("TaxCode")</span>
                                     </div>
 
                                     <div class="col-md-4">
@@ -402,9 +506,11 @@
 
                                         <input type="email"
                                                name="BusinessEmail"
+                                               value="@businessEmailValue"
                                                class="form-control"
                                                maxlength="100"
                                                placeholder="contact@congty.com" />
+                                        <span class="validation-message">@Html.ValidationMessage("BusinessEmail")</span>
                                     </div>
 
                                     <div class="col-md-6">
@@ -421,16 +527,16 @@
                                     </div>
 
                                     <div class="col-md-6">
-                                        <label asp-for="Address" class="form-label">
+                                        <label class="form-label">
                                             Địa chỉ văn phòng
                                         </label>
 
-                                        <input asp-for="Address"
+                                        <input type="text"
+                                               name="BusinessAddress"
+                                               value="@businessAddressValue"
                                                class="form-control"
-                                               maxlength="255"
+                                               maxlength="500"
                                                placeholder="Nhập địa chỉ làm việc..." />
-
-                                        <span asp-validation-for="Address" class="validation-message"></span>
                                     </div>
 
                                     <div class="col-12">
@@ -490,10 +596,17 @@
                 this.value = this.value.replace(/[^0-9]/g, "").substring(0, 10);
             });
 
+            $("form").on("submit", function () {
+                $(this).find("input[type='text'], input[type='email'], input[type='tel'], textarea").each(function () {
+                    this.value = this.value.replace(/\s+/g, " ").trim();
+                });
+            });
+
             $("#roleSelect").change(function () {
                 const selectedText = $("#roleSelect option:selected").text().toLowerCase();
+                const allowBusiness = selectedText.includes("member") || selectedText.includes("thành viên") || selectedText.includes("chủ đầu tư") || selectedText.includes("sàn");
 
-                if (selectedText.includes("member") || selectedText.includes("thành viên")) {
+                if (allowBusiness) {
                     $("#businessToggleSection").slideDown();
                 } else {
                     $("#businessToggleSection").slideUp();
@@ -511,35 +624,35 @@
 
             @if (TempData["Success"] != null)
             {
-                    <text>
-                        Swal.fire({
-                            icon: "success",
-                            title: "Thành công",
-                            text: @Html.Raw(JsonSerializer.Serialize(TempData["Success"]?.ToString()))
-                        });
-                    </text>
+                            <text>
+                                Swal.fire({
+                                    icon: "success",
+                                    title: "Thành công",
+                                    text: @Html.Raw(JsonSerializer.Serialize(TempData["Success"]?.ToString()))
+                                });
+                            </text>
             }
 
             @if (TempData["Warning"] != null)
             {
-                    <text>
-                        Swal.fire({
-                            icon: "warning",
-                            title: "Hoàn tất với cảnh báo",
-                            text: @Html.Raw(JsonSerializer.Serialize(TempData["Warning"]?.ToString()))
-                        });
-                    </text>
+                            <text>
+                                Swal.fire({
+                                    icon: "warning",
+                                    title: "Hoàn tất với cảnh báo",
+                                    text: @Html.Raw(JsonSerializer.Serialize(TempData["Warning"]?.ToString()))
+                                });
+                            </text>
             }
 
             @if (TempData["Error"] != null)
             {
-                    <text>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Lỗi",
-                            text: @Html.Raw(JsonSerializer.Serialize(TempData["Error"]?.ToString()))
-                        });
-                    </text>
+                            <text>
+                                Swal.fire({
+                                    icon: "error",
+                                    title: "Lỗi",
+                                    text: @Html.Raw(JsonSerializer.Serialize(TempData["Error"]?.ToString()))
+                                });
+                            </text>
             }
         });
     </script>

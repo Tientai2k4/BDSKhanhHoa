@@ -4,34 +4,45 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 
 namespace BDSKhanhHoa.Controllers
 {
-    [Authorize] // Bắt buộc đăng nhập mới được lưu và xem tin yêu thích
+    [Authorize]
     public class FavoriteController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<FavoriteController> _logger;
 
-        public FavoriteController(ApplicationDbContext context)
+        public FavoriteController(ApplicationDbContext context, ILogger<FavoriteController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         // ==========================================
-        // 1. TRANG QUẢN LÝ DANH SÁCH TIN YÊU THÍCH
+        // 1. TRANG DANH SÁCH BẤT ĐỘNG SẢN ĐÃ LƯU
         // ==========================================
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
+            int? userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index), "Favorite") });
+            }
 
             var favorites = await _context.Favorites
+                .AsNoTracking()
                 .Include(f => f.Property)
                     .ThenInclude(p => p.PropertyType)
                 .Include(f => f.Property)
-                    .ThenInclude(p => p.Ward).ThenInclude(w => w.Area)
-                .Where(f => f.UserID == userId && f.Property.IsDeleted == false)
+                    .ThenInclude(p => p.Ward)
+                        .ThenInclude(w => w.Area)
+                .Where(f =>
+                    f.UserID == userId.Value &&
+                    f.Property != null &&
+                    f.Property.IsDeleted == false)
                 .OrderByDescending(f => f.CreatedAt)
                 .ToListAsync();
 
@@ -39,54 +50,191 @@ namespace BDSKhanhHoa.Controllers
         }
 
         // ==========================================
-        // 2. XÓA TIN KHỎI DANH SÁCH YÊU THÍCH
+        // 2. BỎ LƯU TIN YÊU THÍCH Ở TRANG /Favorite/Index
         // ==========================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Remove(int id)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
-
-            var fav = await _context.Favorites.FirstOrDefaultAsync(f => f.FavoriteID == id && f.UserID == userId);
-            if (fav != null)
+            int? userId = GetCurrentUserId();
+            if (userId == null)
             {
-                _context.Favorites.Remove(fav);
-                await _context.SaveChangesAsync();
-                TempData["Success"] = "Đã gỡ bỏ bất động sản khỏi danh sách yêu thích.";
+                return RedirectToAction("Login", "Account", new { returnUrl = Url.Action(nameof(Index), "Favorite") });
             }
-            return RedirectToAction("Index");
+
+            var favorite = await _context.Favorites
+                .FirstOrDefaultAsync(f => f.FavoriteID == id && f.UserID == userId.Value);
+
+            if (favorite == null)
+            {
+                TempData["Error"] = "Không tìm thấy tin yêu thích hoặc bạn không có quyền thao tác.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            _context.Favorites.Remove(favorite);
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = "Đã bỏ lưu bất động sản khỏi danh sách yêu thích.";
+            return RedirectToAction(nameof(Index));
         }
 
         // ==========================================
-        // 3. API ĐỂ GỌI BẰNG AJAX (NÚT LƯU TIN)
+        // 3. API LƯU / BỎ LƯU TIN BẰNG AJAX
+        // Dùng cho nút trái tim ở trang chi tiết tin.
+        // Lưu ý: View phải gửi JSON dạng { propertyId: 100 }
+        // và gửi kèm RequestVerificationToken.
         // ==========================================
         [HttpPost]
-        public async Task<IActionResult> ToggleFavorite([FromBody] int propertyId)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleFavorite([FromBody] ToggleFavoriteRequest? request)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId))
-                return Json(new { success = false, message = "Vui lòng đăng nhập để lưu tin!" });
-
-            // Kiểm tra xem đã lưu chưa
-            var existingFav = await _context.Favorites
-                .FirstOrDefaultAsync(f => f.UserID == userId && f.PropertyID == propertyId);
-
-            if (existingFav != null)
+            int? userId = GetCurrentUserId();
+            if (userId == null)
             {
-                // Nếu đã lưu thì Hủy lưu (Unlike)
-                _context.Favorites.Remove(existingFav);
-                await _context.SaveChangesAsync();
-                return Json(new { success = true, isSaved = false, message = "Đã bỏ lưu tin." });
+                return Json(new FavoriteJsonResult
+                {
+                    Success = false,
+                    RequireLogin = true,
+                    IsSaved = false,
+                    Message = "Vui lòng đăng nhập để lưu tin yêu thích."
+                });
             }
-            else
+
+            if (request == null || request.PropertyId <= 0)
             {
-                // Nếu chưa lưu thì Thêm vào (Like)
-                var newFav = new Favorite { UserID = userId, PropertyID = propertyId, CreatedAt = DateTime.Now };
-                _context.Favorites.Add(newFav);
+                return Json(new FavoriteJsonResult
+                {
+                    Success = false,
+                    RequireLogin = false,
+                    IsSaved = false,
+                    Message = "Tin bất động sản không hợp lệ."
+                });
+            }
+
+            try
+            {
+                var property = await _context.Properties
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p =>
+                        p.PropertyID == request.PropertyId &&
+                        p.IsDeleted == false);
+
+                if (property == null)
+                {
+                    return Json(new FavoriteJsonResult
+                    {
+                        Success = false,
+                        RequireLogin = false,
+                        IsSaved = false,
+                        Message = "Tin bất động sản không tồn tại hoặc đã bị xóa."
+                    });
+                }
+
+                if (property.Status == "Sold" || property.Status == "Rented" || property.Status == "Expired")
+                {
+                    return Json(new FavoriteJsonResult
+                    {
+                        Success = false,
+                        RequireLogin = false,
+                        IsSaved = false,
+                        Message = "Tin này đã bán, đã cho thuê hoặc đã hết hạn nên không thể lưu."
+                    });
+                }
+
+                var existingFavorite = await _context.Favorites
+                    .FirstOrDefaultAsync(f =>
+                        f.UserID == userId.Value &&
+                        f.PropertyID == request.PropertyId);
+
+                if (existingFavorite != null)
+                {
+                    _context.Favorites.Remove(existingFavorite);
+                    await _context.SaveChangesAsync();
+
+                    return Json(new FavoriteJsonResult
+                    {
+                        Success = true,
+                        RequireLogin = false,
+                        IsSaved = false,
+                        Message = "Đã bỏ lưu tin."
+                    });
+                }
+
+                var newFavorite = new Favorite
+                {
+                    UserID = userId.Value,
+                    PropertyID = request.PropertyId,
+                    CreatedAt = DateTime.Now
+                };
+
+                _context.Favorites.Add(newFavorite);
                 await _context.SaveChangesAsync();
-                return Json(new { success = true, isSaved = true, message = "Đã lưu vào danh sách yêu thích!" });
+
+                return Json(new FavoriteJsonResult
+                {
+                    Success = true,
+                    RequireLogin = false,
+                    IsSaved = true,
+                    Message = "Đã lưu tin vào danh sách yêu thích."
+                });
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex,
+                    "Lỗi lưu tin yêu thích. UserID={UserID}, PropertyID={PropertyID}",
+                    userId.Value,
+                    request.PropertyId);
+
+                return Json(new FavoriteJsonResult
+                {
+                    Success = false,
+                    RequireLogin = false,
+                    IsSaved = false,
+                    Message = "Không thể cập nhật lưu tin. Vui lòng kiểm tra dữ liệu người dùng/tin đăng và thử lại."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Lỗi không xác định khi lưu tin yêu thích. UserID={UserID}, PropertyID={PropertyID}",
+                    userId.Value,
+                    request.PropertyId);
+
+                return Json(new FavoriteJsonResult
+                {
+                    Success = false,
+                    RequireLogin = false,
+                    IsSaved = false,
+                    Message = "Không thể cập nhật lưu tin. Vui lòng thử lại."
+                });
             }
         }
+
+        private int? GetCurrentUserId()
+        {
+            string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return int.TryParse(userIdStr, out int userId) && userId > 0 ? userId : null;
+        }
+    }
+
+    public class ToggleFavoriteRequest
+    {
+        [JsonPropertyName("propertyId")]
+        public int PropertyId { get; set; }
+    }
+
+    public class FavoriteJsonResult
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("requireLogin")]
+        public bool RequireLogin { get; set; }
+
+        [JsonPropertyName("isSaved")]
+        public bool IsSaved { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = "";
     }
 }

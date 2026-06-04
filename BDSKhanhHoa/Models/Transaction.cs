@@ -37,7 +37,7 @@ namespace BDSKhanhHoa.Models
         public string Status { get; set; } = "Pending";
         // Pending, Success, Completed, Failed, Cancelled
 
-        [StringLength(500)]
+        [Column(TypeName = "nvarchar(max)")]
         public string? Description { get; set; }
 
         [StringLength(500)]

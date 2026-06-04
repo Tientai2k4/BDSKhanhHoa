@@ -18,27 +18,42 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IAuditLogService _auditLogService;
+        private readonly IWebHostEnvironment _hostEnvironment;
 
-        public PropertiesController(ApplicationDbContext context, IAuditLogService auditLogService)
+        public PropertiesController(
+            ApplicationDbContext context,
+            IAuditLogService auditLogService,
+            IWebHostEnvironment hostEnvironment)
         {
             _context = context;
             _auditLogService = auditLogService;
+            _hostEnvironment = hostEnvironment;
         }
 
         // =====================================================
-        // DANH SÁCH QUẢN LÝ TIN ĐĂNG
+        // DANH SÁCH QUẢN LÝ TIN ĐĂNG - ĐÃ TỐI ƯU
         // =====================================================
         [HttpGet]
-        public async Task<IActionResult> Index(string status = "", bool duplicateOnly = false, string keyword = "")
+        public async Task<IActionResult> Index(
+            string status = "",
+            bool duplicateOnly = false,
+            string keyword = "",
+            int page = 1,
+            int pageSize = 20)
         {
-            await CheckDuplicatesAsync();
+            // KHÔNG gọi CheckDuplicatesAsync() ở đây nữa.
+            // Nếu gọi mỗi lần tìm kiếm thì trang sẽ chậm vì phải quét tin trùng toàn bộ.
+
+            page = Math.Max(1, page);
+            if (pageSize < 5 || pageSize > 100)
+            {
+                pageSize = 20;
+            }
+
+            string keywordRaw = keyword?.Trim() ?? "";
 
             var query = _context.Properties
-                .Include(p => p.User)
-                .Include(p => p.PropertyType)
-                .Include(p => p.Ward)
-                    .ThenInclude(w => w.Area)
-                .Include(p => p.PostServicePackage)
+                .AsNoTracking()
                 .Where(p => p.IsDeleted == false)
                 .AsQueryable();
 
@@ -51,43 +66,77 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 query = query.Where(p => p.Status == status);
             }
 
-            if (!string.IsNullOrWhiteSpace(keyword))
+            if (!string.IsNullOrWhiteSpace(keywordRaw))
             {
-                keyword = keyword.Trim().ToLower();
-
                 query = query.Where(p =>
-                    p.Title.ToLower().Contains(keyword) ||
-                    (p.AddressDetail != null && p.AddressDetail.ToLower().Contains(keyword)) ||
-                    (p.User != null && p.User.FullName != null && p.User.FullName.ToLower().Contains(keyword)) ||
-                    (p.User != null && p.User.Phone != null && p.User.Phone.Contains(keyword)));
+                    EF.Functions.Like(p.Title, $"%{keywordRaw}%") ||
+                    (p.AddressDetail != null && EF.Functions.Like(p.AddressDetail, $"%{keywordRaw}%")) ||
+                    (p.User != null && p.User.FullName != null && EF.Functions.Like(p.User.FullName, $"%{keywordRaw}%")) ||
+                    (p.User != null && p.User.Phone != null && EF.Functions.Like(p.User.Phone, $"%{keywordRaw}%")));
             }
 
+            int totalFiltered = await query.CountAsync();
+
             var properties = await query
+                .Include(p => p.User)
+                .Include(p => p.PropertyType)
+                .Include(p => p.Ward)
+                    .ThenInclude(w => w.Area)
+                .Include(p => p.PostServicePackage)
                 .OrderByDescending(p => p.IsDuplicate)
                 .ThenBy(p => p.Status == "Pending" ? 0 : p.Status == "Rejected" ? 1 : 2)
                 .ThenByDescending(p => p.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var statusCounts = await _context.Properties
+                .AsNoTracking()
+                .Where(p => p.IsDeleted == false)
+                .GroupBy(p => p.Status)
+                .Select(g => new
+                {
+                    Status = g.Key,
+                    Count = g.Count()
+                })
                 .ToListAsync();
 
             ViewBag.CurrentStatus = status;
             ViewBag.DuplicateOnly = duplicateOnly;
-            ViewBag.Keyword = keyword;
+            ViewBag.Keyword = keywordRaw;
+            ViewBag.Page = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalFiltered = totalFiltered;
+            ViewBag.TotalPages = (int)Math.Ceiling(totalFiltered / (double)pageSize);
 
-            ViewBag.TotalCount = await _context.Properties.CountAsync(p => p.IsDeleted == false);
-            ViewBag.PendingCount = await _context.Properties.CountAsync(p => p.Status == "Pending" && p.IsDeleted == false);
-            ViewBag.ApprovedCount = await _context.Properties.CountAsync(p => p.Status == "Approved" && p.IsDeleted == false);
-            ViewBag.RejectedCount = await _context.Properties.CountAsync(p => p.Status == "Rejected" && p.IsDeleted == false);
-            ViewBag.DuplicateCount = await _context.Properties.CountAsync(p => p.IsDuplicate && p.IsDeleted == false);
-            ViewBag.SoldCount = await _context.Properties.CountAsync(p => p.Status == "Sold" && p.IsDeleted == false);
-            ViewBag.RentedCount = await _context.Properties.CountAsync(p => p.Status == "Rented" && p.IsDeleted == false);
-            ViewBag.ExpiredCount = await _context.Properties.CountAsync(p => p.Status == "Expired" && p.IsDeleted == false);
+            ViewBag.TotalCount = statusCounts.Sum(x => x.Count);
+            ViewBag.PendingCount = statusCounts.FirstOrDefault(x => x.Status == "Pending")?.Count ?? 0;
+            ViewBag.ApprovedCount = statusCounts.FirstOrDefault(x => x.Status == "Approved")?.Count ?? 0;
+            ViewBag.RejectedCount = statusCounts.FirstOrDefault(x => x.Status == "Rejected")?.Count ?? 0;
+            ViewBag.SoldCount = statusCounts.FirstOrDefault(x => x.Status == "Sold")?.Count ?? 0;
+            ViewBag.RentedCount = statusCounts.FirstOrDefault(x => x.Status == "Rented")?.Count ?? 0;
+            ViewBag.ExpiredCount = statusCounts.FirstOrDefault(x => x.Status == "Expired")?.Count ?? 0;
+
+            ViewBag.DuplicateCount = await _context.Properties
+                .AsNoTracking()
+                .CountAsync(p => p.IsDeleted == false && p.IsDuplicate);
 
             return View("Index", properties);
         }
 
         [HttpGet]
-        public async Task<IActionResult> Verify()
+        public Task<IActionResult> Verify()
         {
-            return await Index(status: "Pending", duplicateOnly: false, keyword: "");
+            return Index(status: "Pending", duplicateOnly: false, keyword: "");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RecheckDuplicates()
+        {
+            await CheckDuplicatesAsync();
+            TempData["Success"] = "Đã kiểm tra lại tin đăng trùng lặp.";
+            return RedirectToAction(nameof(Index));
         }
 
         // =====================================================
@@ -118,15 +167,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     prop.IsDuplicate = true;
                     prop.DuplicateReason =
                         $"Hệ thống phát hiện tin đăng này có dấu hiệu trùng với tin #{matchedProperty.PropertyID}: \"{matchedProperty.Title}\". " +
-                        $"Tiêu chí nghi trùng có thể gồm tiêu đề, địa chỉ, khu vực, loại bất động sản, giá hoặc diện tích trong vòng 30 ngày gần đây.";
+                        "Tiêu chí nghi trùng có thể gồm tiêu đề, địa chỉ, khu vực, loại bất động sản, giá hoặc diện tích trong vòng 30 ngày gần đây.";
                 }
-                else
+                else if (prop.IsDuplicate && prop.Status != "Rejected")
                 {
-                    if (prop.IsDuplicate && prop.Status != "Rejected")
-                    {
-                        prop.IsDuplicate = false;
-                        prop.DuplicateReason = null;
-                    }
+                    prop.IsDuplicate = false;
+                    prop.DuplicateReason = null;
                 }
             }
 
@@ -159,9 +205,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 string otherTitle = NormalizeText(item.Title);
                 string otherAddress = NormalizeText(item.AddressDetail);
 
-                bool sameTitle =
-                    !string.IsNullOrWhiteSpace(currentTitle) &&
-                    currentTitle == otherTitle;
+                bool sameTitle = !string.IsNullOrWhiteSpace(currentTitle) && currentTitle == otherTitle;
 
                 bool nearTitle =
                     !string.IsNullOrWhiteSpace(currentTitle) &&
@@ -170,13 +214,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     otherTitle.Length >= 18 &&
                     (currentTitle.Contains(otherTitle) || otherTitle.Contains(currentTitle));
 
-                bool sameAddress =
-                    !string.IsNullOrWhiteSpace(currentAddress) &&
-                    currentAddress == otherAddress;
-
-                bool sameWardAndType =
-                    prop.WardID == item.WardID &&
-                    prop.TypeID == item.TypeID;
+                bool sameAddress = !string.IsNullOrWhiteSpace(currentAddress) && currentAddress == otherAddress;
+                bool sameWardAndType = prop.WardID == item.WardID && prop.TypeID == item.TypeID;
 
                 bool nearPrice =
                     prop.Price.HasValue &&
@@ -188,10 +227,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     item.AreaSize.HasValue &&
                     Math.Abs(prop.AreaSize.Value - item.AreaSize.Value) <= 2M;
 
-                bool strongSameInfo =
-                    sameWardAndType &&
-                    nearPrice &&
-                    nearArea;
+                bool strongSameInfo = sameWardAndType && nearPrice && nearArea;
 
                 if (sameTitle || sameAddress || (nearTitle && sameWardAndType) || (strongSameInfo && nearTitle))
                 {
@@ -396,7 +432,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 : reason.Trim();
 
             bool isFirstTimeRejection = string.IsNullOrWhiteSpace(property.RejectionReason);
-
             string oldValues = BuildPropertyAuditJson(property, "Trước khi Admin gửi cảnh báo tin trùng lặp.");
 
             property.IsDuplicate = true;
@@ -438,7 +473,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
 
             int adminId = GetCurrentAdminId();
-
             var updatedProperty = await GetPropertyForAuditAsync(property.PropertyID);
             string newValues = BuildPropertyAuditJson(updatedProperty ?? property, "Sau khi Admin gửi cảnh báo tin trùng lặp.");
 
@@ -455,9 +489,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectBackToIndex();
         }
 
-        // =====================================================
-        // BỎ CẢNH BÁO TRÙNG
-        // =====================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ClearDuplicateFlag(int id)
@@ -479,7 +510,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
 
             int adminId = GetCurrentAdminId();
-
             var updatedProperty = await GetPropertyForAuditAsync(property.PropertyID);
             string newValues = BuildPropertyAuditJson(updatedProperty ?? property, "Sau khi Admin bỏ cảnh báo trùng lặp.");
 
@@ -496,9 +526,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectBackToIndex();
         }
 
-        // =====================================================
-        // HOÀN LƯỢT ĐĂNG KHI TỪ CHỐI LẦN ĐẦU
-        // =====================================================
         private async Task RefundPropertyCreditAsync(Property property)
         {
             var transactionToRefund = await _context.Transactions
@@ -515,9 +542,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             }
         }
 
-        // =====================================================
-        // XÓA MỀM TIN ĐĂNG
-        // =====================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
@@ -538,16 +562,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             await _context.SaveChangesAsync();
 
             int adminId = GetCurrentAdminId();
-
-            var updatedProperty = await _context.Properties
-                .AsNoTracking()
-                .Include(p => p.User)
-                .Include(p => p.PropertyType)
-                .Include(p => p.Ward)
-                    .ThenInclude(w => w.Area)
-                .Include(p => p.PostServicePackage)
-                .FirstOrDefaultAsync(p => p.PropertyID == property.PropertyID);
-
+            var updatedProperty = await GetPropertyForAuditAsync(property.PropertyID);
             string newValues = BuildPropertyAuditJson(updatedProperty ?? property, "Sau khi Admin xóa mềm tin đăng.");
 
             await _auditLogService.LogAsync(
@@ -563,13 +578,11 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return RedirectBackToIndex();
         }
 
-        // =====================================================
-        // XUẤT BÁO CÁO CSV
-        // =====================================================
         [HttpGet]
         public async Task<IActionResult> ExportReport()
         {
             var properties = await _context.Properties
+                .AsNoTracking()
                 .Include(p => p.User)
                 .Include(p => p.PropertyType)
                 .Include(p => p.PostServicePackage)
@@ -578,7 +591,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .ToListAsync();
 
             var builder = new StringBuilder();
-
             builder.Append("\uFEFF");
             builder.AppendLine("ID,Tiêu đề,Người đăng,Loại BĐS,Gói tin,Trạng thái,Trùng lặp,Lý do trùng,Lý do từ chối,Ngày tạo,Ngày duyệt,Ngày giao dịch,Ngày hết hạn VIP,Tự động duyệt");
 
@@ -643,26 +655,29 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         // =====================================================
-        // ADMIN CHỈNH SỬA TIN ĐĂNG
+        // ADMIN CHỈNH SỬA TIN ĐĂNG + THÊM/XÓA ẢNH
         // =====================================================
         [HttpGet]
-        public async Task<IActionResult> Edit(int id)
+        public async Task<IActionResult> Edit(int id, string? returnUrl = null)
         {
+            string safeReturnUrl = GetSafeAdminReturnUrl(returnUrl);
+
             var property = await GetPropertyForAuditAsync(id);
 
             if (property == null)
             {
                 TempData["Error"] = "Không tìm thấy tin đăng cần chỉnh sửa.";
-                return RedirectToAction(nameof(Index));
+                return Redirect(safeReturnUrl);
             }
 
             if (IsLockedProperty(property))
             {
                 TempData["Error"] = GetLockedPropertyMessage(property);
-                return RedirectToAction(nameof(Index));
+                return Redirect(safeReturnUrl);
             }
 
             await LoadPropertyEditViewBagAsync(property);
+            ViewBag.ReturnUrl = safeReturnUrl;
 
             return View("Edit", property);
         }
@@ -676,35 +691,39 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             string? AddressDetail,
             int TypeID,
             int WardID,
-            int PackageID,
             decimal? Price,
             decimal? AreaSize,
             decimal? Width,
             decimal? Length,
-            string? AdminEditNote)
+            List<IFormFile>? NewImages,
+            int[]? DeleteImageIds,
+            int? MainImageId,
+            string? ReturnUrl)
         {
+            string safeReturnUrl = GetSafeAdminReturnUrl(ReturnUrl);
+
             var property = await GetPropertyForAuditAsync(PropertyID);
 
             if (property == null)
             {
                 TempData["Error"] = "Không tìm thấy tin đăng cần chỉnh sửa.";
-                return RedirectToAction(nameof(Index));
+                return Redirect(safeReturnUrl);
             }
 
             if (IsLockedProperty(property))
             {
                 TempData["Error"] = GetLockedPropertyMessage(property);
-                return RedirectToAction(nameof(Index));
+                return Redirect(safeReturnUrl);
             }
 
             Title = Title?.Trim() ?? "";
             Description = Description?.Trim() ?? "";
             AddressDetail = AddressDetail?.Trim();
-            AdminEditNote = AdminEditNote?.Trim();
 
             if (string.IsNullOrWhiteSpace(Title))
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Tiêu đề tin đăng không được để trống.";
                 return View("Edit", property);
             }
@@ -712,47 +731,33 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (string.IsNullOrWhiteSpace(Description))
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Mô tả tin đăng không được để trống.";
                 return View("Edit", property);
             }
 
-            var selectedType = await _context.PropertyTypes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TypeID == TypeID);
-
+            var selectedType = await _context.PropertyTypes.AsNoTracking().FirstOrDefaultAsync(t => t.TypeID == TypeID);
             if (selectedType == null)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Loại bất động sản không hợp lệ.";
                 return View("Edit", property);
             }
 
-            var selectedWard = await _context.Wards
-                .AsNoTracking()
-                .Include(w => w.Area)
-                .FirstOrDefaultAsync(w => w.WardID == WardID);
-
+            var selectedWard = await _context.Wards.AsNoTracking().Include(w => w.Area).FirstOrDefaultAsync(w => w.WardID == WardID);
             if (selectedWard == null)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Phường / xã không hợp lệ.";
-                return View("Edit", property);
-            }
-
-            var selectedPackage = await _context.PostServicePackages
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.PackageID == PackageID);
-
-            if (selectedPackage == null)
-            {
-                await LoadPropertyEditViewBagAsync(property);
-                TempData["Error"] = "Gói tin không hợp lệ.";
                 return View("Edit", property);
             }
 
             if (Price.HasValue && Price.Value < 0)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Giá bất động sản không được nhỏ hơn 0.";
                 return View("Edit", property);
             }
@@ -760,6 +765,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (AreaSize.HasValue && AreaSize.Value < 0)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Diện tích không được nhỏ hơn 0.";
                 return View("Edit", property);
             }
@@ -767,6 +773,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (Width.HasValue && Width.Value < 0)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Chiều ngang không được nhỏ hơn 0.";
                 return View("Edit", property);
             }
@@ -774,16 +781,15 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             if (Length.HasValue && Length.Value < 0)
             {
                 await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
                 TempData["Error"] = "Chiều dài không được nhỏ hơn 0.";
                 return View("Edit", property);
             }
 
             int adminId = GetCurrentAdminId();
-
             int oldPackageID = property.PackageID;
             string oldStatus = property.Status ?? "";
             bool oldIsAutoApproved = property.IsAutoApproved;
-
             string oldValues = BuildPropertyAuditJson(property, "Dữ liệu trước khi Admin chỉnh sửa tin đăng.");
 
             property.Title = Title;
@@ -791,13 +797,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             property.AddressDetail = AddressDetail;
             property.TypeID = TypeID;
             property.WardID = WardID;
-            property.PackageID = PackageID;
+            property.PackageID = oldPackageID; // Khóa gói tin, admin không được đổi gói.
             property.Price = Price;
             property.AreaSize = AreaSize;
             property.Width = Width;
             property.Length = Length;
             property.UpdatedAt = DateTime.Now;
-
             property.IsAutoApproved = false;
 
             if (property.Status == "Rejected")
@@ -806,20 +811,23 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 property.RejectionReason = null;
             }
 
-            bool isChangePackage = oldPackageID != PackageID;
-
-            if (isChangePackage && selectedPackage.DurationDays > 0)
+            try
             {
-                property.VipExpiryDate = DateTime.Now.AddDays(selectedPackage.DurationDays);
+                await HandleAdminPropertyImagesAsync(property, NewImages, DeleteImageIds, MainImageId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await LoadPropertyEditViewBagAsync(property);
+                ViewBag.ReturnUrl = safeReturnUrl;
+                TempData["Error"] = ex.Message;
+                return View("Edit", property);
             }
 
             _context.Notifications.Add(new Notification
             {
                 UserID = property.UserID,
                 Title = "Tin đăng đã được quản trị viên chỉnh sửa",
-                Content = string.IsNullOrWhiteSpace(AdminEditNote)
-                    ? $"Tin đăng \"{property.Title}\" đã được quản trị viên cập nhật một số thông tin để phù hợp với quy định hiển thị."
-                    : $"Tin đăng \"{property.Title}\" đã được quản trị viên cập nhật. Ghi chú: {AdminEditNote}",
+                Content = $"Tin đăng \"{property.Title}\" đã được quản trị viên cập nhật một số thông tin để phù hợp với quy định hiển thị.",
                 ActionUrl = $"/Property/Details/{property.PropertyID}",
                 ActionText = "Xem tin đăng",
                 IsRead = false,
@@ -835,13 +843,12 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 adminId: adminId,
                 propertyId: property.PropertyID,
                 oldPackageId: oldPackageID,
-                newPackageId: PackageID,
+                newPackageId: oldPackageID,
                 oldStatus: oldStatus,
                 newStatus: property.Status ?? "",
                 oldIsAutoApproved: oldIsAutoApproved,
                 newIsAutoApproved: property.IsAutoApproved,
-                changedPackage: isChangePackage,
-                adminNote: AdminEditNote);
+                changedPackage: false);
 
             await _auditLogService.LogAsync(
                 adminId,
@@ -852,9 +859,132 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 newValues: newValues + Environment.NewLine + Environment.NewLine + "===== TOM TAT THAO TAC ADMIN =====" + Environment.NewLine + summaryValues,
                 severity: "Warning");
 
-            TempData["Success"] = "Đã cập nhật tin đăng thành công và ghi nhận nhật ký hoạt động Admin.";
+            TempData["Success"] = "Đã cập nhật tin đăng thành công. Gói tin của người dùng được giữ nguyên.";
+            return Redirect(safeReturnUrl);
+        }
 
-            return RedirectToAction(nameof(Index));
+        private async Task HandleAdminPropertyImagesAsync(
+            Property property,
+            List<IFormFile>? newImages,
+            int[]? deleteImageIds,
+            int? mainImageId)
+        {
+            var currentImages = await _context.PropertyImages
+                .Where(i => i.PropertyID == property.PropertyID)
+                .OrderByDescending(i => i.IsMain)
+                .ThenBy(i => i.ImageID)
+                .ToListAsync();
+
+            if (deleteImageIds != null && deleteImageIds.Length > 0)
+            {
+                var deleteSet = deleteImageIds.ToHashSet();
+                var imagesToDelete = currentImages.Where(i => deleteSet.Contains(i.ImageID)).ToList();
+
+                foreach (var image in imagesToDelete)
+                {
+                    DeletePhysicalFile(image.ImageURL);
+                }
+
+                if (imagesToDelete.Any())
+                {
+                    _context.PropertyImages.RemoveRange(imagesToDelete);
+                    currentImages = currentImages.Where(i => !deleteSet.Contains(i.ImageID)).ToList();
+                }
+            }
+
+            if (newImages != null && newImages.Any())
+            {
+                string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads", "properties", "gallery");
+                Directory.CreateDirectory(galleryDir);
+
+                foreach (var file in newImages.Where(f => f != null && f.Length > 0).Take(10))
+                {
+                    ValidateImageFile(file);
+
+                    string extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                    string fileName = $"{Guid.NewGuid():N}{extension}";
+                    string physicalPath = Path.Combine(galleryDir, fileName);
+                    string url = "/uploads/properties/gallery/" + fileName;
+
+                    using (var stream = new FileStream(physicalPath, FileMode.Create))
+                    {
+                        await file.CopyToAsync(stream);
+                    }
+
+                    var image = new PropertyImage
+                    {
+                        PropertyID = property.PropertyID,
+                        ImageURL = url,
+                        IsMain = false
+                    };
+
+                    _context.PropertyImages.Add(image);
+                    currentImages.Add(image);
+                }
+            }
+
+            if (mainImageId.HasValue)
+            {
+                foreach (var img in currentImages)
+                {
+                    img.IsMain = img.ImageID == mainImageId.Value;
+                }
+            }
+
+            var selectedMain = currentImages.FirstOrDefault(i => i.IsMain == true) ?? currentImages.FirstOrDefault();
+
+            if (selectedMain != null)
+            {
+                foreach (var img in currentImages)
+                {
+                    img.IsMain = img == selectedMain;
+                }
+
+                property.MainImage = selectedMain.ImageURL;
+            }
+            else
+            {
+                property.MainImage = null;
+            }
+        }
+
+        private static void ValidateImageFile(IFormFile file)
+        {
+            const long maxSize = 5 * 1024 * 1024;
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            string extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new InvalidOperationException("Chỉ cho phép tải ảnh .jpg, .jpeg, .png hoặc .webp.");
+            }
+
+            if (file.Length > maxSize)
+            {
+                throw new InvalidOperationException("Mỗi ảnh không được vượt quá 5MB.");
+            }
+        }
+
+        private void DeletePhysicalFile(string? imageUrl)
+        {
+            if (string.IsNullOrWhiteSpace(imageUrl))
+            {
+                return;
+            }
+
+            if (imageUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                imageUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            string relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            string physicalPath = Path.Combine(_hostEnvironment.WebRootPath, relativePath);
+
+            if (System.IO.File.Exists(physicalPath))
+            {
+                System.IO.File.Delete(physicalPath);
+            }
         }
 
         [HttpGet]
@@ -932,6 +1062,13 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .OrderBy(p => p.PriorityLevel)
                 .ThenBy(p => p.Price)
                 .ToListAsync();
+
+            ViewBag.PropertyImages = await _context.PropertyImages
+                .AsNoTracking()
+                .Where(i => i.PropertyID == property.PropertyID)
+                .OrderByDescending(i => i.IsMain)
+                .ThenBy(i => i.ImageID)
+                .ToListAsync();
         }
 
         // =====================================================
@@ -942,7 +1079,6 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             var data = new
             {
                 GhiChu = note,
-
                 TinDang = new
                 {
                     property.PropertyID,
@@ -950,38 +1086,30 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     NguoiDang = property.User?.FullName,
                     SoDienThoaiNguoiDang = property.User?.Phone,
                     EmailNguoiDang = property.User?.Email,
-
                     property.Title,
                     property.Description,
                     property.AddressDetail,
-
                     property.TypeID,
                     LoaiBatDongSan = property.PropertyType?.TypeName,
-
                     property.WardID,
                     PhuongXa = property.Ward?.WardName,
                     AreaID = property.Ward?.AreaID,
                     KhuVuc = property.Ward?.Area?.AreaName,
-
                     property.PackageID,
                     GoiTin = property.PostServicePackage?.PackageName,
                     LoaiGoi = property.PostServicePackage?.PackageType,
-
                     GiaTriGia = property.Price,
                     GiaHienThi = MoneyText(property.Price),
-
                     property.AreaSize,
                     property.Width,
                     property.Length,
-
+                    property.MainImage,
                     property.Status,
                     TrangThaiHienThi = StatusText(property.Status),
-
                     property.IsAutoApproved,
                     property.IsDuplicate,
                     property.DuplicateReason,
                     property.RejectionReason,
-
                     ApprovedAt = DateTimeText(property.ApprovedAt),
                     VipExpiryDate = DateTimeText(property.VipExpiryDate),
                     SoldAt = DateTimeText(property.SoldAt),
@@ -1002,28 +1130,21 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             string newStatus,
             bool oldIsAutoApproved,
             bool newIsAutoApproved,
-            bool changedPackage,
-            string? adminNote)
+            bool changedPackage)
         {
             var data = new
             {
                 AdminID = adminId,
                 PropertyID = propertyId,
-
                 ThayDoiGoiTin = changedPackage,
                 OldPackageID = oldPackageId,
                 NewPackageID = newPackageId,
-
                 OldStatus = oldStatus,
                 OldStatusText = StatusText(oldStatus),
-
                 NewStatus = newStatus,
                 NewStatusText = StatusText(newStatus),
-
                 OldIsAutoApproved = oldIsAutoApproved,
                 NewIsAutoApproved = newIsAutoApproved,
-
-                AdminNote = adminNote,
                 Time = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")
             };
 
@@ -1041,6 +1162,25 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         // =====================================================
         // TIỆN ÍCH CHUNG
         // =====================================================
+        private string GetSafeAdminReturnUrl(string? returnUrl)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl))
+            {
+                return Url.Action(nameof(Index), "Properties", new { area = "Admin" }) ?? "/Admin/Properties/Index";
+            }
+
+            returnUrl = returnUrl.Trim();
+
+            // Chỉ cho redirect nội bộ để tránh open redirect.
+            if (Url.IsLocalUrl(returnUrl) &&
+                returnUrl.StartsWith("/Admin/Properties/Index", StringComparison.OrdinalIgnoreCase))
+            {
+                return returnUrl;
+            }
+
+            return Url.Action(nameof(Index), "Properties", new { area = "Admin" }) ?? "/Admin/Properties/Index";
+        }
+
         private IActionResult RedirectBackToIndex()
         {
             string referer = Request.Headers["Referer"].ToString();
@@ -1073,9 +1213,17 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         private static string GetLockedPropertyMessage(Property property)
         {
-            return property.Status == "Sold"
-                ? "Tin đăng này đã bán nên không được phép chỉnh sửa nội dung."
-                : "Tin đăng này đã cho thuê nên không được phép chỉnh sửa nội dung.";
+            if (property.Status == "Sold")
+            {
+                return "Tin đăng này đã bán nên không được phép chỉnh sửa nội dung.";
+            }
+
+            if (property.Status == "Rented")
+            {
+                return "Tin đăng này đã cho thuê nên không được phép chỉnh sửa nội dung.";
+            }
+
+            return "Tin đăng này đã hết hạn nên không được phép chỉnh sửa nội dung.";
         }
 
         private static string StatusText(string? status)

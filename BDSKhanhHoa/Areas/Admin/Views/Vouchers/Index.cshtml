@@ -1,162 +1,391 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Voucher>
 @{
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+    ViewData["Title"] = "Chiến dịch khuyến mãi";
 }
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+    :root {
+        --v-bg: #f6f8fb;
+        --v-text: #0f172a;
+        --v-muted: #64748b;
+        --v-line: #e2e8f0;
+        --v-green: #059669;
+        --v-shadow: 0 8px 22px rgba(15,23,42,.055)
+    }
 
-<div class="animate__animated animate__fadeIn">
+    .voucher-page {
+        background: var(--v-bg);
+        min-height: auto;
+        padding: 8px;
+        overflow-x: hidden
+    }
+
+    .voucher-head, .voucher-list {
+        background: #fff;
+        border: 1px solid rgba(148,163,184,.25);
+        border-radius: 14px;
+        box-shadow: none
+    }
+
+    .voucher-head {
+        padding: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px
+    }
+
+    .head-title {
+        display: flex;
+        align-items: center;
+        gap: 10px
+    }
+
+    .head-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #dcfce7;
+        color: var(--v-green);
+        font-size: 1.25rem
+    }
+
+    .page-title {
+        margin: 0;
+        color: var(--v-text);
+        font-size: clamp(1.2rem,2vw,1.7rem);
+        font-weight: 950;
+        letter-spacing: -.035em
+    }
+
+    .page-subtitle {
+        margin: 4px 0 0;
+        color: var(--v-muted);
+        font-weight: 650;
+        font-size: .9rem
+    }
+
+    .create-btn {
+        min-height: 40px;
+        border-radius: 999px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        white-space: nowrap
+    }
+
+    .v-head, .v-row {
+        display: grid;
+        grid-template-columns: 160px 1.3fr 150px 110px 230px 130px 90px;
+        gap: 10px;
+        align-items: center
+    }
+
+    .v-head {
+        padding: 11px 14px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e5e7eb;
+        color: var(--v-muted);
+        font-size: .68rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .04em
+    }
+
+    .v-row {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf2f7
+    }
+
+        .v-row:last-child {
+            border-bottom: 0
+        }
+
+    .code {
+        display: inline-flex;
+        max-width: 100%;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #0f172a;
+        color: #fff;
+        font-weight: 950;
+        letter-spacing: .06em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis
+    }
+
+    .money {
+        font-weight: 950;
+        color: #2563eb;
+        white-space: nowrap
+    }
+
+    .discount {
+        font-size: 1.05rem;
+        color: #dc2626;
+        font-weight: 950
+    }
+
+    .small-muted {
+        color: var(--v-muted);
+        font-size: .76rem;
+        font-weight: 700
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: .72rem;
+        font-weight: 950;
+        white-space: nowrap
+    }
+
+    .run {
+        color: #047857;
+        background: #dcfce7;
+        border: 1px solid #86efac
+    }
+
+    .wait {
+        color: #b45309;
+        background: #fef3c7;
+        border: 1px solid #fde68a
+    }
+
+    .bad {
+        color: #b91c1c;
+        background: #fee2e2;
+        border: 1px solid #fecaca
+    }
+
+    .muted {
+        color: #475569;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1
+    }
+
+    .mobile-grid {
+        display: none
+    }
+
+    .modal-content {
+        border-radius: 14px !important
+    }
+
+    .modal-body {
+        background: #f8fafc
+    }
+
+    .modal-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 8px;
+        margin-bottom: 12px
+    }
+
+    .soft-input {
+        min-height: 40px;
+        border-radius: 12px;
+        border: 1px solid #dbe4ef;
+        background: #f8fafc;
+        font-weight: 750;
+        box-shadow: none !important
+    }
+
+        .soft-input:focus {
+            background: #fff;
+            border-color: #86efac;
+            box-shadow: 0 0 0 4px rgba(16,185,129,.1) !important
+        }
+
+    .form-label-mini {
+        font-size: .74rem;
+        font-weight: 900;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: .04em
+    }
+
+    @@media(max-width:1199.98px) {
+        .v-head, .v-row {
+            grid-template-columns: 135px 1.2fr 130px 90px 180px 120px 70px
+        }
+    }
+
+    @@media(max-width:991.98px) {
+        .v-head {
+            display: none
+        }
+
+        .voucher-list {
+            padding: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none
+        }
+
+        .v-row {
+            display: block;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            box-shadow: none;
+            margin-bottom: 8px;
+            padding: 10px
+        }
+
+        .desktop-cell {
+            display: none
+        }
+
+        .mobile-grid {
+            display: grid;
+            grid-template-columns: repeat(2,minmax(0,1fr));
+            gap: 8px;
+            margin-top: 10px
+        }
+
+        .m-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 13px;
+            padding: 8px
+        }
+
+        .m-label {
+            font-size: .66rem;
+            color: var(--v-muted);
+            font-weight: 950;
+            text-transform: uppercase
+        }
+
+        .m-value {
+            margin-top: 4px;
+            color: var(--v-text);
+            font-weight: 900;
+            font-size: .84rem
+        }
+
+        .v-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start
+        }
+    }
+
+    @@media(max-width:767.98px) {
+        .voucher-page {
+            padding: 6px;
+            min-height: auto
+        }
+
+        .voucher-head {
+            padding: 12px;
+            flex-direction: column;
+            align-items: stretch;
+            border-radius: 14px;
+            box-shadow: none
+        }
+
+        .page-title {
+            font-size: 1.18rem
+        }
+
+        .page-subtitle {
+            font-size: .84rem
+        }
+
+        .create-btn {
+            width: 100%;
+            justify-content: center
+        }
+
+        .mobile-grid {
+            grid-template-columns: 1fr
+        }
+
+        .modal-dialog {
+            margin: 8px
+        }
+
+        .modal-card {
+            padding: 12px
+        }
+    }
+</style>
+<div class="voucher-page">
     @if (TempData["Success"] != null)
     {
-        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: '@TempData["Success"]', showConfirmButton: false, timer: 3000 });</script>
+        <script>Swal.fire({toast:true,position:'top-end',icon:'success',title:'@TempData["Success"]',showConfirmButton:false,timer:3000});</script>
     }
     @if (TempData["Error"] != null)
     {
-        <script>Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: '@TempData["Error"]', showConfirmButton: false, timer: 3000 });</script>
+        <script>Swal.fire({toast:true,position:'top-end',icon:'error',title:'@TempData["Error"]',showConfirmButton:false,timer:3000});</script>
     }
+    <section class="voucher-head"><div class="head-title"><span class="head-icon"><i class="bi bi-ticket-perforated-fill"></i></span><div><h1 class="page-title">Chiến dịch khuyến mãi</h1><p class="page-subtitle">Quản lý voucher, số lượt sử dụng và thời hạn áp dụng.</p></div></div><button class="btn btn-success create-btn" data-bs-toggle="modal" data-bs-target="#createVoucherModal"><i class="bi bi-plus-lg"></i>Tạo mã mới</button></section>
+    <section class="voucher-list">
+        <div class="v-head"><div>Mã code</div><div>Chi tiết</div><div>Đơn tối thiểu</div><div>Đã dùng</div><div>Thời hạn</div><div>Trạng thái</div><div>Khóa/Mở</div></div>
+        @foreach (var item in Model)
+        {
+            var isExpired = item.ExpiryDate < DateTime.Now; var isWaiting = item.StartDate > DateTime.Now;
+            <article class="v-row">
+                <div class="v-top">
+                    <span class="code">@item.Code</span><div class="d-lg-none">
+                        @if (isExpired)
+                        {
+                            <span class="pill bad">Hết hạn</span>
+                        }
+                        else if (isWaiting)
+                        {
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bolder text-dark m-0"><i class="bi bi-ticket-perforated text-success me-2"></i>Chiến dịch Khuyến mãi (Voucher)</h4>
-        <button class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#createVoucherModal">
-            <i class="bi bi-plus-lg me-2"></i>Tạo mã mới
-        </button>
-    </div>
+                            <span class="pill wait">Sắp diễn ra</span>
+                        }
+                        else if (item.IsActive && item.UsedCount < item.Quantity)
+                        {
 
-    <div class="bg-white rounded-4 shadow-sm border p-4">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="bg-light">
-                    <tr>
-                        <th>Mã CODE</th>
-                        <th>Chi tiết</th>
-                        <th>Đơn Tối Thiểu</th>
-                        <th>Đã dùng</th>
-                        <th>Thời hạn</th>
-                        <th>Trạng thái</th>
-                        <th>Khóa/Mở</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Model)
+                            <span class="pill run">Đang chạy</span>
+                        }
+                        else
+                        {
+
+                            <span class="pill muted">Đã khóa / hết lượt</span>
+                        }
+                    </div>
+                </div><div class="desktop-cell"><span class="discount">@item.DiscountPercent.ToString("0.##")%</span><div class="small-muted">Tối đa @item.MaxDiscountAmount.ToString("N0") ₫</div></div><div class="desktop-cell money">@item.MinOrderAmount.ToString("N0") ₫</div><div class="desktop-cell"><span class="pill muted">@item.UsedCount / @item.Quantity</span></div><div class="desktop-cell"><div class="small-muted">Từ: @item.StartDate.ToString("dd/MM/yyyy HH:mm")</div><div class="fw-bold @(isExpired ? "text-danger" : "text-dark")">Đến: @item.ExpiryDate.ToString("dd/MM/yyyy HH:mm")</div></div><div class="desktop-cell">
+                    @if (isExpired)
                     {
-                        var isExpired = item.ExpiryDate < DateTime.Now;
-                        var isWaiting = item.StartDate > DateTime.Now;
-                        <tr>
-                            <td>
-                                <span class="badge bg-dark fs-6 px-3 py-2 border border-secondary shadow-sm" style="letter-spacing: 1px;">@item.Code</span>
-                            </td>
-                            <td>
-                                <span class="text-danger fw-bold fs-5">@item.DiscountPercent.ToString("0.##")%</span>
-                                <small class="d-block text-muted">Tối đa: @item.MaxDiscountAmount.ToString("N0") ₫</small>
-                            </td>
-                            <td><strong class="text-primary">@item.MinOrderAmount.ToString("N0") ₫</strong></td>
-                            <td><span class="badge bg-info text-dark rounded-pill fs-6">@item.UsedCount / @item.Quantity</span></td>
-                            <td>
-                                <small class="d-block text-muted">Từ: @item.StartDate.ToString("dd/MM/yyyy HH:mm")</small>
-                                <span class="d-block fw-bold @(isExpired ? "text-danger" : "text-dark")">Đến: @item.ExpiryDate.ToString("dd/MM/yyyy HH:mm")</span>
-                            </td>
-                            <td>
-                                @if (isExpired)
-                                {
-                                    <span class="badge bg-danger-subtle text-danger px-2 py-1">Hết hạn</span>
-                                }
-                                else if (isWaiting)
-                                {
-
-                                    <span class="badge bg-warning-subtle text-warning px-2 py-1">Sắp diễn ra</span>
-                                }
-                                else if (item.IsActive && item.UsedCount < item.Quantity)
-                                {
-
-                                    <span class="badge bg-success-subtle text-success px-2 py-1">Đang chạy</span>
-                                }
-                                else
-                                {
-
-                                    <span class="badge bg-secondary-subtle text-secondary px-2 py-1">Đã khóa / Hết lượt</span>
-                                }
-                            </td>
-                            <td>
-                                <form asp-action="ToggleStatus" method="post">
-                                    <input type="hidden" name="id" value="@item.VoucherID" />
-                                    <button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-danger" : "btn-outline-success") fw-bold" @(isExpired ? "disabled" : "")>
-                                        <i class="bi @(item.IsActive ? "bi-lock" : "bi-unlock")"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
+                        <span class="pill bad">Hết hạn</span>
                     }
-                </tbody>
-            </table>
-        </div>
-    </div>
+                    else if (isWaiting)
+                    {
+
+                        <span class="pill wait">Sắp diễn ra</span>
+                    }
+                    else if (item.IsActive && item.UsedCount < item.Quantity)
+                    {
+
+                        <span class="pill run">Đang chạy</span>
+                    }
+                    else
+                    {
+
+                        <span class="pill muted">Đã khóa / hết lượt</span>
+                    }
+                </div><div class="desktop-cell"><form asp-action="ToggleStatus" method="post"><input type="hidden" name="id" value="@item.VoucherID" /><button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-danger" : "btn-outline-success") fw-bold rounded-3" @(isExpired ? "disabled" : "")><i class="bi @(item.IsActive ? "bi-lock" : "bi-unlock")"></i></button></form></div><div class="mobile-grid"><div class="m-box"><div class="m-label">Giảm</div><div class="m-value text-danger">@item.DiscountPercent.ToString("0.##")% - tối đa @item.MaxDiscountAmount.ToString("N0") ₫</div></div><div class="m-box"><div class="m-label">Đơn tối thiểu</div><div class="m-value text-primary">@item.MinOrderAmount.ToString("N0") ₫</div></div><div class="m-box"><div class="m-label">Đã dùng</div><div class="m-value">@item.UsedCount / @item.Quantity</div></div><div class="m-box"><div class="m-label">Thời hạn</div><div class="m-value">@item.StartDate.ToString("dd/MM/yyyy") - @item.ExpiryDate.ToString("dd/MM/yyyy")</div></div><div class="m-box"><div class="m-label">Khóa/Mở</div><div class="m-value"><form asp-action="ToggleStatus" method="post"><input type="hidden" name="id" value="@item.VoucherID" /><button type="submit" class="btn btn-sm @(item.IsActive ? "btn-outline-danger" : "btn-outline-success") fw-bold rounded-3 w-100" @(isExpired ? "disabled" : "")><i class="bi @(item.IsActive ? "bi-lock" : "bi-unlock") me-1"></i>@(item.IsActive ? "Khóa" : "Mở")</button></form></div></div></div>
+            </article>
+        }
+    </section>
 </div>
-
-<div class="modal fade" id="createVoucherModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header bg-success text-white rounded-top-4">
-                <h5 class="modal-title fw-bold"><i class="bi bi-ticket-detailed me-2"></i>Phát hành Voucher mới</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form asp-action="Create" method="post">
-                <div class="modal-body p-4 bg-light">
-
-                    <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
-                        <h6 class="fw-bold text-success border-bottom pb-2 mb-3">Thông tin cơ bản</h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Mã CODE (Viết hoa)</label>
-                                <input type="text" name="Code" class="form-control text-uppercase fw-bold" required placeholder="VD: SIEUSALE">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Số lượng phát hành</label>
-                                <input type="number" name="Quantity" class="form-control" required min="1" placeholder="VD: 100">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold text-muted">Mô tả hiển thị (Tùy chọn)</label>
-                                <input type="text" name="Description" class="form-control" placeholder="VD: Siêu ưu đãi giảm 50% cho ngày lễ">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
-                        <h6 class="fw-bold text-primary border-bottom pb-2 mb-3">Điều kiện áp dụng</h6>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-muted">% Giảm giá</label>
-                                <input type="number" name="DiscountPercent" class="form-control text-danger fw-bold" required min="1" max="100" placeholder="VD: 20">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-muted">Giảm tối đa (VNĐ)</label>
-                                <input type="number" name="MaxDiscountAmount" class="form-control" required min="0" placeholder="VD: 500000">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold text-muted">Đơn tối thiểu (VNĐ)</label>
-                                <input type="number" name="MinOrderAmount" class="form-control" required min="0" placeholder="VD: 100000">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card border-0 shadow-sm rounded-3 p-3">
-                        <h6 class="fw-bold text-warning border-bottom pb-2 mb-3">Lịch trình chạy</h6>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Bắt đầu từ</label>
-                                <input type="datetime-local" name="StartDate" class="form-control" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold text-muted">Hết hạn lúc</label>
-                                <input type="datetime-local" name="ExpiryDate" class="form-control" required>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-                <div class="modal-footer bg-white rounded-bottom-4 border-top-0 pt-0">
-                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-success btn-lg fw-bold px-5 shadow-sm">Tạo mã ngay</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<div class="modal fade" id="createVoucherModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-success text-white"><h5 class="modal-title fw-bold"><i class="bi bi-ticket-detailed me-2"></i>Phát hành Voucher mới</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form asp-action="Create" method="post"><div class="modal-body"><div class="modal-card"><h6 class="fw-bold text-success mb-3">Thông tin cơ bản</h6><div class="row g-3"><div class="col-md-6"><label class="form-label-mini">Mã CODE</label><input type="text" name="Code" class="form-control soft-input text-uppercase fw-bold" required placeholder="VD: SIEUSALE"></div><div class="col-md-6"><label class="form-label-mini">Số lượng</label><input type="number" name="Quantity" class="form-control soft-input" required min="1"></div><div class="col-12"><label class="form-label-mini">Mô tả</label><input type="text" name="Description" class="form-control soft-input" placeholder="VD: Ưu đãi ngày lễ"></div></div></div><div class="modal-card"><h6 class="fw-bold text-primary mb-3">Điều kiện áp dụng</h6><div class="row g-3"><div class="col-md-4"><label class="form-label-mini">% Giảm</label><input type="number" name="DiscountPercent" class="form-control soft-input text-danger fw-bold" required min="1" max="100"></div><div class="col-md-4"><label class="form-label-mini">Giảm tối đa</label><input type="number" name="MaxDiscountAmount" class="form-control soft-input" required min="0"></div><div class="col-md-4"><label class="form-label-mini">Đơn tối thiểu</label><input type="number" name="MinOrderAmount" class="form-control soft-input" required min="0"></div></div></div><div class="modal-card mb-0"><h6 class="fw-bold text-warning mb-3">Thời gian</h6><div class="row g-3"><div class="col-md-6"><label class="form-label-mini">Bắt đầu</label><input type="datetime-local" name="StartDate" class="form-control soft-input" required></div><div class="col-md-6"><label class="form-label-mini">Kết thúc</label><input type="datetime-local" name="ExpiryDate" class="form-control soft-input" required></div><div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="IsActive" value="true" checked id="IsActive"><label class="form-check-label fw-bold text-success" for="IsActive">Kích hoạt ngay</label></div></div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light border fw-bold rounded-pill px-4" data-bs-dismiss="modal">Hủy</button><button type="submit" class="btn btn-success fw-bold rounded-pill px-4"><i class="bi bi-save me-1"></i>Lưu Voucher</button></div></form></div></div></div>

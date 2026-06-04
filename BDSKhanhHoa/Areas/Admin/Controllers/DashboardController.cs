@@ -105,11 +105,13 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             model.PendingReports = await _context.PropertyReports
                 .CountAsync(r => r.Status == "Pending" && r.IsDeleted == false);
 
-            model.TotalChatInteractions = await _context.ChatLogs.CountAsync();
+            model.TotalChatInteractions = await _context.AIChatMessages
+                .CountAsync(m => m.Role == "user");
 
-            model.ChatInteractionsToday = await _context.ChatLogs
-                .CountAsync(c => c.CreatedAt >= today && c.CreatedAt < tomorrow);
-
+            model.ChatInteractionsToday = await _context.AIChatMessages
+                .CountAsync(m => m.Role == "user"
+                              && m.CreatedAt >= today
+                              && m.CreatedAt < tomorrow);
             model.TotalTransactions = await _context.Transactions.CountAsync();
 
             model.SuccessfulTransactions = await _context.Transactions
@@ -658,8 +660,8 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             data.SuccessfulTransactions = await _context.Transactions
                 .CountAsync(t => _successStatuses.Contains(t.Status));
 
-            data.TotalChatInteractions = await _context.ChatLogs.CountAsync();
-
+            data.TotalChatInteractions = await _context.AIChatMessages
+                .CountAsync(m => m.Role == "user");
             data.PackageItems = await _context.Transactions
                 .Where(t => _successStatuses.Contains(t.Status)
                          && t.CreatedAt >= range.StartDate
@@ -680,67 +682,148 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         private async Task<List<MonthlyDashboardReportItem>> BuildMonthlyReportItemsAsync(int selectedYear)
         {
-            var items = new List<MonthlyDashboardReportItem>();
+            DateTime yearStart = new DateTime(selectedYear, 1, 1);
+            DateTime yearEnd = yearStart.AddYears(1);
+
+            List<MonthlyDashboardReportItem> items = new();
 
             for (int month = 1; month <= 12; month++)
             {
-                DateTime monthStart = new DateTime(selectedYear, month, 1);
-                DateTime monthEnd = monthStart.AddMonths(1);
-
-                decimal revenue = await _context.Transactions
-                    .Where(t => _successStatuses.Contains(t.Status)
-                             && t.CreatedAt >= monthStart
-                             && t.CreatedAt < monthEnd)
-                    .SumAsync(t => t.Amount);
-
-                int transactions = await _context.Transactions
-                    .CountAsync(t => t.CreatedAt >= monthStart && t.CreatedAt < monthEnd);
-
-                int newProperties = await _context.Properties
-                    .CountAsync(p => p.IsDeleted == false
-                                  && p.CreatedAt >= monthStart
-                                  && p.CreatedAt < monthEnd);
-
-                int sold = await _context.Properties
-                    .CountAsync(p => p.IsDeleted == false
-                                  && p.Status == "Sold"
-                                  && p.UpdatedAt >= monthStart
-                                  && p.UpdatedAt < monthEnd);
-
-                int rented = await _context.Properties
-                    .CountAsync(p => p.IsDeleted == false
-                                  && p.Status == "Rented"
-                                  && p.UpdatedAt >= monthStart
-                                  && p.UpdatedAt < monthEnd);
-
-                int users = await _context.Users
-                    .CountAsync(u => u.IsDeleted == false
-                                  && u.CreatedAt >= monthStart
-                                  && u.CreatedAt < monthEnd);
-
-                int chats = await _context.ChatLogs
-                    .CountAsync(c => c.CreatedAt >= monthStart && c.CreatedAt < monthEnd);
-
-                int logs = await _context.AuditLogs
-                    .CountAsync(a => a.CreatedAt >= monthStart && a.CreatedAt < monthEnd);
-
                 items.Add(new MonthlyDashboardReportItem
                 {
                     Label = $"T{month}/{selectedYear}",
-                    Revenue = revenue,
-                    NewProperties = newProperties,
-                    SoldProperties = sold,
-                    RentedProperties = rented,
-                    NewUsers = users,
-                    Transactions = transactions,
-                    ChatInteractions = chats,
-                    AuditLogs = logs
+                    Revenue = 0,
+                    NewProperties = 0,
+                    SoldProperties = 0,
+                    RentedProperties = 0,
+                    NewUsers = 0,
+                    Transactions = 0,
+                    ChatInteractions = 0,
+                    AuditLogs = 0
                 });
+            }
+
+            Dictionary<int, decimal> revenueByMonth = await _context.Transactions
+                .AsNoTracking()
+                .Where(t => _successStatuses.Contains(t.Status)
+                         && t.CreatedAt >= yearStart
+                         && t.CreatedAt < yearEnd)
+                .GroupBy(t => t.CreatedAt.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Revenue = g.Sum(x => x.Amount)
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Revenue);
+
+            Dictionary<int, int> transactionByMonth = await _context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreatedAt >= yearStart && t.CreatedAt < yearEnd)
+                .GroupBy(t => t.CreatedAt.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> newPropertyByMonth = await _context.Properties
+                .AsNoTracking()
+                .Where(p => p.IsDeleted == false
+                         && p.CreatedAt >= yearStart
+                         && p.CreatedAt < yearEnd)
+                .GroupBy(p => p.CreatedAt.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> soldByMonth = await _context.Properties
+                .AsNoTracking()
+                .Where(p => p.IsDeleted == false
+                         && p.Status == "Sold"
+                         && p.UpdatedAt.HasValue
+                         && p.UpdatedAt.Value >= yearStart
+                         && p.UpdatedAt.Value < yearEnd)
+                .GroupBy(p => p.UpdatedAt!.Value.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> rentedByMonth = await _context.Properties
+                .AsNoTracking()
+                .Where(p => p.IsDeleted == false
+                         && p.Status == "Rented"
+                         && p.UpdatedAt.HasValue
+                         && p.UpdatedAt.Value >= yearStart
+                         && p.UpdatedAt.Value < yearEnd)
+                .GroupBy(p => p.UpdatedAt!.Value.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> userByMonth = await _context.Users
+       .AsNoTracking()
+       .Where(u => u.IsDeleted == false
+                && u.CreatedAt.HasValue
+                && u.CreatedAt.Value >= yearStart
+                && u.CreatedAt.Value < yearEnd)
+       .GroupBy(u => u.CreatedAt!.Value.Month)
+       .Select(g => new
+       {
+           Month = g.Key,
+           Count = g.Count()
+       })
+       .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> chatByMonth = await _context.AIChatMessages
+                .AsNoTracking()
+                .Where(m => m.Role == "user"
+                         && m.CreatedAt >= yearStart
+                         && m.CreatedAt < yearEnd)
+                .GroupBy(m => m.CreatedAt.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            Dictionary<int, int> logByMonth = await _context.AuditLogs
+                .AsNoTracking()
+                .Where(a => a.CreatedAt >= yearStart && a.CreatedAt < yearEnd)
+                .GroupBy(a => a.CreatedAt.Month)
+                .Select(g => new
+                {
+                    Month = g.Key,
+                    Count = g.Count()
+                })
+                .ToDictionaryAsync(x => x.Month, x => x.Count);
+
+            foreach (MonthlyDashboardReportItem item in items)
+            {
+                int monthNumber = int.Parse(item.Label.Split('/')[0].Replace("T", ""));
+
+                item.Revenue = revenueByMonth.TryGetValue(monthNumber, out decimal revenue) ? revenue : 0;
+                item.Transactions = transactionByMonth.TryGetValue(monthNumber, out int transactions) ? transactions : 0;
+                item.NewProperties = newPropertyByMonth.TryGetValue(monthNumber, out int newProperties) ? newProperties : 0;
+                item.SoldProperties = soldByMonth.TryGetValue(monthNumber, out int sold) ? sold : 0;
+                item.RentedProperties = rentedByMonth.TryGetValue(monthNumber, out int rented) ? rented : 0;
+                item.NewUsers = userByMonth.TryGetValue(monthNumber, out int users) ? users : 0;
+                item.ChatInteractions = chatByMonth.TryGetValue(monthNumber, out int chats) ? chats : 0;
+                item.AuditLogs = logByMonth.TryGetValue(monthNumber, out int logs) ? logs : 0;
             }
 
             return items;
         }
-
         private ReportRange BuildReportRange(string? reportType, int selectedYear, int? quarter, int? month, DateTime? fromDate, DateTime? toDate)
         {
             string type = string.IsNullOrWhiteSpace(reportType) ? "year" : reportType.Trim().ToLower();

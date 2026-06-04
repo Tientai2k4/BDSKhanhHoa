@@ -1,41 +1,362 @@
 ﻿@model BDSKhanhHoa.Models.Area
+
 @{
-    ViewData["Title"] = "Xác nhận xóa Khu vực";
+    ViewData["Title"] = "Xác nhận xóa khu vực";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    int wardCount = Model.Wards?.Count ?? 0;
+    int propertyCount = ViewBag.PropertyCount is int pc ? pc : 0;
+    int projectCount = ViewBag.ProjectCount is int prc ? prc : 0;
+    bool canDelete = ViewBag.CanDelete is bool cd && cd;
 }
 
-<div class="row justify-content-center mt-4">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="card-body p-5 text-center">
-                <div class="mb-4 text-danger">
-                    <i class="bi bi-exclamation-triangle-fill" style="font-size: 4.5rem;"></i>
-                </div>
-                <h3 class="fw-bold text-dark">Dừng lại! Bạn có chắc chắn?</h3>
-                <p class="text-muted px-lg-5">
-                    Hành động này sẽ xóa vĩnh viễn khu vực <strong>@Model.AreaName</strong> và
-                    <span class="text-danger fw-bold">TẤT CẢ các xã/phường</span> đang thuộc khu vực này.
-                </p>
+<style>
+    .area-delete-page {
+        padding: 14px 0 40px;
+    }
 
-                <div class="bg-light rounded-4 p-3 my-4 text-start border">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted small">Khu vực:</span>
-                        <span class="fw-bold text-primary">@Model.AreaName</span>
+    .area-delete-wrap {
+        max-width: 920px;
+        margin: 0 auto;
+    }
+
+    .area-alert {
+        border-radius: 18px;
+        border: 0;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .07);
+        font-weight: 700;
+    }
+
+    .delete-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, .10);
+        overflow: hidden;
+    }
+
+    .delete-head {
+        padding: 28px 24px 20px;
+        text-align: center;
+        border-bottom: 1px solid #e2e8f0;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+    }
+
+    .delete-icon {
+        width: 78px;
+        height: 78px;
+        margin: 0 auto 16px;
+        border-radius: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.3rem;
+    }
+
+        .delete-icon.danger {
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+
+        .delete-icon.warning {
+            color: #d97706;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+        }
+
+    .delete-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 1.45rem;
+        line-height: 1.25;
+        font-weight: 900;
+        letter-spacing: -.02em;
+    }
+
+    .delete-subtitle {
+        max-width: 680px;
+        margin: 10px auto 0;
+        color: #64748b;
+        font-size: .96rem;
+        line-height: 1.65;
+        font-weight: 550;
+    }
+
+    .delete-body {
+        padding: 24px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .info-item {
+        padding: 15px 16px;
+        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+
+    .info-label {
+        color: #64748b;
+        font-size: .76rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 6px;
+    }
+
+    .info-value {
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 900;
+        word-break: break-word;
+    }
+
+        .info-value .badge {
+            font-size: .86rem;
+        }
+
+    .warn-box {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-size: .92rem;
+        line-height: 1.65;
+        font-weight: 650;
+        margin-bottom: 18px;
+    }
+
+    .danger-box {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+        font-size: .92rem;
+        line-height: 1.65;
+        font-weight: 650;
+        margin-bottom: 18px;
+    }
+
+    .safe-box {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+        font-size: .92rem;
+        line-height: 1.65;
+        font-weight: 650;
+        margin-bottom: 18px;
+    }
+
+    .delete-actions {
+        padding-top: 18px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .area-btn {
+        min-height: 44px;
+        border-radius: 999px;
+        padding: 0 22px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+    }
+
+    @@media (max-width: 575.98px) {
+        .area-delete-page {
+            padding-top: 10px;
+        }
+
+        .delete-head {
+            padding: 22px 16px 18px;
+        }
+
+        .delete-body {
+            padding: 16px;
+        }
+
+        .delete-title {
+            font-size: 1.25rem;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .delete-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .area-btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="container-fluid area-delete-page">
+    <div class="area-delete-wrap">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        <div class="delete-card">
+            <div class="delete-head">
+                @if (canDelete)
+                {
+                    <div class="delete-icon danger">
+                        <i class="bi bi-trash3-fill"></i>
                     </div>
-                    <div class="d-flex justify-content-between">
-                        <span class="text-muted small">Số lượng xã trực thuộc:</span>
-                        <span class="badge bg-danger rounded-pill">@(Model.Wards?.Count ?? 0) đơn vị</span>
+
+                    <h1 class="delete-title">Xác nhận xóa khu vực?</h1>
+
+                    <p class="delete-subtitle">
+                        Bạn đang chuẩn bị xóa khu vực <strong>@Model.AreaName</strong>.
+                        Hành động này sẽ xóa khu vực và các xã/phường trực thuộc nếu không còn dữ liệu liên quan.
+                    </p>
+                }
+                else
+                {
+                    <div class="delete-icon warning">
+                        <i class="bi bi-shield-lock-fill"></i>
+                    </div>
+
+                    <h1 class="delete-title">Không thể xóa khu vực này</h1>
+
+                    <p class="delete-subtitle">
+                        Khu vực <strong>@Model.AreaName</strong> vẫn đang được tin bất động sản hoặc dự án sử dụng.
+                        Hệ thống chặn xóa để tránh lỗi dữ liệu.
+                    </p>
+                }
+            </div>
+
+            <div class="delete-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Khu vực</div>
+                        <div class="info-value">@Model.AreaName</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Xã/phường trực thuộc</div>
+                        <div class="info-value">
+                            <span class="badge bg-primary rounded-pill px-3 py-2">@wardCount đơn vị</span>
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Tin BĐS đang sử dụng</div>
+                        <div class="info-value">
+                            <span class="badge @(propertyCount > 0 ? "bg-danger" : "bg-success") rounded-pill px-3 py-2">
+                                @propertyCount tin
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Dự án đang sử dụng</div>
+                        <div class="info-value">
+                            <span class="badge @(projectCount > 0 ? "bg-danger" : "bg-success") rounded-pill px-3 py-2">
+                                @projectCount dự án
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <form asp-action="Delete">
-                    <input type="hidden" asp-for="AreaID" />
-                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                        <button type="submit" class="btn btn-danger btn-lg rounded-pill px-5 shadow-sm fw-bold">
-                            Xác nhận xóa sạch
-                        </button>
-                        <a asp-action="Index" class="btn btn-light btn-lg rounded-pill px-5 border shadow-sm text-muted">
-                            Quay lại
+                @if (canDelete)
+                {
+                    <div class="safe-box">
+                        <i class="bi bi-check-circle-fill me-1"></i>
+                        Khu vực này hiện không có tin bất động sản hoặc dự án đang sử dụng.
+                        Bạn có thể xóa, nhưng thao tác này không nên thực hiện nếu dữ liệu vẫn còn cần quản lý.
+                    </div>
+
+                    <div class="danger-box">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Sau khi xóa, khu vực và xã/phường trực thuộc sẽ bị xóa khỏi hệ thống.
+                        Hãy chắc chắn bạn không còn cần dữ liệu này.
+                    </div>
+                }
+                else
+                {
+                    <div class="warn-box">
+                        <div class="fw-bold mb-2">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            Cách xử lý đúng
+                        </div>
+
+                        <ul class="mb-0 ps-3">
+                            <li>Chuyển các tin bất động sản sang xã/phường khác trước.</li>
+                            <li>Chuyển các dự án sang khu vực hoặc xã/phường khác trước.</li>
+                            <li>Quay lại xóa sau khi không còn dữ liệu tham chiếu.</li>
+                        </ul>
+                    </div>
+                }
+
+                <form asp-area="Admin"
+                      asp-controller="Areas"
+                      asp-action="Delete"
+                      method="post">
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="id" value="@Model.AreaID" />
+
+                    <div class="delete-actions">
+                        @if (canDelete)
+                        {
+                            <button type="submit"
+                                    class="btn btn-danger area-btn"
+                                    onclick="return confirm('Bạn chắc chắn muốn xóa vĩnh viễn khu vực này và toàn bộ xã/phường trực thuộc?');">
+                                <i class="bi bi-trash3-fill"></i>
+                                Xác nhận xóa
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-secondary area-btn" disabled>
+                                <i class="bi bi-lock-fill"></i>
+                                Không thể xóa
+                            </button>
+                        }
+
+                        <a asp-action="Edit" asp-route-id="@Model.AreaID" class="btn btn-outline-primary area-btn">
+                            <i class="bi bi-gear-fill"></i>
+                            Quản lý xã/phường
+                        </a>
+
+                        <a asp-action="Index" class="btn btn-light border area-btn">
+                            <i class="bi bi-arrow-left"></i>
+                            Quay lại danh sách
                         </a>
                     </div>
                 </form>

@@ -25,35 +25,160 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
-    .admin-box {
-        background: #fff;
-        border-radius: 20px;
-        border: 1px solid rgba(148,163,184,.16);
-        box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
-        margin-bottom: 24px;
+    :root {
+        --lead-primary: #2563eb;
+        --lead-dark: #0f172a;
+        --lead-muted: #64748b;
+        --lead-border: #e2e8f0;
+        --lead-bg: #f6f8fc;
+        --lead-card: #ffffff;
+        --lead-shadow: 0 10px 28px rgba(15, 23, 42, .055);
+        --lead-radius: 20px;
+    }
+
+    .lead-admin-page,
+    .lead-admin-page * {
+        box-sizing: border-box;
+    }
+
+    .lead-admin-page {
+        background: radial-gradient(circle at top left, rgba(37,99,235,.08), transparent 320px), var(--lead-bg);
+        min-height: calc(100vh - 80px);
+        padding: 18px;
+        overflow-x: hidden;
     }
 
     .fw-black {
         font-weight: 900;
     }
 
-    .stat {
-        padding: 24px;
-        border-radius: 20px;
-        color: #fff;
-        min-height: 135px;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 12px 25px rgba(15, 23, 42, .06);
-        transition: transform .25s ease;
+    .lead-card {
+        background: var(--lead-card);
+        border: 1px solid rgba(226,232,240,.92);
+        border-radius: var(--lead-radius);
+        box-shadow: var(--lead-shadow);
     }
 
-        .stat:hover {
-            transform: translateY(-4px);
+    .lead-hero {
+        padding: 18px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        background: radial-gradient(circle at top right, rgba(37,99,235,.12), transparent 260px), #fff;
+    }
+
+    .lead-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: .72rem;
+        font-weight: 900;
+        margin-bottom: 8px;
+    }
+
+    .lead-title {
+        margin: 0;
+        color: var(--lead-dark);
+        font-size: clamp(1.35rem, 2.4vw, 2rem);
+        line-height: 1.15;
+        letter-spacing: -.04em;
+        font-weight: 950;
+    }
+
+    .lead-desc {
+        margin: 5px 0 0;
+        max-width: 720px;
+        color: var(--lead-muted);
+        font-weight: 650;
+        line-height: 1.55;
+        font-size: .9rem;
+    }
+
+    .lead-export-btn {
+        min-height: 42px;
+        padding: 0 16px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, #16a34a, #059669);
+        text-decoration: none;
+        font-weight: 900;
+        white-space: nowrap;
+        box-shadow: 0 10px 22px rgba(22,163,74,.18);
+    }
+
+        .lead-export-btn:hover {
+            color: #fff;
+            transform: translateY(-1px);
         }
 
+    .lead-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .lead-stat {
+        min-height: 92px;
+        border-radius: 18px;
+        padding: 13px;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 9px 22px rgba(15,23,42,.07);
+    }
+
+        .lead-stat::after {
+            content: "";
+            position: absolute;
+            width: 84px;
+            height: 84px;
+            right: -34px;
+            top: -38px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.15);
+        }
+
+    .lead-stat-label {
+        position: relative;
+        z-index: 1;
+        font-size: .67rem;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        opacity: .92;
+        font-weight: 900;
+        margin-bottom: 7px;
+    }
+
+    .lead-stat-value {
+        position: relative;
+        z-index: 1;
+        font-size: 1.65rem;
+        line-height: 1;
+        font-weight: 950;
+    }
+
+    .lead-stat-note {
+        position: relative;
+        z-index: 1;
+        margin-top: 7px;
+        font-size: .68rem;
+        opacity: .82;
+        font-weight: 750;
+    }
+
     .bg-total {
-        background: linear-gradient(135deg, #1e293b, #334155);
+        background: linear-gradient(135deg, #0f172a, #334155);
     }
 
     .bg-new {
@@ -68,81 +193,244 @@
         background: linear-gradient(135deg, #047857, #10b981);
     }
 
-    .bg-junk {
-        background: linear-gradient(135deg, #475569, #94a3b8);
-    }
-
     .bg-reminded {
         background: linear-gradient(135deg, #7c3aed, #a855f7);
     }
 
-    .stat .label {
-        text-transform: uppercase;
-        font-size: .78rem;
-        letter-spacing: .08em;
-        opacity: .92;
-        font-weight: 800;
-        margin-bottom: 8px;
+    .bg-junk {
+        background: linear-gradient(135deg, #475569, #94a3b8);
     }
 
-    .stat .value {
-        font-size: 2.55rem;
-        font-weight: 900;
-        line-height: 1;
+    .filter-shell {
+        margin-bottom: 14px;
+        overflow: hidden;
     }
 
-    .soft-input {
-        min-height: 48px;
-        border-radius: 12px;
-        font-weight: 600;
-        border: 1px solid #cbd5e1;
-        box-shadow: none !important;
-        font-size: .95rem;
+    .filter-toggle {
+        width: 100%;
+        min-height: 46px;
+        border: 0;
+        background: #fff;
+        color: var(--lead-dark);
+        padding: 13px 16px;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-weight: 950;
     }
 
-        .soft-input:focus {
-            border-color: #3b82f6;
+        .filter-toggle span {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-    .table thead th {
-        background: #f8fafc;
-        font-size: .75rem;
+    .filter-body {
+        padding: 14px;
+    }
+
+    .lead-label {
+        margin-bottom: 6px;
+        color: var(--lead-muted);
+        font-size: .68rem;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 900;
-        color: #475569;
+        letter-spacing: .07em;
+        font-weight: 950;
+    }
+
+    .lead-input,
+    .lead-select {
+        min-height: 42px;
+        border-radius: 14px !important;
+        border: 1px solid #dbe4ef !important;
+        background: #fff;
+        color: var(--lead-dark);
+        font-weight: 750;
+        font-size: .86rem;
+        box-shadow: none !important;
+    }
+
+        .lead-input:focus,
+        .lead-select:focus {
+            border-color: #93c5fd !important;
+            box-shadow: 0 0 0 4px rgba(37,99,235,.09) !important;
+        }
+
+    .lead-search-btn,
+    .lead-reset-btn {
+        min-height: 42px;
+        border-radius: 14px;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 950;
+        text-decoration: none;
+        font-size: .86rem;
+    }
+
+    .lead-search-btn {
+        background: #0f172a;
+        color: #fff;
+    }
+
+    .lead-reset-btn {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+    }
+
+    .lead-list-card {
+        overflow: hidden;
+    }
+
+    .list-head {
+        padding: 14px 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        border-bottom: 1px solid var(--lead-border);
+    }
+
+    .list-title {
+        margin: 0;
+        color: var(--lead-dark);
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .list-sub {
+        color: var(--lead-muted);
+        font-size: .76rem;
+        font-weight: 650;
+        margin-top: 2px;
+    }
+
+    .list-count-pill {
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        padding: 6px 10px;
+        font-size: .72rem;
+        font-weight: 950;
         white-space: nowrap;
-        padding: 18px;
-        border-bottom: 2px solid #e2e8f0;
     }
 
-    .table tbody td {
-        padding: 18px;
-        vertical-align: middle;
-        border-bottom: 1px solid #f1f5f9;
+    .lead-table {
+        width: 100%;
+        margin: 0;
     }
 
-    .table tbody tr:hover {
-        background-color: #f8fafc;
+        .lead-table thead th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            font-weight: 950;
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--lead-border);
+            white-space: nowrap;
+        }
+
+        .lead-table tbody td {
+            padding: 14px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: .86rem;
+        }
+
+        .lead-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+    .customer-name {
+        color: var(--lead-dark);
+        font-size: .95rem;
+        font-weight: 950;
+        line-height: 1.25;
     }
 
-    .status-pill {
+    .mini-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--lead-muted);
+        font-size: .76rem;
+        line-height: 1.35;
+        font-weight: 700;
+        margin-top: 4px;
+        min-width: 0;
+    }
+
+        .mini-line a {
+            color: #059669;
+            text-decoration: none;
+            font-weight: 900;
+        }
+
+    .source-title {
+        color: #1d4ed8;
+        font-size: .86rem;
+        font-weight: 900;
+        line-height: 1.35;
+        max-width: 290px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .source-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 7px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: .68rem;
+        font-weight: 900;
+    }
+
+    .source-property {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .source-project {
+        background: #ecfeff;
+        color: #0e7490;
+    }
+
+    .source-none {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .status-pill,
+    .remind-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 8px 14px;
         border-radius: 999px;
-        font-size: .75rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .06em;
         white-space: nowrap;
+        font-weight: 950;
+    }
+
+    .status-pill {
+        padding: 6px 10px;
+        font-size: .68rem;
+        text-transform: uppercase;
+        letter-spacing: .05em;
     }
 
     .st-new {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fecaca;
+        background: #fff7ed;
+        color: #ea580c;
+        border: 1px solid #fed7aa;
     }
 
     .st-contacted {
@@ -164,15 +452,9 @@
     }
 
     .remind-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 12px;
-        border-radius: 999px;
-        font-size: .72rem;
-        font-weight: 900;
-        letter-spacing: .04em;
-        white-space: nowrap;
+        padding: 6px 10px;
+        font-size: .68rem;
+        margin-top: 8px;
     }
 
     .remind-done {
@@ -182,19 +464,25 @@
     }
 
     .remind-none {
-        background: #fff7ed;
-        color: #ea580c;
-        border: 1px solid #fed7aa;
+        background: #fffbeb;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    .tool-row {
+        display: flex;
+        justify-content: center;
+        gap: 7px;
     }
 
     .btn-admin-tool {
-        width: 38px;
-        height: 38px;
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
         display: inline-flex;
         justify-content: center;
         align-items: center;
-        border-radius: 10px;
-        transition: all .2s;
+        transition: all .18s ease;
         position: relative;
     }
 
@@ -212,57 +500,112 @@
         position: absolute;
         top: -5px;
         right: -5px;
-        width: 15px;
-        height: 15px;
+        width: 14px;
+        height: 14px;
         background: #7c3aed;
         border: 2px solid #fff;
         border-radius: 50%;
     }
 
-    .detail-row {
-        display: flex;
-        padding: 12px 0;
-        border-bottom: 1px dashed #e2e8f0;
+    .lead-mobile-list {
+        display: none;
     }
 
-        .detail-row:last-child {
-            border-bottom: none;
+    .lead-mobile-card {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 17px;
+        box-shadow: 0 7px 18px rgba(15,23,42,.045);
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .mobile-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .customer-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-weight: 950;
+        flex: 0 0 auto;
+    }
+
+    .mobile-info-box {
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        padding: 10px;
+        margin: 9px 0;
+    }
+
+    .mobile-box-label {
+        color: #64748b;
+        font-size: .68rem;
+        text-transform: uppercase;
+        font-weight: 950;
+        letter-spacing: .05em;
+        margin-bottom: 4px;
+    }
+
+    .mobile-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 10px;
+    }
+
+    .mobile-action-btn {
+        min-height: 36px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: .75rem;
+        font-weight: 900;
+    }
+
+    .empty-box {
+        padding: 42px 14px;
+        text-align: center;
+        color: var(--lead-muted);
+    }
+
+        .empty-box i {
+            font-size: 3rem;
+            opacity: .35;
+            display: block;
+            margin-bottom: 12px;
         }
 
-    .detail-label {
-        width: 35%;
-        font-weight: 800;
-        color: #64748b;
-        font-size: .86rem;
-        text-transform: uppercase;
-    }
-
-    .detail-value {
-        width: 65%;
-        font-weight: 700;
-        color: #0f172a;
-        font-size: .95rem;
-        white-space: pre-wrap;
-    }
-
-    .section-title {
-        font-size: 1rem;
-        font-weight: 900;
-        color: #0f172a;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-        background: #f1f5f9;
-        padding: 10px 16px;
-        border-radius: 8px;
-        margin: 20px 0 10px;
+    .pager-wrap {
+        padding: 13px;
+        border-top: 1px solid var(--lead-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
     }
 
     .pagination .page-link {
-        border-radius: 10px;
-        margin: 0 3px;
-        font-weight: 700;
+        border-radius: 11px;
+        margin: 0 2px;
+        font-weight: 850;
         color: #334155;
         border: 1px solid #e2e8f0;
+        min-width: 36px;
+        text-align: center;
     }
 
     .pagination .active .page-link {
@@ -271,396 +614,702 @@
         color: #fff;
     }
 
-    .lead-note {
-        font-size: .82rem;
-        color: #64748b;
-        line-height: 1.5;
+    .detail-row {
+        display: flex;
+        padding: 10px 0;
+        border-bottom: 1px dashed #e2e8f0;
+        gap: 12px;
     }
 
-    @@media (max-width: 768px) {
-        .table thead {
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+    .detail-label {
+        width: 34%;
+        color: #64748b;
+        font-size: .75rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        font-weight: 900;
+    }
+
+    .detail-value {
+        width: 66%;
+        color: #0f172a;
+        font-size: .9rem;
+        font-weight: 750;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .section-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #0f172a;
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 8px 11px;
+        margin: 0 0 10px;
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        font-weight: 950;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .lead-stat-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .lead-admin-page {
+            padding: 12px;
+        }
+
+        .lead-hero {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .lead-export-btn {
+            width: 100%;
+        }
+
+        .lead-desktop-table {
             display: none;
         }
 
-        .table tbody tr {
+        .lead-mobile-list {
             display: block;
-            margin: 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 18px;
-            overflow: hidden;
-            box-shadow: 0 8px 20px rgba(15,23,42,.05);
+            padding: 10px;
+            background: #f8fafc;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .lead-admin-page {
+            padding: 10px;
+            margin-top: -6px;
         }
 
-        .table tbody td {
+        .lead-hero {
+            padding: 13px;
+            border-radius: 18px;
+            margin-bottom: 10px;
+        }
+
+        .lead-kicker {
+            display: none;
+        }
+
+        .lead-title {
+            font-size: 1.18rem;
+            line-height: 1.22;
+        }
+
+        .lead-desc {
+            display: none;
+        }
+
+        .lead-export-btn {
+            min-height: 38px;
+            font-size: .82rem;
+        }
+
+        .lead-stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+            margin-bottom: 10px;
+        }
+
+        .lead-stat {
+            min-height: 72px;
+            border-radius: 15px;
+            padding: 10px;
+        }
+
+            .lead-stat::after {
+                width: 66px;
+                height: 66px;
+                right: -28px;
+                top: -30px;
+            }
+
+        .lead-stat-label {
+            font-size: .58rem;
+            margin-bottom: 5px;
+            letter-spacing: .04em;
+        }
+
+        .lead-stat-value {
+            font-size: 1.25rem;
+        }
+
+        .lead-stat-note {
+            display: none;
+        }
+
+        .filter-toggle {
+            display: flex;
+        }
+
+        .filter-body {
+            padding: 10px;
+            display: none;
+            border-top: 1px solid var(--lead-border);
+        }
+
+        .filter-shell.open .filter-body {
             display: block;
-            padding: 14px 16px;
+        }
+
+        .filter-shell.open .filter-toggle i.bi-chevron-down {
+            transform: rotate(180deg);
+        }
+
+        .lead-label {
+            font-size: .62rem;
+        }
+
+        .lead-input,
+        .lead-select,
+        .lead-search-btn,
+        .lead-reset-btn {
+            min-height: 40px;
+            border-radius: 13px !important;
+            font-size: .8rem;
+        }
+
+        .list-head {
+            padding: 12px;
+        }
+
+        .list-title {
+            font-size: .95rem;
+        }
+
+        .list-sub {
+            display: none;
+        }
+
+        .lead-mobile-list {
+            padding: 8px;
+        }
+
+        .lead-mobile-card {
+            padding: 10px;
+            border-radius: 16px;
+            margin-bottom: 8px;
+        }
+
+        .customer-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 13px;
+            font-size: .86rem;
+        }
+
+        .customer-name {
+            font-size: .9rem;
+        }
+
+        .mini-line {
+            font-size: .72rem;
+        }
+
+        .source-title {
+            max-width: 100%;
+            font-size: .82rem;
+        }
+
+        .status-pill,
+        .remind-badge {
+            font-size: .62rem;
+            padding: 5px 8px;
+            white-space: normal;
+            line-height: 1.2;
+        }
+
+        .mobile-actions {
+            grid-template-columns: 1fr 1fr 42px;
+        }
+
+        .pager-wrap {
+            justify-content: center;
+            padding: 10px;
+        }
+
+            .pager-wrap > .text-muted {
+                width: 100%;
+                text-align: center;
+            }
+
+        #adminDetailModal .modal-dialog {
+            margin: 10px;
+        }
+
+        #adminDetailModal .modal-content {
+            border-radius: 18px !important;
+        }
+
+        #adminDetailModal .modal-header {
+            padding: 14px !important;
+        }
+
+        #adminDetailModal .modal-body {
+            padding: 12px !important;
+        }
+
+        #adminDetailModal .modal-footer {
+            padding: 12px !important;
         }
 
         .detail-row {
             display: block;
+            padding: 9px 0;
         }
 
-        .detail-label,
-        .detail-value {
+        .detail-label, .detail-value {
             width: 100%;
+        }
+
+        .detail-label {
+            margin-bottom: 3px;
+            font-size: .68rem;
+        }
+
+        .detail-value {
+            font-size: .84rem;
+        }
+    }
+
+    @@media (max-width: 380px) {
+        .lead-stat-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .lead-stat-label {
+            font-size: .54rem;
+        }
+
+        .lead-stat-value {
+            font-size: 1.15rem;
         }
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
-    <div>
-        <h2 class="fw-black mb-1 text-dark">
-            <i class="bi bi-headset text-primary me-2"></i>
-            Giám sát Yêu cầu Tư vấn
-        </h2>
-
-        <div class="text-muted">
-            Kiểm soát leads, theo dõi chăm sóc khách hàng và trạng thái đã thông báo người bán.
-        </div>
-    </div>
-
-    <a href="/Admin/Consultations/ExportCsv" class="btn btn-success fw-bold rounded-pill shadow-sm px-4 py-2">
-        <i class="bi bi-file-earmark-excel-fill me-2"></i>
-        Xuất Excel
-    </a>
-</div>
-
-<div class="row g-4 mb-4">
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-total">
-            <div class="label">Tổng Leads</div>
-            <div class="value">@total.ToString("N0")</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-new">
-            <div class="label">Mới chưa CS</div>
-            <div class="value">@newLeads.ToString("N0")</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-processing">
-            <div class="label">Đang CS</div>
-            <div class="value">@processing.ToString("N0")</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-closed">
-            <div class="label">Đã chốt</div>
-            <div class="value">@closed.ToString("N0")</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-reminded">
-            <div class="label">Đã nhắc</div>
-            <div class="value">@reminded.ToString("N0")</div>
-        </div>
-    </div>
-
-    <div class="col-xl-2 col-lg-4 col-sm-6">
-        <div class="stat bg-junk">
-            <div class="label">Hủy / Spam</div>
-            <div class="value">@junk.ToString("N0")</div>
-        </div>
-    </div>
-</div>
-
-<div class="admin-box p-4">
-    <form method="get"
-          asp-action="Index"
-          asp-controller="Consultations"
-          asp-area="Admin"
-          class="row g-3 align-items-end">
-
-        <div class="col-xl-2 col-lg-3 col-md-6">
-            <label class="form-label fw-bold small text-muted text-uppercase">Tình trạng CS</label>
-            <select name="status" class="form-select soft-input">
-                <option value="All" selected="@(status == "All")">Tất cả trạng thái</option>
-                <option value="New" selected="@(status == "New")">Mới gửi</option>
-                <option value="Contacted" selected="@(status == "Contacted")">Đã liên hệ</option>
-                <option value="Closed" selected="@(status == "Closed")">Đã chốt</option>
-                <option value="Spam" selected="@(status == "Spam")">Spam</option>
-                <option value="Cancelled" selected="@(status == "Cancelled")">Khách hủy</option>
-            </select>
+<div class="lead-admin-page">
+    <section class="lead-card lead-hero">
+        <div>
+            <div class="lead-kicker">
+                <i class="bi bi-headset"></i>
+                Trung tâm lead tư vấn
+            </div>
+            <h1 class="lead-title">Giám sát yêu cầu tư vấn</h1>
+            <p class="lead-desc">Kiểm soát lead, trạng thái chăm sóc khách hàng và nhắc người bán/Sales phụ trách đúng lúc.</p>
         </div>
 
-        <div class="col-xl-2 col-lg-3 col-md-6">
-            <label class="form-label fw-bold small text-muted text-uppercase">Nguồn</label>
-            <select name="source" class="form-select soft-input">
-                <option value="All" selected="@(source == "All")">Mọi nguồn</option>
-                <option value="Property" selected="@(source == "Property")">Tin lẻ BĐS</option>
-                <option value="Project" selected="@(source == "Project")">Dự án</option>
-            </select>
+        <a href="/Admin/Consultations/ExportCsv" class="lead-export-btn">
+            <i class="bi bi-file-earmark-excel-fill"></i>
+            Xuất Excel
+        </a>
+    </section>
+
+    <section class="lead-stat-grid">
+        <div class="lead-stat bg-total">
+            <div class="lead-stat-label">Tổng lead</div>
+            <div class="lead-stat-value">@total.ToString("N0")</div>
+            <div class="lead-stat-note">Tất cả yêu cầu</div>
+        </div>
+        <div class="lead-stat bg-new">
+            <div class="lead-stat-label">Mới</div>
+            <div class="lead-stat-value">@newLeads.ToString("N0")</div>
+            <div class="lead-stat-note">Chưa chăm sóc</div>
+        </div>
+        <div class="lead-stat bg-processing">
+            <div class="lead-stat-label">Đang CS</div>
+            <div class="lead-stat-value">@processing.ToString("N0")</div>
+            <div class="lead-stat-note">Đang theo dõi</div>
+        </div>
+        <div class="lead-stat bg-closed">
+            <div class="lead-stat-label">Đã chốt</div>
+            <div class="lead-stat-value">@closed.ToString("N0")</div>
+            <div class="lead-stat-note">Hoàn tất</div>
+        </div>
+        <div class="lead-stat bg-reminded">
+            <div class="lead-stat-label">Đã nhắc</div>
+            <div class="lead-stat-value">@reminded.ToString("N0")</div>
+            <div class="lead-stat-note">Đã thông báo</div>
+        </div>
+        <div class="lead-stat bg-junk">
+            <div class="lead-stat-label">Hủy/Spam</div>
+            <div class="lead-stat-value">@junk.ToString("N0")</div>
+            <div class="lead-stat-note">Không phù hợp</div>
+        </div>
+    </section>
+
+    <section class="lead-card filter-shell" id="leadFilterShell">
+        <button type="button" class="filter-toggle" onclick="toggleLeadFilter()">
+            <span><i class="bi bi-funnel-fill text-primary"></i>Bộ lọc lead</span>
+            <i class="bi bi-chevron-down"></i>
+        </button>
+
+        <div class="filter-body">
+            <form method="get"
+                  asp-action="Index"
+                  asp-controller="Consultations"
+                  asp-area="Admin"
+                  class="row g-2 align-items-end">
+
+                <div class="col-xl-2 col-lg-3 col-md-6">
+                    <label class="lead-label">Tình trạng</label>
+                    <select name="status" class="form-select lead-select">
+                        <option value="All" selected="@(status == "All")">Tất cả trạng thái</option>
+                        <option value="New" selected="@(status == "New")">Mới gửi</option>
+                        <option value="Contacted" selected="@(status == "Contacted")">Đã liên hệ</option>
+                        <option value="Closed" selected="@(status == "Closed")">Đã chốt</option>
+                        <option value="Spam" selected="@(status == "Spam")">Spam</option>
+                        <option value="Cancelled" selected="@(status == "Cancelled")">Khách hủy</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-2 col-lg-3 col-md-6">
+                    <label class="lead-label">Nguồn</label>
+                    <select name="source" class="form-select lead-select">
+                        <option value="All" selected="@(source == "All")">Mọi nguồn</option>
+                        <option value="Property" selected="@(source == "Property")">Tin lẻ BĐS</option>
+                        <option value="Project" selected="@(source == "Project")">Dự án</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-2 col-lg-3 col-md-6">
+                    <label class="lead-label">Thời gian</label>
+                    <select name="dateRange" class="form-select lead-select">
+                        <option value="all" selected="@(dateRange == "all")">Toàn thời gian</option>
+                        <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
+                        <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
+                        <option value="month" selected="@(dateRange == "month")">1 tháng qua</option>
+                    </select>
+                </div>
+
+                <div class="col-xl-4 col-lg-9 col-md-8">
+                    <label class="lead-label">Tìm kiếm</label>
+                    <input type="text"
+                           name="keyword"
+                           value="@keyword"
+                           class="form-control lead-input"
+                           placeholder="Tên khách, SĐT, email, tên BĐS, dự án..." />
+                </div>
+
+                <div class="col-xl-2 col-lg-3 col-md-4">
+                    <div class="d-grid gap-2" style="grid-template-columns: 1fr 42px;">
+                        <button class="lead-search-btn">
+                            <i class="bi bi-search"></i>
+                            Tìm
+                        </button>
+                        <a href="/Admin/Consultations/Index" class="lead-reset-btn" title="Xóa lọc">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="lead-card lead-list-card">
+        <div class="list-head">
+            <div>
+                <h2 class="list-title"><i class="bi bi-list-check text-primary me-1"></i>Danh sách yêu cầu</h2>
+                <div class="list-sub">Lead mới và lead chưa thông báo người bán nên được ưu tiên xử lý.</div>
+            </div>
+            <span class="list-count-pill">@((Model == null ? 0 : Model.Count()).ToString("N0")) dòng</span>
         </div>
 
-        <div class="col-xl-2 col-lg-3 col-md-6">
-            <label class="form-label fw-bold small text-muted text-uppercase">Thời gian</label>
-            <select name="dateRange" class="form-select soft-input">
-                <option value="all" selected="@(dateRange == "all")">Toàn thời gian</option>
-                <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
-                <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
-                <option value="month" selected="@(dateRange == "month")">1 tháng qua</option>
-            </select>
-        </div>
-
-        <div class="col-xl-4 col-lg-9 col-md-8">
-            <label class="form-label fw-bold small text-muted text-uppercase">Tìm kiếm</label>
-            <input type="text"
-                   name="keyword"
-                   value="@keyword"
-                   class="form-control soft-input"
-                   placeholder="Tên khách, SĐT, email, tên BĐS, dự án..." />
-        </div>
-
-        <div class="col-xl-2 col-lg-3 col-md-4 d-grid">
-            <button class="btn btn-dark rounded-3 fw-bold shadow-sm" style="min-height:48px;">
-                <i class="bi bi-search me-1"></i>
-                Tra cứu
-            </button>
-        </div>
-    </form>
-</div>
-
-<div class="admin-box">
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th style="width:22%">Khách hàng</th>
-                    <th style="width:24%">Nguồn BĐS / Dự án</th>
-                    <th style="width:18%">Phụ trách</th>
-                    <th style="width:16%">Tình trạng</th>
-                    <th style="width:20%" class="text-center">Công cụ Admin</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                @if (Model != null && Model.Any())
-                {
-                    foreach (var c in Model)
+        <div class="lead-desktop-table table-responsive">
+            <table class="table lead-table align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:23%">Khách hàng</th>
+                        <th style="width:27%">Nguồn quan tâm</th>
+                        <th style="width:19%">Phụ trách</th>
+                        <th style="width:13%">Trạng thái</th>
+                        <th style="width:18%" class="text-center">Công cụ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
                     {
-                        var sourceName = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định";
-                        var handlerName = c.AssignedUser?.FullName ?? c.Property?.User?.FullName ?? c.Project?.Owner?.FullName ?? "Chưa phân công";
-
-                        bool wasReminded = !string.IsNullOrWhiteSpace(c.SellerNote)
-                        && c.SellerNote.Contains(RemindMarker, StringComparison.OrdinalIgnoreCase);
-
-                        string stClass = "st-new";
-                        string stText = "Mới gửi";
-
-                        switch (c.Status)
+                        foreach (var c in Model)
                         {
-                            case "New":
-                                stClass = "st-new";
-                                stText = "Mới gửi";
-                                break;
+                            var sourceName = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định";
+                            var handlerName = c.AssignedUser?.FullName ?? c.Property?.User?.FullName ?? c.Project?.Owner?.FullName ?? "Chưa phân công";
 
-                            case "Contacted":
-                                stClass = "st-contacted";
-                                stText = "Đang CS";
-                                break;
+                            bool wasReminded = !string.IsNullOrWhiteSpace(c.SellerNote)
+                            && c.SellerNote.Contains(RemindMarker, StringComparison.OrdinalIgnoreCase);
 
-                            case "Closed":
-                                stClass = "st-closed";
-                                stText = "Đã chốt";
-                                break;
+                            string stClass = "st-new";
+                            string stText = "Mới gửi";
 
-                            case "Cancelled":
-                                stClass = "st-spam";
-                                stText = "Khách hủy";
-                                break;
+                            switch (c.Status)
+                            {
+                                case "Contacted":
+                                    stClass = "st-contacted";
+                                    stText = "Đang CS";
+                                    break;
+                                case "Closed":
+                                    stClass = "st-closed";
+                                    stText = "Đã chốt";
+                                    break;
+                                case "Cancelled":
+                                    stClass = "st-spam";
+                                    stText = "Khách hủy";
+                                    break;
+                                case "Spam":
+                                    stClass = "st-spam";
+                                    stText = "Spam";
+                                    break;
+                            }
 
-                            case "Spam":
-                                stClass = "st-spam";
-                                stText = "Spam";
-                                break;
-                        }
-
-                        <tr id="lead-row-@c.ConsultID">
-                            <td>
-                                <div class="fw-bold text-dark fs-6">
-                                    @(c.FullName ?? "Khách vãng lai")
-                                </div>
-
-                                <div class="text-success small mt-1 fw-bold">
-                                    <i class="bi bi-telephone-fill"></i>
-                                    @(c.Phone ?? "N/A")
-                                </div>
-
-                                @if (!string.IsNullOrWhiteSpace(c.Email))
-                                {
-                                    <div class="text-muted small mt-1">
-                                        <i class="bi bi-envelope"></i>
-                                        @c.Email
+                            <tr id="lead-row-@c.ConsultID">
+                                <td>
+                                    <div class="customer-name">@(c.FullName ?? "Khách vãng lai")</div>
+                                    <div class="mini-line">
+                                        <i class="bi bi-telephone-fill text-success"></i>
+                                        <a href="tel:@c.Phone">@(c.Phone ?? "N/A")</a>
                                     </div>
-                                }
-
-                                <div class="text-muted small mt-1">
-                                    <i class="bi bi-clock"></i>
-                                    @c.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
-                                </div>
-                            </td>
-
-                            <td>
-                                <div class="fw-semibold text-primary text-truncate"
-                                     style="max-width:260px;"
-                                     title="@sourceName">
-                                    @sourceName
-                                </div>
-
-                                @if (c.PropertyID != null)
-                                {
-                                    <span class="badge bg-primary bg-opacity-10 text-primary mt-2">
-                                        Tin rao vặt
-                                    </span>
-                                }
-                                else if (c.ProjectID != null)
-                                {
-                                    <span class="badge bg-info bg-opacity-10 text-info text-dark mt-2">
-                                        Dự án
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary mt-2">
-                                        Không rõ nguồn
-                                    </span>
-                                }
-
-                                <div class="mt-2" id="remind-badge-@c.ConsultID">
-                                    @if (wasReminded)
+                                    @if (!string.IsNullOrWhiteSpace(c.Email))
                                     {
-                                        <span class="remind-badge remind-done">
-                                            <i class="bi bi-check2-circle"></i>
-                                            Đã thông báo người bán
-                                        </span>
+                                        <div class="mini-line"><i class="bi bi-envelope"></i>@c.Email</div>
+                                    }
+                                    <div class="mini-line"><i class="bi bi-clock"></i>@c.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</div>
+                                </td>
+                                <td>
+                                    <div class="source-title" title="@sourceName">@sourceName</div>
+                                    @if (c.PropertyID != null)
+                                    {
+                                        <span class="source-badge source-property"><i class="bi bi-house-door"></i>Tin rao vặt</span>
+                                    }
+                                    else if (c.ProjectID != null)
+                                    {
+                                        <span class="source-badge source-project"><i class="bi bi-buildings"></i>Dự án</span>
                                     }
                                     else
                                     {
-                                        <span class="remind-badge remind-none">
-                                            <i class="bi bi-exclamation-circle"></i>
-                                            Chưa thông báo
-                                        </span>
+                                        <span class="source-badge source-none"><i class="bi bi-question-circle"></i>Không rõ nguồn</span>
                                     }
-                                </div>
-                            </td>
 
-                            <td>
-                                <div class="fw-bold text-dark">@handlerName</div>
-                                <div class="text-muted small mt-1">Sale / Chủ tin / CĐT</div>
-
-                                @if (c.UpdatedAt != null)
-                                {
-                                    <div class="lead-note mt-2">
-                                        <i class="bi bi-arrow-clockwise"></i>
-                                        Cập nhật: @c.UpdatedAt?.ToString("HH:mm dd/MM/yyyy")
+                                    <div id="remind-badge-@c.ConsultID">
+                                        @if (wasReminded)
+                                        {
+                                            <span class="remind-badge remind-done"><i class="bi bi-check2-circle"></i>Đã thông báo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="remind-badge remind-none"><i class="bi bi-exclamation-circle"></i>Chưa thông báo</span>
+                                        }
                                     </div>
-                                }
-                            </td>
-
-                            <td>
-                                <span class="status-pill @stClass">
-                                    @stText
-                                </span>
-                            </td>
-
-                            <td class="text-center">
-                                <div class="d-flex justify-content-center gap-2">
-                                    <button type="button"
-                                            class="btn btn-outline-info btn-admin-tool"
-                                            onclick="openAdminDetailModal(@c.ConsultID)"
-                                            title="Xem chi tiết Lead">
-                                        <i class="bi bi-eye-fill"></i>
-                                    </button>
-
-                                    <form class="m-0" id="frmRemind-@c.ConsultID">
-                                        @Html.AntiForgeryToken()
-
+                                </td>
+                                <td>
+                                    <div class="fw-black text-dark">@handlerName</div>
+                                    <div class="mini-line">Sale / Chủ tin / CĐT</div>
+                                    @if (c.UpdatedAt != null)
+                                    {
+                                        <div class="mini-line"><i class="bi bi-arrow-clockwise"></i>@c.UpdatedAt?.ToString("HH:mm dd/MM/yyyy")</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="status-pill @stClass">@stText</span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="tool-row">
                                         <button type="button"
-                                                id="btn-remind-@c.ConsultID"
-                                                class="btn btn-outline-warning btn-admin-tool @(wasReminded ? "btn-reminded" : "")"
-                                                onclick="postAdminRemind('@Url.Action("RemindSeller", "Consultations", new { area = "Admin" })', @c.ConsultID, false)"
-                                                title="@(wasReminded ? "Đã thông báo rồi - bấm để nhắc lại nếu thật sự cần" : "Gửi thông báo nhắc người bán")">
-                                            <i class="bi bi-bell-fill"></i>
-                                            @if (wasReminded)
-                                            {
-                                                <span class="mini-dot"></span>
-                                            }
+                                                class="btn btn-outline-info btn-admin-tool"
+                                                onclick="openAdminDetailModal(@c.ConsultID)"
+                                                title="Xem chi tiết lead">
+                                            <i class="bi bi-eye-fill"></i>
                                         </button>
-                                    </form>
 
-                                    <form class="m-0" id="frmDel-@c.ConsultID">
-                                        @Html.AntiForgeryToken()
+                                        <form class="m-0" id="frmRemind-@c.ConsultID">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button"
+                                                    id="btn-remind-@c.ConsultID"
+                                                    class="btn btn-outline-warning btn-admin-tool @(wasReminded ? "btn-reminded" : "")"
+                                                    onclick="postAdminRemind('@Url.Action("RemindSeller", "Consultations", new { area = "Admin" })', @c.ConsultID, false)"
+                                                    title="@(wasReminded ? "Đã thông báo rồi - bấm để nhắc lại nếu thật sự cần" : "Gửi thông báo nhắc người bán")">
+                                                <i class="bi bi-bell-fill"></i>
+                                                @if (wasReminded)
+                                                {
+                                                    <span class="mini-dot"></span>
+                                                }
+                                            </button>
+                                        </form>
 
-                                        <button type="button"
-                                                class="btn btn-outline-danger btn-admin-tool"
-                                                onclick="postAdminDelete('@Url.Action("Delete", "Consultations", new { area = "Admin" })', @c.ConsultID)"
-                                                title="Xóa rác / Spam">
-                                            <i class="bi bi-trash3-fill"></i>
-                                        </button>
-                                    </form>
+                                        <form class="m-0" id="frmDel-@c.ConsultID">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-admin-tool"
+                                                    onclick="postAdminDelete('@Url.Action("Delete", "Consultations", new { area = "Admin" })', @c.ConsultID)"
+                                                    title="Xóa rác / Spam">
+                                                <i class="bi bi-trash3-fill"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <div class="small @(wasReminded ? "text-muted" : "text-warning fw-bold") mt-2" id="remind-text-@c.ConsultID">
+                                        @(wasReminded ? "Đã thông báo" : "Chưa thông báo")
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-box">
+                                    <i class="bi bi-headset"></i>
+                                    <h5 class="fw-black text-dark mb-1">Không tìm thấy yêu cầu tư vấn</h5>
+                                    <div>Thử điều chỉnh lại bộ lọc tìm kiếm.</div>
                                 </div>
-
-                                @if (wasReminded)
-                                {
-                                    <div class="small text-muted mt-2" id="remind-text-@c.ConsultID">
-                                        Đã thông báo
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="small text-warning fw-bold mt-2" id="remind-text-@c.ConsultID">
-                                        Chưa thông báo
-                                    </div>
-                                }
                             </td>
                         </tr>
                     }
-                }
-                else
+                </tbody>
+            </table>
+        </div>
+
+        <div class="lead-mobile-list">
+            @if (Model != null && Model.Any())
+            {
+                foreach (var c in Model)
                 {
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-5">
-                            <i class="bi bi-headset display-1 opacity-25 d-block mb-3"></i>
-                            <h4 class="fw-bold">Không tìm thấy yêu cầu tư vấn</h4>
-                            <p>Thử điều chỉnh lại bộ lọc tìm kiếm.</p>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                    var sourceName = c.Property?.Title ?? c.Project?.ProjectName ?? "Nguồn không xác định";
+                    var handlerName = c.AssignedUser?.FullName ?? c.Property?.User?.FullName ?? c.Project?.Owner?.FullName ?? "Chưa phân công";
+                    string initial = string.IsNullOrWhiteSpace(c.FullName) ? "K" : c.FullName.Trim().Substring(0, 1).ToUpper();
 
-    @if (totalPages > 1)
-    {
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 p-4 border-top">
-            <div class="text-muted small fw-semibold">
-                Trang @currentPage / @totalPages
-            </div>
+                    bool wasReminded = !string.IsNullOrWhiteSpace(c.SellerNote)
+                    && c.SellerNote.Contains(RemindMarker, StringComparison.OrdinalIgnoreCase);
 
-            <nav>
-                <ul class="pagination mb-0">
-                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                        <a class="page-link"
-                           asp-area="Admin"
-                           asp-controller="Consultations"
-                           asp-action="Index"
-                           asp-route-status="@status"
-                           asp-route-keyword="@keyword"
-                           asp-route-source="@source"
-                           asp-route-dateRange="@dateRange"
-                           asp-route-page="@(currentPage - 1)">
-                            Trước
-                        </a>
-                    </li>
+                    string stClass = "st-new";
+                    string stText = "Mới gửi";
 
-                    @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                    switch (c.Status)
                     {
-                        <li class="page-item @(i == currentPage ? "active" : "")">
+                        case "Contacted":
+                            stClass = "st-contacted";
+                            stText = "Đang CS";
+                            break;
+                        case "Closed":
+                            stClass = "st-closed";
+                            stText = "Đã chốt";
+                            break;
+                        case "Cancelled":
+                            stClass = "st-spam";
+                            stText = "Khách hủy";
+                            break;
+                        case "Spam":
+                            stClass = "st-spam";
+                            stText = "Spam";
+                            break;
+                    }
+
+                    <article class="lead-mobile-card" id="mobile-lead-row-@c.ConsultID">
+                        <div class="mobile-card-top">
+                            <div class="d-flex gap-2 min-w-0">
+                                <div class="customer-avatar">@initial</div>
+                                <div class="min-w-0">
+                                    <div class="customer-name text-truncate">@(c.FullName ?? "Khách vãng lai")</div>
+                                    <div class="mini-line">
+                                        <i class="bi bi-telephone-fill text-success"></i>
+                                        <a href="tel:@c.Phone">@(c.Phone ?? "N/A")</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="status-pill @stClass">@stText</span>
+                        </div>
+
+                        <div class="mobile-info-box">
+                            <div class="mobile-box-label">Nguồn quan tâm</div>
+                            <div class="source-title" title="@sourceName">@sourceName</div>
+                            @if (c.PropertyID != null)
+                            {
+                                <span class="source-badge source-property"><i class="bi bi-house-door"></i>Tin rao vặt</span>
+                            }
+                            else if (c.ProjectID != null)
+                            {
+                                <span class="source-badge source-project"><i class="bi bi-buildings"></i>Dự án</span>
+                            }
+                            else
+                            {
+                                <span class="source-badge source-none"><i class="bi bi-question-circle"></i>Không rõ nguồn</span>
+                            }
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                            <div class="min-w-0">
+                                <div class="mini-line"><i class="bi bi-person-check"></i>@handlerName</div>
+                                <div class="mini-line"><i class="bi bi-clock"></i>@c.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</div>
+                            </div>
+                            <div id="mobile-remind-badge-@c.ConsultID">
+                                @if (wasReminded)
+                                {
+                                    <span class="remind-badge remind-done"><i class="bi bi-check2-circle"></i>Đã nhắc</span>
+                                }
+                                else
+                                {
+                                    <span class="remind-badge remind-none"><i class="bi bi-exclamation-circle"></i>Chưa nhắc</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mobile-actions">
+                            <button type="button"
+                                    class="btn btn-outline-info mobile-action-btn"
+                                    onclick="openAdminDetailModal(@c.ConsultID)">
+                                <i class="bi bi-eye-fill"></i>Xem
+                            </button>
+
+                            <form class="m-0" id="frmRemindMobile-@c.ConsultID">
+                                @Html.AntiForgeryToken()
+                                <button type="button"
+                                        id="btn-remind-mobile-@c.ConsultID"
+                                        class="btn btn-outline-warning mobile-action-btn w-100 @(wasReminded ? "btn-reminded" : "")"
+                                        onclick="postAdminRemind('@Url.Action("RemindSeller", "Consultations", new { area = "Admin" })', @c.ConsultID, false)">
+                                    <i class="bi bi-bell-fill"></i>Nhắc
+                                </button>
+                            </form>
+
+                            <form class="m-0" id="frmDelMobile-@c.ConsultID">
+                                @Html.AntiForgeryToken()
+                                <button type="button"
+                                        class="btn btn-outline-danger mobile-action-btn w-100"
+                                        onclick="postAdminDelete('@Url.Action("Delete", "Consultations", new { area = "Admin" })', @c.ConsultID)">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </article>
+                }
+            }
+            else
+            {
+                <div class="empty-box">
+                    <i class="bi bi-headset"></i>
+                    <h5 class="fw-black text-dark mb-1">Không tìm thấy yêu cầu tư vấn</h5>
+                    <div>Thử điều chỉnh lại bộ lọc tìm kiếm.</div>
+                </div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pager-wrap">
+                <div class="text-muted small fw-bold">Trang @currentPage / @totalPages</div>
+                <nav>
+                    <ul class="pagination mb-0 flex-wrap justify-content-center">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
                             <a class="page-link"
                                asp-area="Admin"
                                asp-controller="Consultations"
@@ -669,144 +1318,114 @@
                                asp-route-keyword="@keyword"
                                asp-route-source="@source"
                                asp-route-dateRange="@dateRange"
-                               asp-route-page="@i">
-                                @i
+                               asp-route-page="@(currentPage - 1)">
+                                Trước
                             </a>
                         </li>
-                    }
 
-                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                        <a class="page-link"
-                           asp-area="Admin"
-                           asp-controller="Consultations"
-                           asp-action="Index"
-                           asp-route-status="@status"
-                           asp-route-keyword="@keyword"
-                           asp-route-source="@source"
-                           asp-route-dateRange="@dateRange"
-                           asp-route-page="@(currentPage + 1)">
-                            Sau
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    }
+                        @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link"
+                                   asp-area="Admin"
+                                   asp-controller="Consultations"
+                                   asp-action="Index"
+                                   asp-route-status="@status"
+                                   asp-route-keyword="@keyword"
+                                   asp-route-source="@source"
+                                   asp-route-dateRange="@dateRange"
+                                   asp-route-page="@i">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               asp-area="Admin"
+                               asp-controller="Consultations"
+                               asp-action="Index"
+                               asp-route-status="@status"
+                               asp-route-keyword="@keyword"
+                               asp-route-source="@source"
+                               asp-route-dateRange="@dateRange"
+                               asp-route-page="@(currentPage + 1)">
+                                Sau
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </section>
 </div>
 
 <div class="modal fade" id="adminDetailModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow-lg">
             <div class="modal-header bg-dark text-white border-0 p-4">
-                <h5 class="modal-title fw-bold">
+                <h5 class="modal-title fw-black">
                     <i class="bi bi-person-vcard me-2"></i>
-                    Hồ sơ Tư vấn
+                    Hồ sơ tư vấn
                 </h5>
-
-                <button type="button"
-                        class="btn-close btn-close-white"
-                        data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
             <div class="modal-body p-4 bg-light">
-                <div class="row g-4 mb-4">
+                <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
-                            <div class="section-title mt-0">
-                                <i class="bi bi-person-bounding-box text-primary me-2"></i>
+                            <div class="section-title">
+                                <i class="bi bi-person-bounding-box text-primary"></i>
                                 Khách hàng
                             </div>
 
-                            <div class="detail-row">
-                                <div class="detail-label">Họ tên</div>
-                                <div class="detail-value text-primary" id="md-cusName"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Điện thoại</div>
-                                <div class="detail-value text-success" id="md-cusPhone"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Email</div>
-                                <div class="detail-value" id="md-cusEmail"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Thời gian gửi</div>
-                                <div class="detail-value" id="md-createdAt"></div>
-                            </div>
+                            <div class="detail-row"><div class="detail-label">Họ tên</div><div class="detail-value text-primary" id="md-cusName"></div></div>
+                            <div class="detail-row"><div class="detail-label">Điện thoại</div><div class="detail-value text-success" id="md-cusPhone"></div></div>
+                            <div class="detail-row"><div class="detail-label">Email</div><div class="detail-value" id="md-cusEmail"></div></div>
+                            <div class="detail-row"><div class="detail-label">Thời gian</div><div class="detail-value" id="md-createdAt"></div></div>
                         </div>
                     </div>
 
                     <div class="col-md-6">
                         <div class="bg-white p-3 rounded-4 border shadow-sm h-100">
-                            <div class="section-title mt-0">
-                                <i class="bi bi-buildings text-info me-2"></i>
-                                Bất động sản & Sales
+                            <div class="section-title">
+                                <i class="bi bi-buildings text-info"></i>
+                                Nguồn & Sales
                             </div>
 
-                            <div class="detail-row">
-                                <div class="detail-label">Nguồn BĐS</div>
-                                <div class="detail-value text-dark fw-bold" id="md-sourceName"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Phân loại</div>
-                                <div class="detail-value text-muted" id="md-sourceType"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Phụ trách</div>
-                                <div class="detail-value text-success" id="md-handlerName"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">SĐT Sales</div>
-                                <div class="detail-value" id="md-handlerPhone"></div>
-                            </div>
-
-                            <div class="detail-row">
-                                <div class="detail-label">Trạng thái nhắc</div>
-                                <div class="detail-value" id="md-remindedText"></div>
-                            </div>
+                            <div class="detail-row"><div class="detail-label">Nguồn BĐS</div><div class="detail-value fw-bold" id="md-sourceName"></div></div>
+                            <div class="detail-row"><div class="detail-label">Phân loại</div><div class="detail-value text-muted" id="md-sourceType"></div></div>
+                            <div class="detail-row"><div class="detail-label">Phụ trách</div><div class="detail-value text-success" id="md-handlerName"></div></div>
+                            <div class="detail-row"><div class="detail-label">SĐT Sales</div><div class="detail-value" id="md-handlerPhone"></div></div>
+                            <div class="detail-row"><div class="detail-label">Trạng thái nhắc</div><div class="detail-value" id="md-remindedText"></div></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-4 rounded-4 border shadow-sm">
-                    <div class="section-title mt-0 bg-warning bg-opacity-10 text-dark">
-                        <i class="bi bi-chat-dots-fill me-2 text-warning"></i>
-                        Nội dung & Lịch sử CSKH
+                <div class="bg-white p-3 rounded-4 border shadow-sm">
+                    <div class="section-title bg-warning bg-opacity-10">
+                        <i class="bi bi-chat-dots-fill text-warning"></i>
+                        Nội dung & lịch sử CSKH
                     </div>
 
-                    <h6 class="fw-bold text-dark mb-2 mt-3 text-uppercase" style="font-size:.8rem;">
-                        Lời nhắn từ khách:
-                    </h6>
+                    <div class="small fw-black text-muted text-uppercase mb-2">Lời nhắn từ khách</div>
+                    <div class="p-3 bg-light border rounded-3 text-dark fw-medium mb-3" style="white-space:pre-wrap;" id="md-note"></div>
 
-                    <div class="p-3 bg-light border rounded-3 text-dark fw-medium mb-4 fst-italic"
-                         style="white-space:pre-wrap;"
-                         id="md-note"></div>
-
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <h6 class="fw-bold text-dark mb-0 text-uppercase" style="font-size:.8rem;">
-                            Ghi chú Sales / Lịch sử Admin nhắc:
-                        </h6>
-
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div class="small fw-black text-muted text-uppercase">Ghi chú Sales / Admin</div>
                         <span class="badge bg-dark" id="md-status"></span>
                     </div>
 
                     <div class="p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 text-dark font-monospace small"
-                         style="white-space:pre-wrap; max-height:240px; overflow-y:auto;"
+                         style="white-space:pre-wrap; max-height:220px; overflow-y:auto;"
                          id="md-sellerNote"></div>
                 </div>
             </div>
 
-            <div class="modal-footer border-0 p-4 pt-0 bg-light">
-                <button type="button"
-                        class="btn btn-dark rounded-pill px-5 fw-bold shadow-sm"
-                        data-bs-dismiss="modal">
-                    Đóng cửa sổ
+            <div class="modal-footer border-0 p-3 bg-light">
+                <button type="button" class="btn btn-dark rounded-pill px-4 fw-black" data-bs-dismiss="modal">
+                    Đóng
                 </button>
             </div>
         </div>
@@ -815,6 +1434,32 @@
 
 @section Scripts {
     <script>
+        function toggleLeadFilter() {
+            document.getElementById('leadFilterShell')?.classList.toggle('open');
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const shell = document.getElementById('leadFilterShell');
+            const hasFilter = '@status' !== 'All' || '@source' !== 'All' || '@dateRange' !== 'all' || '@keyword'.trim() !== '';
+            if (hasFilter && shell) shell.classList.add('open');
+        });
+
+        function findAntiForgeryToken(id) {
+            const selectors = [
+                `#frmRemind-${id} input[name="__RequestVerificationToken"]`,
+                `#frmRemindMobile-${id} input[name="__RequestVerificationToken"]`,
+                `#frmDel-${id} input[name="__RequestVerificationToken"]`,
+                `#frmDelMobile-${id} input[name="__RequestVerificationToken"]`
+            ];
+
+            for (const selector of selectors) {
+                const token = document.querySelector(selector);
+                if (token) return token;
+            }
+
+            return null;
+        }
+
         function postAdminRemind(url, id, force) {
             const isForce = force === true;
 
@@ -832,7 +1477,7 @@
             }).then((result) => {
                 if (!result.isConfirmed) return;
 
-                const tokenInput = document.querySelector(`#frmRemind-${id} input[name="__RequestVerificationToken"]`);
+                const tokenInput = findAntiForgeryToken(id);
 
                 if (!tokenInput) {
                     Swal.fire('Lỗi', 'Không tìm thấy mã xác thực form.', 'error');
@@ -890,26 +1535,30 @@
 
         function markLeadAsReminded(id) {
             const badgeBox = document.getElementById(`remind-badge-${id}`);
+            const mobileBadgeBox = document.getElementById(`mobile-remind-badge-${id}`);
             const btn = document.getElementById(`btn-remind-${id}`);
+            const mobileBtn = document.getElementById(`btn-remind-mobile-${id}`);
             const text = document.getElementById(`remind-text-${id}`);
 
-            if (badgeBox) {
-                badgeBox.innerHTML = `
-                    <span class="remind-badge remind-done">
-                        <i class="bi bi-check2-circle"></i>
-                        Đã thông báo người bán
-                    </span>`;
-            }
+            const badgeHtml = `
+                <span class="remind-badge remind-done">
+                    <i class="bi bi-check2-circle"></i>
+                    Đã thông báo
+                </span>`;
 
-            if (btn) {
-                btn.classList.remove('btn-outline-warning');
-                btn.classList.add('btn-reminded');
-                btn.setAttribute('title', 'Đã thông báo rồi - bấm để nhắc lại nếu thật sự cần');
+            if (badgeBox) badgeBox.innerHTML = badgeHtml;
+            if (mobileBadgeBox) mobileBadgeBox.innerHTML = badgeHtml.replace('Đã thông báo', 'Đã nhắc');
 
-                if (!btn.querySelector('.mini-dot')) {
-                    btn.insertAdjacentHTML('beforeend', '<span class="mini-dot"></span>');
+            [btn, mobileBtn].forEach(function (button) {
+                if (!button) return;
+                button.classList.remove('btn-outline-warning');
+                button.classList.add('btn-reminded');
+                button.setAttribute('title', 'Đã thông báo rồi - bấm để nhắc lại nếu thật sự cần');
+
+                if (!button.querySelector('.mini-dot') && button.classList.contains('btn-admin-tool')) {
+                    button.insertAdjacentHTML('beforeend', '<span class="mini-dot"></span>');
                 }
-            }
+            });
 
             if (text) {
                 text.className = 'small text-muted mt-2';
@@ -933,7 +1582,7 @@
             }).then((result) => {
                 if (!result.isConfirmed) return;
 
-                const tokenInput = document.querySelector(`#frmDel-${id} input[name="__RequestVerificationToken"]`);
+                const tokenInput = findAntiForgeryToken(id);
 
                 if (!tokenInput) {
                     Swal.fire('Lỗi', 'Không tìm thấy mã xác thực form.', 'error');
@@ -982,23 +1631,23 @@
 
                     const d = res.data;
 
-                    document.getElementById('md-cusName').innerText = d.customerName;
-                    document.getElementById('md-cusPhone').innerText = d.customerPhone;
-                    document.getElementById('md-cusEmail').innerText = d.customerEmail;
-                    document.getElementById('md-createdAt').innerText = d.createdAt;
+                    document.getElementById('md-cusName').innerText = d.customerName || '';
+                    document.getElementById('md-cusPhone').innerText = d.customerPhone || '';
+                    document.getElementById('md-cusEmail').innerText = d.customerEmail || '';
+                    document.getElementById('md-createdAt').innerText = d.createdAt || '';
 
-                    document.getElementById('md-sourceName').innerText = d.sourceName;
-                    document.getElementById('md-sourceType').innerText = d.sourceType;
-                    document.getElementById('md-handlerName').innerText = d.handlerName;
-                    document.getElementById('md-handlerPhone').innerText = d.handlerPhone;
+                    document.getElementById('md-sourceName').innerText = d.sourceName || '';
+                    document.getElementById('md-sourceType').innerText = d.sourceType || '';
+                    document.getElementById('md-handlerName').innerText = d.handlerName || '';
+                    document.getElementById('md-handlerPhone').innerText = d.handlerPhone || '';
 
                     document.getElementById('md-remindedText').innerHTML = d.wasReminded
-                        ? '<span class="remind-badge remind-done"><i class="bi bi-check2-circle"></i> Đã thông báo người bán</span>'
+                        ? '<span class="remind-badge remind-done"><i class="bi bi-check2-circle"></i> Đã thông báo</span>'
                         : '<span class="remind-badge remind-none"><i class="bi bi-exclamation-circle"></i> Chưa thông báo</span>';
 
-                    document.getElementById('md-note').innerText = d.note;
-                    document.getElementById('md-sellerNote').innerText = d.sellerNote;
-                    document.getElementById('md-status').innerText = d.status;
+                    document.getElementById('md-note').innerText = d.note || '';
+                    document.getElementById('md-sellerNote').innerText = d.sellerNote || '';
+                    document.getElementById('md-status').innerText = d.status || '';
 
                     new bootstrap.Modal(document.getElementById('adminDetailModal')).show();
                 })

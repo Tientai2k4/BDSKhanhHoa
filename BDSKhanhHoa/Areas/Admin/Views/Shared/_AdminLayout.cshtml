@@ -71,7 +71,7 @@
         pendingConversationReports +
         pendingConsultations +
         pendingAppointments;
-        int totalFinanceTasks = pendingTransactions;
+    int totalFinanceTasks = pendingTransactions;
 }
 
 <!DOCTYPE html>
@@ -101,7 +101,7 @@
             --header-h: 70px;
             --sidebar-w: 286px;
             --sidebar-w-mini: 82px;
-            --transition: all .28s cubic-bezier(.4,0,.2,1);
+            --transition: background-color .18s ease, color .18s ease, box-shadow .18s ease, opacity .18s ease;
         }
 
         * {
@@ -130,8 +130,8 @@
         }
 
         /* ==============================
-                   SIDEBAR
-                ============================== */
+                           SIDEBAR
+                        ============================== */
         .sidebar {
             width: var(--sidebar-w);
             height: 100vh;
@@ -252,7 +252,7 @@
             border-radius: 12px;
             font-weight: 700;
             font-size: .92rem;
-            transition: var(--transition);
+            transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
             white-space: nowrap;
             position: relative;
         }
@@ -285,7 +285,7 @@
             min-width: 34px;
             text-align: center;
             margin-right: 10px;
-            transition: var(--transition);
+            transition: color .18s ease;
         }
 
         .nav-text {
@@ -329,7 +329,6 @@
             }
 
                 .submenu .nav-link-custom:hover {
-                    padding-left: 34px;
                     background: rgba(255,255,255,.04);
                 }
 
@@ -355,8 +354,8 @@
         }
 
         /* ==============================
-                   MAIN WRAPPER
-                ============================== */
+                           MAIN WRAPPER
+                        ============================== */
         .wrapper {
             margin-left: var(--sidebar-w);
             min-height: 100vh;
@@ -505,8 +504,8 @@
         }
 
         /* ==============================
-                   MOBILE
-                ============================== */
+                           MOBILE
+                        ============================== */
         @@media (max-width: 991.98px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1028,7 +1027,7 @@
                     </a>
                 </li>
 
-               
+
             }
             @if (isAdmin)
             {
@@ -1241,10 +1240,17 @@
                     <small>@systemSubTitle</small>
                 </div>
 
-               
+
             </div>
 
             <div class="d-flex align-items-center gap-3 top-actions">
+                <a href="/"
+                   class="top-icon-btn d-inline-flex d-md-none"
+                   title="Trở về trang chủ"
+                   aria-label="Trở về trang chủ">
+                    <i class="bi bi-house-door-fill"></i>
+                </a>
+
                 <a href="/"
                    target="_blank"
                    class="top-icon-btn d-none d-md-inline-flex"
@@ -1443,14 +1449,29 @@
                 overlay.removeClass('show');
             });
 
-            $('.nav-link-custom.active').each(function () {
-                const parentCollapse = $(this).closest('.collapse');
+                 // ==============================
+        // GIỮ ĐÚNG VỊ TRÍ MENU ADMIN ĐANG CHỌN
+        // Không cho sidebar tự nhảy về đầu / dashboard sau khi chuyển trang
+        // ==============================
+        // ==============================
+        // GIỮ MENU ĐANG CHỌN - KHÔNG GIẬT
+        // Chỉ mở submenu cha và đưa item active vào vùng nhìn thấy
+        // ==============================
+        const sidebarMenu = $('.sidebar-menu');
 
-                if (parentCollapse.length > 0) {
-                    parentCollapse.addClass('show');
-                    parentCollapse.prev('.nav-link-custom').attr('aria-expanded', 'true');
-                }
-            });
+        // 1. Mở submenu cha nếu item con đang active
+        $('.sidebar-menu .nav-link-custom.active').each(function () {
+            const parentCollapse = $(this).closest('.collapse');
+
+            if (parentCollapse.length > 0) {
+                parentCollapse.addClass('show');
+
+                const parentToggle = parentCollapse.prev('.nav-link-custom');
+                parentToggle.attr('aria-expanded', 'true');
+            }
+        });
+
+
 
         function getBellIcon(type) {
             switch ((type || '').toLowerCase()) {

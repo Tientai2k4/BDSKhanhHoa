@@ -3,6 +3,7 @@ using BDSKhanhHoa.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -23,6 +24,25 @@ namespace BDSKhanhHoa.Controllers
         public string CartData { get; set; } = "";
     }
 
+    public class PayOSItemRequest
+    {
+        public string name { get; set; } = "";
+        public int quantity { get; set; }
+        public int price { get; set; }
+    }
+
+    public class PayOSCreatePaymentRequest
+    {
+        public long orderCode { get; set; }
+        public int amount { get; set; }
+        public string description { get; set; } = "";
+        public List<PayOSItemRequest> items { get; set; } = new();
+        public string cancelUrl { get; set; } = "";
+        public string returnUrl { get; set; } = "";
+        public int expiredAt { get; set; }
+        public string signature { get; set; } = "";
+    }
+
     [Authorize]
     public class PaymentController : Controller
     {
@@ -31,6 +51,7 @@ namespace BDSKhanhHoa.Controllers
         private readonly IWebHostEnvironment _env;
 
         private const int PaymentExpireMinutes = 15;
+        private const int DescriptionMaxLength = 500;
 
         public PaymentController(
             ApplicationDbContext context,
@@ -322,9 +343,11 @@ namespace BDSKhanhHoa.Controllers
                 return RedirectToAction("Buy", "Package");
             }
 
-            if (string.IsNullOrWhiteSpace(paymentMethod))
+            paymentMethod = paymentMethod.Trim();
+
+            if (paymentMethod != "VNPay" && paymentMethod != "PayOS")
             {
-                TempData["Error"] = "Vui lòng chọn phương thức thanh toán.";
+                TempData["Error"] = "Phương thức thanh toán không hợp lệ. Hệ thống chỉ hỗ trợ VNPay và PayOS / VietQR.";
                 return RedirectToAction("Checkout");
             }
 
@@ -426,7 +449,7 @@ namespace BDSKhanhHoa.Controllers
                 }
             }
 
-            string txCodeBase = DateTime.Now.ToString("yyyyMMddHHmmssfff") + userId;
+            string txCodeBase = GeneratePaymentBaseCode();
             DateTime now = DateTime.Now;
             DateTime expiresAt = now.AddMinutes(PaymentExpireMinutes);
 
@@ -457,7 +480,7 @@ namespace BDSKhanhHoa.Controllers
                     TransactionCode = txCodeBase + "_" + i,
                     Status = "Pending",
                     Type = "Mua lượt đăng",
-                    Description = $"{txDescription} - {item.qty} lượt - {item.pkg.PackageName}",
+                    Description = SafeText($"{txDescription} - {item.qty} lượt - {item.pkg.PackageName}"),
                     CreatedAt = now,
                     ExpiresAt = expiresAt,
                     CancelledAt = null,
@@ -482,27 +505,10 @@ namespace BDSKhanhHoa.Controllers
                     return Redirect(CreateVnPayPaymentUrl(txCodeBase, finalPrice));
 
                 case "PayOS":
-                    return RedirectToAction("CreatePayOSPayment", new
+                    return RedirectToAction(nameof(CreatePayOSPayment), new
                     {
                         baseCode = txCodeBase
                     });
-
-                case "SePay":
-                    return RedirectToAction("SePayInfo", new
-                    {
-                        baseCode = txCodeBase
-                    });
-
-                case "BankTransfer":
-                    return RedirectToAction("TransferInfo", new
-                    {
-                        baseCode = txCodeBase,
-                        amount = finalPrice
-                    });
-
-                case "Cash":
-                    TempData["Success"] = "Đã ghi nhận đơn thanh toán tiền mặt. Vui lòng liên hệ quản trị viên để xác nhận.";
-                    return RedirectToAction("History");
 
                 default:
                     TempData["Error"] = "Phương thức thanh toán không hợp lệ.";
@@ -580,8 +586,10 @@ namespace BDSKhanhHoa.Controllers
                     {
                         tx.Status = "Success";
                         tx.CancelledAt = null;
-                        tx.Description = (tx.Description ?? "") +
-                            $" | VNPay thanh toán thành công. Mã GD VNPay: {vnpTransactionNo}. Ngân hàng: {bankCode}. PayDate: {payDate}";
+                        tx.Description = SafeAppendDescription(
+                            tx.Description,
+                            $" | VNPay thành công. Mã GD: {vnpTransactionNo}. Ngân hàng: {bankCode}."
+                        );
                     }
                 }
 
@@ -597,8 +605,10 @@ namespace BDSKhanhHoa.Controllers
                 {
                     tx.Status = "Failed";
                     tx.CancelledAt = DateTime.Now;
-                    tx.Description = (tx.Description ?? "") +
-                        $" | VNPay thanh toán thất bại hoặc người dùng hủy. ResponseCode: {responseCode}. TransactionStatus: {transactionStatus}";
+                    tx.Description = SafeAppendDescription(
+                        tx.Description,
+                        $" | VNPay thất bại/hủy. ResponseCode: {responseCode}. Status: {transactionStatus}."
+                    );
                 }
             }
 
@@ -607,6 +617,194 @@ namespace BDSKhanhHoa.Controllers
             TempData["Error"] = "Thanh toán VNPay không thành công hoặc đã bị hủy.";
             return RedirectToAction("History");
         }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> PayOSCallback()
+        {
+            string orderCodeText = Request.Query["orderCode"].ToString();
+            string status = Request.Query["status"].ToString();
+            string code = Request.Query["code"].ToString();
+            string cancel = Request.Query["cancel"].ToString();
+
+            if (string.IsNullOrWhiteSpace(orderCodeText))
+            {
+                TempData["Error"] = "PayOS không trả về mã đơn hàng.";
+                return RedirectToAction("History");
+            }
+
+            try
+            {
+                var payOSStatus = await GetPayOSPaymentStatusAsync(orderCodeText);
+
+                if (payOSStatus.IsPaid)
+                {
+                    decimal amountToConfirm = payOSStatus.AmountPaid;
+
+                    if (amountToConfirm <= 0)
+                    {
+                        amountToConfirm = await GetExpectedAmountByBaseCodeAsync(orderCodeText, "PayOS");
+                    }
+
+                    bool confirmed = await ConfirmPayOSPaymentAsync(
+                        orderCodeText,
+                        amountToConfirm,
+                        "PayOS ReturnUrl + API Status",
+                        payOSStatus.Reference
+                    );
+
+                    TempData[confirmed ? "Success" : "Info"] = confirmed
+                        ? "Thanh toán PayOS / VietQR thành công. Hệ thống đã tự động ghi nhận giao dịch."
+                        : "PayOS báo đã thanh toán nhưng hệ thống chưa tìm thấy đơn tương ứng. Vui lòng liên hệ Admin.";
+
+                    return RedirectToAction("History");
+                }
+
+                if (payOSStatus.IsCancelled ||
+                    string.Equals(status, "CANCELLED", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(cancel, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    await CancelPayOSPaymentAsync(orderCodeText, "Người dùng hủy thanh toán hoặc PayOS trả trạng thái hủy.");
+                    TempData["Error"] = "Thanh toán PayOS đã bị hủy.";
+                    return RedirectToAction("History");
+                }
+            }
+            catch
+            {
+                if (string.Equals(code, "00", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(status, "PAID", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(cancel, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    decimal expectedAmount = await GetExpectedAmountByBaseCodeAsync(orderCodeText, "PayOS");
+
+                    bool confirmed = await ConfirmPayOSPaymentAsync(
+                        orderCodeText,
+                        expectedAmount,
+                        "PayOS ReturnUrl Fallback",
+                        "returnUrl"
+                    );
+
+                    if (confirmed)
+                    {
+                        TempData["Success"] = "Thanh toán PayOS / VietQR thành công. Hệ thống đã tự động ghi nhận giao dịch.";
+                        return RedirectToAction("History");
+                    }
+                }
+            }
+
+            TempData["Info"] = "Giao dịch PayOS đang chờ xử lý. Nếu bạn đã thanh toán, hệ thống sẽ tự đồng bộ lại khi vào lịch sử giao dịch.";
+            return RedirectToAction("History");
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> PayOSCancel()
+        {
+            string orderCodeText = Request.Query["orderCode"].ToString();
+
+            if (!string.IsNullOrWhiteSpace(orderCodeText))
+            {
+                await CancelPayOSPaymentAsync(orderCodeText, "Người dùng hủy thanh toán trên PayOS.");
+            }
+
+            TempData["Error"] = "Bạn đã hủy thanh toán PayOS / VietQR.";
+            return RedirectToAction("History");
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> PayOSWebhook()
+        {
+            string rawBody;
+
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                rawBody = await reader.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(rawBody))
+            {
+                return BadRequest("Empty webhook body");
+            }
+
+            JsonDocument doc;
+
+            try
+            {
+                doc = JsonDocument.Parse(rawBody);
+            }
+            catch
+            {
+                return BadRequest("Invalid JSON");
+            }
+
+            using (doc)
+            {
+                JsonElement root = doc.RootElement;
+
+                if (!root.TryGetProperty("signature", out JsonElement signatureEl))
+                {
+                    return BadRequest("Missing signature");
+                }
+
+                if (!root.TryGetProperty("data", out JsonElement dataEl))
+                {
+                    return BadRequest("Missing data");
+                }
+
+                string receivedSignature = signatureEl.GetString() ?? "";
+                string calculatedSignature = CreatePayOSWebhookSignature(dataEl);
+
+                if (!string.Equals(receivedSignature, calculatedSignature, StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest("Invalid webhook signature");
+                }
+
+                string webhookCode = GetJsonString(root, "code");
+                bool success = GetJsonBool(root, "success");
+
+                long orderCode = GetJsonLong(dataEl, "orderCode");
+                decimal paidAmount = GetJsonDecimal(dataEl, "amount");
+                string reference = GetJsonString(dataEl, "reference");
+                string dataCode = GetJsonString(dataEl, "code");
+                string desc = GetJsonString(dataEl, "desc");
+
+                if (orderCode <= 0)
+                {
+                    return BadRequest("Invalid orderCode");
+                }
+
+                string baseCode = orderCode.ToString();
+
+                if (webhookCode == "00" && success && dataCode == "00")
+                {
+                    bool confirmed = await ConfirmPayOSPaymentAsync(
+                        baseCode,
+                        paidAmount,
+                        "PayOS Webhook",
+                        reference
+                    );
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = confirmed
+                            ? "Đã tự động xác nhận thanh toán PayOS."
+                            : "Webhook hợp lệ nhưng đơn không còn ở trạng thái cần xử lý hoặc số tiền chưa khớp."
+                    });
+                }
+
+                await CancelPayOSPaymentAsync(baseCode, $"PayOS webhook không thành công. Code: {webhookCode}. DataCode: {dataCode}. Desc: {desc}");
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Webhook đã nhận nhưng giao dịch không thành công."
+                });
+            }
+        }
+
 
         [HttpGet]
         public async Task<IActionResult> PayAgain(string baseCode)
@@ -642,7 +840,7 @@ namespace BDSKhanhHoa.Controllers
                 amount = 0;
             }
 
-            string paymentMethod = transactions.First().PaymentMethod ?? "BankTransfer";
+            string paymentMethod = transactions.First().PaymentMethod ?? "PayOS";
 
             switch (paymentMethod)
             {
@@ -650,27 +848,10 @@ namespace BDSKhanhHoa.Controllers
                     return Redirect(CreateVnPayPaymentUrl(baseCode, amount));
 
                 case "PayOS":
-                    return RedirectToAction("CreatePayOSPayment", new
+                    return RedirectToAction(nameof(CreatePayOSPayment), new
                     {
                         baseCode
                     });
-
-                case "SePay":
-                    return RedirectToAction("SePayInfo", new
-                    {
-                        baseCode
-                    });
-
-                case "BankTransfer":
-                    return RedirectToAction("TransferInfo", new
-                    {
-                        baseCode,
-                        amount
-                    });
-
-                case "Cash":
-                    TempData["Info"] = "Đơn tiền mặt cần liên hệ quản trị viên để xác nhận.";
-                    return RedirectToAction("History");
 
                 default:
                     TempData["Error"] = "Phương thức thanh toán của đơn hàng không hợp lệ.";
@@ -678,179 +859,16 @@ namespace BDSKhanhHoa.Controllers
             }
         }
 
-        [HttpGet]
-        public async Task<IActionResult> TransferInfo(string baseCode, decimal? amount)
-        {
-            if (string.IsNullOrWhiteSpace(baseCode))
-            {
-                TempData["Error"] = "Mã thanh toán không hợp lệ.";
-                return RedirectToAction("History");
-            }
-
-            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            var txns = await GetPendingTransactionsByBaseCodeAsync(userId, baseCode);
-
-            if (!txns.Any())
-            {
-                TempData["Error"] = "Không tìm thấy đơn hàng đang chờ thanh toán.";
-                return RedirectToAction("History");
-            }
-
-            bool isExpired = await CloseOrderIfExpiredAsync(txns);
-
-            if (isExpired)
-            {
-                TempData["Error"] = "Đơn hàng đã quá thời gian thanh toán và đã bị hủy. Vui lòng tạo đơn mới.";
-                return RedirectToAction("History");
-            }
-
-            decimal realAmount = txns.Sum(t => t.Amount);
-
-            if (amount.HasValue && amount.Value > 0 && amount.Value == realAmount)
-            {
-                realAmount = amount.Value;
-            }
-
-            var bankAccount = await _context.BankAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(b => b.IsActive);
-
-            if (bankAccount == null)
-            {
-                TempData["Error"] = "Chưa cấu hình tài khoản ngân hàng nhận tiền.";
-                return RedirectToAction("History");
-            }
-
-            DateTime createdAt = txns.Min(t => t.CreatedAt);
-            DateTime expireAt = txns.Min(t => t.ExpiresAt ?? t.CreatedAt.AddMinutes(PaymentExpireMinutes));
-
-            ViewBag.BaseCode = baseCode;
-            ViewBag.Amount = realAmount;
-            ViewBag.CreatedAt = createdAt;
-            ViewBag.ExpireAt = expireAt;
-            ViewBag.PaymentExpireMinutes = PaymentExpireMinutes;
-
-            return View(bankAccount);
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> CloseExpiredPayment(string baseCode)
-        {
-            if (string.IsNullOrWhiteSpace(baseCode))
-            {
-                TempData["Error"] = "Mã thanh toán không hợp lệ.";
-                return RedirectToAction("History");
-            }
-
-            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            var txns = await GetPendingTransactionsByBaseCodeAsync(userId, baseCode);
-
-            if (!txns.Any())
-            {
-                TempData["Info"] = "Đơn hàng không còn ở trạng thái chờ thanh toán.";
-                return RedirectToAction("History");
-            }
-
-            bool isExpired = await CloseOrderIfExpiredAsync(txns, forceClose: true);
-
-            if (isExpired)
-            {
-                TempData["Error"] = "Đơn hàng đã hết thời gian thanh toán và đã được hủy.";
-            }
-            else
-            {
-                TempData["Info"] = "Đơn hàng vẫn còn thời gian thanh toán.";
-            }
-
-            return RedirectToAction("History");
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SubmitBill(string baseCode, IFormFile billImage)
-        {
-            if (string.IsNullOrWhiteSpace(baseCode))
-            {
-                TempData["Error"] = "Mã thanh toán không hợp lệ.";
-                return RedirectToAction("History");
-            }
-
-            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            var txns = await GetPendingTransactionsByBaseCodeAsync(userId, baseCode);
-
-            if (!txns.Any())
-            {
-                TempData["Error"] = "Không tìm thấy đơn hàng đang chờ thanh toán.";
-                return RedirectToAction("History");
-            }
-
-            bool isExpired = await CloseOrderIfExpiredAsync(txns);
-
-            if (isExpired)
-            {
-                TempData["Error"] = "Đơn hàng đã quá thời gian thanh toán và đã bị hủy. Không thể gửi biên lai.";
-                return RedirectToAction("History");
-            }
-
-            if (billImage == null || billImage.Length <= 0)
-            {
-                TempData["Error"] = "Vui lòng đính kèm hình ảnh biên lai trước khi xác nhận.";
-                return RedirectToAction("PayAgain", new { baseCode });
-            }
-
-            if (billImage.Length > 5 * 1024 * 1024)
-            {
-                TempData["Error"] = "Ảnh biên lai tối đa 5MB.";
-                return RedirectToAction("PayAgain", new { baseCode });
-            }
-
-            string ext = Path.GetExtension(billImage.FileName).ToLowerInvariant();
-
-            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp")
-            {
-                TempData["Error"] = "Chỉ chấp nhận file hình ảnh JPG, PNG hoặc WEBP.";
-                return RedirectToAction("PayAgain", new { baseCode });
-            }
-
-            string uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "bills");
-
-            if (!Directory.Exists(uploadsFolder))
-            {
-                Directory.CreateDirectory(uploadsFolder);
-            }
-
-            string uniqueFileName = $"{baseCode}_{DateTime.Now:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}{ext}";
-            string filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await billImage.CopyToAsync(stream);
-            }
-
-            string dbImageUrl = "/uploads/bills/" + uniqueFileName;
-
-            foreach (var tx in txns)
-            {
-                tx.BillImageUrl = dbImageUrl;
-                tx.PaymentMethod = "BankTransfer";
-                tx.Description = (tx.Description ?? "") + $" | Đã gửi biên lai: {DateTime.Now:dd/MM/yyyy HH:mm}";
-            }
-
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã gửi biên lai thành công. Đơn hàng đang chờ Admin xác nhận.";
-            return RedirectToAction("History");
-        }
 
         [HttpGet]
         public async Task<IActionResult> History(string status = "All", string? fromDate = null, string? toDate = null)
         {
-            await CloseExpiredPendingTransactionsForCurrentUserAsync();
-
             int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            await SyncPendingPayOSOrdersForUserAsync(userId);
+
+            // Tự hủy các đơn Pending quá hạn để người dùng tạo/thanh toán lại bằng VNPay hoặc PayOS.
+            await CloseExpiredPendingTransactionsForCurrentUserAsync();
 
             var query = _context.Transactions
                 .Include(t => t.Package)
@@ -883,6 +901,7 @@ namespace BDSKhanhHoa.Controllers
 
             return View(transactions);
         }
+
 
         [HttpGet]
         public async Task<IActionResult> Invoice(string baseCode)
@@ -924,15 +943,71 @@ namespace BDSKhanhHoa.Controllers
         [HttpGet]
         public async Task<IActionResult> CreatePayOSPayment(string baseCode)
         {
-            TempData["Info"] = "PayOS cần gọi API tạo link thanh toán riêng. Hiện tại chưa triển khai trong action này.";
-            return RedirectToAction("History");
-        }
+            if (string.IsNullOrWhiteSpace(baseCode))
+            {
+                TempData["Error"] = "Mã thanh toán PayOS / VietQR không hợp lệ.";
+                return RedirectToAction("History");
+            }
 
-        [HttpGet]
-        public async Task<IActionResult> SePayInfo(string baseCode)
-        {
-            TempData["Info"] = "SePay cần cấu hình webhook đối soát riêng. Hiện tại chưa triển khai trong action này.";
-            return RedirectToAction("History");
+            int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var txns = await GetPendingTransactionsByBaseCodeAsync(userId, baseCode);
+
+            if (!txns.Any())
+            {
+                TempData["Error"] = "Không tìm thấy đơn hàng PayOS / VietQR đang chờ thanh toán.";
+                return RedirectToAction("History");
+            }
+
+            bool isExpired = await CloseOrderIfExpiredAsync(txns);
+
+            if (isExpired)
+            {
+                TempData["Error"] = "Đơn hàng đã quá thời gian thanh toán và đã bị hủy. Vui lòng tạo đơn mới.";
+                return RedirectToAction("History");
+            }
+
+            decimal realAmount = txns.Sum(t => t.Amount);
+
+            if (realAmount <= 0)
+            {
+                await ConfirmPayment(baseCode);
+                TempData["Success"] = "Đơn hàng đã được thanh toán thành công.";
+                return RedirectToAction("History");
+            }
+
+            if (!long.TryParse(baseCode, out long orderCode))
+            {
+                TempData["Error"] = "Mã đơn PayOS phải là dạng số. Vui lòng tạo lại đơn thanh toán.";
+                return RedirectToAction("Checkout");
+            }
+
+            int payOSAmount = Convert.ToInt32(Math.Round(realAmount, 0));
+
+            if (payOSAmount <= 0)
+            {
+                await ConfirmPayment(baseCode);
+                TempData["Success"] = "Đơn hàng đã được thanh toán thành công.";
+                return RedirectToAction("History");
+            }
+
+            try
+            {
+                string checkoutUrl = await CreatePayOSCheckoutUrlAsync(baseCode, orderCode, payOSAmount, txns);
+
+                if (string.IsNullOrWhiteSpace(checkoutUrl))
+                {
+                    TempData["Error"] = "PayOS không trả về link thanh toán. Vui lòng kiểm tra cấu hình PayOS.";
+                    return RedirectToAction("History");
+                }
+
+                return Redirect(checkoutUrl);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = "Không thể tạo thanh toán PayOS / VietQR. Chi tiết: " + ex.Message;
+                return RedirectToAction("History");
+            }
         }
 
         private string CreateVnPayPaymentUrl(string baseCode, decimal amount)
@@ -992,7 +1067,7 @@ namespace BDSKhanhHoa.Controllers
 
         private async Task<List<Transaction>> GetPendingTransactionsByBaseCodeAsync(int userId, string baseCode)
         {
-            var transactions = await _context.Transactions
+            return await _context.Transactions
                 .Where(t =>
                     t.UserID == userId &&
                     t.TransactionCode != null &&
@@ -1002,8 +1077,6 @@ namespace BDSKhanhHoa.Controllers
                     ) &&
                     t.Status == "Pending")
                 .ToListAsync();
-
-            return transactions;
         }
 
         private async Task<bool> CloseOrderIfExpiredAsync(List<Transaction> transactions, bool forceClose = false)
@@ -1012,9 +1085,8 @@ namespace BDSKhanhHoa.Controllers
             {
                 return false;
             }
-
             DateTime expireAt = transactions
-                .Min(t => t.ExpiresAt ?? t.CreatedAt.AddMinutes(PaymentExpireMinutes));
+                            .Min(t => t.ExpiresAt ?? t.CreatedAt.AddMinutes(PaymentExpireMinutes));
 
             bool isExpired = forceClose || DateTime.Now >= expireAt;
 
@@ -1027,7 +1099,10 @@ namespace BDSKhanhHoa.Controllers
             {
                 tx.Status = "Cancelled";
                 tx.CancelledAt = DateTime.Now;
-                tx.Description = (tx.Description ?? "") + $" | Hủy tự động do quá hạn thanh toán lúc {DateTime.Now:dd/MM/yyyy HH:mm}";
+                tx.Description = SafeAppendDescription(
+                    tx.Description,
+                    $" | Hủy tự động do quá hạn lúc {DateTime.Now:dd/MM/yyyy HH:mm}"
+                );
             }
 
             await _context.SaveChangesAsync();
@@ -1071,12 +1146,14 @@ namespace BDSKhanhHoa.Controllers
             {
                 tx.Status = "Cancelled";
                 tx.CancelledAt = now;
-                tx.Description = (tx.Description ?? "") + $" | Hủy tự động do quá hạn thanh toán lúc {now:dd/MM/yyyy HH:mm}";
+                tx.Description = SafeAppendDescription(
+                    tx.Description,
+                    $" | Hủy tự động do quá hạn lúc {now:dd/MM/yyyy HH:mm}"
+                );
             }
 
             await _context.SaveChangesAsync();
         }
-
         private async Task ConfirmPayment(string baseCode)
         {
             if (string.IsNullOrWhiteSpace(baseCode))
@@ -1098,10 +1175,514 @@ namespace BDSKhanhHoa.Controllers
             {
                 t.Status = "Success";
                 t.CancelledAt = null;
-                t.Description = (t.Description ?? "") + $" | Hệ thống xác nhận thanh toán lúc {DateTime.Now:dd/MM/yyyy HH:mm}";
+                t.Description = SafeAppendDescription(
+                    t.Description,
+                    $" | Hệ thống xác nhận lúc {DateTime.Now:dd/MM/yyyy HH:mm}"
+                );
             }
 
             await _context.SaveChangesAsync();
+        }
+
+        private string GeneratePaymentBaseCode()
+        {
+            string unixMs = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            int random = RandomNumberGenerator.GetInt32(10, 99);
+
+            return unixMs + random.ToString();
+        }
+
+        private async Task<string> CreatePayOSCheckoutUrlAsync(
+            string baseCode,
+            long orderCode,
+            int amount,
+            List<Transaction> txns)
+        {
+            string clientId = _configuration["PayOS:ClientId"] ?? "";
+            string apiKey = _configuration["PayOS:ApiKey"] ?? "";
+            string checksumKey = _configuration["PayOS:ChecksumKey"] ?? "";
+            string returnUrl = _configuration["PayOS:ReturnUrl"] ?? "";
+            string cancelUrl = _configuration["PayOS:CancelUrl"] ?? "";
+
+            if (string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(apiKey) ||
+                string.IsNullOrWhiteSpace(checksumKey) ||
+                string.IsNullOrWhiteSpace(returnUrl) ||
+                string.IsNullOrWhiteSpace(cancelUrl))
+            {
+                throw new InvalidOperationException("Chưa cấu hình đầy đủ PayOS trong appsettings.json.");
+            }
+
+            string description = baseCode;
+
+            int expiredAt = (int)new DateTimeOffset(
+                txns.Min(t => t.ExpiresAt ?? t.CreatedAt.AddMinutes(PaymentExpireMinutes))
+            ).ToUnixTimeSeconds();
+
+            var items = new List<PayOSItemRequest>
+            {
+                new PayOSItemRequest
+                {
+                    name = $"Don hang {baseCode}",
+                    quantity = 1,
+                    price = amount
+                }
+            };
+
+            string signatureData =
+                $"amount={amount}&cancelUrl={cancelUrl}&description={description}&orderCode={orderCode}&returnUrl={returnUrl}";
+
+            string signature = HmacSHA256(checksumKey, signatureData);
+
+            var requestModel = new PayOSCreatePaymentRequest
+            {
+                orderCode = orderCode,
+                amount = amount,
+                description = description,
+                items = items,
+                cancelUrl = cancelUrl,
+                returnUrl = returnUrl,
+                expiredAt = expiredAt,
+                signature = signature
+            };
+
+            using var httpClient = new HttpClient();
+
+            httpClient.DefaultRequestHeaders.Add("x-client-id", clientId);
+            httpClient.DefaultRequestHeaders.Add("x-api-key", apiKey);
+
+            string json = JsonSerializer.Serialize(requestModel);
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var response = await httpClient.PostAsync("https://api-merchant.payos.vn/v2/payment-requests", content);
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"PayOS lỗi HTTP {(int)response.StatusCode}: {responseBody}");
+            }
+
+            using var doc = JsonDocument.Parse(responseBody);
+            JsonElement root = doc.RootElement;
+
+            string code = GetJsonString(root, "code");
+
+            if (code != "00")
+            {
+                string desc = GetJsonString(root, "desc");
+                throw new InvalidOperationException($"PayOS không tạo được link. Code: {code}. Desc: {desc}");
+            }
+
+            if (!root.TryGetProperty("data", out JsonElement data))
+            {
+                throw new InvalidOperationException("PayOS không trả về data.");
+            }
+
+            string checkoutUrl = GetJsonString(data, "checkoutUrl");
+
+            foreach (var tx in txns)
+            {
+                tx.Description = SafeAppendDescription(
+                    tx.Description,
+                    $" | PayOS tạo link. OrderCode:{orderCode}."
+                );
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (string.IsNullOrWhiteSpace(checkoutUrl))
+            {
+                throw new InvalidOperationException("PayOS không trả về checkoutUrl.");
+            }
+
+            return checkoutUrl;
+        }
+
+        private async Task<(bool IsPaid, bool IsCancelled, decimal AmountPaid, string Reference)> GetPayOSPaymentStatusAsync(string baseCode)
+        {
+            string clientId = _configuration["PayOS:ClientId"] ?? "";
+            string apiKey = _configuration["PayOS:ApiKey"] ?? "";
+
+            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("Chưa cấu hình ClientId hoặc ApiKey của PayOS.");
+            }
+
+            using var httpClient = new HttpClient();
+
+            httpClient.DefaultRequestHeaders.Add("x-client-id", clientId);
+            httpClient.DefaultRequestHeaders.Add("x-api-key", apiKey);
+
+            using var response = await httpClient.GetAsync($"https://api-merchant.payos.vn/v2/payment-requests/{baseCode}");
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"Không lấy được trạng thái PayOS. HTTP {(int)response.StatusCode}: {responseBody}");
+            }
+
+            using var doc = JsonDocument.Parse(responseBody);
+            JsonElement root = doc.RootElement;
+
+            if (!root.TryGetProperty("data", out JsonElement data))
+            {
+                return (false, false, 0, "");
+            }
+
+            string status = GetJsonString(data, "status");
+            decimal amountPaid = GetJsonDecimal(data, "amountPaid");
+
+            if (amountPaid <= 0)
+            {
+                amountPaid = GetJsonDecimal(data, "amount");
+            }
+
+            string reference = "";
+
+            if (data.TryGetProperty("transactions", out JsonElement transEl))
+            {
+                reference = transEl.GetRawText();
+            }
+
+            bool isPaid = string.Equals(status, "PAID", StringComparison.OrdinalIgnoreCase);
+            bool isCancelled = string.Equals(status, "CANCELLED", StringComparison.OrdinalIgnoreCase);
+
+            return (isPaid, isCancelled, amountPaid, reference);
+        }
+
+        private async Task<bool> ConfirmPayOSPaymentAsync(
+            string baseCode,
+            decimal paidAmount,
+            string source,
+            string reference)
+        {
+            if (string.IsNullOrWhiteSpace(baseCode))
+            {
+                return false;
+            }
+
+            var transactions = await _context.Transactions
+                .Where(t =>
+                    t.TransactionCode != null &&
+                    (
+                        t.TransactionCode == baseCode ||
+                        t.TransactionCode.StartsWith(baseCode + "_")
+                    ) &&
+                    t.PaymentMethod == "PayOS")
+                .ToListAsync();
+
+            if (!transactions.Any())
+            {
+                return false;
+            }
+
+            decimal expectedAmount = transactions.Sum(t => t.Amount);
+
+            if (paidAmount <= 0)
+            {
+                paidAmount = expectedAmount;
+            }
+
+            if (Math.Round(expectedAmount, 0) != Math.Round(paidAmount, 0))
+            {
+                foreach (var tx in transactions)
+                {
+                    tx.Description = SafeAppendDescription(
+                        tx.Description,
+                        $" | PayOS lệch tiền. Cần:{expectedAmount:N0}, nhận:{paidAmount:N0}."
+                    );
+                }
+
+                await _context.SaveChangesAsync();
+                return false;
+            }
+
+            bool hasChanged = false;
+
+            foreach (var tx in transactions)
+            {
+                if (tx.Status != "Success")
+                {
+                    tx.Status = "Success";
+                    tx.CancelledAt = null;
+                    tx.BillImageUrl = null;
+                    hasChanged = true;
+                }
+
+                if (tx.Description == null || !tx.Description.Contains("PayOS xác nhận"))
+                {
+                    tx.Description = SafeAppendDescription(
+                        tx.Description,
+                        $" | PayOS xác nhận lúc {DateTime.Now:dd/MM/yyyy HH:mm}. Nguồn:{source}. Tiền:{paidAmount:N0}."
+                    );
+                    hasChanged = true;
+                }
+            }
+
+            if (hasChanged)
+            {
+                await _context.SaveChangesAsync();
+            }
+
+            return true;
+        }
+
+        private async Task SyncPendingPayOSOrdersForUserAsync(int userId)
+        {
+            var pendingCodes = await _context.Transactions
+                .Where(t =>
+                    t.UserID == userId &&
+                    t.PaymentMethod == "PayOS" &&
+                    t.Status == "Pending" &&
+                    t.TransactionCode != null)
+                .Select(t => t.TransactionCode!)
+                .ToListAsync();
+
+            var baseCodes = pendingCodes
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Contains("_") ? x.Split('_')[0] : x)
+                .Distinct()
+                .Take(10)
+                .ToList();
+
+            foreach (string baseCode in baseCodes)
+            {
+                try
+                {
+                    var payOSStatus = await GetPayOSPaymentStatusAsync(baseCode);
+
+                    if (payOSStatus.IsPaid)
+                    {
+                        decimal amountToConfirm = payOSStatus.AmountPaid;
+
+                        if (amountToConfirm <= 0)
+                        {
+                            amountToConfirm = await GetExpectedAmountByBaseCodeAsync(baseCode, "PayOS");
+                        }
+
+                        await ConfirmPayOSPaymentAsync(
+                            baseCode,
+                            amountToConfirm,
+                            "PayOS History Auto Sync",
+                            payOSStatus.Reference
+                        );
+                    }
+                    else if (payOSStatus.IsCancelled)
+                    {
+                        await CancelPayOSPaymentAsync(baseCode, "PayOS API trả trạng thái CANCELLED khi đồng bộ lịch sử.");
+                    }
+                }
+                catch
+                {
+                    // Không làm sập trang History nếu PayOS tạm lỗi mạng/API.
+                }
+            }
+        }
+
+        private async Task<decimal> GetExpectedAmountByBaseCodeAsync(string baseCode, string paymentMethod)
+        {
+            if (string.IsNullOrWhiteSpace(baseCode))
+            {
+                return 0;
+            }
+
+            return await _context.Transactions
+                .Where(t =>
+                    t.TransactionCode != null &&
+                    (
+                        t.TransactionCode == baseCode ||
+                        t.TransactionCode.StartsWith(baseCode + "_")
+                    ) &&
+                    t.PaymentMethod == paymentMethod)
+                .SumAsync(t => t.Amount);
+        }
+
+        private async Task CancelPayOSPaymentAsync(string baseCode, string reason)
+        {
+            if (string.IsNullOrWhiteSpace(baseCode))
+            {
+                return;
+            }
+
+            var transactions = await _context.Transactions
+                .Where(t =>
+                    t.TransactionCode != null &&
+                    (
+                        t.TransactionCode == baseCode ||
+                        t.TransactionCode.StartsWith(baseCode + "_")
+                    ) &&
+                    t.PaymentMethod == "PayOS" &&
+                    t.Status == "Pending")
+                .ToListAsync();
+
+            if (!transactions.Any())
+            {
+                return;
+            }
+
+            foreach (var tx in transactions)
+            {
+                tx.Status = "Cancelled";
+                tx.CancelledAt = DateTime.Now;
+                tx.Description = SafeAppendDescription(
+                    tx.Description,
+                    $" | PayOS hủy lúc {DateTime.Now:dd/MM/yyyy HH:mm}."
+                );
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+
+        private string CreatePayOSWebhookSignature(JsonElement dataElement)
+        {
+            string checksumKey = _configuration["PayOS:ChecksumKey"] ?? "";
+
+            if (string.IsNullOrWhiteSpace(checksumKey))
+            {
+                return "";
+            }
+
+            var pairs = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (JsonProperty prop in dataElement.EnumerateObject())
+            {
+                pairs[prop.Name] = PayOSJsonValueToString(prop.Value);
+            }
+
+            string rawData = string.Join("&", pairs.Select(x => $"{x.Key}={x.Value}"));
+
+            return HmacSHA256(checksumKey, rawData);
+        }
+
+        private string PayOSJsonValueToString(JsonElement value)
+        {
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? "",
+                JsonValueKind.Number => value.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Null => "",
+                _ => value.GetRawText()
+            };
+        }
+
+        private string GetJsonString(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out JsonElement value))
+            {
+                return "";
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString() ?? "";
+            }
+
+            return value.GetRawText().Trim('"');
+        }
+
+        private bool GetJsonBool(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out JsonElement value))
+            {
+                return false;
+            }
+
+            if (value.ValueKind == JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (value.ValueKind == JsonValueKind.False)
+            {
+                return false;
+            }
+
+            string text = GetJsonString(element, propertyName);
+
+            return bool.TryParse(text, out bool result) && result;
+        }
+
+        private long GetJsonLong(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out JsonElement value))
+            {
+                return 0;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out long number))
+            {
+                return number;
+            }
+
+            string text = GetJsonString(element, propertyName);
+
+            return long.TryParse(text, out long result) ? result : 0;
+        }
+
+        private decimal GetJsonDecimal(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out JsonElement value))
+            {
+                return 0;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out decimal number))
+            {
+                return number;
+            }
+
+            string text = GetJsonString(element, propertyName);
+
+            if (decimal.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal invariantResult))
+            {
+                return invariantResult;
+            }
+
+            return decimal.TryParse(text, NumberStyles.Any, new CultureInfo("vi-VN"), out decimal viResult)
+                ? viResult
+                : 0;
+        }
+
+        private string SafeText(string? text)
+        {
+            string value = text ?? "";
+
+            if (value.Length > DescriptionMaxLength)
+            {
+                return value.Substring(0, DescriptionMaxLength);
+            }
+
+            return value;
+        }
+
+        private string SafeAppendDescription(string? currentDescription, string appendText)
+        {
+            string current = currentDescription ?? "";
+            string append = appendText ?? "";
+            string result = current + append;
+
+            if (result.Length > DescriptionMaxLength)
+            {
+                result = result.Substring(0, DescriptionMaxLength);
+            }
+
+            return result;
+        }
+
+        private bool FixedTimeEquals(string value1, string value2)
+        {
+            if (value1.Length != value2.Length)
+            {
+                return false;
+            }
+
+            byte[] bytes1 = Encoding.UTF8.GetBytes(value1);
+            byte[] bytes2 = Encoding.UTF8.GetBytes(value2);
+
+            return CryptographicOperations.FixedTimeEquals(bytes1, bytes2);
         }
 
         private string HmacSHA512(string key, string inputData)

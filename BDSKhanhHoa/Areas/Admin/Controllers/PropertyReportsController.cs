@@ -396,329 +396,332 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 });
             }
 
+            actionType = actionType.Trim();
             adminNote = string.IsNullOrWhiteSpace(adminNote)
                 ? "Tin đăng cần được kiểm tra và cập nhật lại theo yêu cầu của Ban quản trị."
                 : adminNote.Trim();
 
-            var report = await _context.PropertyReports
-                .Include(r => r.Property)
-                    .ThenInclude(p => p.User)
-                .FirstOrDefaultAsync(r => r.ReportID == reportId);
-
-            if (report == null)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Báo cáo không tồn tại."
-                });
-            }
-
-            if (report.Status != "Pending")
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Báo cáo này đã được xử lý trước đó."
-                });
-            }
-
-            if (report.Property == null)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Tin đăng gắn với báo cáo không còn tồn tại."
-                });
-            }
-
-            if (report.Property.User == null)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Không tìm thấy tài khoản người bán của tin đăng này."
-                });
-            }
-
-            if (report.Property.Status == "Sold" ||
-                report.Property.Status == "Rented" ||
-                report.Property.Status == "Expired")
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Tin đăng đã bán, đã cho thuê hoặc đã hết hạn nên không thể xử lý theo báo cáo này."
-                });
-            }
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var executionStrategy = _context.Database.CreateExecutionStrategy();
 
             try
             {
-                var property = report.Property;
-                var seller = property.User;
-
-                int sellerId = property.UserID;
-                string oldReportStatus = report.Status;
-                string oldPropertyStatus = property.Status ?? "";
-                bool oldSellerActive = seller.IsActive;
-
-                report.UpdatedAt = DateTime.Now;
-
-                // =====================================================
-                // 1. BÁC BỎ BÁO CÁO
-                // =====================================================
-                if (actionType == "Reject")
+                return await executionStrategy.ExecuteAsync(async () =>
                 {
-                    report.Status = "Rejected";
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                    _context.Notifications.Add(new Notification
+                    var report = await _context.PropertyReports
+                        .Include(r => r.Property)
+                            .ThenInclude(p => p.User)
+                        .FirstOrDefaultAsync(r => r.ReportID == reportId);
+
+                    if (report == null)
                     {
-                        UserID = report.ReportedBy,
-                        Title = "Phản hồi báo cáo vi phạm",
-                        Content =
-                            $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được Ban quản trị xem xét.\n\n" +
-                            $"Qua kiểm tra, chúng tôi chưa đủ cơ sở xác định tin đăng vi phạm nên tin đăng được giữ nguyên.\n\n" +
-                            $"Phản hồi từ Ban quản trị:\n{adminNote}",
-                        ActionUrl = $"/Property/Details/{property.PropertyID}",
-                        ActionText = "Xem lại tin đăng",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    });
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Báo cáo không tồn tại."
+                        });
+                    }
 
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-
-                    await _auditLogService.LogAsync(
-                        adminId,
-                        "Bác bỏ báo cáo vi phạm",
-                        "PropertyReports",
-                        $"ReportID: {reportId} - PropertyID: {property.PropertyID}",
-                        oldValues: $"OldReportStatus: {oldReportStatus}, OldPropertyStatus: {oldPropertyStatus}",
-                        newValues: $"NewReportStatus: Rejected, PropertyStatus: {property.Status}, AdminNote: {adminNote}",
-                        severity: "Info"
-                    );
-
-                    return Json(new
+                    if (report.Status != "Pending")
                     {
-                        success = true,
-                        message = "Đã bác bỏ báo cáo. Tin đăng được giữ nguyên, người bán không bị cộng lỗi."
-                    });
-                }
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Báo cáo này đã được xử lý trước đó."
+                        });
+                    }
 
-                // =====================================================
-                // 2. TẠM DỪNG HIỂN THỊ & YÊU CẦU NGƯỜI BÁN CHỈNH SỬA
-                // Không cộng lỗi người bán
-                // =====================================================
-                if (actionType == "Warn")
-                {
-                    report.Status = "Processed";
-
-                    await AutoExpireViolationsAsync(sellerId);
-
-                    string reasonForSeller =
-                        $"Tin đăng bị tạm dừng hiển thị do có báo cáo vi phạm hoặc dấu hiệu thông tin chưa phù hợp.\n\n" +
-                        $"Lý do báo cáo: {report.Reason}\n\n" +
-                        $"Yêu cầu từ Ban quản trị:\n{adminNote}\n\n" +
-                        $"Vui lòng cập nhật lại nội dung tin đăng. Sau khi bạn lưu chỉnh sửa, tin sẽ được gửi lại về trạng thái Chờ duyệt để Ban quản trị kiểm tra.";
-
-                    property.Status = "Rejected";
-                    property.UpdatedAt = DateTime.Now;
-                    property.RejectionReason = reasonForSeller;
-                    property.IsAutoApproved = false;
-                    property.ApprovedAt = null;
-                    property.IsDuplicate = false;
-                    property.DuplicateReason = null;
-
-                    _context.Notifications.Add(new Notification
+                    if (report.Property == null)
                     {
-                        UserID = report.ReportedBy,
-                        Title = "Đã tiếp nhận và xử lý báo cáo",
-                        Content =
-                            $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được Ban quản trị ghi nhận.\n\n" +
-                            $"Tin đăng đã được tạm dừng hiển thị và người đăng đã được yêu cầu cập nhật lại thông tin.\n\n" +
-                            $"Cảm ơn bạn đã hỗ trợ cộng đồng minh bạch hơn.",
-                        ActionUrl = "/",
-                        ActionText = "Tiếp tục tìm kiếm",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    });
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Tin đăng gắn với báo cáo không còn tồn tại."
+                        });
+                    }
 
-                    _context.Notifications.Add(new Notification
+                    if (report.Property.User == null)
                     {
-                        UserID = sellerId,
-                        Title = "Tin đăng bị tạm dừng hiển thị và cần cập nhật",
-                        Content =
-                            $"Tin đăng \"{property.Title}\" của bạn đã bị tạm dừng hiển thị do có báo cáo từ cộng đồng.\n\n" +
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Không tìm thấy tài khoản người bán của tin đăng này."
+                        });
+                    }
+
+                    if (report.Property.Status == "Sold" ||
+                        report.Property.Status == "Rented" ||
+                        report.Property.Status == "Expired")
+                    {
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Tin đăng đã bán, đã cho thuê hoặc đã hết hạn nên không thể xử lý theo báo cáo này."
+                        });
+                    }
+
+                    var property = report.Property;
+                    var seller = property.User;
+
+                    int sellerId = property.UserID;
+                    string oldReportStatus = report.Status;
+                    string oldPropertyStatus = property.Status ?? "";
+                    bool oldSellerActive = seller.IsActive;
+
+                    report.UpdatedAt = DateTime.Now;
+
+                    // =====================================================
+                    // 1. BÁC BỎ BÁO CÁO
+                    // =====================================================
+                    if (actionType == "Reject")
+                    {
+                        report.Status = "Rejected";
+
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = report.ReportedBy,
+                            Title = "Phản hồi báo cáo vi phạm",
+                            Content =
+                                $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được Ban quản trị xem xét.\n\n" +
+                                $"Qua kiểm tra, chúng tôi chưa đủ cơ sở xác định tin đăng vi phạm nên tin đăng được giữ nguyên.\n\n" +
+                                $"Phản hồi từ Ban quản trị:\n{adminNote}",
+                            ActionUrl = $"/Property/Details/{property.PropertyID}",
+                            ActionText = "Xem lại tin đăng",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        });
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        await _auditLogService.LogAsync(
+                            adminId,
+                            "Bác bỏ báo cáo vi phạm",
+                            "PropertyReports",
+                            $"ReportID: {reportId} - PropertyID: {property.PropertyID}",
+                            oldValues: $"OldReportStatus: {oldReportStatus}, OldPropertyStatus: {oldPropertyStatus}",
+                            newValues: $"NewReportStatus: Rejected, PropertyStatus: {property.Status}, AdminNote: {adminNote}",
+                            severity: "Info"
+                        );
+
+                        return Json(new
+                        {
+                            success = true,
+                            message = "Đã bác bỏ báo cáo. Tin đăng được giữ nguyên, người bán không bị cộng lỗi."
+                        });
+                    }
+
+                    // =====================================================
+                    // 2. TẠM DỪNG HIỂN THỊ & YÊU CẦU NGƯỜI BÁN CHỈNH SỬA
+                    // Không cộng lỗi người bán
+                    // =====================================================
+                    if (actionType == "Warn")
+                    {
+                        report.Status = "Processed";
+
+                        await AutoExpireViolationsAsync(sellerId);
+
+                        string reasonForSeller =
+                            $"Tin đăng bị tạm dừng hiển thị do có báo cáo vi phạm hoặc dấu hiệu thông tin chưa phù hợp.\n\n" +
                             $"Lý do báo cáo: {report.Reason}\n\n" +
                             $"Yêu cầu từ Ban quản trị:\n{adminNote}\n\n" +
-                            $"Bạn vui lòng kiểm tra lại hình ảnh, giá bán/giá thuê, địa chỉ, mô tả và các thông tin liên quan. " +
-                            $"Sau khi cập nhật và lưu lại, tin sẽ được gửi lại cho Admin duyệt trước khi hiển thị công khai.\n\n" +
-                            $"Lưu ý: Hành động này chưa cộng lỗi vào tài khoản. Tuy nhiên nếu cố tình tái phạm hoặc bị xác định là vi phạm nghiêm trọng, tài khoản có thể bị khóa theo chính sách hệ thống.",
-                        ActionUrl = $"/Property/Edit/{property.PropertyID}",
-                        ActionText = "Cập nhật tin đăng",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    });
+                            $"Vui lòng cập nhật lại nội dung tin đăng. Sau khi bạn lưu chỉnh sửa, tin sẽ được gửi lại về trạng thái Chờ duyệt để Ban quản trị kiểm tra.";
 
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
+                        property.Status = "Rejected";
+                        property.UpdatedAt = DateTime.Now;
+                        property.RejectionReason = reasonForSeller;
+                        property.IsAutoApproved = false;
+                        property.ApprovedAt = null;
+                        property.IsDuplicate = false;
+                        property.DuplicateReason = null;
 
-                    await _auditLogService.LogAsync(
-                        adminId,
-                        "Tạm dừng tin do báo cáo và yêu cầu người bán chỉnh sửa",
-                        "PropertyReports",
-                        $"ReportID: {reportId} - PropertyID: {property.PropertyID} - SellerID: {sellerId}",
-                        oldValues: $"OldReportStatus: {oldReportStatus}, OldPropertyStatus: {oldPropertyStatus}",
-                        newValues: $"NewReportStatus: Processed, NewPropertyStatus: Rejected, RejectionReason: {reasonForSeller}",
-                        severity: "Warning"
-                    );
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = report.ReportedBy,
+                            Title = "Đã tiếp nhận và xử lý báo cáo",
+                            Content =
+                                $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được Ban quản trị ghi nhận.\n\n" +
+                                $"Tin đăng đã được tạm dừng hiển thị và người đăng đã được yêu cầu cập nhật lại thông tin.\n\n" +
+                                $"Cảm ơn bạn đã hỗ trợ cộng đồng minh bạch hơn.",
+                            ActionUrl = "/",
+                            ActionText = "Tiếp tục tìm kiếm",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        });
 
-                    return Json(new
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = sellerId,
+                            Title = "Tin đăng bị tạm dừng hiển thị và cần cập nhật",
+                            Content =
+                                $"Tin đăng \"{property.Title}\" của bạn đã bị tạm dừng hiển thị do có báo cáo từ cộng đồng.\n\n" +
+                                $"Lý do báo cáo: {report.Reason}\n\n" +
+                                $"Yêu cầu từ Ban quản trị:\n{adminNote}\n\n" +
+                                $"Bạn vui lòng kiểm tra lại hình ảnh, giá bán/giá thuê, địa chỉ, mô tả và các thông tin liên quan. " +
+                                $"Sau khi cập nhật và lưu lại, tin sẽ được gửi lại cho Admin duyệt trước khi hiển thị công khai.\n\n" +
+                                $"Lưu ý: Hành động này chưa cộng lỗi vào tài khoản. Tuy nhiên nếu cố tình tái phạm hoặc bị xác định là vi phạm nghiêm trọng, tài khoản có thể bị khóa theo chính sách hệ thống.",
+                            ActionUrl = $"/Property/Edit/{property.PropertyID}",
+                            ActionText = "Cập nhật tin đăng",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        });
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        await _auditLogService.LogAsync(
+                            adminId,
+                            "Tạm dừng tin do báo cáo và yêu cầu người bán chỉnh sửa",
+                            "PropertyReports",
+                            $"ReportID: {reportId} - PropertyID: {property.PropertyID} - SellerID: {sellerId}",
+                            oldValues: $"OldReportStatus: {oldReportStatus}, OldPropertyStatus: {oldPropertyStatus}",
+                            newValues: $"NewReportStatus: Processed, NewPropertyStatus: Rejected, RejectionReason: {reasonForSeller}",
+                            severity: "Warning"
+                        );
+
+                        return Json(new
+                        {
+                            success = true,
+                            message = "Đã tạm dừng hiển thị tin và gửi yêu cầu cập nhật cho người bán. Hành động này không cộng lỗi tài khoản."
+                        });
+                    }
+
+                    // =====================================================
+                    // 3. GỠ TIN LẬP TỨC & GHI NHẬN 1 LỖI VI PHẠM
+                    // Nếu tổng lỗi Active >= 3 thì khóa tài khoản
+                    // =====================================================
+                    if (actionType == "DeleteProperty")
                     {
-                        success = true,
-                        message = "Đã tạm dừng hiển thị tin và gửi yêu cầu cập nhật cho người bán. Hành động này không cộng lỗi tài khoản."
-                    });
-                }
+                        report.Status = "Processed";
 
-                // =====================================================
-                // 3. GỠ TIN LẬP TỨC & GHI NHẬN 1 LỖI VI PHẠM
-                // Nếu tổng lỗi Active >= 3 thì khóa tài khoản
-                // =====================================================
-                if (actionType == "DeleteProperty")
-                {
-                    report.Status = "Processed";
+                        await AutoExpireViolationsAsync(sellerId);
 
-                    await AutoExpireViolationsAsync(sellerId);
+                        int oldActiveViolationCount = await CountActiveViolationsAsync(sellerId);
 
-                    int oldActiveViolationCount = await CountActiveViolationsAsync(sellerId);
-
-                    string severeReason =
-                        $"Tin đăng bị gỡ bỏ do vi phạm nghiêm trọng.\n\n" +
-                        $"Lý do báo cáo: {report.Reason}\n\n" +
-                        $"Kết luận từ Ban quản trị:\n{adminNote}";
-
-                    var violation = new UserViolation
-                    {
-                        UserID = sellerId,
-                        Reason = $"Vi phạm nghiêm trọng từ báo cáo tin đăng #{property.PropertyID}: {report.Reason}",
-                        Description =
-                            $"Hệ thống ghi nhận 1 lỗi vi phạm do Admin xác nhận báo cáo là đúng.\n\n" +
-                            $"Mã báo cáo: #{report.ReportID}\n" +
-                            $"Mã tin: #{property.PropertyID}\n" +
-                            $"Tiêu đề tin: {property.Title}\n" +
-                            $"Lý do báo cáo: {report.Reason}\n" +
-                            $"Ghi chú Admin: {adminNote}\n\n" +
-                            $"Lỗi có hiệu lực trong {VIOLATION_EXPIRE_DAYS} ngày nếu người dùng không được ân xá.",
-                        Status = "Active",
-                        CreatedAt = DateTime.Now
-                    };
-
-                    _context.UserViolations.Add(violation);
-
-                    property.Status = "Rejected";
-                    property.IsDeleted = true;
-                    property.UpdatedAt = DateTime.Now;
-                    property.RejectionReason = severeReason;
-                    property.IsAutoApproved = false;
-                    property.ApprovedAt = null;
-                    property.IsDuplicate = false;
-                    property.DuplicateReason = null;
-
-                    await _context.SaveChangesAsync();
-
-                    int newActiveViolationCount = await CountActiveViolationsAsync(sellerId);
-
-                    bool isAutoLocked = await LockUserIfReachedViolationLimitAsync(
-                        seller,
-                        newActiveViolationCount,
-                        report.ReportID,
-                        property.PropertyID,
-                        report.Reason,
-                        adminNote
-                    );
-
-                    _context.Notifications.Add(new Notification
-                    {
-                        UserID = report.ReportedBy,
-                        Title = "Đã xử lý báo cáo vi phạm",
-                        Content =
-                            $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được xác nhận.\n\n" +
-                            $"Tin đăng đã bị gỡ khỏi hệ thống do vi phạm nghiêm trọng. Cảm ơn bạn đã giúp cộng đồng an toàn hơn.",
-                        ActionUrl = "/",
-                        ActionText = "Tiếp tục tìm kiếm",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    });
-
-                    _context.Notifications.Add(new Notification
-                    {
-                        UserID = sellerId,
-                        Title = isAutoLocked
-                            ? "Tài khoản bị khóa do vi phạm chính sách hệ thống"
-                            : "Tin đăng bị gỡ bỏ và tài khoản bị ghi nhận 1 lỗi vi phạm",
-                        Content =
-                            $"Tin đăng \"{property.Title}\" của bạn đã bị gỡ bỏ khỏi hệ thống do vi phạm nghiêm trọng.\n\n" +
+                        string severeReason =
+                            $"Tin đăng bị gỡ bỏ do vi phạm nghiêm trọng.\n\n" +
                             $"Lý do báo cáo: {report.Reason}\n\n" +
-                            $"Kết luận từ Ban quản trị:\n{adminNote}\n\n" +
-                            $"Hệ thống đã ghi nhận 1 lỗi vi phạm vào hồ sơ tài khoản của bạn. " +
-                            $"Số lỗi hiện tại: {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT}.\n\n" +
-                            (isAutoLocked
-                                ? $"Do tài khoản đã đủ {VIOLATION_LOCK_LIMIT}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực, hệ thống đã khóa tài khoản theo chính sách an toàn cộng đồng. Bạn có thể liên hệ Ban quản trị nếu cần khiếu nại hoặc bổ sung thông tin xác minh."
-                                : $"Nếu đạt {VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực, tài khoản sẽ bị khóa tự động. Lỗi vi phạm có thể tự hết hiệu lực sau {VIOLATION_EXPIRE_DAYS} ngày nếu bạn không tái phạm."),
-                        ActionUrl = isAutoLocked ? "/Account/Login" : "/Property/MyAds",
-                        ActionText = isAutoLocked ? "Xem thông báo" : "Xem tin của tôi",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    });
+                            $"Kết luận từ Ban quản trị:\n{adminNote}";
 
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
+                        var violation = new UserViolation
+                        {
+                            UserID = sellerId,
+                            Reason = $"Vi phạm nghiêm trọng từ báo cáo tin đăng #{property.PropertyID}: {report.Reason}",
+                            Description =
+                                $"Hệ thống ghi nhận 1 lỗi vi phạm do Admin xác nhận báo cáo là đúng.\n\n" +
+                                $"Mã báo cáo: #{report.ReportID}\n" +
+                                $"Mã tin: #{property.PropertyID}\n" +
+                                $"Tiêu đề tin: {property.Title}\n" +
+                                $"Lý do báo cáo: {report.Reason}\n" +
+                                $"Ghi chú Admin: {adminNote}\n\n" +
+                                $"Lỗi có hiệu lực trong {VIOLATION_EXPIRE_DAYS} ngày nếu người dùng không được ân xá.",
+                            Status = "Active",
+                            CreatedAt = DateTime.Now
+                        };
 
-                    await _auditLogService.LogAsync(
-                        adminId,
-                        isAutoLocked
-                            ? "Gỡ tin, cộng lỗi và tự động khóa tài khoản người bán"
-                            : "Gỡ tin và cộng 1 lỗi vi phạm cho người bán",
-                        "PropertyReports",
-                        $"ReportID: {reportId} - PropertyID: {property.PropertyID} - SellerID: {sellerId}",
-                        oldValues:
-                            $"OldReportStatus: {oldReportStatus}, " +
-                            $"OldPropertyStatus: {oldPropertyStatus}, " +
-                            $"OldActiveViolations: {oldActiveViolationCount}, " +
-                            $"OldSellerActive: {oldSellerActive}",
-                        newValues:
-                            $"NewReportStatus: Processed, " +
-                            $"NewPropertyStatus: Rejected, " +
-                            $"IsDeleted: true, " +
-                            $"NewActiveViolations: {newActiveViolationCount}, " +
-                            $"AutoLocked: {isAutoLocked}, " +
-                            $"Reason: {severeReason}",
-                        severity: isAutoLocked ? "Danger" : "Warning"
-                    );
+                        _context.UserViolations.Add(violation);
+
+                        property.Status = "Rejected";
+                        property.IsDeleted = true;
+                        property.UpdatedAt = DateTime.Now;
+                        property.RejectionReason = severeReason;
+                        property.IsAutoApproved = false;
+                        property.ApprovedAt = null;
+                        property.IsDuplicate = false;
+                        property.DuplicateReason = null;
+
+                        await _context.SaveChangesAsync();
+
+                        int newActiveViolationCount = await CountActiveViolationsAsync(sellerId);
+
+                        bool isAutoLocked = await LockUserIfReachedViolationLimitAsync(
+                            seller,
+                            newActiveViolationCount,
+                            report.ReportID,
+                            property.PropertyID,
+                            report.Reason,
+                            adminNote
+                        );
+
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = report.ReportedBy,
+                            Title = "Đã xử lý báo cáo vi phạm",
+                            Content =
+                                $"Báo cáo của bạn về tin đăng #{property.PropertyID} đã được xác nhận.\n\n" +
+                                $"Tin đăng đã bị gỡ khỏi hệ thống do vi phạm nghiêm trọng. Cảm ơn bạn đã giúp cộng đồng an toàn hơn.",
+                            ActionUrl = "/",
+                            ActionText = "Tiếp tục tìm kiếm",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        });
+
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserID = sellerId,
+                            Title = isAutoLocked
+                                ? "Tài khoản của bạn đã bị khóa do vi phạm nhiều lần"
+                                : "Tin đăng bị gỡ và tài khoản bị ghi nhận 1 lỗi vi phạm",
+                            Content =
+                                $"Tin đăng \"{property.Title}\" của bạn đã bị gỡ khỏi hệ thống vì vi phạm chính sách đăng tin.\n\n" +
+                                $"Lý do báo cáo: {report.Reason}\n\n" +
+                                $"Kết luận từ Ban quản trị:\n{adminNote}\n\n" +
+                                $"Tài khoản hiện có {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực.\n\n" +
+                                (isAutoLocked
+                                    ? $"Do tài khoản đã đủ {VIOLATION_LOCK_LIMIT}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực, hệ thống đã tự động khóa tài khoản của bạn. Vui lòng liên hệ Ban quản trị nếu cần hỗ trợ."
+                                    : $"Nếu tài khoản đạt {VIOLATION_LOCK_LIMIT}/{VIOLATION_LOCK_LIMIT} lỗi vi phạm đang hiệu lực, tài khoản sẽ bị khóa tự động. Lỗi vi phạm có thể tự hết hiệu lực sau {VIOLATION_EXPIRE_DAYS} ngày nếu bạn không tái phạm."),
+                            ActionUrl = isAutoLocked ? "/Account/Login" : "/Property/MyAds",
+                            ActionText = isAutoLocked ? "Xem thông báo" : "Xem tin của tôi",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        });
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        await _auditLogService.LogAsync(
+                            adminId,
+                            isAutoLocked
+                                ? "Gỡ tin, cộng lỗi và tự động khóa tài khoản người bán"
+                                : "Gỡ tin và cộng 1 lỗi vi phạm cho người bán",
+                            "PropertyReports",
+                            $"ReportID: {reportId} - PropertyID: {property.PropertyID} - SellerID: {sellerId}",
+                            oldValues:
+                                $"OldReportStatus: {oldReportStatus}, " +
+                                $"OldPropertyStatus: {oldPropertyStatus}, " +
+                                $"OldActiveViolations: {oldActiveViolationCount}, " +
+                                $"OldSellerActive: {oldSellerActive}",
+                            newValues:
+                                $"NewReportStatus: Processed, " +
+                                $"NewPropertyStatus: Rejected, " +
+                                $"IsDeleted: true, " +
+                                $"NewActiveViolations: {newActiveViolationCount}, " +
+                                $"AutoLocked: {isAutoLocked}, " +
+                                $"Reason: {severeReason}",
+                            severity: isAutoLocked ? "Danger" : "Warning"
+                        );
+
+                        return Json(new
+                        {
+                            success = true,
+                            isAutoLocked,
+                            activeViolationCount = newActiveViolationCount,
+                            message = isAutoLocked
+                                ? $"Đã gỡ tin, cộng 1 lỗi vi phạm. Người bán hiện có {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi nên tài khoản đã bị khóa tự động."
+                                : $"Đã gỡ tin và cộng 1 lỗi vi phạm cho người bán. Hiện tại người bán có {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi đang hiệu lực."
+                        });
+                    }
 
                     return Json(new
                     {
-                        success = true,
-                        isAutoLocked,
-                        activeViolationCount = newActiveViolationCount,
-                        message = isAutoLocked
-                            ? $"Đã gỡ tin, cộng 1 lỗi vi phạm. Người bán hiện có {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi nên tài khoản đã bị khóa tự động."
-                            : $"Đã gỡ tin và cộng 1 lỗi vi phạm cho người bán. Hiện tại người bán có {newActiveViolationCount}/{VIOLATION_LOCK_LIMIT} lỗi đang hiệu lực."
+                        success = false,
+                        message = "Hành động không hợp lệ."
                     });
-                }
-
-                return Json(new
-                {
-                    success = false,
-                    message = "Hành động không hợp lệ."
                 });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-
                 return Json(new
                 {
                     success = false,

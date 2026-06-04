@@ -4,9 +4,6 @@
     ViewData["Title"] = "Quản lý Yêu cầu từ CĐT";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
-    var consultations = ViewBag.Consultations as IEnumerable<Consultation>;
-    var projectLeads = ViewBag.ProjectLeads as IEnumerable<ProjectLead>;
-
     // Tách 2 danh sách Pending và History
     var pendingContacts = ViewBag.PendingContacts as IEnumerable<ContactMessage>;
     var resolvedContacts = ViewBag.ResolvedContacts as IEnumerable<ContactMessage>;
@@ -18,9 +15,30 @@
     string status = ViewBag.Status as string ?? "";
     string keyword = ViewBag.Keyword as string ?? "";
 
-    int consultationCount = ViewBag.ConsultationCount ?? 0;
+    bool hasActiveFilter = !string.IsNullOrWhiteSpace(status)
+        || !string.IsNullOrWhiteSpace(keyword);
+
+    string FilterSummaryText()
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            parts.Add(TranslateStatus(status));
+        }
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            parts.Add("Có từ khóa");
+        }
+
+        return parts.Any() ? string.Join(" · ", parts) : "Bấm để mở bộ lọc";
+    }
+
     int contactMessageCount = ViewBag.ContactMessageCount ?? 0;
-    int projectLeadCount = ViewBag.ProjectLeadCount ?? 0;
+    int pendingSupportCount = pendingContacts?.Count() ?? contactMessageCount;
+    int resolvedSupportCount = resolvedContacts?.Count() ?? 0;
+    int totalSupportCount = pendingSupportCount + resolvedSupportCount;
 
     string TranslateStatus(string? st)
     {
@@ -143,6 +161,391 @@
             border-color: #c7d2fe;
             box-shadow: 0 4px 10px rgba(67, 56, 202, 0.08);
         }
+
+
+    /* =========================================================
+               MOBILE COMPACT - Cổng hỗ trợ Đối tác / CĐT
+               Thu gọn thống kê, bộ lọc có nút thu/mở, bảng chuyển thành card
+               để không bị dài dòng và không cần kéo ngang trên mobile.
+               ========================================================= */
+    .support-filter-details {
+        display: block;
+    }
+
+    .support-filter-summary {
+        display: none;
+        list-style: none;
+    }
+
+        .support-filter-summary::-webkit-details-marker {
+            display: none;
+        }
+
+    .support-filter-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #f59e0b;
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, .14);
+        display: inline-flex;
+        flex: 0 0 auto;
+    }
+
+    .support-filter-chevron {
+        transition: transform .18s ease;
+    }
+
+    .support-filter-details[open] .support-filter-chevron {
+        transform: rotate(180deg);
+    }
+
+    @@media (max-width: 767.98px) {
+        html,
+        body {
+            overflow-x: hidden !important;
+        }
+
+        body {
+            background: #f8fafc;
+        }
+
+        .fw-black {
+            font-weight: 900 !important;
+        }
+
+        .dash-card {
+            border-radius: 18px !important;
+            box-shadow: 0 7px 18px rgba(15, 23, 42, .045) !important;
+            overflow: hidden !important;
+        }
+
+        .d-flex.justify-content-between.align-items-start.flex-wrap.gap-3.mb-4 {
+            margin-bottom: 12px !important;
+            gap: 8px !important;
+        }
+
+            .d-flex.justify-content-between.align-items-start.flex-wrap.gap-3.mb-4 h3 {
+                font-size: 1.08rem !important;
+                line-height: 1.25 !important;
+                margin-bottom: 2px !important;
+            }
+
+            .d-flex.justify-content-between.align-items-start.flex-wrap.gap-3.mb-4 .text-muted {
+                display: none !important;
+            }
+
+        .ticket-chip {
+            min-height: 30px !important;
+            padding: 5px 9px !important;
+            font-size: .68rem !important;
+            gap: 5px !important;
+            border-radius: 999px !important;
+        }
+
+        .row.g-4.mb-4 {
+            --bs-gutter-x: .55rem !important;
+            --bs-gutter-y: .55rem !important;
+            margin-bottom: 12px !important;
+        }
+
+        .stat-box {
+            min-height: 72px !important;
+            padding: 11px 12px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 6px 14px rgba(15, 23, 42, .055) !important;
+        }
+
+            .stat-box .label {
+                font-size: .58rem !important;
+                line-height: 1.15 !important;
+                letter-spacing: .045em !important;
+                margin-bottom: 6px !important;
+            }
+
+            .stat-box .value {
+                font-size: 1.45rem !important;
+            }
+
+        .support-only-stats > .col-xl-4,
+        .support-only-stats > .col-md-4 {
+            width: 33.3333% !important;
+            flex: 0 0 33.3333% !important;
+            max-width: 33.3333% !important;
+        }
+
+        .support-filter-card {
+            padding: 0 !important;
+            margin-bottom: 12px !important;
+        }
+
+        .support-filter-summary {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            min-height: 52px;
+            padding: 11px 13px;
+            cursor: pointer;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            user-select: none;
+        }
+
+        .support-filter-main {
+            min-width: 0;
+        }
+
+        .support-filter-title {
+            color: #0f172a;
+            font-size: .92rem;
+            line-height: 1.2;
+            font-weight: 950;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+            .support-filter-title i {
+                color: #2563eb;
+            }
+
+        .support-filter-sub {
+            color: #64748b;
+            font-size: .7rem;
+            line-height: 1.25;
+            font-weight: 750;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 72vw;
+        }
+
+        .support-filter-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #64748b;
+        }
+
+        .support-filter-details:not([open]) .support-filter-body {
+            display: none !important;
+        }
+
+        .support-filter-body {
+            padding: 11px !important;
+            border-top: 1px solid #eef2f7;
+        }
+
+            .support-filter-body form.row {
+                --bs-gutter-x: .55rem !important;
+                --bs-gutter-y: .6rem !important;
+            }
+
+            .support-filter-body [class*="col-"] {
+                width: 100% !important;
+                flex: 0 0 100% !important;
+            }
+
+        .soft-input {
+            min-height: 39px !important;
+            border-radius: 12px !important;
+            font-size: .82rem !important;
+        }
+
+        .support-filter-body .form-label {
+            font-size: .62rem !important;
+            margin-bottom: 4px !important;
+            letter-spacing: .05em !important;
+        }
+
+        .support-filter-body .btn {
+            min-height: 40px !important;
+            border-radius: 12px !important;
+            font-size: .84rem !important;
+        }
+
+        .dash-card.p-4,
+        .dash-card.p-3,
+        .dash-card.p-md-4 {
+            padding: 12px !important;
+        }
+
+        .dash-card > .d-flex.align-items-center.gap-2.mb-3.border-bottom.pb-3 {
+            padding-bottom: 9px !important;
+            margin-bottom: 10px !important;
+        }
+
+        .dash-card h5 {
+            font-size: .98rem !important;
+            line-height: 1.25 !important;
+        }
+
+        .nav-pills-custom {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px !important;
+            margin-bottom: 12px !important;
+        }
+
+            .nav-pills-custom .nav-item {
+                width: 100% !important;
+            }
+
+            .nav-pills-custom .nav-link {
+                width: 100% !important;
+                justify-content: center !important;
+                min-height: 38px !important;
+                margin-right: 0 !important;
+                padding: 7px 8px !important;
+                border-radius: 12px !important;
+                font-size: .76rem !important;
+                line-height: 1.15 !important;
+                white-space: normal !important;
+            }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
+        .table {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+            .table thead {
+                display: none !important;
+            }
+
+            .table tbody {
+                display: grid !important;
+                gap: 9px !important;
+                width: 100% !important;
+            }
+
+                .table tbody tr {
+                    display: block !important;
+                    width: 100% !important;
+                    border: 1px solid #e2e8f0 !important;
+                    border-radius: 15px !important;
+                    background: #fff !important;
+                    box-shadow: 0 4px 12px rgba(15, 23, 42, .035) !important;
+                    overflow: hidden !important;
+                }
+
+                .table tbody td {
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: flex-start !important;
+                    gap: 10px !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    padding: 8px 10px !important;
+                    border-top: 1px solid #f1f5f9 !important;
+                    font-size: .78rem !important;
+                    text-align: left !important;
+                    white-space: normal !important;
+                    overflow-wrap: anywhere !important;
+                }
+
+                    .table tbody td:first-child {
+                        border-top: 0 !important;
+                        padding-top: 10px !important;
+                    }
+
+                    .table tbody td::before {
+                        content: attr(data-label);
+                        flex: 0 0 82px;
+                        color: #64748b;
+                        font-size: .62rem;
+                        font-weight: 900;
+                        text-transform: uppercase;
+                        letter-spacing: .04em;
+                        line-height: 1.35;
+                    }
+
+                    .table tbody td:empty::before {
+                        display: none !important;
+                    }
+
+                    .table tbody td[colspan] {
+                        display: block !important;
+                        text-align: center !important;
+                        padding: 18px 10px !important;
+                    }
+
+                        .table tbody td[colspan]::before {
+                            display: none !important;
+                        }
+
+            .table .fw-bold.fs-6,
+            .table .fw-bold.text-dark.fs-6 {
+                font-size: .88rem !important;
+                line-height: 1.28 !important;
+            }
+
+            .table .small,
+            .table .text-muted.small {
+                font-size: .72rem !important;
+                line-height: 1.35 !important;
+            }
+
+            .table .badge {
+                font-size: .66rem !important;
+                padding: 5px 8px !important;
+                white-space: normal !important;
+                text-align: left !important;
+            }
+
+            .table .btn-sm {
+                min-height: 32px !important;
+                border-radius: 11px !important;
+                padding: 5px 9px !important;
+                font-size: .72rem !important;
+                width: 100%;
+            }
+
+        td.text-end {
+            text-align: left !important;
+        }
+
+        .modal-dialog {
+            margin: 10px !important;
+        }
+
+        .modal-content {
+            border-radius: 18px !important;
+        }
+
+        .modal-header,
+        .modal-body,
+        .modal-footer {
+            padding: 14px !important;
+        }
+
+        .modal-title {
+            font-size: 1rem !important;
+            line-height: 1.3 !important;
+        }
+
+        .modal-detail-box {
+            padding: 11px !important;
+            border-radius: 13px !important;
+            margin-bottom: 10px !important;
+            font-size: .82rem !important;
+        }
+    }
+
+    @@media (min-width: 768px) {
+        .support-filter-details {
+            display: block;
+        }
+
+            .support-filter-details:not([open]) .support-filter-body {
+                display: block !important;
+            }
+    }
+
 </style>
 
 @if (TempData["Success"] != null)
@@ -156,65 +559,81 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
     <div>
         <h3 class="fw-black mb-1">Cổng hỗ trợ Đối tác / CĐT</h3>
-        <div class="text-muted">Quản lý tập trung các yêu cầu hỗ trợ sửa thông tin, khách hàng tiềm năng và tư vấn dự án.</div>
+        <div class="text-muted">Quản lý các yêu cầu hỗ trợ chỉnh sửa thông tin dự án từ CĐT/đối tác.</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <span class="ticket-chip"><i class="bi bi-buildings"></i> Tư vấn: @consultationCount</span>
-        <span class="ticket-chip"><i class="bi bi-headset"></i> Chờ hỗ trợ: @contactMessageCount</span>
-        <span class="ticket-chip"><i class="bi bi-people"></i> Leads KH: @projectLeadCount</span>
+        <span class="ticket-chip"><i class="bi bi-headset"></i> Cần xử lý: @pendingSupportCount</span>
+        <span class="ticket-chip"><i class="bi bi-clock-history"></i> Lịch sử: @resolvedSupportCount</span>
     </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-4 col-md-4">
-        <div class="stat-box bg-tuvan">
-            <div class="label">Yêu cầu tư vấn Dự án</div>
-            <div class="value">@consultationCount</div>
-        </div>
-    </div>
+<div class="row g-4 mb-4 support-only-stats">
     <div class="col-xl-4 col-md-4">
         <div class="stat-box bg-hotro">
-            <div class="label">Yêu cầu hỗ trợ CĐT</div>
-            <div class="value">@contactMessageCount</div>
+            <div class="label">Tổng yêu cầu hỗ trợ</div>
+            <div class="value">@totalSupportCount</div>
         </div>
     </div>
+
+    <div class="col-xl-4 col-md-4">
+        <div class="stat-box bg-tuvan">
+            <div class="label">Cần xử lý</div>
+            <div class="value">@pendingSupportCount</div>
+        </div>
+    </div>
+
     <div class="col-xl-4 col-md-4">
         <div class="stat-box bg-lead">
-            <div class="label">Khách hàng Lead</div>
-            <div class="value">@projectLeadCount</div>
+            <div class="label">Đã xử lý</div>
+            <div class="value">@resolvedSupportCount</div>
         </div>
     </div>
 </div>
 
-<div class="dash-card p-3 p-md-4 mb-4">
-    <form method="get" asp-action="Index" asp-controller="SupportTickets" asp-area="Admin" class="row g-3 align-items-end">
-        <div class="col-xl-2 col-md-4">
-            <label class="form-label fw-bold small text-muted text-uppercase">Danh mục</label>
-            <select name="tab" class="form-select soft-input">
-                <option value="all" selected="@(activeTab == "all")">Tất cả dữ liệu</option>
-                <option value="tu-van" selected="@(activeTab == "tu-van")">Tư vấn Dự án</option>
-                <option value="ho-tro" selected="@(activeTab == "ho-tro")">Hỗ trợ CĐT</option>
-                <option value="leads" selected="@(activeTab == "leads")">Lead Khách hàng</option>
-            </select>
+<div class="dash-card p-3 p-md-4 mb-4 support-filter-card">
+    <details class="support-filter-details" @(hasActiveFilter ? "open" : "")>
+        <summary class="support-filter-summary">
+            <div class="support-filter-main">
+                <div class="support-filter-title">
+                    <i class="bi bi-funnel-fill"></i>
+                    Bộ lọc yêu cầu
+                </div>
+                <div class="support-filter-sub">@FilterSummaryText()</div>
+            </div>
+
+            <div class="support-filter-right">
+                @if (hasActiveFilter)
+                {
+                    <span class="support-filter-dot" title="Đang có bộ lọc"></span>
+                }
+                <i class="bi bi-chevron-down support-filter-chevron"></i>
+            </div>
+        </summary>
+
+        <div class="support-filter-body">
+            <form method="get" asp-action="Index" asp-controller="SupportTickets" asp-area="Admin" class="row g-3 align-items-end">
+                <input type="hidden" name="tab" value="ho-tro" />
+
+                <div class="col-xl-3 col-md-4">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
+                    <select name="status" class="form-select soft-input">
+                        <option value="" selected="@(string.IsNullOrEmpty(status))">Tất cả</option>
+                        <option value="Pending" selected="@(status == "Pending")">Chờ xử lý</option>
+                        <option value="Done" selected="@(status == "Done")">Hoàn tất</option>
+                    </select>
+                </div>
+                <div class="col-xl-7 col-md-8">
+                    <label class="form-label fw-bold small text-muted text-uppercase">Tìm kiếm từ khóa</label>
+                    <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập tên CĐT, SĐT, tiêu đề, nội dung yêu cầu..." />
+                </div>
+                <div class="col-xl-2 col-md-12 d-grid">
+                    <button class="btn btn-primary rounded-3 fw-bold shadow-sm" style="min-height: 48px;">
+                        <i class="bi bi-funnel-fill me-1"></i> Lọc
+                    </button>
+                </div>
+            </form>
         </div>
-        <div class="col-xl-2 col-md-4">
-            <label class="form-label fw-bold small text-muted text-uppercase">Trạng thái</label>
-            <select name="status" class="form-select soft-input">
-                <option value="" selected="@(string.IsNullOrEmpty(status))">Tất cả</option>
-                <option value="Pending" selected="@(status == "Pending")">Chờ xử lý</option>
-                <option value="Done" selected="@(status == "Done")">Hoàn tất</option>
-            </select>
-        </div>
-        <div class="col-xl-6 col-md-8">
-            <label class="form-label fw-bold small text-muted text-uppercase">Tìm kiếm từ khóa</label>
-            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập tên khách, SĐT, tiêu đề..." />
-        </div>
-        <div class="col-xl-2 col-md-4 d-grid">
-            <button class="btn btn-primary rounded-3 fw-bold shadow-sm" style="min-height: 48px;">
-                <i class="bi bi-funnel-fill me-1"></i> Lọc
-            </button>
-        </div>
-    </form>
+    </details>
 </div>
 
 <!-- ==========================================
@@ -265,7 +684,7 @@
                             {
                                 int editCount = item.ProjectID.HasValue && projectEditCounts.ContainsKey(item.ProjectID.Value) ? projectEditCounts[item.ProjectID.Value] : 0;
                                 <tr>
-                                    <td>
+                                    <td data-label="Dự án">
                                         <div class="fw-bold text-primary fs-6">@(item.Project != null ? item.Project.ProjectName : "Không xác định")</div>
                                         <div class="text-muted small mt-1"><i class="bi bi-building"></i> @item.FullName</div>
                                         @if (editCount > 0)
@@ -273,13 +692,13 @@
                                             <div class="badge bg-warning text-dark mt-2 fw-bold"><i class="bi bi-arrow-repeat"></i> Đã sửa @editCount lần trong quá khứ</div>
                                         }
                                     </td>
-                                    <td style="max-width: 250px;">
+                                    <td data-label="Chủ đề" style="max-width: 250px;">
                                         <div class="fw-bold text-dark text-truncate">@item.Subject</div>
                                         <div class="text-muted small text-truncate">@item.Message</div>
                                     </td>
-                                    <td class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</td>
-                                    <td><span class="badge rounded-pill @GetStatusBadge(item.Status) px-3 py-2">@TranslateStatus(item.Status)</span></td>
-                                    <td class="text-end">
+                                    <td data-label="Ngày gửi" class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</td>
+                                    <td data-label="Trạng thái"><span class="badge rounded-pill @GetStatusBadge(item.Status) px-3 py-2">@TranslateStatus(item.Status)</span></td>
+                                    <td data-label="Thao tác" class="text-end">
                                         <button type="button" class="btn btn-sm btn-primary rounded-pill fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modal-request-@item.ContactID">
                                             <i class="bi bi-eye me-1"></i> Xử lý ngay
                                         </button>
@@ -373,17 +792,17 @@
                             foreach (var item in resolvedContacts)
                             {
                                 <tr>
-                                    <td>
+                                    <td data-label="Dự án">
                                         <div class="fw-bold text-dark fs-6">@(item.Project != null ? item.Project.ProjectName : "Không xác định")</div>
                                         <div class="text-muted small">CĐT: @item.FullName</div>
                                     </td>
-                                    <td style="max-width: 300px;">
+                                    <td data-label="Nội dung" style="max-width: 300px;">
                                         <div class="fw-bold text-dark text-truncate">@item.Subject</div>
                                         <div class="text-muted small text-truncate" title="@item.Message">@item.Message</div>
                                     </td>
-                                    <td class="text-muted small">@(item.UpdatedAt.HasValue? item.UpdatedAt.Value.ToString("HH:mm dd/MM/yyyy") : item.CreatedAt.ToString("HH:mm dd/MM/yyyy"))</td>
-                                    <td><span class="badge rounded-pill bg-success px-3 py-2">Đã hoàn tất</span></td>
-                                    <td class="text-end">
+                                    <td data-label="Ngày hoàn tất" class="text-muted small">@(item.UpdatedAt.HasValue? item.UpdatedAt.Value.ToString("HH:mm dd/MM/yyyy") : item.CreatedAt.ToString("HH:mm dd/MM/yyyy"))</td>
+                                    <td data-label="Trạng thái"><span class="badge rounded-pill bg-success px-3 py-2">Đã hoàn tất</span></td>
+                                    <td data-label="Chi tiết" class="text-end">
                                         <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill fw-bold px-3" data-bs-toggle="modal" data-bs-target="#modal-history-@item.ContactID">
                                             <i class="bi bi-eye"></i> Xem lại
                                         </button>
@@ -440,101 +859,26 @@
     </div>
 </div>
 
-<!-- ==========================================
-     KHU VỰC 2 & 3: TƯ VẤN DỰ ÁN & LEAD KHÁCH HÀNG
-     ========================================== -->
-<div class="row g-4 mb-4">
-    <!-- CỘT TRÁI: TƯ VẤN DỰ ÁN -->
-    <div class="col-lg-12 col-xl-6">
-        <div class="dash-card p-4 h-100">
-            <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-3">
-                <i class="bi bi-buildings fs-4 text-primary"></i>
-                <h5 class="fw-bold mb-0">Yêu cầu tư vấn Dự án</h5>
-            </div>
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Khách hàng</th>
-                            <th>Thông tin liên hệ</th>
-                            <th>Dự án quan tâm</th>
-                            <th class="text-end">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (consultations != null && consultations.Any())
-                        {
-                            foreach (var item in consultations)
-                            {
-                                var projectName = (item.ProjectID.HasValue && projectNames.ContainsKey(item.ProjectID.Value)) ? projectNames[item.ProjectID.Value] : "N/A";
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-dark fs-6">@item.FullName</div>
-                                        <div class="text-muted small">@item.CreatedAt.ToString("HH:mm dd/MM/yyyy")</div>
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold text-primary"><i class="bi bi-telephone"></i> @item.Phone</div>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-dark">@projectName</div>
-                                        <div class="small text-muted mt-1 fst-italic">"@item.Note"</div>
-                                    </td>
-                                    <td class="text-end"><span class="badge rounded-pill @GetStatusBadge(item.Status) px-3 py-2">@TranslateStatus(item.Status)</span></td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr><td colspan="4" class="text-center text-muted py-4">Chưa có dữ liệu yêu cầu tư vấn dự án.</td></tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 
-    <!-- CỘT PHẢI: LEAD KHÁCH HÀNG -->
-    <div class="col-lg-12 col-xl-6">
-        <div class="dash-card p-4 h-100">
-            <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-3">
-                <i class="bi bi-people fs-4 text-warning"></i>
-                <h5 class="fw-bold mb-0">Theo dõi Lead Khách hàng</h5>
-            </div>
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Khách hàng</th>
-                            <th>Dự án thu thập</th>
-                            <th>Nhu cầu</th>
-                            <th class="text-end">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (projectLeads != null && projectLeads.Any())
-                        {
-                            foreach (var item in projectLeads)
-                            {
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-dark fs-6">@item.Name</div>
-                                        <div class="text-muted small"><i class="bi bi-telephone"></i> @item.Phone</div>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-primary">@(item.Project != null ? item.Project.ProjectName : "N/A")</div>
-                                    </td>
-                                    <td class="small text-muted fst-italic">@(string.IsNullOrWhiteSpace(item.Message) ? "Không có lời nhắn" : item.Message)</td>
-                                    <td class="text-end"><span class="badge rounded-pill @GetStatusBadge(item.LeadStatus) px-3 py-2">@TranslateStatus(item.LeadStatus)</span></td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr><td colspan="4" class="text-center text-muted py-4">Chưa có Lead khách hàng nào.</td></tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
+@section Scripts {
+    <script>
+        function syncSupportFilterDetails() {
+            const details = document.querySelector('.support-filter-details');
+            if (!details) return;
+
+            const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+            const hasActiveFilter = @hasActiveFilter.ToString().ToLowerInvariant();
+
+            if (isMobile) {
+                if (!hasActiveFilter) {
+                    details.removeAttribute('open');
+                }
+            } else {
+                details.setAttribute('open', 'open');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', syncSupportFilterDetails);
+        window.addEventListener('resize', syncSupportFilterDetails);
+    </script>
+}

@@ -1,281 +1,318 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using BDSKhanhHoa.Data;
 using BDSKhanhHoa.Models;
-using System.Threading.Tasks;
-using System.Linq;
-using System.Collections.Generic;
 using System.Security.Claims;
-using System;
 
 namespace BDSKhanhHoa.Controllers
 {
     public partial class HomeController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IMemoryCache _cache;
 
-        public HomeController(ApplicationDbContext context)
+        public HomeController(ApplicationDbContext context, IMemoryCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         // =====================================================
-        // Action hiển thị trang chủ
+        // TRANG CHỦ - BẢN TỐI ƯU NHANH
+        // Không xử lý nặng lặp lại nhiều lần, không kéo dữ liệu thừa quá nhiều.
         // =====================================================
         public async Task<IActionResult> Index()
         {
-            var now = DateTime.Now;
+            int currentUserId = 0;
+            string? userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // ---------------------------------------------------------
-            // TỰ ĐỘNG HẠ CẤP TIN VIP HẾT HẠN VỀ TIN THƯỜNG
-            // Quy ước hạng:
-            // 1 = Kim Cương, 2 = Vàng, 3 = Bạc, 4 = Đồng, 5 = Tin Thường
-            // ---------------------------------------------------------
-            var normalPackage = await _context.PostServicePackages
-                .AsNoTracking()
-                .Where(p => p.PackageType == "Tin Thường")
-                .OrderBy(p => p.PriorityLevel <= 0 ? 9999 : p.PriorityLevel)
-                .ThenBy(p => p.Price)
-                .FirstOrDefaultAsync();
-
-            if (normalPackage == null)
+            if (!string.IsNullOrWhiteSpace(userIdClaim))
             {
-                normalPackage = await _context.PostServicePackages
-                    .AsNoTracking()
-                    .Where(p => p.PriorityLevel == 5)
-                    .OrderBy(p => p.Price)
-                    .FirstOrDefaultAsync();
+                int.TryParse(userIdClaim, out currentUserId);
             }
 
-            if (normalPackage != null)
-            {
-                var expiredVipProperties = await _context.Properties
-                    .Include(p => p.PostServicePackage)
-                    .Where(p => p.VipExpiryDate.HasValue
-                             && p.VipExpiryDate.Value < now
-                             && p.PackageID != normalPackage.PackageID
-                             && p.PostServicePackage != null
-                             && p.PostServicePackage.PackageType != "Tin Thường")
-                    .ToListAsync();
-
-                if (expiredVipProperties.Any())
-                {
-                    foreach (var prop in expiredVipProperties)
-                    {
-                        prop.PackageID = normalPackage.PackageID;
-                        prop.VipExpiryDate = null;
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
-            }
-
-            // ---------------------------------------------------------
-            // 0. LẤY DANH SÁCH TIN ĐÃ LƯU CỦA USER ĐANG ĐĂNG NHẬP
-            // ---------------------------------------------------------
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            List<int> favoritedIds = new List<int>();
-
-            if (int.TryParse(userIdClaim, out int userId))
-            {
-                favoritedIds = await _context.Favorites
+            List<int> favoritedIds = currentUserId > 0
+                ? await _context.Favorites
                     .AsNoTracking()
-                    .Where(f => f.UserID == userId)
+                    .Where(f => f.UserID == currentUserId)
                     .Select(f => f.PropertyID)
-                    .ToListAsync();
-            }
+                    .ToListAsync()
+                : new List<int>();
 
             ViewBag.FavoritedIds = favoritedIds;
 
-            // ---------------------------------------------------------
-            // 1. TIN TRANG CHỦ: CHIA RÕ MUA BÁN / CHO THUÊ
-            // Tab "Tất cả" chỉ lấy 8 tin: 4 mua bán + 4 cho thuê
-            // Tab "Mua bán" và "Cho thuê" vẫn có đủ dữ liệu để lọc
-            // ---------------------------------------------------------
-            var basePropertyQuery = _context.Properties
-                .AsNoTracking()
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Include(p => p.PropertyType)
-                .Include(p => p.PostServicePackage)
-                .Where(p => p.Status == "Approved" && p.IsDeleted == false);
+            List<Property> properties = await _cache.GetOrCreateAsync("HOME_FEATURED_PROPERTIES_FINAL", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-            var featuredBuyProperties = await basePropertyQuery
-                .Where(p =>
-                    p.PropertyType != null &&
-                    (
-                        p.PropertyType.ParentID == 1 ||
-                        p.TypeID == 1 ||
-                        EF.Functions.Like(p.PropertyType.TypeName, "%Bán%") ||
-                        EF.Functions.Like(p.PropertyType.TypeName, "%Mua%")
-                    ))
-                .OrderBy(p =>
-                    p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
-                        ? 9999
-                        : p.PostServicePackage.PriorityLevel)
-                .ThenByDescending(p => p.CreatedAt)
-                .ThenByDescending(p => p.PropertyID)
-                .Take(24)
-                .ToListAsync();
+                IQueryable<Property> basePropertyQuery = _context.Properties
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .Include(p => p.Ward)
+                        .ThenInclude(w => w.Area)
+                    .Include(p => p.PropertyType)
+                    .Include(p => p.PostServicePackage)
+                    .Where(p => p.Status == "Approved" && p.IsDeleted == false);
 
-            var featuredRentProperties = await basePropertyQuery
-                .Where(p =>
-                    p.PropertyType != null &&
-                    (
-                        p.PropertyType.ParentID == 2 ||
-                        p.TypeID == 2 ||
-                        EF.Functions.Like(p.PropertyType.TypeName, "%Thuê%") ||
-                        EF.Functions.Like(p.PropertyType.TypeName, "%Trọ%")
-                    ))
-                .OrderBy(p =>
-                    p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
-                        ? 9999
-                        : p.PostServicePackage.PriorityLevel)
-                .ThenByDescending(p => p.CreatedAt)
-                .ThenByDescending(p => p.PropertyID)
-                .Take(24)
-                .ToListAsync();
-            // Tab Tất cả: 32 tin, gồm 16 mua bán trước + 16 cho thuê sau
-            // Desktop 4 cột: 16 tin = 4 hàng mua bán, 16 tin = 4 hàng cho thuê
-            var homeAllBuyProperties = featuredBuyProperties
-                .Take(16)
-                .ToList();
+                List<Property> featuredBuyProperties = await basePropertyQuery
+                    .Where(p =>
+                        p.PropertyType != null &&
+                        (
+                            p.PropertyType.ParentID == 1 ||
+                            p.TypeID == 1
+                        ))
+                    .OrderBy(p =>
+                        p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
+                            ? 9999
+                            : p.PostServicePackage.PriorityLevel)
+                    .ThenByDescending(p => p.CreatedAt)
+                    .ThenByDescending(p => p.PropertyID)
+                    .Take(24)
+                    .ToListAsync();
 
-            var homeAllRentProperties = featuredRentProperties
-                .Take(16)
-                .ToList();
+                List<Property> featuredRentProperties = await basePropertyQuery
+                    .Where(p =>
+                        p.PropertyType != null &&
+                        (
+                            p.PropertyType.ParentID == 2 ||
+                            p.TypeID == 2
+                        ))
+                    .OrderBy(p =>
+                        p.PostServicePackage == null || p.PostServicePackage.PriorityLevel <= 0
+                            ? 9999
+                            : p.PostServicePackage.PriorityLevel)
+                    .ThenByDescending(p => p.CreatedAt)
+                    .ThenByDescending(p => p.PropertyID)
+                    .Take(24)
+                    .ToListAsync();
 
-            var homeAllProperties = new List<Property>();
+                HashSet<int> addedIds = new();
+                List<Property> result = new();
 
-            homeAllProperties.AddRange(homeAllBuyProperties);
-            homeAllProperties.AddRange(homeAllRentProperties);
+                foreach (Property item in featuredBuyProperties.Take(16))
+                {
+                    if (addedIds.Add(item.PropertyID))
+                    {
+                        result.Add(item);
+                    }
+                }
 
-            ViewBag.HomeAllPropertyIds = homeAllProperties
+                foreach (Property item in featuredRentProperties.Take(16))
+                {
+                    if (addedIds.Add(item.PropertyID))
+                    {
+                        result.Add(item);
+                    }
+                }
+
+                foreach (Property item in featuredBuyProperties)
+                {
+                    if (addedIds.Add(item.PropertyID))
+                    {
+                        result.Add(item);
+                    }
+                }
+
+                foreach (Property item in featuredRentProperties)
+                {
+                    if (addedIds.Add(item.PropertyID))
+                    {
+                        result.Add(item);
+                    }
+                }
+
+                return result;
+            }) ?? new List<Property>();
+
+            ViewBag.HomeAllPropertyIds = properties
                 .Select(p => p.PropertyID)
                 .ToList();
 
-            // Model trả về đúng thứ tự:
-            // 1. 16 tin bán
-            // 2. 16 tin thuê
-            // 3. Các tin bán còn lại
-            // 4. Các tin thuê còn lại
-            var addedPropertyIds = new HashSet<int>();
-            var properties = new List<Property>();
-
-            foreach (var item in homeAllProperties)
-            {
-                if (addedPropertyIds.Add(item.PropertyID))
-                {
-                    properties.Add(item);
-                }
-            }
-
-            foreach (var item in featuredBuyProperties)
-            {
-                if (addedPropertyIds.Add(item.PropertyID))
-                {
-                    properties.Add(item);
-                }
-            }
-
-            foreach (var item in featuredRentProperties)
-            {
-                if (addedPropertyIds.Add(item.PropertyID))
-                {
-                    properties.Add(item);
-                }
-            }
-
-            // ---------------------------------------------------------
-            // 2. DỰ ÁN NỔI BẬT
-            // ---------------------------------------------------------
-            ViewBag.LatestProjects = await _context.Projects
-           .AsNoTracking()
-           .Include(p => p.Area)
-           .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
-           .OrderByDescending(p => p.PublishedAt)
-           .Take(12)
-           .ToListAsync();
-
-            // ---------------------------------------------------------
-            // 3. BANNERS
-            // ---------------------------------------------------------
-            ViewBag.Banners = await _context.Banners
-                .AsNoTracking()
-                .Where(b => b.IsActive)
-                .OrderBy(b => b.DisplayOrder)
-                .ToListAsync();
-
-            // ---------------------------------------------------------
-            // 4. KHU VỰC KÈM SỐ LƯỢNG TIN
-            // ---------------------------------------------------------
-            var areas = await _context.Areas
-                .AsNoTracking()
-                .OrderBy(a => a.AreaName)
-                .ToListAsync();
-
-            var areaPropertyCounts = await _context.Properties
-                .AsNoTracking()
-                .Where(p => p.Status == "Approved" && p.IsDeleted == false)
-                .GroupBy(p => p.Ward.AreaID)
-                .Select(g => new { AreaID = g.Key, Count = g.Count() })
-                .ToListAsync();
-
-            ViewBag.Areas = areas;
-            ViewBag.AreaPropertyCounts = areaPropertyCounts.ToDictionary(x => x.AreaID, x => x.Count);
-
-            // ---------------------------------------------------------
-            // 5. LOẠI BẤT ĐỘNG SẢN
-            // ---------------------------------------------------------
-            ViewBag.Types = await _context.PropertyTypes
-                .AsNoTracking()
-                .Select(t => new { t.TypeID, t.TypeName, t.ParentID })
-                .ToListAsync();
-
-            // ---------------------------------------------------------
-            // 6. TIN NÓNG & TIN THỊ TRƯỜNG
-            // ---------------------------------------------------------
-            ViewBag.HotNews = await _context.Blogs
-                .AsNoTracking()
-                .Where(b => b.IsDeleted == false)
-                .OrderByDescending(b => b.Views)
-                .Take(8)
-                .ToListAsync();
-
-            ViewBag.LatestNews = await _context.Blogs
-                .AsNoTracking()
-                .Where(b => b.IsDeleted == false)
-                .OrderByDescending(b => b.CreatedAt)
-                .Take(5)
-                .ToListAsync();
+            await LoadHomeViewBagsAsync();
 
             return View(properties);
         }
+        // =====================================================
+        // HẠ CẤP VIP HẾT HẠN - CHỈ CHẠY TỐI ĐA 1 LẦN / 30 PHÚT
+        // Tránh mỗi lần mở trang chủ lại quét bảng Properties.
+        // =====================================================
+        private async Task DowngradeExpiredVipIfNeededAsync()
+        {
+            const string cacheKey = "HOME_EXPIRED_VIP_DOWNGRADE_CHECKED";
+
+            if (_cache.TryGetValue(cacheKey, out bool _))
+            {
+                return;
+            }
+
+            _cache.Set(cacheKey, true, TimeSpan.FromMinutes(30));
+
+            int? normalPackageId = await _cache.GetOrCreateAsync("NORMAL_POST_PACKAGE_ID", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6);
+
+                int? packageId = await _context.PostServicePackages
+                    .AsNoTracking()
+                    .Where(p => p.PackageType == "Tin Thường")
+                    .OrderBy(p => p.PriorityLevel <= 0 ? 9999 : p.PriorityLevel)
+                    .ThenBy(p => p.Price)
+                    .Select(p => (int?)p.PackageID)
+                    .FirstOrDefaultAsync();
+
+                if (packageId.HasValue)
+                {
+                    return packageId;
+                }
+
+                return await _context.PostServicePackages
+                    .AsNoTracking()
+                    .Where(p => p.PriorityLevel == 5)
+                    .OrderBy(p => p.Price)
+                    .Select(p => (int?)p.PackageID)
+                    .FirstOrDefaultAsync();
+            });
+
+            if (!normalPackageId.HasValue)
+            {
+                return;
+            }
+
+            DateTime now = DateTime.Now;
+
+            await _context.Properties
+                .Where(p =>
+                    p.VipExpiryDate.HasValue &&
+                    p.VipExpiryDate.Value < now &&
+                    p.PackageID != normalPackageId.Value)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(p => p.PackageID, normalPackageId.Value)
+                    .SetProperty(p => p.VipExpiryDate, (DateTime?)null));
+        }
+
+        // =====================================================
+        // DỮ LIỆU PHỤ TRANG CHỦ - CACHE NGẮN ĐỂ KHÔNG QUERY LẶP
+        // =====================================================
+        private async Task LoadHomeViewBagsAsync()
+        {
+            ViewBag.LatestProjects = await _cache.GetOrCreateAsync("HOME_LATEST_PROJECTS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+                return await _context.Projects
+                    .AsNoTracking()
+                    .Include(p => p.Area)
+                    .Where(p => p.ApprovalStatus == "Approved" && p.IsDeleted == false)
+                    .OrderByDescending(p => p.PublishedAt)
+                    .Take(12)
+                    .ToListAsync();
+            });
+
+            ViewBag.Banners = await _cache.GetOrCreateAsync("HOME_ACTIVE_BANNERS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+
+                return await _context.Banners
+                    .AsNoTracking()
+                    .Where(b => b.IsActive)
+                    .OrderBy(b => b.DisplayOrder)
+                    .ToListAsync();
+            });
+
+            ViewBag.Areas = await _cache.GetOrCreateAsync("HOME_AREAS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+
+                return await _context.Areas
+                    .AsNoTracking()
+                    .OrderBy(a => a.AreaName)
+                    .ToListAsync();
+            });
+
+            ViewBag.AreaPropertyCounts = await _cache.GetOrCreateAsync("HOME_AREA_PROPERTY_COUNTS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+                var rows = await _context.Properties
+                    .AsNoTracking()
+                    .Where(p => p.Status == "Approved" && p.IsDeleted == false)
+                    .GroupBy(p => p.Ward.AreaID)
+                    .Select(g => new { AreaID = g.Key, Count = g.Count() })
+                    .ToListAsync();
+
+                return rows.ToDictionary(x => x.AreaID, x => x.Count);
+            });
+
+            ViewBag.Types = await _cache.GetOrCreateAsync("HOME_PROPERTY_TYPES", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+
+                return await _context.PropertyTypes
+                    .AsNoTracking()
+                    .Select(t => new { t.TypeID, t.TypeName, t.ParentID })
+                    .ToListAsync();
+            });
+
+            ViewBag.HotNews = await _cache.GetOrCreateAsync("HOME_HOT_NEWS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+                return await _context.Blogs
+                    .AsNoTracking()
+                    .Where(b => b.IsDeleted == false)
+                    .OrderByDescending(b => b.Views)
+                    .Take(8)
+                    .ToListAsync();
+            });
+
+            ViewBag.LatestNews = await _cache.GetOrCreateAsync("HOME_LATEST_NEWS", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+                return await _context.Blogs
+                    .AsNoTracking()
+                    .Where(b => b.IsDeleted == false)
+                    .OrderByDescending(b => b.CreatedAt)
+                    .Take(5)
+                    .ToListAsync();
+            });
+        }
+
         // =====================================================
         // API xử lý đề xuất tìm kiếm thông minh (AUTO-SUGGEST)
         // =====================================================
         [HttpGet]
         public async Task<IActionResult> Suggest(string keyword)
         {
-            if (string.IsNullOrWhiteSpace(keyword)) return Json(new List<object>());
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return Json(new List<object>());
+            }
 
-            keyword = keyword.ToLower();
+            keyword = keyword.Trim();
 
-            // Tìm kiếm đa luồng: Tiêu đề BĐS, Tên Dự án, Địa chỉ
-            var suggestions = await _context.Properties
+            List<object> suggestions = await _context.Properties
                 .AsNoTracking()
-                .Include(p => p.Project)
-                .Include(p => p.Ward).ThenInclude(w => w.Area)
-                .Where(p => p.Status == "Approved" && p.IsDeleted == false &&
-                            (p.Title.ToLower().Contains(keyword) ||
-                             p.AddressDetail.ToLower().Contains(keyword) ||
-                             (p.Project != null && p.Project.ProjectName.ToLower().Contains(keyword))))
-                .Select(p => new {
+                .Where(p =>
+                    p.Status == "Approved" &&
+                    p.IsDeleted == false &&
+                    (
+                        EF.Functions.Like(p.Title, $"%{keyword}%") ||
+                        EF.Functions.Like(p.AddressDetail ?? "", $"%{keyword}%") ||
+                        (p.Project != null && EF.Functions.Like(p.Project.ProjectName, $"%{keyword}%"))
+                    ))
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => new
+                {
                     title = p.Title,
-                    address = $"{p.AddressDetail}, {p.Ward.WardName}, {p.Ward.Area.AreaName}",
+                    address =
+                        (p.AddressDetail ?? "") + ", " +
+                        (p.Ward != null ? p.Ward.WardName : "") + ", " +
+                        (p.Ward != null && p.Ward.Area != null ? p.Ward.Area.AreaName : ""),
                     type = p.Project != null ? "Dự án: " + p.Project.ProjectName : "Tin BĐS"
                 })
-                .Distinct()
                 .Take(7)
+                .Cast<object>()
                 .ToListAsync();
 
             return Json(suggestions);
@@ -287,11 +324,14 @@ namespace BDSKhanhHoa.Controllers
         [HttpPost]
         public async Task<IActionResult> ToggleFavorite(int propertyId)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId))
-                return Json(new { success = false, message = "Vui lòng đăng nhập để lưu tin." });
+            string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var existingFav = await _context.Favorites
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return Json(new { success = false, message = "Vui lòng đăng nhập để lưu tin." });
+            }
+
+            Favorite? existingFav = await _context.Favorites
                 .FirstOrDefaultAsync(f => f.PropertyID == propertyId && f.UserID == userId);
 
             bool isSaved = false;
@@ -302,21 +342,30 @@ namespace BDSKhanhHoa.Controllers
             }
             else
             {
-                _context.Favorites.Add(new Favorite { PropertyID = propertyId, UserID = userId, CreatedAt = DateTime.Now });
+                _context.Favorites.Add(new Favorite
+                {
+                    PropertyID = propertyId,
+                    UserID = userId,
+                    CreatedAt = DateTime.Now
+                });
+
                 isSaved = true;
             }
 
             await _context.SaveChangesAsync();
-            return Json(new { success = true, isSaved = isSaved });
+
+            return Json(new { success = true, isSaved });
         }
 
         [HttpGet]
         public async Task<JsonResult> GetWardsByArea(int areaId)
         {
             var wards = await _context.Wards
+                .AsNoTracking()
                 .Where(w => w.AreaID == areaId)
                 .OrderBy(w => w.WardName)
-                .Select(w => new {
+                .Select(w => new
+                {
                     wardId = w.WardID,
                     wardName = w.WardName
                 })

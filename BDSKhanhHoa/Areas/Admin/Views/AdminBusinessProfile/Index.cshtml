@@ -2,158 +2,825 @@
 @{
     ViewData["Title"] = "Quản lý Đối tác Doanh nghiệp";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    int totalPartners = Model?.Count() ?? 0;
+    int activePartners = Model?.Count(x => x.VerificationStatus == "Approved") ?? 0;
+    int suspendedPartners = Model?.Count(x => x.VerificationStatus == "Suspended") ?? 0;
+    string currentFilter = Convert.ToString(ViewData["CurrentFilter"]) ?? "";
 }
 
 <style>
-    .avatar-biz {
-        width: 45px;
-        height: 45px;
+    .biz-page {
+        --biz-primary: #2563eb;
+        --biz-primary-dark: #1d4ed8;
+        --biz-success: #059669;
+        --biz-danger: #dc2626;
+        --biz-text: #0f172a;
+        --biz-body: #334155;
+        --biz-muted: #64748b;
+        --biz-border: #e2e8f0;
+        --biz-soft: #f8fafc;
+        --biz-card: #ffffff;
+        --biz-radius: 20px;
+        padding: 20px 20px 28px;
+        overflow-x: hidden;
+    }
+
+    .biz-shell {
+        max-width: 1380px;
+        margin: 0 auto;
+    }
+
+    .biz-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(310px, 450px);
+        gap: 16px;
+        align-items: center;
+        padding: 18px;
+        margin-bottom: 16px;
+        border: 1px solid var(--biz-border);
+        border-radius: 24px;
+        background: linear-gradient(135deg, #ffffff, #f8fbff);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+    }
+
+    .biz-title-row {
         display: flex;
         align-items: center;
-        justify-content: center;
-        border-radius: 12px;
+        gap: 12px;
+        min-width: 0;
     }
 
-    .card-stat {
-        border: none;
-        border-radius: 1rem;
-        transition: transform 0.2s;
+    .biz-title-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+        box-shadow: 0 12px 24px rgba(37, 99, 235, .22);
+        flex: 0 0 auto;
     }
 
-        .card-stat:hover {
-            transform: translateY(-5px);
+    .biz-title {
+        margin: 0;
+        color: var(--biz-text);
+        font-size: clamp(1.25rem, 2.1vw, 1.85rem);
+        line-height: 1.16;
+        font-weight: 950;
+        letter-spacing: -.04em;
+    }
+
+    .biz-desc {
+        margin: 5px 0 0;
+        color: var(--biz-muted);
+        font-size: .92rem;
+        line-height: 1.5;
+        font-weight: 550;
+    }
+
+    .biz-search-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: center;
+    }
+
+    .biz-search-wrap {
+        position: relative;
+        min-width: 0;
+    }
+
+        .biz-search-wrap i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            pointer-events: none;
         }
+
+    .biz-search-input {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid var(--biz-border);
+        border-radius: 999px;
+        padding: 0 15px 0 42px;
+        background: #fff;
+        color: var(--biz-text);
+        font-weight: 750;
+        outline: none;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, .05);
+        transition: .18s ease;
+    }
+
+        .biz-search-input:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+        }
+
+    .biz-btn {
+        min-height: 46px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--biz-primary), #0ea5e9);
+        font-weight: 900;
+        text-decoration: none;
+        box-shadow: 0 12px 24px rgba(37, 99, 235, .23);
+        transition: .18s ease;
+        white-space: nowrap;
+    }
+
+        .biz-btn:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+    .biz-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .biz-stat {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid var(--biz-border);
+        border-radius: 20px;
+        background: var(--biz-card);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .045);
+    }
+
+    .biz-stat-label {
+        color: var(--biz-muted);
+        font-size: .72rem;
+        line-height: 1.2;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        font-weight: 950;
+    }
+
+    .biz-stat-value {
+        margin-top: 5px;
+        color: var(--biz-text);
+        font-size: 1.55rem;
+        line-height: 1;
+        font-weight: 950;
+        letter-spacing: -.03em;
+    }
+
+        .biz-stat-value.success {
+            color: var(--biz-success);
+        }
+
+        .biz-stat-value.danger {
+            color: var(--biz-danger);
+        }
+
+    .biz-stat-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        font-size: 1.2rem;
+    }
+
+        .biz-stat-icon.primary {
+            background: #eff6ff;
+            color: var(--biz-primary);
+        }
+
+        .biz-stat-icon.success {
+            background: #ecfdf5;
+            color: var(--biz-success);
+        }
+
+        .biz-stat-icon.danger {
+            background: #fef2f2;
+            color: var(--biz-danger);
+        }
+
+    .biz-list-card {
+        overflow: hidden;
+        border: 1px solid var(--biz-border);
+        border-radius: 24px;
+        background: var(--biz-card);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+    }
+
+    .biz-list-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--biz-border);
+        background: #fff;
+    }
+
+    .biz-list-title {
+        margin: 0;
+        color: var(--biz-text);
+        font-size: 1rem;
+        line-height: 1.25;
+        font-weight: 950;
+    }
+
+    .biz-list-sub {
+        margin-top: 3px;
+        color: var(--biz-muted);
+        font-size: .8rem;
+        font-weight: 650;
+    }
+
+    .biz-count-chip {
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: #eff6ff;
+        color: var(--biz-primary);
+        border: 1px solid #bfdbfe;
+        font-size: .8rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .biz-table-wrap {
+        width: 100%;
+        overflow: visible;
+    }
+
+    .biz-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+        .biz-table thead th {
+            padding: 13px 16px;
+            background: #f8fafc;
+            color: var(--biz-muted);
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 950;
+            border-bottom: 1px solid var(--biz-border);
+        }
+
+        .biz-table tbody td {
+            padding: 15px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .biz-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+    .biz-name {
+        color: var(--biz-text);
+        font-size: .96rem;
+        line-height: 1.35;
+        font-weight: 950;
+        overflow-wrap: anywhere;
+    }
+
+    .biz-meta-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px 12px;
+        margin-top: 6px;
+        color: var(--biz-muted);
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+        .biz-meta-line span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 0;
+        }
+
+    .biz-person {
+        color: var(--biz-text);
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .biz-phone {
+        margin-top: 4px;
+        color: var(--biz-muted);
+        font-size: .8rem;
+        font-weight: 750;
+    }
+
+    .biz-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 32px;
+        padding: 0 11px;
+        border-radius: 999px;
+        font-size: .76rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+        .biz-status.active {
+            background: #ecfdf5;
+            color: var(--biz-success);
+            border: 1px solid #bbf7d0;
+        }
+
+        .biz-status.locked {
+            background: #fef2f2;
+            color: var(--biz-danger);
+            border: 1px solid #fecaca;
+        }
+
+    .biz-actions {
+        display: inline-flex;
+        justify-content: flex-end;
+        border: 1px solid var(--biz-border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, .045);
+    }
+
+    .biz-action-btn {
+        width: 40px;
+        height: 38px;
+        border: 0;
+        border-right: 1px solid var(--biz-border);
+        background: #fff;
+        color: var(--biz-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: .18s ease;
+        text-decoration: none;
+    }
+
+        .biz-action-btn:last-child {
+            border-right: 0;
+        }
+
+        .biz-action-btn:hover {
+            background: #eff6ff;
+            color: var(--biz-primary-dark);
+        }
+
+        .biz-action-btn.danger {
+            color: var(--biz-danger);
+        }
+
+        .biz-action-btn.success {
+            color: var(--biz-success);
+        }
+
+    .biz-mobile-list {
+        display: none;
+    }
+
+    .biz-mobile-card {
+        border: 1px solid var(--biz-border);
+        border-radius: 18px;
+        padding: 12px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .045);
+        margin-bottom: 10px;
+    }
+
+    .biz-mobile-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .biz-mobile-info {
+        min-width: 0;
+    }
+
+    .biz-mobile-actions {
+        display: grid;
+        grid-template-columns: 38px 38px;
+        gap: 6px;
+        flex: 0 0 auto;
+    }
+
+    .biz-mini-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
+        border: 1px solid var(--biz-border);
+        background: #f8fafc;
+        color: var(--biz-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+    }
+
+        .biz-mini-btn.danger {
+            color: var(--biz-danger);
+            background: #fff7f7;
+        }
+
+        .biz-mini-btn.success {
+            color: var(--biz-success);
+            background: #f0fdf4;
+        }
+
+    .biz-empty {
+        padding: 44px 16px;
+        text-align: center;
+        color: var(--biz-muted);
+        font-weight: 800;
+    }
+
+        .biz-empty i {
+            display: block;
+            font-size: 2.4rem;
+            opacity: .32;
+            margin-bottom: 10px;
+        }
+
+    @@media (max-width: 991.98px) {
+        .biz-page {
+            padding: 14px 10px 22px;
+        }
+
+        .biz-head {
+            grid-template-columns: 1fr;
+            padding: 14px;
+            border-radius: 20px;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .biz-title-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 14px;
+        }
+
+        .biz-title {
+            font-size: 1.18rem;
+        }
+
+        .biz-desc {
+            display: none;
+        }
+
+        .biz-search-form {
+            grid-template-columns: minmax(0, 1fr) 78px;
+        }
+
+        .biz-search-input,
+        .biz-btn {
+            min-height: 42px;
+            font-size: .9rem;
+        }
+
+        .biz-btn {
+            padding: 0 14px;
+        }
+
+        .biz-summary {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .biz-stat {
+            display: block;
+            padding: 10px;
+            border-radius: 16px;
+            min-height: 76px;
+        }
+
+        .biz-stat-icon {
+            display: none;
+        }
+
+        .biz-stat-label {
+            font-size: .6rem;
+            line-height: 1.16;
+            min-height: 28px;
+        }
+
+        .biz-stat-value {
+            font-size: 1.28rem;
+            margin-top: 2px;
+        }
+
+        .biz-list-card {
+            border-radius: 20px;
+        }
+
+        .biz-list-head {
+            padding: 12px;
+        }
+
+        .biz-list-sub {
+            display: none;
+        }
+
+        .biz-count-chip {
+            min-height: 30px;
+            padding: 0 10px;
+            font-size: .72rem;
+        }
+
+        .biz-table-wrap {
+            display: none;
+        }
+
+        .biz-mobile-list {
+            display: block;
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .biz-name {
+            font-size: .94rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .biz-meta-line {
+            display: grid;
+            gap: 4px;
+            font-size: .74rem;
+        }
+
+        .biz-person-row {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--biz-border);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .biz-person {
+            font-size: .86rem;
+        }
+
+        .biz-phone {
+            font-size: .75rem;
+        }
+
+        .biz-status {
+            min-height: 28px;
+            padding: 0 9px;
+            font-size: .68rem;
+        }
+    }
+
+    @@media (max-width: 380px) {
+        .biz-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .biz-stat {
+            display: flex;
+            min-height: unset;
+        }
+
+        .biz-stat-label {
+            min-height: unset;
+        }
+    }
 </style>
 
-<div class="container-fluid px-4 py-4 animate__animated animate__fadeIn">
-    <div class="row align-items-end mb-4 gap-3 gap-md-0">
-        <div class="col-md-7">
-            <h4 class="fw-bold text-dark mb-1">
-                <i class="bi bi-buildings-fill text-primary me-2"></i>MẠNG LƯỚI ĐỐI TÁC CĐT
-            </h4>
-            <p class="text-muted small mb-0">Quản lý các tài khoản pháp nhân, chủ đầu tư, sàn giao dịch do Admin cấp phát.</p>
-        </div>
-        <div class="col-md-5">
-            <form asp-action="Index" method="get" class="d-flex justify-content-md-end gap-2">
-                <div class="input-group shadow-sm rounded-pill overflow-hidden bg-white border">
-                    <span class="input-group-text bg-transparent border-0 pe-1"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" name="searchString" value="@ViewData["CurrentFilter"]"
-                           class="form-control border-0 shadow-none ps-2" placeholder="Tìm tên DN, MST, Tài khoản...">
+<div class="container-fluid biz-page animate__animated animate__fadeIn">
+    <div class="biz-shell">
+        <section class="biz-head">
+            <div class="biz-title-row">
+                <div class="biz-title-icon">
+                    <i class="bi bi-buildings-fill fs-5"></i>
                 </div>
-                <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm fw-bold">Tìm</button>
+                <div class="min-w-0">
+                    <h4 class="biz-title">Mạng lưới đối tác CĐT</h4>
+                    <p class="biz-desc">Quản lý pháp nhân, chủ đầu tư và sàn giao dịch do Admin cấp phát.</p>
+                </div>
+            </div>
+
+            <form asp-action="Index" method="get" class="biz-search-form">
+                <div class="biz-search-wrap">
+                    <i class="bi bi-search"></i>
+                    <input type="text"
+                           name="searchString"
+                           value="@currentFilter"
+                           class="biz-search-input"
+                           placeholder="Tìm tên DN, MST, tài khoản..." />
+                </div>
+                <button type="submit" class="biz-btn">
+                    <i class="bi bi-search d-none d-sm-inline"></i>
+                    Tìm
+                </button>
             </form>
-        </div>
-    </div>
+        </section>
 
-    <!-- Tóm tắt thống kê -->
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card card-stat shadow-sm border-bottom border-primary border-4 bg-white p-4">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small fw-bold mb-1">TỔNG SỐ ĐỐI TÁC</p>
-                        <h3 class="fw-bold mb-0 text-dark">@Model.Count()</h3>
-                    </div>
-                    <div class="avatar-biz bg-primary-subtle text-primary"><i class="bi bi-briefcase fs-4"></i></div>
+        <section class="biz-summary" aria-label="Tóm tắt đối tác">
+            <div class="biz-stat">
+                <div>
+                    <div class="biz-stat-label">Tổng đối tác</div>
+                    <div class="biz-stat-value">@totalPartners</div>
                 </div>
+                <div class="biz-stat-icon primary"><i class="bi bi-briefcase"></i></div>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card card-stat shadow-sm border-bottom border-success border-4 bg-white p-4">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small fw-bold mb-1">ĐANG HOẠT ĐỘNG</p>
-                        <h3 class="fw-bold mb-0 text-success">@Model.Count(x => x.VerificationStatus == "Approved")</h3>
-                    </div>
-                    <div class="avatar-biz bg-success-subtle text-success"><i class="bi bi-check-circle fs-4"></i></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card card-stat shadow-sm border-bottom border-danger border-4 bg-white p-4">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small fw-bold mb-1">ĐANG ĐÌNH CHỈ</p>
-                        <h3 class="fw-bold mb-0 text-danger">@Model.Count(x => x.VerificationStatus == "Suspended")</h3>
-                    </div>
-                    <div class="avatar-biz bg-danger-subtle text-danger"><i class="bi bi-lock fs-4"></i></div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Bảng dữ liệu -->
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light text-uppercase small text-muted">
-                    <tr>
-                        <th class="ps-4 py-3 fw-bold" style="width: 35%">Pháp nhân / Doanh nghiệp</th>
-                        <th class="fw-bold" style="width: 25%">Người phụ trách</th>
-                        <th class="fw-bold" style="width: 20%">Trạng thái</th>
-                        <th class="text-end pe-4 fw-bold" style="width: 20%">Quản trị</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
-                    {
+            <div class="biz-stat">
+                <div>
+                    <div class="biz-stat-label">Hoạt động</div>
+                    <div class="biz-stat-value success">@activePartners</div>
+                </div>
+                <div class="biz-stat-icon success"><i class="bi bi-check2-circle"></i></div>
+            </div>
+
+            <div class="biz-stat">
+                <div>
+                    <div class="biz-stat-label">Đình chỉ</div>
+                    <div class="biz-stat-value danger">@suspendedPartners</div>
+                </div>
+                <div class="biz-stat-icon danger"><i class="bi bi-lock"></i></div>
+            </div>
+        </section>
+
+        <section class="biz-list-card">
+            <div class="biz-list-head">
+                <div>
+                    <h5 class="biz-list-title"><i class="bi bi-list-check text-primary me-2"></i>Danh sách đối tác</h5>
+                    <div class="biz-list-sub">Không dùng cuộn ngang; mobile tự chuyển thành thẻ gọn.</div>
+                </div>
+                <span class="biz-count-chip">
+                    <i class="bi bi-buildings"></i>
+                    @totalPartners hồ sơ
+                </span>
+            </div>
+
+            <div class="biz-table-wrap">
+                <table class="biz-table">
+                    <thead>
                         <tr>
-                            <td colspan="4" class="text-center py-5 text-muted">
-                                <i class="bi bi-buildings opacity-25 display-4 d-block mb-3"></i>
-                                Không tìm thấy đối tác doanh nghiệp nào.
-                            </td>
+                            <th style="width: 42%;">Pháp nhân / Doanh nghiệp</th>
+                            <th style="width: 24%;">Người phụ trách</th>
+                            <th style="width: 18%;">Trạng thái</th>
+                            <th class="text-end" style="width: 16%;">Quản trị</th>
                         </tr>
-                    }
-                    @foreach (var item in Model)
+                    </thead>
+                    <tbody>
+                        @if (Model == null || !Model.Any())
+                        {
+                            <tr>
+                                <td colspan="4">
+                                    <div class="biz-empty">
+                                        <i class="bi bi-buildings"></i>
+                                        Không tìm thấy đối tác doanh nghiệp nào.
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var item in Model)
+                            {
+                                bool isApproved = item.VerificationStatus == "Approved";
+
+                                <tr>
+                                    <td>
+                                        <div class="biz-name">@item.BusinessName</div>
+                                        <div class="biz-meta-line">
+                                            <span><i class="bi bi-upc-scan"></i>MST: @item.TaxCode</span>
+                                            <span class="text-primary"><i class="bi bi-person-circle"></i>@item.User?.Username</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="biz-person">@item.RepresentativeName</div>
+                                        <div class="biz-phone"><i class="bi bi-telephone"></i> @item.RepresentativePhone</div>
+                                    </td>
+                                    <td>
+                                        @if (isApproved)
+                                        {
+                                            <span class="biz-status active"><i class="bi bi-check-circle-fill"></i>Hoạt động</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="biz-status locked"><i class="bi bi-lock-fill"></i>Đình chỉ</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="biz-actions">
+                                            <a asp-action="Details" asp-route-id="@item.BusinessProfileID" class="biz-action-btn" title="Xem hồ sơ">
+                                                <i class="bi bi-file-earmark-person"></i>
+                                            </a>
+                                            <button type="button"
+                                                    class="biz-action-btn @(isApproved ? "danger" : "success")"
+                                                    data-name="@item.BusinessName"
+                                                    onclick="toggleStatus(this, @item.BusinessProfileID)"
+                                                    title="Khóa/Mở khóa">
+                                                <i class="bi @(isApproved ? "bi-lock" : "bi-unlock")"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="biz-mobile-list">
+                @if (Model == null || !Model.Any())
+                {
+                    <div class="biz-empty">
+                        <i class="bi bi-buildings"></i>
+                        Không tìm thấy đối tác doanh nghiệp nào.
+                    </div>
+                }
+                else
+                {
+                    foreach (var item in Model)
                     {
-                        <tr>
-                            <td class="ps-4 py-3">
-                                <div class="fw-bold text-dark fs-6 mb-1">@item.BusinessName</div>
-                                <div class="small text-muted d-flex gap-3">
-                                    <span><i class="bi bi-upc-scan"></i> MST: @item.TaxCode</span>
-                                    <span class="text-primary"><i class="bi bi-person-circle"></i> @item.User?.Username</span>
+                        bool isApproved = item.VerificationStatus == "Approved";
+
+                        <article class="biz-mobile-card">
+                            <div class="biz-mobile-top">
+                                <div class="biz-mobile-info">
+                                    <div class="biz-name">@item.BusinessName</div>
+                                    <div class="biz-meta-line">
+                                        <span><i class="bi bi-upc-scan"></i>MST: @item.TaxCode</span>
+                                        <span class="text-primary"><i class="bi bi-person-circle"></i>@item.User?.Username</span>
+                                    </div>
                                 </div>
-                            </td>
-                            <td>
-                                <div class="fw-medium text-dark">@item.RepresentativeName</div>
-                                <div class="small text-muted"><i class="bi bi-telephone"></i> @item.RepresentativePhone</div>
-                            </td>
-                            <td>
-                                @if (item.VerificationStatus == "Approved")
+                                <div class="biz-mobile-actions">
+                                    <a asp-action="Details" asp-route-id="@item.BusinessProfileID" class="biz-mini-btn" title="Xem hồ sơ">
+                                        <i class="bi bi-file-earmark-person"></i>
+                                    </a>
+                                    <button type="button"
+                                            class="biz-mini-btn @(isApproved ? "danger" : "success")"
+                                            data-name="@item.BusinessName"
+                                            onclick="toggleStatus(this, @item.BusinessProfileID)"
+                                            title="Khóa/Mở khóa">
+                                        <i class="bi @(isApproved ? "bi-lock" : "bi-unlock")"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="biz-person-row">
+                                <div class="min-w-0">
+                                    <div class="biz-person">@item.RepresentativeName</div>
+                                    <div class="biz-phone"><i class="bi bi-telephone"></i> @item.RepresentativePhone</div>
+                                </div>
+
+                                @if (isApproved)
                                 {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">
-                                        <i class="bi bi-check-circle-fill me-1"></i> Hoạt động
-                                    </span>
+                                    <span class="biz-status active"><i class="bi bi-check-circle-fill"></i>Hoạt động</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2">
-                                        <i class="bi bi-lock-fill me-1"></i> Bị đình chỉ
-                                    </span>
+                                    <span class="biz-status locked"><i class="bi bi-lock-fill"></i>Đình chỉ</span>
                                 }
-                            </td>
-                            <td class="text-end pe-4">
-                                <div class="btn-group border shadow-sm rounded-3 bg-white">
-                                    <a asp-action="Details" asp-route-id="@item.BusinessProfileID" class="btn btn-sm btn-light text-primary border-end" title="Xem hồ sơ">
-                                        <i class="bi bi-file-earmark-person"></i>
-                                    </a>
-                                    <button onclick="toggleStatus(@item.BusinessProfileID, '@item.BusinessName')" class="btn btn-sm btn-light @(item.VerificationStatus == "Approved" ? "text-danger" : "text-success")" title="Khóa/Mở khóa">
-                                        <i class="bi @(item.VerificationStatus == "Approved" ? "bi-lock" : "bi-unlock")"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                            </div>
+                        </article>
                     }
-                </tbody>
-            </table>
-        </div>
+                }
+            </div>
+        </section>
     </div>
 </div>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function toggleStatus(id, name) {
+        function toggleStatus(button, id) {
+            const name = button?.dataset?.name || 'đối tác này';
+
             Swal.fire({
                 title: 'Thay đổi trạng thái?',
                 text: `Xác nhận khóa/mở khóa hoạt động của CĐT: ${name}?`,
@@ -164,17 +831,25 @@
                 confirmButtonText: 'Đồng ý',
                 cancelButtonText: 'Hủy'
             }).then((result) => {
-                if (result.isConfirmed) {
-                    $.post('@Url.Action("ToggleStatus")', { id: id }, function(res) {
-                        if(res.success) {
-                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cập nhật thành công', showConfirmButton: false, timer: 1500 })
-                            .then(() => location.reload());
-                        } else {
-                            Swal.fire('Lỗi', res.message, 'error');
-                        }
-                    });
-                }
-            })
+                if (!result.isConfirmed) return;
+
+                $.post('@Url.Action("ToggleStatus")', { id: id }, function (res) {
+                    if (res && res.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Cập nhật thành công',
+                            showConfirmButton: false,
+                            timer: 1500
+                        }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Lỗi', res && res.message ? res.message : 'Không thể cập nhật trạng thái.', 'error');
+                    }
+                }).fail(function () {
+                    Swal.fire('Lỗi', 'Không kết nối được máy chủ. Vui lòng thử lại.', 'error');
+                });
+            });
         }
     </script>
 }

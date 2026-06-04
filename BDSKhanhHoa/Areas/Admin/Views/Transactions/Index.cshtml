@@ -24,10 +24,7 @@
     string startDate = ViewBag.StartDate as string ?? "";
     string endDate = ViewBag.EndDate as string ?? "";
 
-    string FormatMoney(decimal amount)
-    {
-        return amount.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " ₫";
-    }
+    string FormatMoney(decimal amount) => amount.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " ₫";
 
     string GetStatusText(string? status)
     {
@@ -36,10 +33,10 @@
             "Success" => "Thành công",
             "Completed" => "Hoàn tất",
             "Pending" => "Chờ duyệt",
-            "Rejected" => "Bị từ chối",
+            "Rejected" => "Từ chối",
             "Failed" => "Thất bại",
             "Cancelled" => "Đã hủy",
-            null or "" => "Chưa xác định",
+            null or "" => "Chưa rõ",
             _ => status
         };
     }
@@ -48,13 +45,10 @@
     {
         return status switch
         {
-            "Success" => "status-success",
-            "Completed" => "status-success",
-            "Pending" => "status-pending",
-            "Rejected" => "status-danger",
-            "Failed" => "status-danger",
-            "Cancelled" => "status-muted",
-            _ => "status-muted"
+            "Success" or "Completed" => "ok",
+            "Pending" => "wait",
+            "Rejected" or "Failed" => "bad",
+            _ => "muted"
         };
     }
 
@@ -62,11 +56,9 @@
     {
         return status switch
         {
-            "Success" => "bi-check-circle-fill",
-            "Completed" => "bi-check-circle-fill",
+            "Success" or "Completed" => "bi-check-circle-fill",
             "Pending" => "bi-hourglass-split",
-            "Rejected" => "bi-x-circle-fill",
-            "Failed" => "bi-x-circle-fill",
+            "Rejected" or "Failed" => "bi-x-circle-fill",
             "Cancelled" => "bi-slash-circle-fill",
             _ => "bi-info-circle-fill"
         };
@@ -76,41 +68,21 @@
     {
         return paymentMethod switch
         {
-            "BankTransfer" => "Chuyển khoản",
-            "Momo" => "Ví MoMo",
             "VNPay" => "VNPay",
-            "Cash" => "Tiền mặt",
-            "System Gift" => "Hệ thống tặng",
-            "SePay" => "SePay",
-            null or "" => "Chưa xác định",
+            "PayOS" => "PayOS",
+            "System Gift" => "Tặng",
+            "BankTransfer" => "Đã tắt",
+            "SePay" => "Đã tắt",
+            "Cash" => "Đã tắt",
+            null or "" => "Chưa rõ",
             _ => paymentMethod
         };
     }
 
-    string SafeAvatar(string? avatar)
-    {
-        return string.IsNullOrWhiteSpace(avatar) ? "/images/avatars/default-user.png" : avatar;
-    }
-
-    string GetCustomerName(BDSKhanhHoa.Models.Transaction item)
-    {
-        return item.User?.FullName ?? item.User?.Username ?? "Không rõ người dùng";
-    }
-
-    string GetCustomerPhone(BDSKhanhHoa.Models.Transaction item)
-    {
-        return string.IsNullOrWhiteSpace(item.User?.Phone) ? "Chưa có SĐT" : item.User.Phone;
-    }
-
-    string GetPackageName(BDSKhanhHoa.Models.Transaction item)
-    {
-        if (!string.IsNullOrWhiteSpace(item.Description))
-        {
-            return item.Description;
-        }
-
-        return item.Package?.PackageName ?? "Gói dịch vụ";
-    }
+    string SafeAvatar(string? avatar) => string.IsNullOrWhiteSpace(avatar) ? "/images/avatars/default-user.png" : avatar;
+    string GetCustomerName(BDSKhanhHoa.Models.Transaction item) => item.User?.FullName ?? item.User?.Username ?? "Không rõ";
+    string GetCustomerPhone(BDSKhanhHoa.Models.Transaction item) => string.IsNullOrWhiteSpace(item.User?.Phone) ? "Chưa có SĐT" : item.User.Phone;
+    string GetPackageName(BDSKhanhHoa.Models.Transaction item) => !string.IsNullOrWhiteSpace(item.Description) ? item.Description : item.Package?.PackageName ?? "Gói dịch vụ";
 }
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -118,884 +90,628 @@
 
 <style>
     :root {
-        --finance-primary: #2563eb;
-        --finance-success: #059669;
-        --finance-warning: #d97706;
-        --finance-danger: #dc2626;
-        --finance-dark: #0f172a;
-        --finance-muted: #64748b;
-        --finance-border: #e2e8f0;
-        --finance-soft: #f8fafc;
-        --finance-shadow: 0 14px 34px rgba(15, 23, 42, .065);
+        --ad-bg: #f6f8fb;
+        --ad-card: #fff;
+        --ad-text: #0f172a;
+        --ad-muted: #64748b;
+        --ad-line: #e2e8f0;
+        --ad-blue: #2563eb;
+        --ad-green: #059669;
+        --ad-red: #dc2626;
+        --ad-yellow: #d97706;
+        --ad-shadow: 0 8px 22px rgba(15, 23, 42, .055);
     }
 
     .finance-page {
-        background: #f6f8fb;
-        min-height: calc(100vh - 80px);
-        padding: 18px;
+        background: var(--ad-bg);
+        min-height: auto;
+        padding: 8px;
         overflow-x: hidden;
     }
 
-    .finance-container {
-        width: 100%;
-        max-width: 100%;
-        margin: 0 auto;
+    .topbar,
+    .card-flat,
+    .filter-box,
+    .data-box {
+        background: var(--ad-card);
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 14px;
+        box-shadow: var(--ad-shadow);
     }
 
-    .finance-hero {
-        border-radius: 24px;
-        padding: 22px;
-        background: radial-gradient(circle at top right, rgba(37, 99, 235, .16), transparent 320px), linear-gradient(135deg, #ffffff, #f8fbff);
-        border: 1px solid rgba(148, 163, 184, .24);
-        box-shadow: var(--finance-shadow);
-        margin-bottom: 16px;
-    }
-
-    .finance-hero-inner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-    }
-
-    .finance-title-wrap {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        min-width: 0;
-    }
-
-    .finance-hero-icon {
-        width: 58px;
-        height: 58px;
-        border-radius: 20px;
-        background: linear-gradient(135deg, var(--finance-primary), #60a5fa);
-        color: #fff;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.65rem;
-        flex-shrink: 0;
-    }
-
-    .finance-title {
-        margin: 0;
-        color: var(--finance-dark);
-        font-size: clamp(1.25rem, 2vw, 2rem);
-        font-weight: 950;
-        letter-spacing: -.035em;
-        line-height: 1.15;
-    }
-
-    .finance-subtitle {
-        margin: 6px 0 0;
-        color: var(--finance-muted);
-        font-size: .92rem;
-        font-weight: 600;
-        line-height: 1.5;
-    }
-
-    .hero-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        flex-shrink: 0;
-    }
-
-    .hero-btn {
-        min-height: 44px;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 9px 16px;
-        font-weight: 900;
-        text-decoration: none;
-        white-space: nowrap;
-        border: 1px solid transparent;
-    }
-
-    .hero-btn-light {
-        color: #0f172a;
-        background: #fff;
-        border-color: #dbe4ef;
-    }
-
-    .hero-btn-success {
-        color: #fff;
-        background: linear-gradient(135deg, #10b981, #059669);
-        border: 0;
-    }
-
-    .hero-btn:hover {
-        transform: translateY(-1px);
-    }
-
-    .mini-stat-row {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 10px;
-        margin-bottom: 16px;
-    }
-
-    .mini-stat {
-        background: #fff;
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 18px;
-        padding: 13px 15px;
-        box-shadow: var(--finance-shadow);
+    .topbar {
+        padding: 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        margin-bottom: 12px;
     }
 
-    .mini-stat-label {
-        color: #64748b;
-        font-size: .76rem;
-        font-weight: 850;
-        text-transform: uppercase;
-        letter-spacing: .04em;
+    .title-line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
     }
 
-    .mini-stat-value {
-        color: #0f172a;
-        font-size: 1.15rem;
+    .title-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #60a5fa);
+        flex: 0 0 auto;
+        font-size: 1.2rem;
+    }
+
+    .page-title {
+        margin: 0;
+        color: var(--ad-text);
+        font-size: clamp(1.28rem, 2.2vw, 1.85rem);
         font-weight: 950;
+        letter-spacing: -.035em;
+        line-height: 1.12;
+    }
+
+    .page-subtitle {
+        margin: 4px 0 0;
+        color: var(--ad-muted);
+        font-weight: 650;
+        font-size: .9rem;
+    }
+
+    .top-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        flex: 0 0 auto;
+    }
+
+    .btn-soft {
+        min-height: 40px;
+        border-radius: 999px;
+        padding: 8px 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 900;
+        white-space: nowrap;
+        text-decoration: none;
     }
 
     .kpi-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 10px;
+        margin-bottom: 12px;
     }
 
-    .kpi-card {
+    .kpi {
+        min-width: 0;
+        border-radius: 14px;
+        padding: 12px;
+        color: #fff;
         position: relative;
         overflow: hidden;
-        min-height: 136px;
-        border-radius: 22px;
-        padding: 18px;
-        color: #fff;
-        box-shadow: var(--finance-shadow);
     }
 
-        .kpi-card::after {
+        .kpi:after {
             content: "";
             position: absolute;
-            width: 170px;
-            height: 170px;
-            right: -75px;
-            bottom: -85px;
-            border-radius: 999px;
-            background: rgba(255,255,255,.16);
+            width: 120px;
+            height: 120px;
+            right: -45px;
+            bottom: -55px;
+            border-radius: 50%;
+            background: rgba(255,255,255,.17);
         }
 
-    .kpi-icon-bg {
-        position: absolute;
-        right: 12px;
-        bottom: 2px;
-        font-size: 5rem;
-        opacity: .14;
-        transform: rotate(-12deg);
-    }
+        .kpi .label {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-size: .72rem;
+            font-weight: 950;
+            text-transform: uppercase;
+            opacity: .92;
+        }
 
-    .kpi-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 11px;
-        font-size: .73rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-        opacity: .88;
-        position: relative;
-        z-index: 1;
-    }
+        .kpi .value {
+            position: relative;
+            z-index: 1;
+            margin: 10px 0 5px;
+            font-size: clamp(1.05rem, 1.65vw, 1.5rem);
+            font-weight: 950;
+            letter-spacing: -.03em;
+            line-height: 1.08;
+            word-break: break-word;
+        }
 
-    .kpi-value {
-        position: relative;
-        z-index: 1;
-        margin: 0;
-        font-size: clamp(1.18rem, 1.75vw, 1.75rem);
-        line-height: 1.1;
-        font-weight: 950;
-        letter-spacing: -.035em;
-        word-break: break-word;
-    }
+        .kpi .desc {
+            position: relative;
+            z-index: 1;
+            font-size: .78rem;
+            font-weight: 800;
+            opacity: .9;
+        }
 
-    .kpi-desc {
-        position: relative;
-        z-index: 1;
-        margin-top: 11px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: 700;
-        font-size: .8rem;
-        opacity: .88;
-    }
-
-    .grad-day {
+    .g1 {
         background: linear-gradient(135deg, #f59e0b, #d97706);
     }
 
-    .grad-month {
+    .g2 {
         background: linear-gradient(135deg, #10b981, #059669);
     }
 
-    .grad-year {
+    .g3 {
         background: linear-gradient(135deg, #0ea5e9, #0284c7);
     }
 
-    .grad-total {
+    .g4 {
         background: linear-gradient(135deg, #6366f1, #4338ca);
     }
 
-    .panel-card {
-        background: #fff;
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 22px;
-        box-shadow: var(--finance-shadow);
-        margin-bottom: 16px;
-        overflow: hidden;
+    .mini-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
     }
 
-    .panel-head {
-        padding: 16px 18px;
+    .mini {
+        padding: 12px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-width: 0;
+    }
+
+        .mini .label {
+            color: var(--ad-muted);
+            font-size: .72rem;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .mini .value {
+            margin-top: 3px;
+            color: var(--ad-text);
+            font-size: 1.2rem;
+            font-weight: 950;
+        }
+
+    .chart-card {
+        margin-bottom: 12px;
+    }
+
+    .card-head {
+        padding: 13px 15px;
         border-bottom: 1px solid #edf2f7;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-        background: #ffffff;
+        gap: 10px;
     }
 
-    .panel-title {
+    .card-title {
         margin: 0;
-        color: #0f172a;
+        color: var(--ad-text);
         font-size: 1rem;
         font-weight: 950;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
     }
 
-    .panel-subtitle {
-        margin: 4px 0 0;
-        color: #64748b;
-        font-size: .8rem;
-        font-weight: 600;
+    .card-subtitle {
+        margin: 2px 0 0;
+        color: var(--ad-muted);
+        font-size: .78rem;
+        font-weight: 650;
     }
 
     .chart-wrap {
-        padding: 16px 18px 20px;
+        height: 250px;
+        padding: 12px 14px 16px;
     }
 
-    .chart-container {
-        height: 300px;
+    .filter-box {
+        margin-bottom: 12px;
+        overflow: hidden;
+    }
+
+    .filter-toggle {
         width: 100%;
-        position: relative;
+        border: 0;
+        background: #fff;
+        padding: 14px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 950;
+        font-size: 1rem;
+        color: var(--ad-text);
     }
 
     .filter-body {
-        padding: 16px 18px 18px;
+        padding: 0 15px 15px;
     }
 
-    .filter-label {
-        color: #475569;
-        font-size: .74rem;
-        font-weight: 900;
+    .filter-grid {
+        display: grid;
+        grid-template-columns: minmax(180px, 1.4fr) 170px 150px 150px auto;
+        gap: 9px;
+        align-items: end;
+    }
+
+    .form-label-mini {
+        margin-bottom: 5px;
+        color: var(--ad-muted);
+        font-size: .72rem;
+        font-weight: 950;
         text-transform: uppercase;
         letter-spacing: .04em;
-        margin-bottom: 7px;
     }
 
     .soft-input {
-        min-height: 44px;
-        border-radius: 14px;
+        min-height: 40px;
+        border-radius: 12px;
         border: 1px solid #dbe4ef;
         background: #f8fafc;
-        color: #0f172a;
-        font-weight: 700;
+        font-weight: 750;
         box-shadow: none !important;
     }
 
         .soft-input:focus {
-            border-color: #93c5fd;
             background: #fff;
+            border-color: #93c5fd;
             box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
         }
 
-    .filter-btn,
-    .reset-btn {
-        min-height: 44px;
-        border-radius: 14px;
-        font-weight: 900;
+    .data-box {
+        overflow: hidden;
     }
 
-    .reset-btn {
-        width: 50px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+    .section-clean {
+        margin-bottom: 12px;
     }
 
-    .table-toolbar {
+    .data-header {
+        padding: 13px 15px;
+        border-bottom: 1px solid #edf2f7;
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        align-items: center;
+        gap: 10px;
         flex-wrap: wrap;
-        width: 100%;
     }
 
-    .pending-alert {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        min-height: 34px;
-        padding: 7px 12px;
-        border-radius: 999px;
-        background: #fef3c7;
-        color: #92400e;
-        border: 1px solid #fde68a;
-        font-size: .82rem;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
-    /* =====================================================
-           SỬA LỖI DESKTOP BỊ CHE CỘT TRẠNG THÁI / THAO TÁC
-           Không dùng min-width lớn, không tạo thanh lướt ngang.
-           Bảng dùng table-layout fixed để tự co đúng khung.
-        ===================================================== */
-    .desktop-table-wrap {
-        width: 100%;
-        overflow-x: visible;
-    }
-
-    .finance-table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: separate;
-        border-spacing: 0;
-        margin: 0;
-    }
-
-        .finance-table thead th {
-            background: #f8fafc;
-            color: #475569;
-            font-size: .68rem;
-            font-weight: 950;
-            text-transform: uppercase;
-            letter-spacing: .035em;
-            padding: 12px 10px;
-            border-bottom: 1px solid #e2e8f0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .finance-table tbody td {
-            padding: 13px 10px;
-            vertical-align: middle;
-            border-bottom: 1px solid #edf2f7;
-            color: #334155;
-            font-size: .84rem;
-            min-width: 0;
-            overflow: hidden;
-        }
-
-        .finance-table tbody tr {
-            transition: .18s ease;
-        }
-
-            .finance-table tbody tr:hover {
-                background: #f8fafc;
-            }
-
-    .col-code {
-        width: 12%;
-    }
-
-    .col-user {
-        width: 18%;
-    }
-
-    .col-amount {
-        width: 12%;
-    }
-
-    .col-service {
-        width: 22%;
-    }
-
-    .col-payment {
-        width: 10%;
-    }
-
-    .col-time {
-        width: 10%;
-    }
-
-    .col-status {
-        width: 9%;
-    }
-
-    .col-actions {
-        width: 7%;
-    }
-
-    .transaction-code {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        max-width: 100%;
-        border-radius: 999px;
-        padding: 6px 9px;
-        background: #f1f5f9;
-        color: #0f172a;
-        border: 1px solid #e2e8f0;
-        font-weight: 950;
-        font-size: .76rem;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-        .transaction-code span {
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-    .customer-box {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .customer-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 999px;
-        object-fit: cover;
-        border: 2px solid #fff;
-        box-shadow: 0 0 0 1px #e2e8f0;
-        background: #f1f5f9;
-        flex-shrink: 0;
-    }
-
-    .customer-name {
-        display: block;
-        color: #0f172a;
-        font-size: .84rem;
-        font-weight: 900;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .customer-phone {
-        display: block;
-        color: #64748b;
-        font-size: .74rem;
-        font-weight: 650;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .amount-text {
-        color: #059669;
-        font-size: .92rem;
-        font-weight: 950;
-        white-space: nowrap;
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .package-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        max-width: 100%;
-        padding: 6px 9px;
-        border-radius: 12px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        border: 1px solid #bfdbfe;
-        font-size: .76rem;
-        font-weight: 850;
-        overflow: hidden;
-    }
-
-        .package-pill span {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .package-pill strong {
-            flex-shrink: 0;
-        }
-
-    .payment-text {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        max-width: 100%;
-        color: #475569;
-        font-size: .78rem;
-        font-weight: 850;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .time-main {
-        display: block;
-        color: #0f172a;
-        font-weight: 900;
-        white-space: nowrap;
-        font-size: .82rem;
-    }
-
-    .time-sub {
-        display: block;
-        color: #64748b;
-        font-size: .74rem;
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
+    .pending-badge,
     .status-pill {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 5px;
-        min-height: 30px;
-        max-width: 100%;
-        padding: 5px 9px;
         border-radius: 999px;
+        padding: 5px 9px;
         font-size: .72rem;
-        font-weight: 900;
+        font-weight: 950;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
-        .status-pill span {
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-    .status-success {
-        background: #dcfce7;
-        color: #047857;
-        border: 1px solid #86efac;
-    }
-
-    .status-pending {
+    .pending-badge {
+        color: #92400e;
         background: #fef3c7;
-        color: #b45309;
         border: 1px solid #fde68a;
     }
 
-    .status-danger {
-        background: #fee2e2;
+    .status-pill.ok {
+        color: #047857;
+        background: #dcfce7;
+        border: 1px solid #86efac;
+    }
+
+    .status-pill.wait {
+        color: #b45309;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+    }
+
+    .status-pill.bad {
         color: #b91c1c;
+        background: #fee2e2;
         border: 1px solid #fecaca;
     }
 
-    .status-muted {
-        background: #f1f5f9;
+    .status-pill.muted {
         color: #475569;
+        background: #f1f5f9;
         border: 1px solid #cbd5e1;
     }
 
-    .action-group {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        flex-wrap: nowrap;
+    .finance-table {
         width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        margin: 0;
     }
 
-    .action-btn {
-        width: 30px;
-        height: 30px;
-        border-radius: 11px;
-        border: 1px solid transparent;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: .18s ease;
-        font-size: .84rem;
-        flex-shrink: 0;
-        padding: 0;
-    }
-
-        .action-btn:hover {
-            transform: translateY(-1px);
+        .finance-table th,
+        .finance-table td {
+            border-bottom: 1px solid #edf2f7;
+            padding: 10px 8px;
+            vertical-align: middle;
+            min-width: 0;
+            overflow: hidden;
         }
 
-    .action-view {
-        color: #0369a1;
-        background: #e0f2fe;
-        border-color: #bae6fd;
-    }
-
-        .action-view:hover {
-            color: #fff;
-            background: #0284c7;
+        .finance-table th {
+            background: #f8fafc;
+            color: var(--ad-muted);
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .035em;
+            font-weight: 950;
+            white-space: nowrap;
         }
 
-    .action-approve {
-        color: #047857;
-        background: #dcfce7;
-        border-color: #86efac;
-    }
-
-        .action-approve:hover {
-            color: #fff;
-            background: #059669;
+        .finance-table td {
+            color: #334155;
+            font-size: .82rem;
         }
 
-    .action-reject {
-        color: #b91c1c;
-        background: #fee2e2;
-        border-color: #fecaca;
-    }
-
-        .action-reject:hover {
-            color: #fff;
-            background: #dc2626;
+        .finance-table tr:hover td {
+            background: #fbfdff;
         }
 
-    .locked-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
+    .c-code {
+        width: 12%;
+    }
+
+    .c-user {
+        width: 19%;
+    }
+
+    .c-money {
+        width: 12%;
+    }
+
+    .c-service {
+        width: 22%;
+    }
+
+    .c-pay {
+        width: 10%;
+    }
+
+    .c-time {
+        width: 10%;
+    }
+
+    .c-status {
+        width: 9%;
+    }
+
+    .c-act {
+        width: 6%;
+    }
+
+    .code-pill,
+    .service-pill {
         max-width: 100%;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         border-radius: 999px;
         padding: 5px 8px;
-        background: #f8fafc;
-        color: #64748b;
-        border: 1px solid #e2e8f0;
-        font-size: .68rem;
-        font-weight: 850;
+        font-weight: 900;
+        overflow: hidden;
         white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .code-pill {
+        color: #0f172a;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .service-pill {
+        color: #1d4ed8;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+    }
+
+    .clip {
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .user-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex: 0 0 auto;
+        border: 1px solid #e2e8f0;
+    }
+
+    .name {
+        color: var(--ad-text);
+        font-weight: 900;
+    }
+
+    .phone {
+        color: var(--ad-muted);
+        font-size: .72rem;
+        font-weight: 700;
+    }
+
+    .money {
+        color: var(--ad-green);
+        font-size: .9rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .time-main {
+        color: var(--ad-text);
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .time-sub {
+        color: var(--ad-muted);
+        font-size: .72rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .actions {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+    }
+
+    .icon-btn {
+        width: 29px;
+        height: 29px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: #fff;
+    }
+
+        .icon-btn.view {
+            color: #0369a1;
+            background: #e0f2fe;
+            border-color: #bae6fd;
+        }
+
+        .icon-btn.ok {
+            color: #047857;
+            background: #dcfce7;
+            border-color: #86efac;
+        }
+
+        .icon-btn.bad {
+            color: #b91c1c;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+    .lock-note {
+        color: #64748b;
+        font-size: .7rem;
+        font-weight: 850;
     }
 
     .mobile-list {
         display: none;
     }
 
-    .transaction-card {
+    .tx-card {
         background: #fff;
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 20px;
-        padding: 15px;
-        box-shadow: var(--finance-shadow);
-        margin-bottom: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: none;
     }
 
-    .transaction-card-head {
+        .tx-card + .tx-card {
+            margin-top: 10px;
+        }
+
+    .tx-top {
         display: flex;
-        align-items: flex-start;
         justify-content: space-between;
+        align-items: flex-start;
         gap: 10px;
-        padding-bottom: 12px;
-        margin-bottom: 12px;
+        padding-bottom: 10px;
         border-bottom: 1px solid #edf2f7;
     }
 
-    .mobile-code {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        max-width: 210px;
-        border-radius: 999px;
-        padding: 6px 10px;
-        background: #f1f5f9;
-        color: #0f172a;
-        border: 1px solid #e2e8f0;
-        font-size: .78rem;
+    .tx-money {
+        color: var(--ad-green);
+        font-size: 1.1rem;
         font-weight: 950;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
-    .mobile-amount {
-        color: #059669;
-        font-size: 1.18rem;
-        font-weight: 950;
-        white-space: nowrap;
-        text-align: right;
-    }
-
-    .mobile-row {
+    .tx-row {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
         gap: 12px;
-        padding: 9px 0;
+        padding: 8px 0;
         border-bottom: 1px dashed #edf2f7;
     }
 
-        .mobile-row:last-child {
+        .tx-row:last-child {
             border-bottom: 0;
         }
 
-    .mobile-label {
-        color: #64748b;
-        font-size: .76rem;
-        font-weight: 900;
+    .tx-label {
+        color: var(--ad-muted);
+        font-size: .72rem;
+        font-weight: 950;
         text-transform: uppercase;
-        letter-spacing: .045em;
-        flex-shrink: 0;
     }
 
-    .mobile-value {
-        color: #0f172a;
-        font-size: .88rem;
-        font-weight: 750;
+    .tx-value {
+        color: var(--ad-text);
+        font-size: .86rem;
+        font-weight: 760;
         text-align: right;
         min-width: 0;
     }
 
-    .mobile-actions {
+    .tx-actions {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 10px;
     }
 
-    .mobile-action-btn {
-        min-height: 42px;
-        border-radius: 14px;
-        border: 1px solid transparent;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        font-weight: 900;
+        .tx-actions .btn {
+            min-height: 38px;
+            border-radius: 12px;
+            font-weight: 900;
+        }
+
+    .pager {
+        padding: 13px 15px;
+        border-top: 1px solid #edf2f7;
     }
 
-    .pagination-wrap {
-        padding: 18px 20px 22px;
-        display: flex;
-        justify-content: center;
-    }
-
-    .pagination .page-link {
-        border-radius: 12px;
-        margin: 0 3px;
+    .page-link {
+        border-radius: 10px !important;
+        margin: 2px;
         font-weight: 850;
-        color: #64748b;
-        border: 1px solid #dbe4ef;
-        min-width: 39px;
-        text-align: center;
-    }
-
-    .pagination .page-item.active .page-link {
-        background: var(--finance-primary);
-        border-color: var(--finance-primary);
-        color: #fff;
-        box-shadow: 0 10px 22px rgba(37, 99, 235, .20);
     }
 
     .empty-state {
-        padding: 48px 18px;
+        padding: 28px 14px;
         text-align: center;
-    }
-
-    .empty-icon {
-        width: 72px;
-        height: 72px;
-        border-radius: 24px;
-        margin: 0 auto 14px;
-        background: #f1f5f9;
-        color: #94a3b8;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-    }
-
-    .empty-title {
-        color: #0f172a;
-        font-size: 1.08rem;
-        font-weight: 950;
-        margin-bottom: 7px;
-    }
-
-    .empty-desc {
-        color: #64748b;
-        font-weight: 650;
-        margin-bottom: 0;
-    }
-
-    @@media (max-width: 1399.98px) {
-        .finance-table thead th {
-            font-size: .64rem;
-            padding: 11px 8px;
-        }
-
-        .finance-table tbody td {
-            padding: 12px 8px;
-            font-size: .8rem;
-        }
-
-        .customer-avatar {
-            width: 36px;
-            height: 36px;
-        }
-
-        .customer-name {
-            font-size: .8rem;
-        }
-
-        .customer-phone {
-            font-size: .7rem;
-        }
-
-        .amount-text {
-            font-size: .84rem;
-        }
-
-        .package-pill {
-            font-size: .7rem;
-            padding: 5px 7px;
-        }
-
-        .status-pill {
-            font-size: .66rem;
-            padding: 5px 7px;
-        }
-
-        .action-btn {
-            width: 28px;
-            height: 28px;
-            border-radius: 10px;
-            font-size: .78rem;
-        }
+        color: var(--ad-muted);
     }
 
     @@media (max-width: 1199.98px) {
@@ -1003,957 +719,406 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .finance-hero-inner {
-            align-items: flex-start;
-            flex-direction: column;
+        .filter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .hero-actions {
-            width: 100%;
-            justify-content: flex-start;
+        .filter-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
         }
+    }
 
-        .mini-stat-row {
-            grid-template-columns: 1fr;
-        }
-
-        .desktop-table-wrap {
+    @@media (max-width: 991.98px) {
+        .desktop-table {
             display: none;
+        }
+
+        .data-box {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        .data-header {
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, .25);
+            border-radius: 14px;
+            margin-bottom: 8px;
+            box-shadow: none;
         }
 
         .mobile-list {
             display: block;
-            padding: 14px;
-            background: #f8fafc;
+            padding: 0;
+            background: transparent;
         }
     }
 
-    @@media (max-width: 575.98px) {
+    @@media (max-width: 767.98px) {
         .finance-page {
+            padding: 6px;
+            min-height: auto;
+        }
+
+        .topbar {
             padding: 12px;
+            border-radius: 14px;
+            align-items: stretch;
+            flex-direction: column;
+            box-shadow: none;
         }
 
-        .finance-hero {
-            border-radius: 22px;
-            padding: 16px;
+        .title-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
         }
 
-        .finance-title-wrap {
-            align-items: flex-start;
+        .page-title {
+            font-size: 1.22rem;
         }
 
-        .finance-hero-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 18px;
-            font-size: 1.38rem;
-        }
-
-        .finance-subtitle {
+        .page-subtitle {
             font-size: .84rem;
         }
 
-        .hero-actions {
+        .top-actions {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
         }
 
-        .hero-btn {
+        .btn-soft {
             width: 100%;
+            min-height: 38px;
+            padding: 7px 10px;
+            font-size: .84rem;
         }
 
         .kpi-grid {
-            grid-template-columns: 1fr;
-            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
         }
 
-        .kpi-card {
-            min-height: 124px;
-            padding: 16px;
-            border-radius: 20px;
+        .kpi {
+            border-radius: 14px;
+            padding: 10px;
+            min-height: 92px;
         }
 
-        .panel-head,
-        .filter-body,
+            .kpi .label {
+                font-size: .66rem;
+            }
+
+            .kpi .value {
+                font-size: 1.02rem;
+            }
+
+            .kpi .desc {
+                font-size: .7rem;
+            }
+
+        .mini-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .mini {
+            border-radius: 14px;
+            padding: 10px;
+            display: block;
+            text-align: center;
+        }
+
+            .mini i {
+                display: none;
+            }
+
+            .mini .label {
+                font-size: .66rem;
+            }
+
+            .mini .value {
+                font-size: 1.05rem;
+            }
+
         .chart-wrap {
-            padding-left: 14px;
-            padding-right: 14px;
+            height: 210px;
+            padding: 10px;
         }
 
-        .chart-container {
-            height: 240px;
+        .card-head, .data-header {
+            padding: 12px;
         }
 
-        .reset-btn {
-            width: 100%;
+        .card-title {
+            font-size: .98rem;
         }
 
-        .transaction-card-head {
+        .filter-toggle {
+            padding: 12px;
+        }
+
+        .filter-body {
+            display: none;
+            padding: 0 12px 12px;
+        }
+
+        .filter-box.open .filter-body {
+            display: block;
+        }
+
+        .filter-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .filter-actions {
             display: grid;
+            grid-template-columns: 1fr 44px;
+        }
+
+        .soft-input {
+            min-height: 38px;
+            border-radius: 11px;
+        }
+
+        .tx-card {
+            padding: 10px;
+            border-radius: 14px;
+            margin-bottom: 8px;
+        }
+
+        .tx-row {
+            padding: 7px 0;
+        }
+
+        .tx-actions {
             grid-template-columns: 1fr;
-        }
-
-        .mobile-amount {
-            text-align: left;
-        }
-
-        .mobile-actions {
-            grid-template-columns: 1fr;
-        }
-
-        .mobile-action-btn {
-            width: 100%;
-        }
-    }
-
-    @@media print {
-        .hero-actions,
-        .filter-card,
-        .action-group,
-        .mobile-actions,
-        .pagination-wrap,
-        .chart-panel {
-            display: none !important;
-        }
-
-        .finance-page {
-            background: #fff !important;
-            padding: 0 !important;
-        }
-
-        .panel-card,
-        .finance-hero,
-        .kpi-card,
-        .mini-stat {
-            box-shadow: none !important;
-        }
-
-        .desktop-table-wrap {
-            display: block !important;
-        }
-
-        .mobile-list {
-            display: none !important;
         }
     }
 </style>
 
 <div class="finance-page">
-    <div class="finance-container">
-
-        @if (TempData["Success"] != null)
-        {
-            <script>
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(TempData["Success"]?.ToString() ?? ""))',
-                    showConfirmButton: false,
-                    timer: 3200,
-                    timerProgressBar: true
-                });
-            </script>
-        }
-
-        @if (TempData["Error"] != null)
-        {
-            <script>
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Không thể thực hiện',
-                    text: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(TempData["Error"]?.ToString() ?? ""))',
-                    confirmButtonText: 'Đã hiểu',
-                    confirmButtonColor: '#2563eb'
-                });
-            </script>
-        }
-
-        <section class="finance-hero">
-            <div class="finance-hero-inner">
-                <div class="finance-title-wrap">
-                    <div class="finance-hero-icon">
-                        <i class="bi bi-bank2"></i>
-                    </div>
-
-                    <div>
-                        <h1 class="finance-title">Tài chính & đối soát</h1>
-                        <p class="finance-subtitle">
-                            Theo dõi doanh thu, kiểm tra biên lai, duyệt thanh toán và quản lý hồ sơ giao dịch.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="hero-actions">
-                    <button type="button" class="hero-btn hero-btn-light" onclick="window.print()">
-                        <i class="bi bi-printer-fill"></i>
-                        In trang
-                    </button>
-
-                    <a href="@Url.Action("ExportCsv", new { searchString = currentSearch, statusFilter = currentStatus, startDate = startDate, endDate = endDate })"
-                       class="hero-btn hero-btn-success">
-                        <i class="bi bi-file-earmark-excel-fill"></i>
-                        Xuất Excel
-                    </a>
-                </div>
+    <section class="topbar">
+        <div class="title-line">
+            <span class="title-icon"><i class="bi bi-bank2"></i></span>
+            <div class="min-w-0">
+                <h1 class="page-title">Tài chính & đối soát</h1>
+                <p class="page-subtitle">Theo dõi doanh thu, biên lai và duyệt thanh toán.</p>
             </div>
-        </section>
+        </div>
+        <div class="top-actions">
+            <a href="javascript:window.print()" class="btn btn-light border btn-soft"><i class="bi bi-printer-fill"></i>In trang</a>
+            <a href="/Admin/Transactions/ExportExcel" class="btn btn-success btn-soft"><i class="bi bi-file-earmark-excel-fill"></i>Xuất Excel</a>
+        </div>
+    </section>
 
-        <section class="mini-stat-row">
-            <div class="mini-stat">
-                <div>
-                    <div class="mini-stat-label">Tổng hồ sơ</div>
-                    <div class="mini-stat-value">@totalTransactions.ToString("N0")</div>
+    <section class="kpi-grid">
+        <article class="kpi g1"><div class="label"><i class="bi bi-lightning-charge-fill"></i>Hôm nay</div><div class="value">@FormatMoney(todayRevenue)</div><div class="desc">Doanh thu đã duyệt</div></article>
+        <article class="kpi g2"><div class="label"><i class="bi bi-calendar-month-fill"></i>Tháng này</div><div class="value">@FormatMoney(thisMonthRevenue)</div><div class="desc">Tháng @DateTime.Now.Month/@DateTime.Now.Year</div></article>
+        <article class="kpi g3"><div class="label"><i class="bi bi-bar-chart-fill"></i>Năm @DateTime.Now.Year</div><div class="value">@FormatMoney(thisYearRevenue)</div><div class="desc">Tổng trong năm</div></article>
+        <article class="kpi g4"><div class="label"><i class="bi bi-safe-fill"></i>Lũy kế</div><div class="value">@FormatMoney(totalRevenue)</div><div class="desc">@successCount.ToString("N0") giao dịch thành công</div></article>
+    </section>
+
+    <section class="mini-grid">
+        <article class="mini card-flat"><div><div class="label">Tổng hồ sơ</div><div class="value">@totalTransactions.ToString("N0")</div></div><i class="bi bi-receipt-cutoff text-primary fs-4"></i></article>
+        <article class="mini card-flat"><div><div class="label">Chờ duyệt</div><div class="value text-warning">@pendingCount.ToString("N0")</div></div><i class="bi bi-hourglass-split text-warning fs-4"></i></article>
+        <article class="mini card-flat"><div><div class="label">Từ chối</div><div class="value text-danger">@rejectedCount.ToString("N0")</div></div><i class="bi bi-x-circle-fill text-danger fs-4"></i></article>
+    </section>
+
+    <section class="card-flat chart-card">
+        <div class="card-head">
+            <div><h2 class="card-title"><i class="bi bi-activity text-primary"></i>Phân tích dòng tiền</h2><p class="card-subtitle">Doanh thu 30 ngày gần nhất.</p></div>
+            <span class="status-pill ok"><i class="bi bi-graph-up-arrow"></i>Doanh thu</span>
+        </div>
+        <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+    </section>
+
+    <section class="filter-box" id="filterBox">
+        <button type="button" class="filter-toggle" onclick="document.getElementById('filterBox').classList.toggle('open')">
+            <span><i class="bi bi-funnel-fill text-primary me-2"></i>Bộ lọc</span>
+            <i class="bi bi-chevron-down"></i>
+        </button>
+        <div class="filter-body">
+            <form method="get" asp-action="Index" id="filterForm">
+                <div class="filter-grid">
+                    <div><label class="form-label-mini">Từ khóa</label><input type="text" name="searchString" value="@currentSearch" class="form-control soft-input" placeholder="Mã GD, tên, SĐT..." /></div>
+                    <div><label class="form-label-mini">Trạng thái</label><select name="statusFilter" class="form-select soft-input"><option value="All" selected="@(currentStatus == "All" || string.IsNullOrEmpty(currentStatus))">Tất cả</option><option value="Pending" selected="@(currentStatus == "Pending")">Chờ duyệt</option><option value="Success" selected="@(currentStatus == "Success")">Thành công</option><option value="Rejected" selected="@(currentStatus == "Rejected")">Từ chối</option></select></div>
+                    <div><label class="form-label-mini">Từ ngày</label><input type="date" name="startDate" value="@startDate" class="form-control soft-input" /></div>
+                    <div><label class="form-label-mini">Đến ngày</label><input type="date" name="endDate" value="@endDate" class="form-control soft-input" /></div>
+                    <div class="filter-actions"><button type="submit" class="btn btn-dark fw-bold"><i class="bi bi-search me-1"></i>Lọc</button><a href="/Admin/Transactions/Index" class="btn btn-light border fw-bold"><i class="bi bi-arrow-counterclockwise"></i></a></div>
                 </div>
-                <i class="bi bi-receipt-cutoff text-primary fs-3"></i>
-            </div>
+            </form>
+        </div>
+    </section>
 
-            <div class="mini-stat">
-                <div>
-                    <div class="mini-stat-label">Chờ duyệt</div>
-                    <div class="mini-stat-value text-warning">@pendingCount.ToString("N0")</div>
-                </div>
-                <i class="bi bi-hourglass-split text-warning fs-3"></i>
-            </div>
+    <section class="data-box">
+        <div class="data-header">
+            <div><h2 class="card-title"><i class="bi bi-card-list text-primary"></i>Danh sách giao dịch</h2><p class="card-subtitle">Tổng cộng @totalTransactions.ToString("N0") hồ sơ.</p></div>
+            @if (pendingCount > 0)
+            {
+                <span class="pending-badge"><i class="bi bi-exclamation-triangle-fill"></i>@pendingCount.ToString("N0") chờ duyệt</span>
+            }
+        </div>
 
-            <div class="mini-stat">
-                <div>
-                    <div class="mini-stat-label">Bị từ chối</div>
-                    <div class="mini-stat-value text-danger">@rejectedCount.ToString("N0")</div>
-                </div>
-                <i class="bi bi-x-circle-fill text-danger fs-3"></i>
-            </div>
-        </section>
-
-        <section class="kpi-grid">
-            <article class="kpi-card grad-day">
-                <div class="kpi-label">
-                    <i class="bi bi-lightning-charge-fill"></i>
-                    Doanh thu hôm nay
-                </div>
-                <h2 class="kpi-value">@FormatMoney(todayRevenue)</h2>
-                <div class="kpi-desc">
-                    <i class="bi bi-arrow-repeat"></i>
-                    Theo giao dịch đã duyệt
-                </div>
-                <i class="bi bi-lightning-charge-fill kpi-icon-bg"></i>
-            </article>
-
-            <article class="kpi-card grad-month">
-                <div class="kpi-label">
-                    <i class="bi bi-calendar-month-fill"></i>
-                    Doanh thu tháng này
-                </div>
-                <h2 class="kpi-value">@FormatMoney(thisMonthRevenue)</h2>
-                <div class="kpi-desc">
-                    <i class="bi bi-calendar-check"></i>
-                    Tháng @DateTime.Now.Month/@DateTime.Now.Year
-                </div>
-                <i class="bi bi-wallet2 kpi-icon-bg"></i>
-            </article>
-
-            <article class="kpi-card grad-year">
-                <div class="kpi-label">
-                    <i class="bi bi-bar-chart-fill"></i>
-                    Doanh thu năm @DateTime.Now.Year
-                </div>
-                <h2 class="kpi-value">@FormatMoney(thisYearRevenue)</h2>
-                <div class="kpi-desc">
-                    <i class="bi bi-graph-up-arrow"></i>
-                    Tổng doanh thu trong năm
-                </div>
-                <i class="bi bi-pie-chart-fill kpi-icon-bg"></i>
-            </article>
-
-            <article class="kpi-card grad-total">
-                <div class="kpi-label">
-                    <i class="bi bi-safe-fill"></i>
-                    Tổng lũy kế
-                </div>
-                <h2 class="kpi-value">@FormatMoney(totalRevenue)</h2>
-                <div class="kpi-desc">
-                    <i class="bi bi-check-circle-fill"></i>
-                    @successCount.ToString("N0") giao dịch thành công
-                </div>
-                <i class="bi bi-cash-coin kpi-icon-bg"></i>
-            </article>
-        </section>
-
-        <section class="panel-card chart-panel">
-            <div class="panel-head">
-                <div>
-                    <h2 class="panel-title">
-                        <i class="bi bi-activity text-primary"></i>
-                        Phân tích dòng tiền
-                    </h2>
-                    <p class="panel-subtitle">Biểu đồ doanh thu 30 ngày gần nhất.</p>
-                </div>
-
-                <span class="status-pill status-success">
-                    <i class="bi bi-graph-up-arrow"></i>
-                    <span>Doanh thu</span>
-                </span>
-            </div>
-
-            <div class="chart-wrap">
-                <div class="chart-container">
-                    <canvas id="revenueChart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <section class="panel-card filter-card">
-            <div class="panel-head">
-                <div>
-                    <h2 class="panel-title">
-                        <i class="bi bi-funnel-fill text-primary"></i>
-                        Bộ lọc giao dịch
-                    </h2>
-                    <p class="panel-subtitle">Tìm kiếm theo mã giao dịch, người dùng, số điện thoại, trạng thái và thời gian.</p>
-                </div>
-            </div>
-
-            <div class="filter-body">
-                <form method="get" asp-action="Index" id="filterForm">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-xl-3 col-lg-4 col-md-6">
-                            <label class="filter-label">Từ khóa</label>
-                            <input type="text"
-                                   name="searchString"
-                                   value="@currentSearch"
-                                   class="form-control soft-input"
-                                   placeholder="Mã GD, tên, SĐT..." />
-                        </div>
-
-                        <div class="col-xl-2 col-lg-4 col-md-6">
-                            <label class="filter-label">Trạng thái</label>
-                            <select name="statusFilter" class="form-select soft-input">
-                                <option value="All" selected="@(currentStatus == "All" || string.IsNullOrEmpty(currentStatus))">Tất cả</option>
-                                <option value="Pending" selected="@(currentStatus == "Pending")">Chờ duyệt (@pendingCount)</option>
-                                <option value="Success" selected="@(currentStatus == "Success")">Thành công</option>
-                                <option value="Rejected" selected="@(currentStatus == "Rejected")">Bị từ chối</option>
-                            </select>
-                        </div>
-
-                        <div class="col-xl-2 col-lg-4 col-md-6">
-                            <label class="filter-label">Từ ngày</label>
-                            <input type="date"
-                                   name="startDate"
-                                   value="@startDate"
-                                   class="form-control soft-input" />
-                        </div>
-
-                        <div class="col-xl-2 col-lg-4 col-md-6">
-                            <label class="filter-label">Đến ngày</label>
-                            <input type="date"
-                                   name="endDate"
-                                   value="@endDate"
-                                   class="form-control soft-input" />
-                        </div>
-
-                        <div class="col-xl-3 col-lg-8 col-md-12">
-                            <label class="filter-label d-none d-md-block">&nbsp;</label>
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-dark filter-btn flex-grow-1">
-                                    <i class="bi bi-search me-1"></i>
-                                    Lọc giao dịch
-                                </button>
-
-                                <a href="/Admin/Transactions/Index"
-                                   class="btn btn-light border reset-btn"
-                                   title="Đặt lại bộ lọc">
-                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <section class="panel-card">
-            <div class="panel-head">
-                <div class="table-toolbar">
-                    <div>
-                        <h2 class="panel-title">
-                            <i class="bi bi-card-list text-primary"></i>
-                            Danh sách giao dịch
-                        </h2>
-                        <p class="panel-subtitle">
-                            Tổng cộng @totalTransactions.ToString("N0") hồ sơ giao dịch.
-                        </p>
-                    </div>
-
-                    @if (pendingCount > 0)
+        <div class="desktop-table">
+            <table class="finance-table">
+                <thead><tr><th class="c-code">Mã GD</th><th class="c-user">Khách hàng</th><th class="c-money">Số tiền</th><th class="c-service">Dịch vụ</th><th class="c-pay">Thanh toán</th><th class="c-time">Thời gian</th><th class="c-status">Trạng thái</th><th class="c-act text-center">Nút</th></tr></thead>
+                <tbody>
+                    @if (transactions.Any())
                     {
-                        <span class="pending-alert">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                            Có @pendingCount.ToString("N0") hồ sơ chờ duyệt
-                        </span>
-                    }
-                </div>
-            </div>
-
-            <div class="desktop-table-wrap">
-                <table class="finance-table">
-                    <thead>
-                        <tr>
-                            <th class="col-code">Mã GD</th>
-                            <th class="col-user">Khách hàng</th>
-                            <th class="col-amount">Số tiền</th>
-                            <th class="col-service">Dịch vụ</th>
-                            <th class="col-payment">Thanh toán</th>
-                            <th class="col-time">Thời gian</th>
-                            <th class="col-status">Trạng thái</th>
-                            <th class="col-actions text-center">Nút</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        @if (transactions.Any())
+                        foreach (var item in transactions)
                         {
-                            foreach (var item in transactions)
-                            {
-                                <tr>
-                                    <td class="col-code">
-                                        <span class="transaction-code" title="@item.TransactionCode">
-                                            <i class="bi bi-hash"></i>
-                                            <span>@item.TransactionCode</span>
-                                        </span>
-                                    </td>
-
-                                    <td class="col-user">
-                                        <div class="customer-box">
-                                            <img src="@SafeAvatar(item.User?.Avatar)"
-                                                 class="customer-avatar"
-                                                 alt="@GetCustomerName(item)"
-                                                 onerror="this.src='/images/avatars/default-user.png'" />
-
-                                            <div style="min-width:0;">
-                                                <span class="customer-name" title="@GetCustomerName(item)">
-                                                    @GetCustomerName(item)
-                                                </span>
-                                                <span class="customer-phone" title="@GetCustomerPhone(item)">
-                                                    <i class="bi bi-telephone me-1"></i>
-                                                    @GetCustomerPhone(item)
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-
-                                    <td class="col-amount">
-                                        <span class="amount-text">
-                                            + @FormatMoney(item.Amount)
-                                        </span>
-                                    </td>
-
-                                    <td class="col-service">
-                                        <span class="package-pill" title="@GetPackageName(item)">
-                                            <i class="bi bi-gem"></i>
-                                            <span>@GetPackageName(item)</span>
-                                            <strong>x@(item.Quantity)</strong>
-                                        </span>
-                                    </td>
-
-                                    <td class="col-payment">
-                                        <span class="payment-text" title="@GetPaymentMethodText(item.PaymentMethod)">
-                                            <i class="bi bi-credit-card-2-front"></i>
-                                            @GetPaymentMethodText(item.PaymentMethod)
-                                        </span>
-                                    </td>
-
-                                    <td class="col-time">
-                                        <span class="time-main">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
-                                        <span class="time-sub">@item.CreatedAt.ToString("HH:mm")</span>
-                                    </td>
-
-                                    <td class="col-status">
-                                        <span class="status-pill @GetStatusClass(item.Status)" title="@GetStatusText(item.Status)">
-                                            <i class="bi @GetStatusIcon(item.Status)"></i>
-                                            <span>@GetStatusText(item.Status)</span>
-                                        </span>
-                                    </td>
-
-                                    <td class="col-actions text-center">
+                            <tr>
+                                <td><span class="code-pill" title="@item.TransactionCode"><i class="bi bi-hash"></i><span class="clip">@item.TransactionCode</span></span></td>
+                                <td><div class="user-cell"><img src="@SafeAvatar(item.User?.Avatar)" class="avatar" alt="avatar" /><div class="clip"><div class="name clip">@GetCustomerName(item)</div><div class="phone clip">@GetCustomerPhone(item)</div></div></div></td>
+                                <td><span class="money">@FormatMoney(item.Amount)</span><div class="phone">SL: @item.Quantity</div></td>
+                                <td><span class="service-pill" title="@GetPackageName(item)"><i class="bi bi-box-seam"></i><span class="clip">@GetPackageName(item)</span></span></td>
+                                <td><span class="clip"><i class="bi bi-credit-card-2-front me-1"></i>@GetPaymentMethodText(item.PaymentMethod)</span></td>
+                                <td><span class="time-main">@item.CreatedAt.ToString("dd/MM/yyyy")</span><span class="time-sub">@item.CreatedAt.ToString("HH:mm")</span></td>
+                                <td><span class="status-pill @GetStatusClass(item.Status)"><i class="bi @GetStatusIcon(item.Status)"></i><span class="clip">@GetStatusText(item.Status)</span></span></td>
+                                <td>
+                                    <div class="actions">
+                                        @if (!string.IsNullOrWhiteSpace(item.BillImageUrl))
+                                        {
+                                            <button type="button" class="icon-btn view" title="Xem biên lai" onclick="viewBill('@item.BillImageUrl')"><i class="bi bi-image"></i></button>
+                                        }
                                         @if (item.Status == "Pending")
                                         {
-                                            <div class="action-group">
-                                                @if (!string.IsNullOrWhiteSpace(item.BillImageUrl))
-                                                {
-                                                    <button type="button"
-                                                            class="action-btn action-view"
-                                                            title="Xem biên lai"
-                                                            onclick="viewBill('@item.BillImageUrl')">
-                                                        <i class="bi bi-image-fill"></i>
-                                                    </button>
-                                                }
-
-                                                <button type="button"
-                                                        class="action-btn action-approve"
-                                                        title="Duyệt giao dịch"
-                                                        onclick="confirmApprove('@item.TransactionCode', @item.Amount)">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-
-                                                <button type="button"
-                                                        class="action-btn action-reject"
-                                                        title="Từ chối giao dịch"
-                                                        onclick="confirmReject('@item.TransactionCode')">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            </div>
+                                            <button type="button" class="icon-btn ok" title="Duyệt" onclick="confirmApprove('@item.TransactionCode', @item.Amount)"><i class="bi bi-check-lg"></i></button>
+                                            <button type="button" class="icon-btn bad" title="Từ chối" onclick="confirmReject('@item.TransactionCode')"><i class="bi bi-x-lg"></i></button>
                                         }
                                         else
                                         {
-                                            <span class="locked-pill" title="Giao dịch đã xử lý">
-                                                <i class="bi bi-lock-fill"></i>
-                                                Khóa
-                                            </span>
+
+                                            <span class="lock-note"><i class="bi bi-lock-fill"></i></span>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8">
-                                    <div class="empty-state">
-                                        <div class="empty-icon">
-                                            <i class="bi bi-folder-x"></i>
-                                        </div>
-                                        <h3 class="empty-title">Không có giao dịch</h3>
-                                        <p class="empty-desc">Không tìm thấy dữ liệu giao dịch nào khớp với bộ lọc hiện tại.</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="mobile-list">
-                @if (transactions.Any())
-                {
-                    foreach (var item in transactions)
-                    {
-                        <article class="transaction-card">
-                            <div class="transaction-card-head">
-                                <div>
-                                    <span class="mobile-code" title="@item.TransactionCode">
-                                        <i class="bi bi-hash"></i>
-                                        @item.TransactionCode
-                                    </span>
-
-                                    <div class="mt-2">
-                                        <span class="status-pill @GetStatusClass(item.Status)">
-                                            <i class="bi @GetStatusIcon(item.Status)"></i>
-                                            <span>@GetStatusText(item.Status)</span>
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="mobile-amount">
-                                    + @FormatMoney(item.Amount)
-                                </div>
-                            </div>
-
-                            <div class="mobile-row">
-                                <span class="mobile-label">Khách hàng</span>
-                                <div class="mobile-value">
-                                    <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <div style="min-width:0;">
-                                            <div class="fw-bold text-dark">@GetCustomerName(item)</div>
-                                            <div class="small text-muted">@GetCustomerPhone(item)</div>
-                                        </div>
-                                        <img src="@SafeAvatar(item.User?.Avatar)"
-                                             width="38"
-                                             height="38"
-                                             class="rounded-circle border"
-                                             style="object-fit:cover;"
-                                             onerror="this.src='/images/avatars/default-user.png'" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mobile-row">
-                                <span class="mobile-label">Dịch vụ</span>
-                                <span class="mobile-value">
-                                    @GetPackageName(item) x@(item.Quantity)
-                                </span>
-                            </div>
-
-                            <div class="mobile-row">
-                                <span class="mobile-label">Thanh toán</span>
-                                <span class="mobile-value">
-                                    @GetPaymentMethodText(item.PaymentMethod)
-                                </span>
-                            </div>
-
-                            <div class="mobile-row">
-                                <span class="mobile-label">Thời gian</span>
-                                <span class="mobile-value">
-                                    @item.CreatedAt.ToString("HH:mm - dd/MM/yyyy")
-                                </span>
-                            </div>
-
-                            @if (item.Status == "Pending")
-                            {
-                                <div class="mobile-actions">
-                                    @if (!string.IsNullOrWhiteSpace(item.BillImageUrl))
-                                    {
-                                        <button type="button"
-                                                class="mobile-action-btn action-view"
-                                                onclick="viewBill('@item.BillImageUrl')">
-                                            <i class="bi bi-image-fill"></i>
-                                            Biên lai
-                                        </button>
-                                    }
-
-                                    <button type="button"
-                                            class="mobile-action-btn action-approve"
-                                            onclick="confirmApprove('@item.TransactionCode', @item.Amount)">
-                                        <i class="bi bi-check-lg"></i>
-                                        Duyệt
-                                    </button>
-
-                                    <button type="button"
-                                            class="mobile-action-btn action-reject"
-                                            onclick="confirmReject('@item.TransactionCode')">
-                                        <i class="bi bi-x-lg"></i>
-                                        Từ chối
-                                    </button>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="mt-3">
-                                    <span class="locked-pill w-100 justify-content-center">
-                                        <i class="bi bi-lock-fill"></i>
-                                        Giao dịch đã xử lý, không thể thao tác thêm
-                                    </span>
-                                </div>
-                            }
-                        </article>
                     }
-                }
-                else
-                {
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <i class="bi bi-folder-x"></i>
-                        </div>
-                        <h3 class="empty-title">Không có giao dịch</h3>
-                        <p class="empty-desc">Không tìm thấy dữ liệu giao dịch nào khớp với bộ lọc hiện tại.</p>
-                    </div>
-                }
-            </div>
+                    else
+                    {
+                        <tr><td colspan="8"><div class="empty-state"><i class="bi bi-folder-x fs-1 opacity-50"></i><div class="fw-bold mt-2">Không có giao dịch</div><div>Không tìm thấy dữ liệu khớp với bộ lọc.</div></div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
-            @if (totalPages > 1)
+        <div class="mobile-list">
+            @if (transactions.Any())
             {
-                <div class="pagination-wrap">
-                    <nav aria-label="Phân trang giao dịch">
-                        <ul class="pagination flex-wrap mb-0 justify-content-center">
-                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                                <a class="page-link" href="javascript:void(0)" onclick="changePage(@(currentPage - 1))">
-                                    <i class="bi bi-chevron-left"></i>
-                                </a>
-                            </li>
-
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                if (i == 1 || i == totalPages || (i >= currentPage - 1 && i <= currentPage + 1))
+                foreach (var item in transactions)
+                {
+                    <article class="tx-card">
+                        <div class="tx-top"><span class="code-pill"><i class="bi bi-hash"></i><span class="clip">@item.TransactionCode</span></span><span class="tx-money">@FormatMoney(item.Amount)</span></div>
+                        <div class="tx-row"><span class="tx-label">Khách</span><span class="tx-value">@GetCustomerName(item)<br /><small class="text-muted">@GetCustomerPhone(item)</small></span></div>
+                        <div class="tx-row"><span class="tx-label">Dịch vụ</span><span class="tx-value">@GetPackageName(item)</span></div>
+                        <div class="tx-row"><span class="tx-label">Thanh toán</span><span class="tx-value">@GetPaymentMethodText(item.PaymentMethod)</span></div>
+                        <div class="tx-row"><span class="tx-label">Thời gian</span><span class="tx-value">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span></div>
+                        <div class="tx-row"><span class="tx-label">Trạng thái</span><span class="tx-value"><span class="status-pill @GetStatusClass(item.Status)"><i class="bi @GetStatusIcon(item.Status)"></i>@GetStatusText(item.Status)</span></span></div>
+                        @if (item.Status == "Pending")
+                        {
+                            <div class="tx-actions">
+                                @if (!string.IsNullOrWhiteSpace(item.BillImageUrl))
                                 {
-                                    <li class="page-item @(currentPage == i ? "active" : "")">
-                                        <a class="page-link" href="javascript:void(0)" onclick="changePage(@i)">@i</a>
-                                    </li>
+                                    <button type="button" class="btn btn-outline-primary" onclick="viewBill('@item.BillImageUrl')"><i class="bi bi-image me-1"></i>Biên lai</button>
                                 }
-                                else if (i == currentPage - 2 || i == currentPage + 2)
-                                {
-                                    <li class="page-item disabled">
-                                        <span class="page-link border-0 bg-transparent">...</span>
-                                    </li>
-                                }
-                            }
-
-                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                                <a class="page-link" href="javascript:void(0)" onclick="changePage(@(currentPage + 1))">
-                                    <i class="bi bi-chevron-right"></i>
-                                </a>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
+                                <button type="button" class="btn btn-outline-success" onclick="confirmApprove('@item.TransactionCode', @item.Amount)"><i class="bi bi-check-lg me-1"></i>Duyệt</button>
+                                <button type="button" class="btn btn-outline-danger" onclick="confirmReject('@item.TransactionCode')"><i class="bi bi-x-lg me-1"></i>Từ chối</button>
+                            </div>
+                        }
+                    </article>
+                }
             }
-        </section>
+            else
+            {
 
-        <form id="statusForm" asp-action="UpdateStatus" method="post" style="display:none;">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="baseCode" id="formBaseCode" />
-            <input type="hidden" name="status" id="formStatus" />
-            <input type="hidden" name="adminNote" id="formAdminNote" />
-        </form>
-    </div>
+                <div class="empty-state"><i class="bi bi-folder-x fs-1 opacity-50"></i><div class="fw-bold mt-2">Không có giao dịch</div></div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pager">
+                <nav aria-label="Phân trang giao dịch">
+                    <ul class="pagination flex-wrap justify-content-center mb-0">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")"><a class="page-link" href="javascript:void(0)" onclick="changePage(@(currentPage - 1))"><i class="bi bi-chevron-left"></i></a></li>@for (int i = 1; i <= totalPages; i++){ if (i == 1 || i == totalPages || (i >= currentPage - 1 && i <= currentPage + 1)){
+                        <li class="page-item @(currentPage == i ? "active" : "")"><a class="page-link" href="javascript:void(0)" onclick="changePage(@i)">@i</a></li>
+                    }
+                    else if (i == currentPage - 2 || i == currentPage + 2)
+                    {
+
+                        <li class="page-item disabled"><span class="page-link border-0 bg-transparent">...</span></li>
+                    }}
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")"><a class="page-link" href="javascript:void(0)" onclick="changePage(@(currentPage + 1))"><i class="bi bi-chevron-right"></i></a></li>
+                </ul>
+            </nav>
+        </div>
+                }
+    </section>
+
+    <form id="statusForm" asp-action="UpdateStatus" method="post" style="display:none;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="baseCode" id="formBaseCode" />
+        <input type="hidden" name="status" id="formStatus" />
+        <input type="hidden" name="adminNote" id="formAdminNote" />
+    </form>
 </div>
 
 @section Scripts {
     <script>
         function changePage(page) {
-            if (page < 1) {
-                return;
-            }
-
+            if (page < 1) return;
             let url = new URL(window.location.href);
-            url.searchParams.set("page", page);
+            url.searchParams.set('page', page);
             window.location.href = url.toString();
         }
 
         function viewBill(imageUrl) {
             if (!imageUrl) {
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Chưa có biên lai',
-                    text: 'Giao dịch này chưa có ảnh biên lai để xem.',
-                    confirmButtonColor: '#2563eb'
-                });
+                Swal.fire({ icon: 'info', title: 'Chưa có biên lai', text: 'Giao dịch này chưa có ảnh biên lai.', confirmButtonColor: '#2563eb' });
                 return;
             }
-
-            Swal.fire({
-                title: 'Biên lai chuyển khoản',
-                html: `
-                    <div class="text-start">
-                        <p class="mb-2 text-muted">
-                            Vui lòng đối chiếu ảnh biên lai với sao kê ngân hàng trước khi duyệt giao dịch.
-                        </p>
-                    </div>
-                `,
-                imageUrl: imageUrl,
-                imageAlt: 'Biên lai chuyển khoản',
-                imageWidth: '100%',
-                showCloseButton: true,
-                confirmButtonText: '<i class="bi bi-check-circle"></i> Đóng',
-                confirmButtonColor: '#2563eb',
-                customClass: {
-                    popup: 'rounded-4',
-                    image: 'rounded-4 shadow-sm border mt-3'
-                }
-            });
+            Swal.fire({ title: 'Biên lai chuyển khoản', imageUrl: imageUrl, imageAlt: 'Biên lai chuyển khoản', imageWidth: '100%', showCloseButton: true, confirmButtonText: 'Đóng', confirmButtonColor: '#2563eb', customClass: { popup: 'rounded-4', image: 'rounded-4 shadow-sm border mt-3' } });
         }
 
         function confirmApprove(baseCode, amount) {
-            let formattedAmount = new Intl.NumberFormat('vi-VN', {
-                style: 'currency',
-                currency: 'VND'
-            }).format(amount);
-
+            const formattedAmount = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
             Swal.fire({
                 title: 'Duyệt giao dịch?',
-                html: `
-                    <div class="text-start">
-                        <div class="alert alert-success rounded-4 mb-3">
-                            <div class="fw-bold mb-1">Số tiền cần đối soát</div>
-                            <div class="fs-4 fw-black text-success" style="font-weight:950;">${formattedAmount}</div>
-                        </div>
-
-                        <div class="mb-2">
-                            Mã giao dịch: <strong>#${baseCode}</strong>
-                        </div>
-
-                        <div class="alert alert-warning rounded-4 mb-0">
-                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                            Chỉ duyệt khi đã chắc chắn tiền đã vào tài khoản. Sau khi duyệt, hệ thống sẽ cấp gói/lượt đăng tương ứng.
-                        </div>
-                    </div>
-                `,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#059669',
-                cancelButtonColor: '#94a3b8',
-                confirmButtonText: '<i class="bi bi-check-circle-fill"></i> Đã nhận tiền & duyệt',
-                cancelButtonText: 'Hủy',
-                customClass: {
-                    confirmButton: 'rounded-pill px-4',
-                    cancelButton: 'rounded-pill px-4'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('formBaseCode').value = baseCode;
-                    document.getElementById('formStatus').value = 'Success';
-                    document.getElementById('formAdminNote').value = '';
-                    document.getElementById('statusForm').submit();
-                }
-            });
+                html: `<div class="text-start"><div class="alert alert-success rounded-4 mb-3"><div class="fw-bold mb-1">Số tiền đối soát</div><div class="fs-4 fw-bold text-success">${formattedAmount}</div></div><div>Mã giao dịch: <strong>#${baseCode}</strong></div><div class="alert alert-warning rounded-4 mt-3 mb-0">Chỉ duyệt khi đã chắc chắn tiền đã vào tài khoản.</div></div>`,
+                icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', cancelButtonColor: '#94a3b8', confirmButtonText: 'Đã nhận tiền & duyệt', cancelButtonText: 'Hủy'
+            }).then((result) => { if (result.isConfirmed) { document.getElementById('formBaseCode').value = baseCode; document.getElementById('formStatus').value = 'Success'; document.getElementById('formAdminNote').value = ''; document.getElementById('statusForm').submit(); } });
         }
 
         function confirmReject(baseCode) {
             Swal.fire({
-                title: 'Từ chối giao dịch',
-                html: `
-                    <div class="text-start">
-                        <p class="text-muted mb-2">
-                            Nhập lý do từ chối để người dùng biết cần bổ sung hoặc kiểm tra lại.
-                        </p>
-                    </div>
-                `,
-                input: 'textarea',
-                inputPlaceholder: 'Ví dụ: Biên lai không hợp lệ, chưa nhận được tiền, sai số tiền chuyển khoản...',
-                inputAttributes: {
-                    maxlength: 500
-                },
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                cancelButtonColor: '#94a3b8',
-                confirmButtonText: '<i class="bi bi-x-circle-fill"></i> Từ chối giao dịch',
-                cancelButtonText: 'Hủy',
-                customClass: {
-                    confirmButton: 'rounded-pill px-4',
-                    cancelButton: 'rounded-pill px-4',
-                    input: 'rounded-4'
-                },
-                inputValidator: (value) => {
-                    if (!value || !value.trim()) {
-                        return 'Vui lòng nhập lý do từ chối.';
-                    }
-
-                    if (value.trim().length < 5) {
-                        return 'Lý do từ chối quá ngắn, vui lòng nhập rõ hơn.';
-                    }
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('formBaseCode').value = baseCode;
-                    document.getElementById('formStatus').value = 'Rejected';
-                    document.getElementById('formAdminNote').value = result.value.trim();
-                    document.getElementById('statusForm').submit();
-                }
-            });
+                title: 'Từ chối giao dịch', input: 'textarea', inputPlaceholder: 'Nhập lý do từ chối...', inputAttributes: { maxlength: 500 }, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#94a3b8', confirmButtonText: 'Từ chối', cancelButtonText: 'Hủy',
+                inputValidator: (value) => { if (!value || !value.trim()) return 'Vui lòng nhập lý do từ chối.'; if (value.trim().length < 5) return 'Lý do quá ngắn.'; }
+            }).then((result) => { if (result.isConfirmed) { document.getElementById('formBaseCode').value = baseCode; document.getElementById('formStatus').value = 'Rejected'; document.getElementById('formAdminNote').value = result.value.trim(); document.getElementById('statusForm').submit(); } });
         }
 
-        document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.innerWidth >= 768) document.getElementById('filterBox')?.classList.add('open');
             const canvas = document.getElementById('revenueChart');
-
-            if (!canvas) {
-                return;
-            }
-
+            if (!canvas) return;
             const rawLabels = @Html.Raw(ViewBag.ChartLabels ?? "[]");
             const rawData = @Html.Raw(ViewBag.ChartValues ?? "[]");
-
             if (!Array.isArray(rawLabels) || !Array.isArray(rawData) || rawLabels.length === 0) {
-                const parent = canvas.parentElement;
-                parent.innerHTML = `
-                    <div class="empty-state py-4">
-                        <div class="empty-icon">
-                            <i class="bi bi-bar-chart"></i>
-                        </div>
-                        <h3 class="empty-title">Chưa có dữ liệu biểu đồ</h3>
-                        <p class="empty-desc">Khi có giao dịch thành công, biểu đồ doanh thu sẽ được hiển thị tại đây.</p>
-                    </div>
-                `;
+                canvas.parentElement.innerHTML = '<div class="empty-state"><i class="bi bi-bar-chart fs-1 opacity-50"></i><div class="fw-bold mt-2">Chưa có dữ liệu biểu đồ</div></div>';
                 return;
             }
-
             const ctx = canvas.getContext('2d');
-            const gradient = ctx.createLinearGradient(0, 0, 0, 360);
-            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.32)');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.28)');
             gradient.addColorStop(1, 'rgba(37, 99, 235, 0.02)');
-
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: rawLabels,
-                    datasets: [{
-                        label: 'Doanh thu',
-                        data: rawData,
-                        borderColor: '#2563eb',
-                        backgroundColor: gradient,
-                        borderWidth: 3,
-                        pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#2563eb',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        pointHoverRadius: 7,
-                        fill: true,
-                        tension: 0.42
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: '#0f172a',
-                            titleColor: '#ffffff',
-                            bodyColor: '#ffffff',
-                            padding: 13,
-                            cornerRadius: 12,
-                            displayColors: false,
-                            callbacks: {
-                                label: function (context) {
-                                    return new Intl.NumberFormat('vi-VN', {
-                                        style: 'currency',
-                                        currency: 'VND'
-                                    }).format(context.parsed.y || 0);
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: '#eef2f7',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: '#64748b',
-                                font: {
-                                    size: 12,
-                                    weight: '600'
-                                },
-                                callback: function (value) {
-                                    if (value >= 1000000000) {
-                                        return (value / 1000000000) + ' tỷ';
-                                    }
-
-                                    if (value >= 1000000) {
-                                        return (value / 1000000) + ' triệu';
-                                    }
-
-                                    if (value >= 1000) {
-                                        return (value / 1000) + 'K';
-                                    }
-
-                                    return value;
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false,
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: '#64748b',
-                                maxTicksLimit: 10,
-                                font: {
-                                    size: 12,
-                                    weight: '600'
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+            new Chart(ctx, { type: 'line', data: { labels: rawLabels, datasets: [{ label: 'Doanh thu', data: rawData, borderColor: '#2563eb', backgroundColor: gradient, borderWidth: 3, pointRadius: 3, fill: true, tension: .42 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(c.parsed.y || 0) } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 1000000 ? (v / 1000000) + ' triệu' : v } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } } } } });
         });
     </script>
 }

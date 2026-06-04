@@ -3,6 +3,7 @@ using BDSKhanhHoa.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace BDSKhanhHoa.Areas.Admin.Controllers
 {
@@ -18,190 +19,221 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? category, string? keyword, string? status)
         {
-            await FixStaticPageNullDataAsync();
+            IQueryable<AIKnowledgeArticle> baseQuery = _context.AIKnowledgeArticles.AsNoTracking();
 
-            StaticPage aiKnowledge = await GetOrCreateAIKnowledgePageAsync();
+            int totalAll = await baseQuery.CountAsync();
+            int publishedAll = await baseQuery.CountAsync(x => x.IsPublished);
+            int hiddenAll = totalAll - publishedAll;
 
-            return View(aiKnowledge);
-        }
+            Dictionary<string, int> categoryCounts = await baseQuery
+                .GroupBy(x => x.Category)
+                .Select(g => new { Category = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Category, x => x.Count, StringComparer.OrdinalIgnoreCase);
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Save(StaticPage model)
-        {
-            StaticPage aiKnowledge = await GetOrCreateAIKnowledgePageAsync();
+            IQueryable<AIKnowledgeArticle> query = baseQuery;
 
-            aiKnowledge.Title = "Dữ liệu Huấn luyện AI (RAG)";
-            aiKnowledge.Description = "Nguồn dữ liệu nội bộ giúp Chatbot AI trả lời chính sách, quy trình, pháp lý cơ bản, gói dịch vụ và nghiệp vụ của sàn.";
-            aiKnowledge.Content = model.Content ?? "";
-            aiKnowledge.UpdatedAt = DateTime.Now;
-
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã cập nhật nguồn kiến thức cho Chatbot AI thành công.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> LoadDefaultTemplate()
-        {
-            StaticPage aiKnowledge = await GetOrCreateAIKnowledgePageAsync();
-
-            aiKnowledge.Content = BuildDefaultKnowledgeTemplate();
-            aiKnowledge.UpdatedAt = DateTime.Now;
-
-            await _context.SaveChangesAsync();
-
-            TempData["Success"] = "Đã nạp mẫu dữ liệu huấn luyện AI mặc định. Bạn có thể chỉnh sửa thêm cho đúng chính sách thực tế.";
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        private async Task<StaticPage> GetOrCreateAIKnowledgePageAsync()
-        {
-            StaticPage? aiKnowledge = await _context.StaticPages
-                .FirstOrDefaultAsync(s => s.PageKey == "ai_knowledge_base");
-
-            if (aiKnowledge == null)
+            if (!string.IsNullOrWhiteSpace(category))
             {
-                aiKnowledge = new StaticPage
-                {
-                    PageKey = "ai_knowledge_base",
-                    Title = "Dữ liệu Huấn luyện AI (RAG)",
-                    Description = "Nguồn dữ liệu nội bộ giúp Chatbot AI trả lời chính xác hơn.",
-                    Content = "",
-                    UpdatedAt = DateTime.Now
-                };
-
-                _context.StaticPages.Add(aiKnowledge);
-                await _context.SaveChangesAsync();
+                string selectedCategory = category.Trim();
+                query = query.Where(x => x.Category == selectedCategory);
             }
 
-            aiKnowledge.Description ??= "";
-            aiKnowledge.Content ??= "";
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                string kw = keyword.Trim();
+                query = query.Where(x =>
+                    x.Title.Contains(kw) ||
+                    x.Content.Contains(kw) ||
+                    x.Category.Contains(kw));
+            }
 
-            return aiKnowledge;
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (string.Equals(status, "published", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(x => x.IsPublished);
+                }
+                else if (string.Equals(status, "hidden", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(x => !x.IsPublished);
+                }
+            }
+
+            List<AIKnowledgeArticle> articles = await query
+                .OrderBy(x => x.Category)
+                .ThenBy(x => x.Title)
+                .ToListAsync();
+
+            ViewBag.Category = category ?? string.Empty;
+            ViewBag.Keyword = keyword ?? string.Empty;
+            ViewBag.Status = status ?? string.Empty;
+            ViewBag.TotalAll = totalAll;
+            ViewBag.PublishedAll = publishedAll;
+            ViewBag.HiddenAll = hiddenAll;
+            ViewBag.CategoryCounts = categoryCounts;
+            ViewBag.CategoryOptions = GetCategoryOptions();
+
+            return View(articles);
         }
 
-        private async Task FixStaticPageNullDataAsync()
+        [HttpGet]
+        public async Task<IActionResult> Edit(int? id)
         {
-            await _context.Database.ExecuteSqlRawAsync(
-                "UPDATE [StaticPages] SET [Description] = '' WHERE [Description] IS NULL");
+            ViewBag.CategoryOptions = GetCategoryOptions();
 
-            await _context.Database.ExecuteSqlRawAsync(
-                "UPDATE [StaticPages] SET [Content] = '' WHERE [Content] IS NULL");
+            if (id == null || id.Value <= 0)
+            {
+                return View(new AIKnowledgeArticle
+                {
+                    Title = string.Empty,
+                    Category = "General",
+                    Content = string.Empty,
+                    IsPublished = true,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                });
+            }
+
+            AIKnowledgeArticle? article = await _context.AIKnowledgeArticles
+                .FirstOrDefaultAsync(x => x.ArticleID == id.Value);
+
+            if (article == null)
+            {
+                return NotFound();
+            }
+
+            return View(article);
         }
 
-        private static string BuildDefaultKnowledgeTemplate()
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Save(AIKnowledgeArticle model)
         {
-            return """
-            # DỮ LIỆU HUẤN LUYỆN CHATBOT AI - BĐS KHÁNH HÒA
+            ViewBag.CategoryOptions = GetCategoryOptions();
 
-            ## 1. Vai trò của Chatbot AI
-            Chatbot AI của website BĐS Khánh Hòa có nhiệm vụ hỗ trợ người dùng tìm hiểu thông tin bất động sản, hướng dẫn thao tác trên website, hỗ trợ tìm tin phù hợp, giải thích quy trình gửi yêu cầu tư vấn, đặt lịch xem bất động sản, đăng tin, quản lý tin, gói VIP và các thông tin pháp lý cơ bản ở mức tham khảo.
+            if (string.IsNullOrWhiteSpace(model.Title))
+            {
+                TempData["Error"] = "Tiêu đề không được để trống.";
+                return RedirectToAction(nameof(Edit), new { id = model.ArticleID });
+            }
 
-            Chatbot AI không thay thế người bán, môi giới, nhân viên tư vấn, ngân hàng, công chứng viên, luật sư hoặc cơ quan nhà nước.
+            if (string.IsNullOrWhiteSpace(model.Content))
+            {
+                TempData["Error"] = "Nội dung huấn luyện không được để trống.";
+                return RedirectToAction(nameof(Edit), new { id = model.ArticleID });
+            }
 
-            ## 2. Phạm vi hỗ trợ
-            Chatbot có thể hỗ trợ:
-            - Hướng dẫn tìm kiếm và lọc tin bất động sản.
-            - Gợi ý nhà đất/căn hộ/mặt bằng/phòng trọ theo khu vực, ngân sách, diện tích và nhu cầu.
-            - Giải thích thông tin trên trang chi tiết tin đăng.
-            - Hướng dẫn gửi yêu cầu tư vấn.
-            - Hướng dẫn đặt lịch xem bất động sản.
-            - Hướng dẫn đăng ký, đăng nhập, quản lý tài khoản.
-            - Hướng dẫn đăng tin và quản lý tin cá nhân.
-            - Hướng dẫn lưu tin yêu thích, bình luận, báo cáo tin vi phạm.
-            - Giải thích gói đăng tin, gói VIP, voucher, thanh toán nếu website có cấu hình.
-            - Tư vấn pháp lý BĐS ở mức kiểm tra cơ bản.
+            string title = model.Title.Trim();
+            string category = string.IsNullOrWhiteSpace(model.Category)
+                ? "General"
+                : model.Category.Trim();
 
-            ## 3. Quy trình tìm bất động sản
-            Khi khách muốn tìm BĐS, cần xác định:
-            - Khách muốn mua hay thuê.
-            - Loại hình: nhà, đất, căn hộ, phòng trọ, mặt bằng, biệt thự, shophouse, văn phòng...
-            - Khu vực: Nha Trang, Cam Ranh, Ninh Hòa, Cam Lâm, Diên Khánh, Vạn Ninh, Khánh Vĩnh, Khánh Sơn, Phan Rang/Ninh Thuận nếu có dữ liệu.
-            - Ngân sách.
-            - Diện tích mong muốn.
-            - Mục đích: ở, đầu tư, kinh doanh, cho thuê lại.
-            - Yêu cầu pháp lý, tiện ích, đường xe hơi, gần biển, gần trung tâm, gần trường/chợ/bệnh viện...
+            string content = NormalizeTrainingContent(model.Content);
 
-            Nếu khách nói chưa rõ, hãy hỏi lại ngắn gọn, không hỏi quá nhiều một lúc.
+            AIKnowledgeArticle? article = null;
 
-            ## 4. Quy trình khi khách đang xem chi tiết một tin
-            Khi khách hỏi về tin đang xem:
-            - Phân tích theo thông tin trang hiện tại: tiêu đề, giá, diện tích, vị trí, loại BĐS.
-            - Có thể nhận xét ưu điểm, điểm cần kiểm tra thêm.
-            - Gợi ý khách đặt lịch xem thực tế nếu phù hợp.
-            - Gợi ý kiểm tra pháp lý, quy hoạch, tranh chấp trước khi giao dịch.
-            - Không tự kéo danh sách tin khác nếu khách chưa yêu cầu.
+            if (model.ArticleID > 0)
+            {
+                article = await _context.AIKnowledgeArticles
+                    .FirstOrDefaultAsync(x => x.ArticleID == model.ArticleID);
+            }
 
-            ## 5. Quy trình gửi yêu cầu tư vấn
-            Khi khách muốn được tư vấn:
-            - Hướng dẫn khách để lại họ tên, số điện thoại, email nếu có, nhu cầu và ghi chú.
-            - Bộ phận phụ trách hoặc người đăng tin sẽ tiếp nhận và liên hệ lại.
-            - Nếu là dự án, yêu cầu tư vấn có thể được chuyển đến tài khoản quản lý dự án hoặc bộ phận phụ trách.
+            if (article == null)
+            {
+                article = new AIKnowledgeArticle
+                {
+                    CreatedAt = DateTime.Now
+                };
 
-            ## 6. Quy trình đặt lịch xem bất động sản
-            Khi khách muốn xem thực tế:
-            - Khách chọn thời gian mong muốn.
-            - Nhập thông tin liên hệ.
-            - Người bán/người đăng tin/nhân viên phụ trách xác nhận lịch.
-            - Sau khi xem thực tế, có thể cập nhật kết quả: đã xem, quan tâm, chưa phù hợp, cần tư vấn thêm.
+                _context.AIKnowledgeArticles.Add(article);
+            }
 
-            ## 7. Pháp lý bất động sản
-            Khi khách hỏi pháp lý, cần nhắc khách kiểm tra:
-            - Giấy chứng nhận quyền sử dụng đất/quyền sở hữu nhà ở nếu có.
-            - Thông tin quy hoạch.
-            - Tình trạng tranh chấp.
-            - Tình trạng thế chấp/ngăn chặn giao dịch.
-            - Thông tin chủ sở hữu.
-            - Hợp đồng đặt cọc, hợp đồng chuyển nhượng, công chứng.
-            - Thuế, phí và nghĩa vụ tài chính liên quan.
+            article.Title = title;
+            article.Category = category;
+            article.Content = content;
+            article.IsPublished = model.IsPublished;
+            article.UpdatedAt = DateTime.Now;
 
-            Chatbot chỉ tư vấn tham khảo, không kết luận pháp lý chắc chắn.
+            await _context.SaveChangesAsync();
 
-            ## 8. Vay mua bất động sản
-            Khi khách hỏi vay vốn:
-            - Hỏi giá trị BĐS, số tiền tự có, số tiền muốn vay, thời hạn vay, lãi suất dự kiến.
-            - Có thể tính khoản trả góp tham khảo.
-            - Nhắc khách kiểm tra điều kiện vay trực tiếp với ngân hàng.
-            - Không cam kết hồ sơ được duyệt.
+            TempData["Success"] = "Đã lưu dữ liệu huấn luyện AI thành công.";
+            return RedirectToAction(nameof(Index), new { category = article.Category });
+        }
 
-            ## 9. Đăng tin
-            Khi khách hỏi cách đăng tin:
-            - Đăng nhập tài khoản.
-            - Chọn đăng tin.
-            - Nhập tiêu đề, loại BĐS, khu vực, địa chỉ, giá, diện tích, mô tả, hình ảnh.
-            - Gửi tin để hệ thống kiểm duyệt nếu có.
-            - Tin hợp lệ sẽ được hiển thị công khai sau khi duyệt.
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TogglePublished(int id)
+        {
+            AIKnowledgeArticle? article = await _context.AIKnowledgeArticles
+                .FirstOrDefaultAsync(x => x.ArticleID == id);
 
-            ## 10. Gói VIP / gói dịch vụ
-            Nếu khách hỏi gói VIP:
-            - Giải thích gói VIP giúp tin nổi bật hơn, ưu tiên hiển thị hơn tùy cấu hình hệ thống.
-            - Thời hạn, giá và quyền lợi cụ thể phụ thuộc vào gói đang được Admin cấu hình.
-            - Nếu thiếu dữ liệu giá gói, hướng dẫn khách xem trang gói dịch vụ hoặc liên hệ hỗ trợ.
+            if (article == null)
+            {
+                return NotFound();
+            }
 
-            ## 11. Báo cáo vi phạm
-            Khách có thể báo cáo tin nếu thấy:
-            - Tin sai sự thật.
-            - Hình ảnh không đúng.
-            - Giá không rõ ràng.
-            - Tin trùng lặp.
-            - Tin đã bán/đã thuê nhưng chưa cập nhật.
-            - Nội dung nghi ngờ lừa đảo hoặc vi phạm.
+            article.IsPublished = !article.IsPublished;
+            article.UpdatedAt = DateTime.Now;
 
-            ## 12. Nguyên tắc trả lời
-            - Trả lời ngắn gọn, đúng trọng tâm.
-            - Không bịa thông tin.
-            - Không cam kết lợi nhuận.
-            - Không khẳng định pháp lý chắc chắn khi chưa có nguồn xác minh.
-            - Nếu thiếu dữ liệu, hãy nói rõ và hỏi thêm.
-            - Luôn ưu tiên trải nghiệm dễ hiểu trên mobile.
-            """;
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = article.IsPublished
+                ? "Đã bật dữ liệu huấn luyện."
+                : "Đã tạm tắt dữ liệu huấn luyện.";
+
+            return RedirectToAction(nameof(Index), new { category = article.Category });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            AIKnowledgeArticle? article = await _context.AIKnowledgeArticles
+                .FirstOrDefaultAsync(x => x.ArticleID == id);
+
+            if (article == null)
+            {
+                return NotFound();
+            }
+
+            string category = article.Category;
+
+            _context.AIKnowledgeArticles.Remove(article);
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = "Đã xóa dữ liệu huấn luyện AI.";
+            return RedirectToAction(nameof(Index), new { category });
+        }
+
+        private static string NormalizeTrainingContent(string content)
+        {
+            string normalized = content.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+            normalized = Regex.Replace(normalized, "\n{4,}", "\n\n\n");
+            return normalized;
+        }
+
+        private static List<KeyValuePair<string, string>> GetCategoryOptions()
+        {
+            return new List<KeyValuePair<string, string>>
+            {
+                new("Core", "Vai trò & nguyên tắc"),
+                new("Buy", "Tư vấn mua"),
+                new("Rent", "Tư vấn thuê"),
+                new("PropertyDetail", "Phân tích tin đang xem"),
+                new("Legal", "Pháp lý cơ bản"),
+                new("Transaction", "Giao dịch & công chứng"),
+                new("Loan", "Vay vốn"),
+                new("Posting", "Đăng tin"),
+                new("Project", "Dự án"),
+                new("Care", "Chăm sóc khách hàng"),
+                new("Market", "Kinh nghiệm thị trường"),
+                new("Search", "Quy tắc tìm tin SQL"),
+                new("Guardrail", "Giới hạn an toàn"),
+                new("Fallback", "Fallback khi thiếu dữ liệu"),
+                new("General", "Thông tin chung")
+            };
         }
     }
 }

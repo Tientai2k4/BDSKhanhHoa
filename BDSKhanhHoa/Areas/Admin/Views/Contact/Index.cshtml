@@ -5,26 +5,309 @@
 
     string keyword = ViewBag.Keyword as string ?? "";
     string status = ViewBag.Status as string ?? "";
+
+    int newCount = ViewBag.NewCount ?? 0;
+    int processingCount = ViewBag.ProcessingCount ?? 0;
+    int doneCount = ViewBag.DoneCount ?? 0;
 }
+
+<style>
+    .contact-stat-card {
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+        background: #fff;
+    }
+
+    .contact-table th {
+        white-space: nowrap;
+    }
+
+    .contact-subject {
+        max-width: 360px;
+    }
+
+    .contact-message-preview {
+        max-width: 420px;
+    }
+
+    .status-badge {
+        font-size: .78rem;
+        font-weight: 800;
+        border-radius: 999px;
+        padding: 7px 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .status-new {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .status-processing {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-done {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    @@media (max-width: 767.98px) {
+        .contact-subject,
+        .contact-message-preview {
+            max-width: 220px;
+        }
+    }
+
+    /* MOBILE COMPACT FIX */
+    @@media (max-width: 767.98px) {
+        .container-fluid {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            padding-top: 12px !important;
+        }
+
+        h3 {
+            font-size: 1.08rem !important;
+            line-height: 1.25 !important;
+        }
+
+            h3 + .text-muted {
+                display: none !important;
+            }
+
+        .row.g-3.mb-4 {
+            --bs-gutter-x: .55rem !important;
+            --bs-gutter-y: .55rem !important;
+            margin-bottom: 12px !important;
+        }
+
+            .row.g-3.mb-4 > .col-md-4 {
+                width: 33.3333% !important;
+                flex: 0 0 33.3333% !important;
+                max-width: 33.3333% !important;
+            }
+
+        .contact-stat-card {
+            border-radius: 15px !important;
+            padding: 10px !important;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .045) !important;
+        }
+
+            .contact-stat-card .text-uppercase {
+                font-size: .56rem !important;
+                line-height: 1.15 !important;
+            }
+
+            .contact-stat-card .fs-3 {
+                font-size: 1.25rem !important;
+            }
+
+            .contact-stat-card .rounded-circle {
+                width: 34px !important;
+                height: 34px !important;
+            }
+
+            .contact-stat-card .fs-4 {
+                font-size: .95rem !important;
+            }
+
+        .card {
+            border-radius: 17px !important;
+        }
+
+        .card-body {
+            padding: 11px !important;
+        }
+
+        .soft-input,
+        .form-control,
+        .form-select {
+            min-height: 40px !important;
+            border-radius: 12px !important;
+            font-size: .82rem !important;
+        }
+
+        .form-label {
+            font-size: .65rem !important;
+            margin-bottom: 4px !important;
+        }
+
+        .btn {
+            min-height: 38px !important;
+            border-radius: 12px !important;
+            font-size: .8rem !important;
+        }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
+        .contact-table,
+        .contact-table tbody {
+            display: block !important;
+            width: 100% !important;
+        }
+
+            .contact-table thead {
+                display: none !important;
+            }
+
+            .contact-table tbody tr {
+                display: block !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: 15px !important;
+                margin: 9px !important;
+                background: #fff !important;
+                overflow: hidden !important;
+                box-shadow: 0 4px 12px rgba(15, 23, 42, .035) !important;
+            }
+
+            .contact-table tbody td {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: flex-start !important;
+                gap: 10px !important;
+                width: 100% !important;
+                padding: 8px 10px !important;
+                border-top: 1px solid #f1f5f9 !important;
+                text-align: left !important;
+                white-space: normal !important;
+                overflow-wrap: anywhere !important;
+                font-size: .78rem !important;
+            }
+
+                .contact-table tbody td:first-child {
+                    border-top: 0 !important;
+                }
+
+                .contact-table tbody td::before {
+                    content: attr(data-label);
+                    flex: 0 0 76px;
+                    color: #64748b;
+                    font-size: .62rem;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: .04em;
+                    line-height: 1.35;
+                }
+
+                .contact-table tbody td[colspan] {
+                    display: block !important;
+                    text-align: center !important;
+                    padding: 24px 10px !important;
+                }
+
+                    .contact-table tbody td[colspan]::before {
+                        display: none !important;
+                    }
+
+        .contact-subject,
+        .contact-message-preview {
+            max-width: 100% !important;
+            white-space: normal !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+        }
+
+        .status-badge {
+            font-size: .68rem !important;
+            padding: 5px 8px !important;
+        }
+
+        .rounded-circle {
+            width: 34px !important;
+            height: 34px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+    }
+
+</style>
 
 <div class="container-fluid px-4 py-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
-            <h3 class="fw-bold mb-1 text-dark"><i class="bi bi-envelope-paper-fill text-primary me-2"></i>Hộp thư Khách hàng</h3>
-            <div class="text-muted small">Quản lý các lời nhắn, góp ý từ khách vãng lai trên website.</div>
+            <h3 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-envelope-paper-fill text-primary me-2"></i>
+                Hộp thư khách hàng
+            </h3>
+            <div class="text-muted small">
+                Quản lý lời nhắn, góp ý và yêu cầu liên hệ từ khách vãng lai trên website.
+            </div>
         </div>
     </div>
 
     @if (TempData["SuccessMsg"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 d-flex align-items-center" role="alert">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i> @TempData["SuccessMsg"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            @TempData["SuccessMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <!-- BỘ LỌC TÌM KIẾM -->
+    @if (TempData["ErrorMsg"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["ErrorMsg"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card contact-stat-card p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold text-uppercase">Chưa xử lý</div>
+                        <div class="fs-3 fw-black text-danger">@newCount</div>
+                    </div>
+                    <div class="bg-danger-subtle text-danger rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                        <i class="bi bi-inbox-fill fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card contact-stat-card p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold text-uppercase">Đang xử lý</div>
+                        <div class="fs-3 fw-black text-warning">@processingCount</div>
+                    </div>
+                    <div class="bg-warning-subtle text-warning rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                        <i class="bi bi-hourglass-split fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card contact-stat-card p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small fw-bold text-uppercase">Đã xử lý</div>
+                        <div class="fs-3 fw-black text-success">@doneCount</div>
+                    </div>
+                    <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center" style="width:48px;height:48px;">
+                        <i class="bi bi-check2-circle fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-body p-3 p-md-4">
             <form method="get" asp-action="Index" class="row g-3">
@@ -37,73 +320,115 @@
                         <option value="Đã xử lý" selected="@(status == "Đã xử lý")">Đã xử lý</option>
                     </select>
                 </div>
+
                 <div class="col-md-7">
                     <label class="form-label fw-bold small text-muted">Từ khóa tìm kiếm</label>
-                    <input type="text" name="keyword" value="@keyword" class="form-control rounded-3" placeholder="Tên khách, SĐT, Email, tiêu đề..." />
+                    <input type="text"
+                           name="keyword"
+                           value="@keyword"
+                           class="form-control rounded-3"
+                           placeholder="Tên khách, số điện thoại, email, tiêu đề, nội dung..." />
                 </div>
+
                 <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary rounded-3 w-100 fw-bold"><i class="bi bi-search me-1"></i> Lọc dữ liệu</button>
+                    <button type="submit" class="btn btn-primary rounded-3 w-100 fw-bold">
+                        <i class="bi bi-search me-1"></i>
+                        Lọc
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- BẢNG DỮ LIỆU -->
-    <div class="card border-0 shadow-sm rounded-4">
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 contact-table">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4 py-3 text-uppercase text-secondary small fw-bold">Người gửi</th>
-                            <th class="py-3 text-uppercase text-secondary small fw-bold">Nội dung tóm tắt</th>
+                            <th class="py-3 text-uppercase text-secondary small fw-bold">Nội dung</th>
                             <th class="py-3 text-uppercase text-secondary small fw-bold">Thời gian</th>
                             <th class="py-3 text-uppercase text-secondary small fw-bold text-center">Trạng thái</th>
                             <th class="pe-4 py-3 text-uppercase text-secondary small fw-bold text-end">Thao tác</th>
                         </tr>
                     </thead>
+
                     <tbody>
                         @if (Model != null && Model.Any())
                         {
                             foreach (var item in Model)
                             {
+                                string currentStatus = string.IsNullOrWhiteSpace(item.Status) ? "Chưa xử lý" : item.Status.Trim();
+
+                                string badgeClass = currentStatus switch
+                                {
+                                    "Chưa xử lý" => "status-badge status-new",
+                                    "Đang xử lý" => "status-badge status-processing",
+                                    "Đã xử lý" => "status-badge status-done",
+                                    _ => "status-badge status-new"
+                                };
+
+                                string iconClass = currentStatus switch
+                                {
+                                    "Chưa xử lý" => "bi bi-inbox-fill",
+                                    "Đang xử lý" => "bi bi-hourglass-split",
+                                    "Đã xử lý" => "bi bi-check2-circle",
+                                    _ => "bi bi-inbox-fill"
+                                };
+
                                 <tr>
-                                    <td class="ps-4">
-                                        <div class="fw-bold text-dark fs-6">@item.FullName</div>
-                                        <div class="text-muted small"><i class="bi bi-telephone text-primary"></i> @(string.IsNullOrEmpty(item.Phone) ? "N/A" : item.Phone)</div>
+                                    <td data-label="Người gửi" class="ps-4">
+                                        <div class="fw-bold text-dark">@item.FullName</div>
+                                        <div class="text-muted small">
+                                            <i class="bi bi-telephone text-primary"></i>
+                                            @(string.IsNullOrWhiteSpace(item.Phone) ? "Không có SĐT" : item.Phone)
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(item.Email))
+                                        {
+                                            <div class="text-muted small text-truncate" style="max-width:220px;">
+                                                <i class="bi bi-envelope text-primary"></i>
+                                                @item.Email
+                                            </div>
+                                        }
                                     </td>
-                                    <td style="max-width: 300px;">
-                                        <div class="fw-bold text-dark text-truncate">@(string.IsNullOrEmpty(item.Subject) ? "Không có chủ đề" : item.Subject)</div>
-                                        <div class="text-muted small text-truncate">@item.Message</div>
+
+                                    <td data-label="Nội dung">
+                                        <div class="fw-bold text-dark text-truncate contact-subject">
+                                            @(string.IsNullOrWhiteSpace(item.Subject) ? "Không có chủ đề" : item.Subject)
+                                        </div>
+                                        <div class="text-muted small text-truncate contact-message-preview">
+                                            @item.Message
+                                        </div>
                                     </td>
-                                    <td>
+
+                                    <td data-label="Thời gian">
                                         <div class="fw-bold text-dark">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
                                         <div class="small text-muted">@item.CreatedAt.ToString("HH:mm")</div>
                                     </td>
-                                    <td class="text-center">
-                                        @if (item.Status == "Chưa xử lý")
-                                        {
-                                            <span class="badge bg-danger rounded-pill px-3 py-2">Chưa xử lý</span>
-                                        }
-                                        else if (item.Status == "Đang xử lý")
-                                        {
 
-                                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2">Đang xử lý</span>
-                                        }
-                                        else
-                                        {
-
-                                            <span class="badge bg-success rounded-pill px-3 py-2">Đã xử lý</span>
-                                        }
+                                    <td data-label="Trạng thái" class="text-center">
+                                        <span class="@badgeClass">
+                                            <i class="@iconClass"></i>
+                                            @currentStatus
+                                        </span>
                                     </td>
-                                    <td class="pe-4 text-end">
-                                        <a href="/Admin/Contact/Details/@item.ContactID" class="btn btn-sm btn-light border rounded-circle shadow-sm me-1" title="Xem chi tiết">
+
+                                    <td data-label="Thao tác" class="pe-4 text-end">
+                                        <a href="/Admin/Contact/Details/@item.ContactID"
+                                           class="btn btn-sm btn-light border rounded-circle shadow-sm me-1"
+                                           title="Xem chi tiết">
                                             <i class="bi bi-eye text-primary"></i>
                                         </a>
+
                                         <form action="/Admin/Contact/Delete" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@item.ContactID" />
-                                            <button type="submit" class="btn btn-sm btn-light border rounded-circle shadow-sm" title="Xóa" onclick="return confirm('Bạn có chắc chắn muốn xóa thư liên hệ này?');">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-light border rounded-circle shadow-sm"
+                                                    title="Xóa"
+                                                    onclick="return confirm('Bạn có chắc muốn xóa thư liên hệ này khỏi hệ thống?');">
                                                 <i class="bi bi-trash text-danger"></i>
                                             </button>
                                         </form>
@@ -113,7 +438,12 @@
                         }
                         else
                         {
-                            <tr><td colspan="5" class="text-center py-5 text-muted">Không tìm thấy thư liên hệ nào phù hợp.</td></tr>
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-envelope-x display-5 d-block mb-2 opacity-50"></i>
+                                    Không tìm thấy thư liên hệ nào phù hợp.
+                                </td>
+                            </tr>
                         }
                     </tbody>
                 </table>

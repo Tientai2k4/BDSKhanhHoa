@@ -1,24 +1,23 @@
-﻿@model IEnumerable<BDSKhanhHoa.Models.AuditLog>
-@using System.Globalization
+﻿@model BDSKhanhHoa.Areas.Admin.Controllers.AuditLogIndexViewModel
 
 @{
     ViewData["Title"] = "Nhật ký hệ thống";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
 
-    int totalLogs = ViewBag.TotalLogs ?? 0;
-    int todayLogs = ViewBag.TodayLogs ?? 0;
-    int dangerLogs = ViewBag.DangerLogs ?? 0;
-    int authLogs = ViewBag.AuthLogs ?? 0;
+    int totalLogs = Model.TotalLogs;
+    int todayLogs = Model.TodayLogs;
+    int dangerLogs = Model.DangerLogs;
+    int authLogs = Model.AuthLogs;
 
-    int currentPage = ViewBag.CurrentPage ?? 1;
-    int totalPages = ViewBag.TotalPages ?? 1;
+    int currentPage = Model.CurrentPage;
+    int totalPages = Model.TotalPages;
 
-    string keyword = ViewBag.Keyword as string ?? "";
-    string module = ViewBag.Module as string ?? "";
-    string severity = ViewBag.Severity as string ?? "";
-    string dateRange = ViewBag.DateRange as string ?? "all";
+    string keyword = Model.Keyword ?? "";
+    string module = Model.Module ?? "";
+    string severity = Model.Severity ?? "";
+    string dateRange = Model.DateRange ?? "all";
 
-    var moduleOptions = ViewBag.ModuleOptions as IEnumerable<string> ?? Enumerable.Empty<string>();
+    var moduleOptions = Model.ModuleOptions ?? new List<string>();
 
     string SeverityClass(string? value)
     {
@@ -30,105 +29,309 @@
             _ => "bg-info bg-opacity-10 text-info-emphasis border-info"
         };
     }
+
+    string RoleName(int? roleId)
+    {
+        return roleId switch
+        {
+            1 => "Admin",
+            2 => "Staff",
+            3 => "Member",
+            _ => "User"
+        };
+    }
+
+    string SeverityText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Info" : value;
+    }
 }
 
 <style>
-    .audit-hero, .audit-panel {
-        background: #fff;
-        border-radius: 24px;
-        border: 1px solid rgba(148,163,184,.16);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+    :root {
+        --audit-primary: #2563eb;
+        --audit-dark: #0f172a;
+        --audit-muted: #64748b;
+        --audit-border: #e2e8f0;
+        --audit-soft: #f8fafc;
+        --audit-card: #ffffff;
+        --audit-danger: #ef4444;
+        --audit-warning: #f59e0b;
+        --audit-info: #06b6d4;
+    }
+
+    .audit-page {
+        color: var(--audit-dark);
+    }
+
+    .audit-hero,
+    .audit-panel,
+    .audit-stat,
+    .audit-log-card {
+        background: var(--audit-card);
+        border: 1px solid rgba(148, 163, 184, .20);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .055);
     }
 
     .audit-hero {
-        padding: 24px;
-        margin-bottom: 24px;
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
     }
 
     .audit-title {
-        font-size: 1.5rem;
-        font-weight: 900;
-        margin-bottom: 4px;
-        letter-spacing: -0.03em;
-        color: #0f172a;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.35rem;
+        line-height: 1.25;
+        font-weight: 950;
+        letter-spacing: -.035em;
+    }
+
+    .audit-title-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eff6ff;
+        color: var(--audit-primary);
+        flex-shrink: 0;
     }
 
     .audit-subtitle {
-        color: #64748b;
-        margin-bottom: 0;
+        margin: 7px 0 0;
+        color: var(--audit-muted);
+        font-size: .9rem;
+        line-height: 1.45;
+        font-weight: 650;
+    }
+
+    .audit-export-btn {
+        min-height: 42px;
+        border-radius: 999px;
+        padding: 0 18px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        white-space: nowrap;
+    }
+
+    .audit-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
     }
 
     .audit-stat {
-        border-radius: 22px;
-        padding: 20px;
-        color: #fff;
-        min-height: 120px;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+        border-radius: 18px;
+        padding: 15px;
+        min-height: 96px;
         position: relative;
         overflow: hidden;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: #fff;
     }
 
+        .audit-stat::after {
+            content: "";
+            width: 78px;
+            height: 78px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.08);
+            position: absolute;
+            right: -24px;
+            top: -24px;
+        }
+
         .audit-stat .label {
-            font-size: .8rem;
+            position: relative;
+            z-index: 1;
+            font-size: .68rem;
             text-transform: uppercase;
-            letter-spacing: .08em;
-            opacity: .85;
-            font-weight: 800;
+            letter-spacing: .065em;
+            opacity: .78;
+            font-weight: 950;
             margin-bottom: 8px;
+            line-height: 1.25;
         }
 
         .audit-stat .value {
-            font-size: 2.5rem;
+            position: relative;
+            z-index: 1;
+            font-size: 2rem;
             line-height: 1;
-            font-weight: 900;
+            font-weight: 950;
+            letter-spacing: -.03em;
         }
 
         .audit-stat i {
             position: absolute;
-            right: -10px;
-            bottom: -10px;
-            font-size: 6rem;
-            opacity: 0.1;
+            right: 13px;
+            bottom: 10px;
+            font-size: 2.4rem;
+            opacity: .13;
         }
 
-    .soft-input {
-        min-height: 48px;
-        border-radius: 14px;
-        border: 1px solid #dbe3ef;
-        font-weight: 600;
-        color: #334155;
+    .stat-danger .value {
+        color: #fb7185;
     }
 
-    .table thead th {
-        background: #f8fafc;
-        font-size: .75rem;
+    .stat-info .value {
+        color: #22d3ee;
+    }
+
+    .stat-warning .value {
+        color: #facc15;
+    }
+
+    .audit-panel {
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 18px;
+    }
+
+    .audit-filter-details {
+        border-bottom: 1px solid var(--audit-border);
+        background: #fff;
+    }
+
+    .audit-filter-summary {
+        display: none;
+        list-style: none;
+    }
+
+        .audit-filter-summary::-webkit-details-marker {
+            display: none;
+        }
+
+    .audit-filter-form {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: minmax(145px, .75fr) minmax(145px, .75fr) minmax(145px, .75fr) minmax(220px, 1.35fr) minmax(160px, .8fr);
+        gap: 10px;
+        align-items: end;
+    }
+
+    .audit-label {
+        font-size: .68rem;
+        font-weight: 950;
+        letter-spacing: .055em;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        font-weight: 900;
-        color: #475569;
-        white-space: nowrap;
-        padding: 16px;
-        border-bottom: 2px solid #e2e8f0;
+        color: #64748b;
+        margin-bottom: 5px;
     }
 
-    .table tbody td {
-        padding: 16px;
-        vertical-align: middle;
-        border-bottom: 1px dashed #e2e8f0;
+    .soft-input {
+        min-height: 42px;
+        border-radius: 13px;
+        border: 1px solid #dbe3ef;
+        font-weight: 750;
+        color: #334155;
+        box-shadow: none !important;
     }
+
+        .soft-input:focus {
+            border-color: rgba(37, 99, 235, .55);
+            box-shadow: 0 0 0 .2rem rgba(37, 99, 235, .10) !important;
+        }
+
+    .audit-actions {
+        display: grid;
+        grid-template-columns: 1fr 52px;
+        gap: 8px;
+    }
+
+    .audit-filter-btn,
+    .audit-reset-btn {
+        min-height: 42px;
+        border-radius: 13px;
+        font-weight: 900;
+    }
+
+    .audit-result-line {
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        color: var(--audit-muted);
+        font-size: .82rem;
+        font-weight: 850;
+        background: #fbfdff;
+        border-bottom: 1px solid var(--audit-border);
+    }
+
+    .audit-table-wrap {
+        padding: 10px;
+        background: #f8fafc;
+    }
+
+    .audit-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0 9px;
+    }
+
+        .audit-table thead th {
+            border: 0;
+            padding: 0 12px 3px;
+            color: #64748b;
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .055em;
+            font-weight: 950;
+            white-space: nowrap;
+        }
+
+        .audit-table tbody td {
+            background: #fff;
+            border-top: 1px solid var(--audit-border);
+            border-bottom: 1px solid var(--audit-border);
+            padding: 12px;
+            vertical-align: middle;
+        }
+
+            .audit-table tbody td:first-child {
+                border-left: 1px solid var(--audit-border);
+                border-top-left-radius: 14px;
+                border-bottom-left-radius: 14px;
+            }
+
+            .audit-table tbody td:last-child {
+                border-right: 1px solid var(--audit-border);
+                border-top-right-radius: 14px;
+                border-bottom-right-radius: 14px;
+            }
+
+        .audit-table tbody tr:hover td {
+            background: #fafcff;
+        }
 
     .user-pill {
         background: #eff6ff;
         color: #1d4ed8;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 7px 12px;
+        gap: 7px;
+        padding: 6px 10px;
         border-radius: 999px;
-        font-size: .8rem;
-        font-weight: 800;
+        font-size: .78rem;
+        font-weight: 850;
         white-space: nowrap;
+        max-width: 100%;
     }
 
     .module-pill {
@@ -136,175 +339,618 @@
         color: #475569;
         border: 1px solid #cbd5e1;
         display: inline-flex;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-size: 0.75rem;
+        padding: 4px 9px;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 850;
+        max-width: 100%;
+    }
+
+    .audit-mobile-list {
+        display: none;
+        padding: 10px;
+        background: #f8fafc;
+    }
+
+    .audit-log-card {
+        border-radius: 16px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .audit-log-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 9px;
+    }
+
+    .audit-log-time {
+        font-size: .95rem;
+        font-weight: 950;
+        color: var(--audit-dark);
+        line-height: 1.2;
+    }
+
+    .audit-log-date {
+        font-size: .72rem;
+        color: var(--audit-muted);
+        font-weight: 750;
+        margin-top: 3px;
+    }
+
+    .audit-log-title {
+        font-size: .9rem;
+        font-weight: 950;
+        color: var(--audit-dark);
+        line-height: 1.35;
+        margin-bottom: 5px;
+        word-break: break-word;
+    }
+
+    .audit-log-meta {
+        display: grid;
+        gap: 5px;
+        color: #475569;
+        font-size: .78rem;
+        line-height: 1.35;
         font-weight: 700;
     }
 
-    .log-row:hover {
-        background: #fafcff;
+        .audit-log-meta span {
+            min-width: 0;
+            word-break: break-word;
+        }
+
+    .audit-detail-btn {
+        min-height: 34px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: .78rem;
+        padding: 0 12px;
+    }
+
+    .audit-empty {
+        text-align: center;
+        padding: 38px 16px;
+        background: #fff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 16px;
+        margin: 10px;
     }
 
     .page-link {
         border-radius: 12px !important;
-        font-weight: 800;
-        margin: 0 4px;
+        font-weight: 900;
+        margin: 0 3px;
+        min-width: 38px;
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .audit-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .audit-filter-form {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+            .audit-filter-form .keyword-field,
+            .audit-filter-form .audit-actions {
+                grid-column: 1 / -1;
+            }
+    }
+
+    @@media (max-width: 767.98px) {
+        .audit-page {
+            margin-top: -4px;
+        }
+
+        .audit-hero {
+            border-radius: 17px;
+            padding: 13px;
+            margin-bottom: 10px;
+            display: block;
+            box-shadow: 0 7px 18px rgba(15,23,42,.045);
+        }
+
+        .audit-title {
+            font-size: 1.12rem;
+            gap: 8px;
+        }
+
+        .audit-title-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 11px;
+        }
+
+        .audit-subtitle {
+            font-size: .78rem;
+            margin-top: 6px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .audit-export-btn {
+            width: 100%;
+            margin-top: 10px;
+            min-height: 38px;
+            font-size: .82rem;
+            padding: 0 12px;
+        }
+
+        .audit-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .audit-stat {
+            min-height: 72px;
+            border-radius: 15px;
+            padding: 10px;
+        }
+
+            .audit-stat::after {
+                width: 50px;
+                height: 50px;
+                right: -18px;
+                top: -18px;
+            }
+
+            .audit-stat .label {
+                font-size: .54rem;
+                letter-spacing: .04em;
+                margin-bottom: 5px;
+                line-height: 1.2;
+            }
+
+            .audit-stat .value {
+                font-size: 1.38rem;
+            }
+
+            .audit-stat i {
+                font-size: 1.8rem;
+                right: 8px;
+                bottom: 7px;
+            }
+
+        .audit-panel {
+            border-radius: 17px;
+            box-shadow: none;
+        }
+
+        .audit-filter-details {
+            border-bottom: 1px solid var(--audit-border);
+        }
+
+        .audit-filter-summary {
+            min-height: 48px;
+            padding: 0 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            cursor: pointer;
+            font-weight: 950;
+            color: var(--audit-dark);
+            background: linear-gradient(180deg, #fff, #f8fafc);
+        }
+
+            .audit-filter-summary span {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-width: 0;
+            }
+
+            .audit-filter-summary::after {
+                content: "\F282";
+                font-family: "bootstrap-icons";
+                color: #64748b;
+                transition: transform .18s ease;
+                font-size: .86rem;
+            }
+
+        .audit-filter-details[open] .audit-filter-summary::after {
+            transform: rotate(180deg);
+        }
+
+        .audit-filter-form {
+            padding: 10px 12px 13px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+            .audit-filter-form .keyword-field,
+            .audit-filter-form .audit-actions {
+                grid-column: 1 / -1;
+            }
+
+        .audit-label {
+            font-size: .6rem;
+            margin-bottom: 4px;
+        }
+
+        .soft-input,
+        .audit-filter-btn,
+        .audit-reset-btn {
+            min-height: 39px;
+            border-radius: 12px;
+            font-size: .8rem;
+        }
+
+        .audit-actions {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .audit-result-line {
+            padding: 10px 12px;
+            font-size: .76rem;
+        }
+
+        .audit-table-wrap {
+            display: none;
+        }
+
+        .audit-mobile-list {
+            display: block;
+        }
+
+        .audit-log-card {
+            padding: 11px;
+            border-radius: 15px;
+            margin-bottom: 9px;
+            box-shadow: 0 6px 16px rgba(15,23,42,.04);
+        }
+
+        .audit-log-time {
+            font-size: .86rem;
+        }
+
+        .audit-log-title {
+            font-size: .84rem;
+        }
+
+        .audit-log-meta {
+            font-size: .74rem;
+        }
+
+        .user-pill,
+        .module-pill {
+            font-size: .7rem;
+            padding: 4px 8px;
+        }
+
+        .badge.rounded-pill {
+            font-size: .68rem;
+            padding: .35rem .55rem !important;
+        }
+
+        .audit-detail-btn {
+            width: 100%;
+            margin-top: 9px;
+        }
     }
 </style>
 
-<div class="audit-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
-    <div>
-        <div class="audit-title"><i class="bi bi-shield-check text-primary me-2"></i>Nhật ký hệ thống & Kiểm toán</div>
-        <p class="audit-subtitle">Theo dõi truy vết toàn diện mọi hành vi tương tác dữ liệu trên toàn bộ hệ thống.</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <a href="@Url.Action("ExportCsv", "AuditLogs", new { keyword, module, severity, dateRange })" class="btn btn-success rounded-pill fw-bold shadow-sm d-flex align-items-center px-4 py-2">
-            <i class="bi bi-file-earmark-excel-fill me-2"></i> Xuất File Kiểm Toán
+<div class="audit-page">
+    <div class="audit-hero">
+        <div class="min-w-0">
+            <h1 class="audit-title">
+                <span class="audit-title-icon"><i class="bi bi-shield-check"></i></span>
+                Nhật ký hệ thống & Kiểm toán
+            </h1>
+            <p class="audit-subtitle">Theo dõi truy vết hành vi tương tác dữ liệu, đăng nhập, cảnh báo và thao tác quản trị.</p>
+        </div>
+
+        <a href="@Url.Action("ExportCsv", "AuditLogs", new { area = "Admin", keyword, module, severity, dateRange })"
+           class="btn btn-success audit-export-btn shadow-sm">
+            <i class="bi bi-file-earmark-excel-fill"></i>
+            Xuất file kiểm toán
         </a>
     </div>
-</div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Tổng số sự kiện</div><div class="value">@totalLogs.ToString("N0")</div><i class="bi bi-database"></i></div></div>
-    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Cảnh báo nghiêm trọng</div><div class="value text-danger">@dangerLogs.ToString("N0")</div><i class="bi bi-shield-x"></i></div></div>
-    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Sự kiện hôm nay</div><div class="value text-info">@todayLogs.ToString("N0")</div><i class="bi bi-calendar-event"></i></div></div>
-    <div class="col-xl-3 col-md-6"><div class="audit-stat"><div class="label">Đăng nhập / User</div><div class="value text-warning">@authLogs.ToString("N0")</div><i class="bi bi-person-bounding-box"></i></div></div>
-</div>
+    <div class="audit-stats-grid">
+        <div class="audit-stat">
+            <div class="label">Tổng sự kiện</div>
+            <div class="value">@totalLogs.ToString("N0")</div>
+            <i class="bi bi-database"></i>
+        </div>
 
-<div class="audit-panel p-3 p-md-4 mb-4">
-    <form method="get" asp-action="Index" class="row g-3 align-items-end mb-4 border-bottom pb-4">
-        <div class="col-xl-2 col-md-4">
-            <label class="form-label fw-bold small text-muted text-uppercase">Thời gian</label>
-            <select name="dateRange" class="form-select soft-input">
-                <option value="all" selected="@(dateRange == "all")">Tất cả</option>
-                <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
-                <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
-                <option value="month" selected="@(dateRange == "month")">Tháng này</option>
-            </select>
+        <div class="audit-stat stat-danger">
+            <div class="label">Cảnh báo nghiêm trọng</div>
+            <div class="value">@dangerLogs.ToString("N0")</div>
+            <i class="bi bi-shield-x"></i>
         </div>
-        <div class="col-xl-2 col-md-4">
-            <label class="form-label fw-bold small text-muted text-uppercase">Phân khu (Module)</label>
-            <select name="module" class="form-select soft-input">
-                <option value="">-- Tất cả --</option>
-                @foreach (var opt in moduleOptions)
-                {
-                    <option value="@opt" selected="@(module == opt)">@opt</option>
-                }
-            </select>
-        </div>
-        <div class="col-xl-2 col-md-4">
-            <label class="form-label fw-bold small text-muted text-uppercase">Mức độ</label>
-            <select name="severity" class="form-select soft-input">
-                <option value="">-- Tất cả --</option>
-                <option value="Info" selected="@(severity == "Info")">Info</option>
-                <option value="Warning" selected="@(severity == "Warning")">Warning</option>
-                <option value="Danger" selected="@(severity == "Danger")">Danger</option>
-                <option value="Critical" selected="@(severity == "Critical")">Critical</option>
-            </select>
-        </div>
-        <div class="col-xl-4 col-md-8">
-            <label class="form-label fw-bold small text-muted text-uppercase">Tra cứu IP, Action, User...</label>
-            <input type="text" name="keyword" value="@keyword" class="form-control soft-input" placeholder="Nhập từ khóa cần tìm..." />
-        </div>
-        <div class="col-xl-2 col-md-4 d-flex gap-2">
-            <button type="submit" class="btn btn-dark w-100 rounded-14 fw-bold shadow-sm" style="height: 48px;"><i class="bi bi-funnel-fill me-1"></i> Lọc</button>
-            <a asp-action="Index" class="btn btn-light border w-100 rounded-14 fw-bold d-flex align-items-center justify-content-center" style="height: 48px;" title="Reset"><i class="bi bi-arrow-counterclockwise"></i></a>
-        </div>
-    </form>
 
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Thời gian</th>
-                    <th>Người thực hiện</th>
-                    <th>Phân khu & IP</th>
-                    <th>Nội dung sự kiện</th>
-                    <th class="text-center">Mức độ</th>
-                    <th class="text-end">Trích xuất</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model != null && Model.Any())
-                {
-                    foreach (var item in Model)
+        <div class="audit-stat stat-info">
+            <div class="label">Sự kiện hôm nay</div>
+            <div class="value">@todayLogs.ToString("N0")</div>
+            <i class="bi bi-calendar-event"></i>
+        </div>
+
+        <div class="audit-stat stat-warning">
+            <div class="label">Đăng nhập / User</div>
+            <div class="value">@authLogs.ToString("N0")</div>
+            <i class="bi bi-person-bounding-box"></i>
+        </div>
+    </div>
+
+    <div class="audit-panel">
+        <details class="audit-filter-details" open>
+            <summary class="audit-filter-summary">
+                <span><i class="bi bi-funnel-fill text-primary"></i> Bộ lọc nhật ký</span>
+            </summary>
+
+            <form method="get" asp-action="Index" class="audit-filter-form">
+                <div>
+                    <label class="form-label audit-label">Thời gian</label>
+                    <select name="dateRange" class="form-select soft-input">
+                        <option value="all" selected="@(dateRange == "all")">Tất cả</option>
+                        <option value="today" selected="@(dateRange == "today")">Hôm nay</option>
+                        <option value="week" selected="@(dateRange == "week")">7 ngày qua</option>
+                        <option value="month" selected="@(dateRange == "month")">Tháng này</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label audit-label">Phân khu</label>
+                    <select name="module" class="form-select soft-input">
+                        <option value="">-- Tất cả --</option>
+                        @foreach (var opt in moduleOptions)
+                        {
+                            <option value="@opt" selected="@(module == opt)">@opt</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label audit-label">Mức độ</label>
+                    <select name="severity" class="form-select soft-input">
+                        <option value="">-- Tất cả --</option>
+                        <option value="Info" selected="@(severity == "Info")">Info</option>
+                        <option value="Warning" selected="@(severity == "Warning")">Warning</option>
+                        <option value="Danger" selected="@(severity == "Danger")">Danger</option>
+                        <option value="Critical" selected="@(severity == "Critical")">Critical</option>
+                    </select>
+                </div>
+
+                <div class="keyword-field">
+                    <label class="form-label audit-label">Tra cứu IP, Action, User...</label>
+                    <input type="text"
+                           name="keyword"
+                           value="@keyword"
+                           class="form-control soft-input"
+                           placeholder="Nhập từ khóa cần tìm..." />
+                </div>
+
+                <div class="audit-actions">
+                    <button type="submit" class="btn btn-dark audit-filter-btn shadow-sm">
+                        <i class="bi bi-funnel-fill me-1"></i> Lọc
+                    </button>
+
+                    <a asp-action="Index"
+                       class="btn btn-light border audit-reset-btn d-flex align-items-center justify-content-center"
+                       title="Reset bộ lọc">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </details>
+
+        <div class="audit-result-line">
+            <span><i class="bi bi-list-check me-1"></i>Tìm thấy @Model.TotalItems.ToString("N0") bản ghi</span>
+            <span>Trang @currentPage / @totalPages</span>
+        </div>
+
+        <div class="audit-table-wrap">
+            <table class="audit-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Người thực hiện</th>
+                        <th>Phân khu & IP</th>
+                        <th>Nội dung sự kiện</th>
+                        <th class="text-center">Mức độ</th>
+                        <th class="text-end">Trích xuất</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (Model.Logs != null && Model.Logs.Any())
                     {
-                        <tr class="log-row">
-                            <td>
-                                <div class="fw-bold text-dark fs-6">@item.CreatedAt.ToString("HH:mm:ss")</div>
-                                <div class="text-muted small fw-medium">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
-                            </td>
-                            <td>
-                                @if (item.User != null)
-                                {
-                                    <div class="user-pill mb-1"><i class="bi bi-person-circle"></i> @item.User.FullName</div>
-                                    <div class="text-muted small ms-2 fw-medium">ID: @item.UserID | Vai trò: @(item.User.RoleID == 1 ? "Admin" : item.User.RoleID == 2 ? "Staff" : "Member")</div>
-                                }
-                                else
-                                {
-                                    <div class="user-pill mb-1 bg-light text-muted border"><i class="bi bi-robot"></i> Hệ thống tự động</div>
-                                }
-                            </td>
-                            <td>
-                                <span class="module-pill mb-1 d-block w-fit-content">@(string.IsNullOrWhiteSpace(item.ModuleName) ? "System" : item.ModuleName)</span>
-                                <div class="text-muted small fw-medium"><i class="bi bi-hdd-network me-1"></i>@(item.IPAddress ?? "Unknown IP")</div>
-                            </td>
-                            <td>
-                                <div class="fw-bold text-dark mb-1">@item.Action</div>
-                                <div class="text-muted small text-truncate" style="max-width: 250px;" title="@item.Target">
-                                    Target: <span class="text-primary fw-bold">@(string.IsNullOrWhiteSpace(item.Target) ? "N/A" : item.Target)</span>
+                        foreach (var item in Model.Logs)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">@item.CreatedAt.ToString("HH:mm:ss")</div>
+                                    <div class="text-muted small fw-medium">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
+                                </td>
+
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.UserFullName))
+                                    {
+                                        <div class="user-pill mb-1">
+                                            <i class="bi bi-person-circle"></i>
+                                            @item.UserFullName
+                                        </div>
+                                        <div class="text-muted small fw-medium">
+                                            ID: @item.UserID | Vai trò: @RoleName(item.UserRoleID)
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="user-pill mb-1 bg-light text-muted border">
+                                            <i class="bi bi-robot"></i>
+                                            Hệ thống tự động
+                                        </div>
+                                    }
+                                </td>
+
+                                <td>
+                                    <span class="module-pill mb-1">
+                                        @(string.IsNullOrWhiteSpace(item.ModuleName) ? "System" : item.ModuleName)
+                                    </span>
+                                    <div class="text-muted small fw-medium">
+                                        <i class="bi bi-hdd-network me-1"></i>@(item.IPAddress ?? "Unknown IP")
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <div class="fw-bold text-dark mb-1">
+                                        @(string.IsNullOrWhiteSpace(item.Action) ? "N/A" : item.Action)
+                                    </div>
+                                    <div class="text-muted small text-truncate" style="max-width: 270px;" title="@item.Target">
+                                        Target: <span class="text-primary fw-bold">@(string.IsNullOrWhiteSpace(item.Target) ? "N/A" : item.Target)</span>
+                                    </div>
+                                </td>
+
+                                <td class="text-center">
+                                    <span class="badge border px-3 py-2 rounded-pill @SeverityClass(item.Severity)">
+                                        @SeverityText(item.Severity)
+                                    </span>
+                                </td>
+
+                                <td class="text-end">
+                                    <a asp-action="Details"
+                                       asp-route-id="@item.LogID"
+                                       class="btn btn-sm btn-outline-primary rounded-pill fw-bold px-3 shadow-sm">
+                                        Chi tiết
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="audit-empty m-0">
+                                    <i class="bi bi-shield-check display-5 text-muted opacity-25 d-block mb-2"></i>
+                                    <h5 class="fw-bold text-dark mb-1">Dữ liệu trống</h5>
+                                    <p class="text-muted mb-0">Không tìm thấy bản ghi nhật ký nào khớp với bộ lọc.</p>
                                 </div>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge border px-3 py-2 rounded-pill @SeverityClass(item.Severity)">@item.Severity</span>
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="Details" asp-route-id="@item.LogID" class="btn btn-sm btn-outline-primary rounded-pill fw-bold px-3 shadow-sm">Chi tiết</a>
                             </td>
                         </tr>
                     }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="6" class="text-center py-5">
-                            <i class="bi bi-shield-check display-1 text-muted opacity-25 d-block mb-3"></i>
-                            <h5 class="fw-bold text-dark">Dữ liệu trống</h5>
-                            <p class="text-muted">Không tìm thấy bản ghi nhật ký nào khớp với bộ lọc.</p>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    @if (totalPages > 1)
-    {
-        <div class="pt-4 mt-2">
-            <nav class="d-flex justify-content-center">
-                <ul class="pagination mb-0 flex-wrap">
-                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage - 1, keyword, module, severity, dateRange })"><i class="bi bi-chevron-left"></i></a>
-                    </li>
-                    @for (int i = 1; i <= totalPages; i++)
-                    {
-                        if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
-                        {
-                            <li class="page-item @(currentPage == i ? "active" : "")">
-                                <a class="page-link" href="@Url.Action("Index", new { page = i, keyword, module, severity, dateRange })">@i</a>
-                            </li>
-                        }
-                        else if (i == currentPage - 3 || i == currentPage + 3)
-                        {
-                            <li class="page-item disabled"><span class="page-link border-0">...</span></li>
-                        }
-                    }
-                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                        <a class="page-link" href="@Url.Action("Index", new { page = currentPage + 1, keyword, module, severity, dateRange })"><i class="bi bi-chevron-right"></i></a>
-                    </li>
-                </ul>
-            </nav>
+                </tbody>
+            </table>
         </div>
-    }
+
+        <div class="audit-mobile-list">
+            @if (Model.Logs != null && Model.Logs.Any())
+            {
+                foreach (var item in Model.Logs)
+                {
+                    <article class="audit-log-card">
+                        <div class="audit-log-head">
+                            <div>
+                                <div class="audit-log-time">@item.CreatedAt.ToString("HH:mm:ss")</div>
+                                <div class="audit-log-date">@item.CreatedAt.ToString("dd/MM/yyyy")</div>
+                            </div>
+
+                            <span class="badge border rounded-pill @SeverityClass(item.Severity)">
+                                @SeverityText(item.Severity)
+                            </span>
+                        </div>
+
+                        <div class="audit-log-title">@(string.IsNullOrWhiteSpace(item.Action) ? "N/A" : item.Action)</div>
+
+                        <div class="audit-log-meta">
+                            <span>
+                                <i class="bi bi-person-circle text-primary me-1"></i>
+                                @if (!string.IsNullOrWhiteSpace(item.UserFullName))
+                                {
+                                    <text>@item.UserFullName · ID @item.UserID · @RoleName(item.UserRoleID)</text>
+                                }
+                                else
+                                {
+                                    <text>Hệ thống tự động</text>
+                                }
+                            </span>
+                            <span>
+                                <i class="bi bi-grid-1x2 text-secondary me-1"></i>
+                                @(string.IsNullOrWhiteSpace(item.ModuleName) ? "System" : item.ModuleName)
+                            </span>
+                            <span>
+                                <i class="bi bi-hdd-network text-muted me-1"></i>
+                                @(item.IPAddress ?? "Unknown IP")
+                            </span>
+                            <span>
+                                <i class="bi bi-bullseye text-danger me-1"></i>
+                                Target: @(string.IsNullOrWhiteSpace(item.Target) ? "N/A" : item.Target)
+                            </span>
+                        </div>
+
+                        <a asp-action="Details"
+                           asp-route-id="@item.LogID"
+                           class="btn btn-outline-primary audit-detail-btn">
+                            <i class="bi bi-search me-1"></i>
+                            Xem chi tiết
+                        </a>
+                    </article>
+                }
+            }
+            else
+            {
+                <div class="audit-empty">
+                    <i class="bi bi-shield-check display-5 text-muted opacity-25 d-block mb-2"></i>
+                    <h5 class="fw-bold text-dark mb-1">Dữ liệu trống</h5>
+                    <p class="text-muted mb-0">Không tìm thấy bản ghi nhật ký nào khớp với bộ lọc.</p>
+                </div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="p-3 p-md-4 border-top">
+                <nav class="d-flex justify-content-center">
+                    <ul class="pagination mb-0 flex-wrap justify-content-center">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage - 1, keyword, module, severity, dateRange })">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                            {
+                                <li class="page-item @(currentPage == i ? "active" : "")">
+                                    <a class="page-link"
+                                       href="@Url.Action("Index", new { page = i, keyword, module, severity, dateRange })">
+                                        @i
+                                    </a>
+                                </li>
+                            }
+                            else if (i == currentPage - 3 || i == currentPage + 3)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link border-0">...</span>
+                                </li>
+                            }
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", new { page = currentPage + 1, keyword, module, severity, dateRange })">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
 </div>

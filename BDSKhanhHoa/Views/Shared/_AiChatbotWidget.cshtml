@@ -1,0 +1,782 @@
+﻿@*
+    File: Views/Shared/_AiChatbotWidget.cshtml
+    Chatbot AI BDSKhanhHoa - bản reset phiên mới:
+    - Không phụ thuộc jQuery
+    - Không lưu lịch sử chat vào localStorage
+    - Đóng chatbot hoặc bấm Làm mới sẽ xóa nội dung cũ và tạo session mới
+    - Trong lúc widget đang mở vẫn nhớ ngữ cảnh để hỏi/đáp liên tục
+    - Hiển thị card bất động sản từ SuggestedProperties
+*@
+
+<div class="bds-ai-chatbot-btn" id="bdsAiChatbotToggle" title="Trợ lý AI BĐS Khánh Hòa" role="button" aria-label="Mở trợ lý AI">
+    <i class="bi bi-robot"></i>
+</div>
+
+<div id="bdsAiChatWidget" class="bds-ai-chat-widget" aria-label="Trợ lý AI BĐS Khánh Hòa">
+    <div class="bds-ai-chat-header">
+        <div class="bds-ai-chat-header-left">
+            <div class="bds-ai-avatar"><i class="bi bi-stars"></i></div>
+            <div class="bds-ai-header-text">
+                <h6>Trợ lý AI BĐS Khánh Hòa</h6>
+                <small>Tư vấn mua bán · pháp lý · đăng tin</small>
+            </div>
+        </div>
+
+        <div class="bds-ai-header-actions">
+            <button type="button" class="bds-ai-header-btn" id="bdsAiChatReset" title="Làm mới phiên chat" aria-label="Làm mới phiên chat">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" class="bds-ai-header-btn" id="bdsAiChatClose" title="Đóng chatbot" aria-label="Đóng chatbot">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="bdsAiChatBody" class="bds-ai-chat-body"></div>
+
+    <div id="bdsAiSuggestedReplies" class="bds-ai-suggested-replies"></div>
+
+    <div class="bds-ai-chat-footer">
+        <div class="bds-ai-input-row">
+            <input id="bdsAiChatInput"
+                   type="text"
+                   class="bds-ai-input"
+                   placeholder="Nhập nhu cầu, ví dụ: Tôi muốn mua đất Nha Trang dưới 1 tỷ..."
+                   autocomplete="off" />
+            <button id="bdsAiChatSendBtn" class="bds-ai-send-btn" type="button" aria-label="Gửi tin nhắn">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+        <div class="bds-ai-note">
+            AI chỉ hỗ trợ tư vấn ban đầu, không thay thế luật sư, ngân hàng, công chứng viên hoặc cơ quan nhà nước.
+        </div>
+    </div>
+</div>
+
+<style>
+    .bds-ai-chatbot-btn {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        width: 60px;
+        height: 60px;
+        border-radius: 999px;
+        border: 3px solid rgba(255,255,255,.45);
+        background: linear-gradient(135deg,#2563eb,#0ea5e9);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 16px 38px rgba(37,99,235,.32);
+        cursor: pointer;
+        z-index: 2500;
+        transition: all .22s ease;
+        user-select: none
+    }
+
+        .bds-ai-chatbot-btn:hover {
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 22px 48px rgba(37,99,235,.38)
+        }
+
+        .bds-ai-chatbot-btn i {
+            font-size: 1.55rem;
+            line-height: 1
+        }
+
+    .bds-ai-chat-widget {
+        position: fixed;
+        right: 24px;
+        bottom: 94px;
+        width: 430px;
+        height: 650px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 120px);
+        background: #fff;
+        border-radius: 26px;
+        box-shadow: 0 26px 72px rgba(15,23,42,.22);
+        overflow: hidden;
+        display: none;
+        flex-direction: column;
+        z-index: 2501;
+        border: 1px solid rgba(226,232,240,.98)
+    }
+
+        .bds-ai-chat-widget.is-open {
+            display: flex
+        }
+
+    .bds-ai-chat-header {
+        padding: 16px 18px;
+        color: #fff;
+        background: radial-gradient(circle at top right,rgba(255,255,255,.22),transparent 36%),linear-gradient(135deg,#1d4ed8,#2563eb 52%,#0ea5e9);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-shrink: 0
+    }
+
+    .bds-ai-chat-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1
+    }
+
+    .bds-ai-header-text {
+        min-width: 0;
+        flex: 1
+    }
+
+    .bds-ai-chat-header h6 {
+        margin: 0;
+        font-size: .98rem;
+        font-weight: 850;
+        font-family: 'Sora','Inter',Arial,sans-serif;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis
+    }
+
+    .bds-ai-chat-header small {
+        display: block;
+        opacity: .88;
+        font-size: .76rem;
+        margin-top: 2px;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis
+    }
+
+    .bds-ai-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 15px;
+        background: rgba(255,255,255,.18);
+        border: 1px solid rgba(255,255,255,.24);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0
+    }
+
+        .bds-ai-avatar i {
+            font-size: 1.22rem
+        }
+
+    .bds-ai-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0
+    }
+
+    .bds-ai-header-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        border: none;
+        color: #fff;
+        background: rgba(255,255,255,.14);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .18s ease;
+        cursor: pointer
+    }
+
+        .bds-ai-header-btn:hover {
+            background: rgba(255,255,255,.25)
+        }
+
+    .bds-ai-chat-body {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0
+    }
+
+        .bds-ai-chat-body::-webkit-scrollbar {
+            width: 7px
+        }
+
+        .bds-ai-chat-body::-webkit-scrollbar-track {
+            background: transparent
+        }
+
+        .bds-ai-chat-body::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px
+        }
+
+    .bds-ai-message {
+        max-width: 92%;
+        display: flex;
+        flex-direction: column
+    }
+
+        .bds-ai-message.user {
+            align-self: flex-end;
+            align-items: flex-end
+        }
+
+        .bds-ai-message.bot {
+            align-self: flex-start;
+            align-items: flex-start
+        }
+
+    .bds-ai-bubble {
+        padding: 11px 14px;
+        border-radius: 17px;
+        font-size: .92rem;
+        line-height: 1.55;
+        word-break: break-word;
+        overflow-wrap: anywhere
+    }
+
+    .bds-ai-message.user .bds-ai-bubble {
+        color: #fff;
+        background: linear-gradient(135deg,#2563eb,#1d4ed8);
+        border-radius: 17px 17px 5px 17px
+    }
+
+    .bds-ai-message.bot .bds-ai-bubble {
+        color: #0f172a;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 17px 17px 17px 5px;
+        box-shadow: 0 8px 20px rgba(15,23,42,.06)
+    }
+
+        .bds-ai-message.bot .bds-ai-bubble p {
+            margin: 0 0 .72rem
+        }
+
+            .bds-ai-message.bot .bds-ai-bubble p:last-child {
+                margin-bottom: 0
+            }
+
+        .bds-ai-message.bot .bds-ai-bubble ul, .bds-ai-message.bot .bds-ai-bubble ol {
+            margin: .45rem 0 .72rem;
+            padding-left: 1.2rem
+        }
+
+        .bds-ai-message.bot .bds-ai-bubble li {
+            margin-bottom: .25rem
+        }
+
+        .bds-ai-message.bot .bds-ai-bubble strong {
+            font-weight: 850;
+            color: #0f172a
+        }
+
+        .bds-ai-message.bot .bds-ai-bubble a {
+            color: #2563eb;
+            font-weight: 700;
+            text-decoration: none
+        }
+
+            .bds-ai-message.bot .bds-ai-bubble a:hover {
+                text-decoration: underline
+            }
+
+    .bds-ai-typing {
+        display: flex;
+        gap: 5px;
+        padding: 5px 2px
+    }
+
+        .bds-ai-typing span {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #94a3b8;
+            animation: bdsAiTypingBounce 1.2s infinite ease-in-out
+        }
+
+            .bds-ai-typing span:nth-child(2) {
+                animation-delay: .16s
+            }
+
+            .bds-ai-typing span:nth-child(3) {
+                animation-delay: .32s
+            }
+
+    @@keyframes bdsAiTypingBounce {
+        0%, 80%, 100% {
+            transform: translateY(0);
+            opacity: .45
+        }
+
+        40% {
+            transform: translateY(-5px);
+            opacity: 1
+        }
+    }
+
+    .bds-ai-property-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        max-width: 100%;
+        margin-top: -2px
+    }
+
+    .bds-ai-property-card {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 10px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 10px;
+        box-shadow: 0 10px 22px rgba(15,23,42,.06)
+    }
+
+    .bds-ai-property-img {
+        width: 92px;
+        height: 92px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #e2e8f0
+    }
+
+        .bds-ai-property-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block
+        }
+
+    .bds-ai-property-info {
+        min-width: 0
+    }
+
+    .bds-ai-property-title {
+        font-weight: 850;
+        color: #0f172a;
+        font-size: .9rem;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden
+    }
+
+    .bds-ai-property-price {
+        font-weight: 900;
+        color: #dc2626;
+        margin-top: 4px;
+        font-size: .92rem
+    }
+
+    .bds-ai-property-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: .78rem;
+        color: #475569;
+        margin-top: 4px
+    }
+
+    .bds-ai-property-reason {
+        font-size: .76rem;
+        color: #334155;
+        margin-top: 6px;
+        background: #f1f5f9;
+        border-radius: 10px;
+        padding: 6px 8px
+    }
+
+    .bds-ai-property-link {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 7px;
+        color: #2563eb;
+        font-weight: 800;
+        text-decoration: none;
+        font-size: .82rem
+    }
+
+        .bds-ai-property-link:hover {
+            text-decoration: underline
+        }
+
+    .bds-ai-suggested-replies {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 9px 12px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+        flex-shrink: 0
+    }
+
+        .bds-ai-suggested-replies:empty {
+            display: none
+        }
+
+    .bds-ai-chip {
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        padding: 7px 10px;
+        white-space: nowrap;
+        cursor: pointer
+    }
+
+        .bds-ai-chip:hover {
+            background: #dbeafe
+        }
+
+    .bds-ai-chat-footer {
+        padding: 12px;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+        flex-shrink: 0
+    }
+
+    .bds-ai-input-row {
+        display: flex;
+        align-items: center;
+        gap: 8px
+    }
+
+    .bds-ai-input {
+        flex: 1;
+        height: 42px;
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        outline: none;
+        padding: 0 15px;
+        font-size: .9rem
+    }
+
+        .bds-ai-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.12)
+        }
+
+    .bds-ai-send-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        border: none;
+        background: #2563eb;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all .18s ease
+    }
+
+        .bds-ai-send-btn:hover {
+            background: #1d4ed8
+        }
+
+        .bds-ai-send-btn:disabled {
+            opacity: .55;
+            cursor: not-allowed
+        }
+
+    .bds-ai-note {
+        font-size: .72rem;
+        color: #64748b;
+        margin-top: 8px;
+        line-height: 1.35;
+        text-align: center
+    }
+
+    @@media (max-width:575.98px) {
+        .bds-ai-chatbot-btn {
+            right: 18px;
+            bottom: 18px;
+            width: 56px;
+            height: 56px
+        }
+
+        .bds-ai-chat-widget {
+            right: 12px;
+            left: 12px;
+            bottom: 84px;
+            width: auto;
+            height: calc(100vh - 110px);
+            max-width: none;
+            max-height: none;
+            border-radius: 22px
+        }
+
+        .bds-ai-message {
+            max-width: 95%
+        }
+
+        .bds-ai-property-card {
+            grid-template-columns: 82px 1fr
+        }
+
+        .bds-ai-property-img {
+            width: 82px;
+            height: 82px
+        }
+    }
+</style>
+
+<script>
+    (function () {
+        const toggle = document.getElementById('bdsAiChatbotToggle');
+        const widget = document.getElementById('bdsAiChatWidget');
+        const closeBtn = document.getElementById('bdsAiChatClose');
+        const resetBtn = document.getElementById('bdsAiChatReset');
+        const body = document.getElementById('bdsAiChatBody');
+        const input = document.getElementById('bdsAiChatInput');
+        const sendBtn = document.getElementById('bdsAiChatSendBtn');
+        const repliesBox = document.getElementById('bdsAiSuggestedReplies');
+        if (!toggle || !widget || !body || !input || !sendBtn) return;
+
+        // Không lưu localStorage nữa. Xóa luôn dữ liệu cũ từ bản trước để tránh hiện lịch sử cũ.
+        try {
+            localStorage.removeItem('bds_ai_v2_session_id');
+            localStorage.removeItem('bds_ai_v2_history');
+            localStorage.removeItem('bds_ai_session_id');
+            localStorage.removeItem('bds_ai_history');
+        } catch (e) { }
+
+        let sessionId = '';
+        let sending = false;
+        let initialized = false;
+
+        resetConversation();
+
+        toggle.addEventListener('click', function () {
+            const willOpen = !widget.classList.contains('is-open');
+            if (willOpen && !initialized) resetConversation();
+            widget.classList.toggle('is-open');
+            if (widget.classList.contains('is-open')) input.focus();
+        });
+
+        closeBtn.addEventListener('click', function () {
+            widget.classList.remove('is-open');
+            // Đóng chatbot là kết thúc phiên chat hiện tại. Mở lại sẽ bắt đầu phiên mới.
+            resetConversation();
+        });
+
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () {
+                resetConversation();
+                input.focus();
+            });
+        }
+
+        sendBtn.addEventListener('click', function () { sendMessage(input.value); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(input.value);
+            }
+        });
+
+        function resetConversation() {
+            sessionId = '';
+            initialized = true;
+            body.innerHTML = '';
+            repliesBox.innerHTML = '';
+            input.value = '';
+            removeTyping();
+            appendMessage('Chào Anh/Chị! Em là trợ lý AI BĐS Khánh Hòa. Anh/Chị có thể hỏi em về tìm mua, thuê, pháp lý, giao dịch, vay vốn, đăng tin hoặc phân tích tin đang xem.', 'bot');
+            renderSuggestedReplies(['Tôi muốn mua đất', 'Tôi muốn thuê nhà', 'Mua đất cần kiểm tra gì?', 'Hướng dẫn đăng tin']);
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderMarkdown(text) {
+            let html = escapeHtml(text || '');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\n\s*\n/g, '</p><p>');
+            html = html.replace(/\n/g, '<br>');
+            return '<p>' + html + '</p>';
+        }
+
+        function scrollBottom() { body.scrollTop = body.scrollHeight; }
+
+        function appendMessage(text, sender) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'bds-ai-message ' + sender;
+            const bubble = document.createElement('div');
+            bubble.className = 'bds-ai-bubble';
+            bubble.innerHTML = sender === 'bot' ? renderMarkdown(text || '') : escapeHtml(text || '').replace(/\n/g, '<br>');
+            wrapper.appendChild(bubble);
+            body.appendChild(wrapper);
+            scrollBottom();
+        }
+
+        function appendTyping() {
+            removeTyping();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'bds-ai-message bot bds-ai-typing-message';
+            const bubble = document.createElement('div');
+            bubble.className = 'bds-ai-bubble';
+            bubble.innerHTML = '<div class="bds-ai-typing"><span></span><span></span><span></span></div>';
+            wrapper.appendChild(bubble);
+            body.appendChild(wrapper);
+            scrollBottom();
+        }
+
+        function removeTyping() {
+            body.querySelectorAll('.bds-ai-typing-message').forEach(function (item) { item.remove(); });
+        }
+
+        function renderPropertyCards(properties) {
+            if (!Array.isArray(properties) || properties.length === 0) return;
+            let html = '<div class="bds-ai-property-list">';
+            properties.forEach(function (p) {
+                const title = escapeHtml(p.title || p.Title || 'Bất động sản');
+                const price = escapeHtml(p.price || p.Price || 'Thỏa thuận');
+                const areaSize = escapeHtml(p.areaSize || p.AreaSize || '');
+                const location = escapeHtml(p.location || p.Location || '');
+                const propertyTypeName = escapeHtml(p.propertyTypeName || p.PropertyTypeName || '');
+                const reason = escapeHtml(p.reasonMatched || p.ReasonMatched || '');
+                const link = escapeHtml(p.link || p.Link || '#');
+                const image = escapeHtml(p.image || p.Image || '/images/no-image.png');
+                html += `
+                    <div class="bds-ai-property-card">
+                        <div class="bds-ai-property-img"><img src="${image}" alt="${title}" onerror="this.src='/images/no-image.png'"></div>
+                        <div class="bds-ai-property-info">
+                            <div class="bds-ai-property-title">${title}</div>
+                            <div class="bds-ai-property-price">${price}</div>
+                            ${areaSize ? `<div class="bds-ai-property-meta"><i class="bi bi-aspect-ratio"></i> ${areaSize}</div>` : ''}
+                            ${location ? `<div class="bds-ai-property-meta"><i class="bi bi-geo-alt"></i> ${location}</div>` : ''}
+                            ${propertyTypeName ? `<div class="bds-ai-property-meta"><i class="bi bi-house-door"></i> ${propertyTypeName}</div>` : ''}
+                            ${reason ? `<div class="bds-ai-property-reason">Phù hợp vì: ${reason}</div>` : ''}
+                            <a href="${link}" class="bds-ai-property-link">Xem chi tiết</a>
+                        </div>
+                    </div>`;
+            });
+            html += '</div>';
+            body.insertAdjacentHTML('beforeend', html);
+            scrollBottom();
+        }
+
+        function renderSuggestedReplies(replies) {
+            repliesBox.innerHTML = '';
+            if (!Array.isArray(replies) || replies.length === 0) return;
+            replies.slice(0, 6).forEach(function (text) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'bds-ai-chip';
+                btn.textContent = text;
+                btn.addEventListener('click', function () { sendMessage(text); });
+                repliesBox.appendChild(btn);
+            });
+        }
+
+        function getMetaContent(name) {
+            const el = document.querySelector(`meta[name="${name}"]`);
+            return el ? (el.getAttribute('content') || '').trim() : '';
+        }
+
+        function detectPageType() {
+            const path = (window.location.pathname || '').toLowerCase();
+            const metaType = getMetaContent('chatbot-page-type');
+            if (metaType) return metaType;
+            if (path.includes('/property/details')) return 'PropertyDetail';
+            if (path.includes('/project/details')) return 'ProjectDetail';
+            if (path.includes('/batdongsan/nhadatban')) return 'PropertyListSale';
+            if (path.includes('/batdongsan/nhadatchothue')) return 'PropertyListRent';
+            if (path === '/project' || path.includes('/project/search')) return 'ProjectList';
+            if (path.includes('/property/create')) return 'CreateProperty';
+            if (path.includes('/property/myads')) return 'MyAds';
+            if (path.includes('/account')) return 'Account';
+            if (path.includes('/contact')) return 'Contact';
+            if (path.includes('/admin')) return 'Admin';
+            return 'General';
+        }
+
+        function buildPageContext() {
+            const parts = [];
+            const pageType = detectPageType();
+            parts.push('[THÔNG TIN TRANG HIỆN TẠI]');
+            parts.push('Loại trang: ' + pageType);
+            parts.push('URL hiện tại: ' + (window.location.pathname || ''));
+            parts.push('Tiêu đề trình duyệt: ' + (document.title || ''));
+
+            const directContext = getMetaContent('chatbot-context');
+            if (directContext) { parts.push(''); parts.push('[NGỮ CẢNH CHÍNH DO TRANG CUNG CẤP]'); parts.push(directContext); }
+
+            const propFields = [
+                ['ID tin', 'chatbot-property-id'], ['Tiêu đề tin', 'chatbot-property-title'], ['Giá', 'chatbot-property-price'], ['Diện tích', 'chatbot-property-area'],
+                ['Vị trí', 'chatbot-property-location'], ['Loại BĐS', 'chatbot-property-type'], ['Pháp lý', 'chatbot-property-legal'], ['Mô tả', 'chatbot-property-description']
+            ];
+            const propLines = propFields.map(function (f) { const v = getMetaContent(f[1]); return v ? f[0] + ': ' + v : ''; }).filter(Boolean);
+            if (propLines.length) { parts.push(''); parts.push('[THÔNG TIN TIN BẤT ĐỘNG SẢN]'); parts.push(...propLines); }
+
+            const projectFields = [
+                ['ID dự án', 'chatbot-project-id'], ['Tên dự án', 'chatbot-project-name'], ['Chủ đầu tư', 'chatbot-project-investor'], ['Khu vực', 'chatbot-project-location'],
+                ['Pháp lý', 'chatbot-project-legal'], ['Trạng thái', 'chatbot-project-status'], ['Mô tả', 'chatbot-project-description']
+            ];
+            const projectLines = projectFields.map(function (f) { const v = getMetaContent(f[1]); return v ? f[0] + ': ' + v : ''; }).filter(Boolean);
+            if (projectLines.length) { parts.push(''); parts.push('[THÔNG TIN DỰ ÁN]'); parts.push(...projectLines); }
+            return parts.join('\n').substring(0, 8000);
+        }
+
+        async function sendMessage(rawText) {
+            const text = (rawText || '').trim();
+            if (!text || sending) return;
+            input.value = '';
+            repliesBox.innerHTML = '';
+            appendMessage(text, 'user');
+            appendTyping();
+            sending = true;
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/chatbot/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        sessionId: sessionId || '',
+                        pageType: detectPageType(),
+                        pageUrl: window.location.pathname + window.location.search,
+                        pageTitle: document.title || '',
+                        pageContext: buildPageContext()
+                    })
+                });
+                removeTyping();
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                if (data.sessionId || data.SessionId) sessionId = data.sessionId || data.SessionId;
+                appendMessage(data.message || data.Message || 'Em chưa có phản hồi phù hợp.', 'bot');
+                renderPropertyCards(data.suggestedProperties || data.SuggestedProperties || []);
+                renderSuggestedReplies(data.suggestedReplies || data.SuggestedReplies || []);
+            } catch (err) {
+                removeTyping();
+                appendMessage('Xin lỗi Anh/Chị, hiện chatbot phản hồi chưa thành công. Anh/Chị thử gửi lại câu hỏi hoặc kiểm tra kết nối giúp em nhé.', 'bot');
+            } finally {
+                sending = false;
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        }
+    })();
+</script>

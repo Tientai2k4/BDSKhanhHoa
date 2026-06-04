@@ -148,6 +148,38 @@
     bool sortPriceAscSelected = sort == "price_asc";
     bool sortPriceDescSelected = sort == "price_desc";
     bool sortAreaDescSelected = sort == "area_desc";
+
+    string GetAreaFilterText()
+    {
+        if (!areaId.HasValue)
+        {
+            return "Tất cả vị trí";
+        }
+
+        var selectedArea = areas.FirstOrDefault(a => a.AreaID == areaId.Value);
+        return selectedArea?.AreaName ?? "Khu vực đã chọn";
+    }
+
+    string GetStatusFilterText()
+    {
+        return string.IsNullOrWhiteSpace(status) ? "Mọi tiến độ" : status;
+    }
+
+    string GetSortFilterText()
+    {
+        return sort switch
+        {
+            "price_asc" => "Giá thấp → cao",
+            "price_desc" => "Giá cao → thấp",
+            "area_desc" => "Diện tích lớn",
+            _ => "Mới cập nhật"
+        };
+    }
+
+    bool hasActiveFilter = !string.IsNullOrWhiteSpace(keyword)
+        || areaId.HasValue
+        || !string.IsNullOrWhiteSpace(status)
+        || !string.Equals(sort, "newest", StringComparison.OrdinalIgnoreCase);
 }
 
 <style>
@@ -1213,8 +1245,8 @@
 
 
     /* =========================================================
-           FIX THEO YÊU CẦU: BỎ BANNER LỚN, CHỈ HIỆN BỘ LỌC + DANH SÁCH
-           ========================================================= */
+                   FIX THEO YÊU CẦU: BỎ BANNER LỚN, CHỈ HIỆN BỘ LỌC + DANH SÁCH
+                   ========================================================= */
     .project-page-2026 {
         padding-top: 18px;
         padding-bottom: 70px;
@@ -1334,80 +1366,306 @@
         }
     }
 
+
+
+    /* =========================================================
+           MOBILE: Bộ lọc dự án có nút thu / mở cho gọn
+           Desktop giữ nguyên form lọc mở đầy đủ.
+           ========================================================= */
+    .filter-details-2026 {
+        display: block;
+    }
+
+    .filter-summary-2026 {
+        display: none;
+        list-style: none;
+    }
+
+        .filter-summary-2026::-webkit-details-marker {
+            display: none;
+        }
+
+    .filter-active-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--pj-orange);
+        box-shadow: 0 0 0 4px rgba(249, 115, 22, .13);
+        display: inline-flex;
+        flex: 0 0 auto;
+    }
+
+    .filter-clear-mobile {
+        display: none;
+    }
+
+    @@media (max-width: 767.98px) {
+        .filter-box-2026 {
+            padding: 0 !important;
+            border-radius: 20px !important;
+            overflow: hidden;
+        }
+
+        .filter-details-2026 {
+            display: block;
+        }
+
+        .filter-summary-2026 {
+            min-height: 56px;
+            padding: 12px 14px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-bottom: 1px solid transparent;
+            user-select: none;
+        }
+
+        .filter-summary-main {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-summary-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, var(--pj-blue), var(--pj-sky));
+            flex: 0 0 auto;
+        }
+
+        .filter-summary-text {
+            min-width: 0;
+        }
+
+        .filter-summary-title {
+            color: var(--pj-text);
+            font-size: .94rem;
+            line-height: 1.2;
+            font-weight: 950;
+            margin: 0;
+        }
+
+        .filter-summary-sub {
+            color: var(--pj-muted);
+            font-size: .72rem;
+            line-height: 1.25;
+            font-weight: 750;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 68vw;
+        }
+
+        .filter-summary-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--pj-muted);
+            font-size: .9rem;
+        }
+
+            .filter-summary-right .chev {
+                transition: transform .18s ease;
+            }
+
+        .filter-details-2026[open] .filter-summary-right .chev {
+            transform: rotate(180deg);
+        }
+
+        .filter-details-2026[open] .filter-summary-2026 {
+            border-bottom-color: #eef2f7;
+        }
+
+        .filter-body-2026 {
+            padding: 12px !important;
+            display: none;
+        }
+
+        .filter-details-2026[open] .filter-body-2026 {
+            display: block;
+        }
+
+        .filter-title-row {
+            display: none !important;
+        }
+
+        .filter-body-2026 .row {
+            --bs-gutter-x: .55rem;
+            --bs-gutter-y: .65rem;
+        }
+
+        .filter-body-2026 .col-lg-4,
+        .filter-body-2026 .col-lg-2,
+        .filter-body-2026 .col-md-6 {
+            width: 100% !important;
+            flex: 0 0 100% !important;
+        }
+
+        .field-label-2026 {
+            font-size: .66rem !important;
+            margin-bottom: 5px !important;
+            letter-spacing: .06em !important;
+        }
+
+        .control-2026,
+        .btn-search-2026 {
+            min-height: 44px !important;
+            border-radius: 14px !important;
+            font-size: .84rem !important;
+        }
+
+        .btn-search-2026 {
+            letter-spacing: .02em !important;
+        }
+
+        .filter-clear-mobile {
+            display: inline-flex;
+            min-height: 42px;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            border-radius: 14px;
+            border: 1px solid var(--pj-border);
+            background: #fff;
+            color: #475569;
+            text-decoration: none;
+            font-size: .84rem;
+            font-weight: 900;
+        }
+
+            .filter-clear-mobile:hover {
+                color: var(--pj-blue);
+                background: #eff6ff;
+                border-color: #bfdbfe;
+            }
+
+        .input-shell-2026 .input-icon {
+            left: 13px !important;
+        }
+
+        .input-shell-2026 .control-2026 {
+            padding-left: 38px !important;
+        }
+    }
+
 </style>
 
 <div class="project-page-2026">
     <div class="project-shell">
         <div class="filter-floating-wrap">
             <div class="filter-box-2026">
-                <div class="filter-title-row">
-                    <div>
-                        <h2 class="filter-title">
-                            <i class="bi bi-sliders2"></i>
-                            Bộ lọc dự án
-                        </h2>
-                    </div>
+                <details class="filter-details-2026" @(hasActiveFilter ? "open" : "")>
+                    <summary class="filter-summary-2026">
+                        <div class="filter-summary-main">
+                            <span class="filter-summary-icon">
+                                <i class="bi bi-sliders2"></i>
+                            </span>
 
-                    <p class="filter-note">
-                        Tìm nhanh dự án theo từ khóa, khu vực, tiến độ và sắp xếp.
-                    </p>
-                </div>
-
-                <form action="/Project/Search" method="get">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-lg-4">
-                            <label class="field-label-2026">Từ khóa tìm kiếm</label>
-                            <div class="input-shell-2026">
-                                <i class="bi bi-search input-icon"></i>
-                                <input type="text"
-                                       name="keyword"
-                                       value="@keyword"
-                                       class="control-2026"
-                                       placeholder="Tên dự án, chủ đầu tư, khu vực..." />
+                            <div class="filter-summary-text">
+                                <div class="filter-summary-title">Bộ lọc dự án</div>
+                                <div class="filter-summary-sub">
+                                    @GetAreaFilterText() · @GetStatusFilterText() · @GetSortFilterText()
+                                </div>
                             </div>
                         </div>
 
-                        <div class="col-lg-2 col-md-6">
-                            <label class="field-label-2026">Khu vực</label>
-                            <select name="areaId" class="control-2026">
-                                <option value="">Tất cả vị trí</option>
-                                @foreach (var a in areas)
-                                {
-                                    <option value="@a.AreaID" selected="@(areaId.HasValue && areaId.Value == a.AreaID)">
-                                        @a.AreaName
-                                    </option>
-                                }
-                            </select>
+                        <div class="filter-summary-right">
+                            @if (hasActiveFilter)
+                            {
+                                <span class="filter-active-dot" title="Đang có bộ lọc"></span>
+                            }
+                            <i class="bi bi-chevron-down chev"></i>
+                        </div>
+                    </summary>
+
+                    <div class="filter-body-2026">
+                        <div class="filter-title-row">
+                            <div>
+                                <h2 class="filter-title">
+                                    <i class="bi bi-sliders2"></i>
+                                    Bộ lọc dự án
+                                </h2>
+                            </div>
+
+                            <p class="filter-note">
+                                Tìm nhanh dự án theo từ khóa, khu vực, tiến độ và sắp xếp.
+                            </p>
                         </div>
 
-                        <div class="col-lg-2 col-md-6">
-                            <label class="field-label-2026">Trạng thái</label>
-                            <select name="status" class="control-2026">
-                                <option value="" selected="@statusAllSelected">Mọi tiến độ</option>
-                                <option value="Sắp mở bán" selected="@statusComingSelected">Sắp mở bán</option>
-                                <option value="Đang mở bán" selected="@statusSellingSelected">Đang mở bán</option>
-                                <option value="Đã bàn giao" selected="@statusDoneSelected">Đã bàn giao</option>
-                            </select>
-                        </div>
+                        <form action="/Project/Search" method="get">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-lg-4">
+                                    <label class="field-label-2026">Từ khóa tìm kiếm</label>
+                                    <div class="input-shell-2026">
+                                        <i class="bi bi-search input-icon"></i>
+                                        <input type="text"
+                                               name="keyword"
+                                               value="@keyword"
+                                               class="control-2026"
+                                               placeholder="Tên dự án, chủ đầu tư, khu vực..." />
+                                    </div>
+                                </div>
 
-                        <div class="col-lg-2 col-md-6">
-                            <label class="field-label-2026">Sắp xếp</label>
-                            <select name="sort" class="control-2026">
-                                <option value="newest" selected="@sortNewestSelected">Mới cập nhật</option>
-                                <option value="price_asc" selected="@sortPriceAscSelected">Giá thấp → cao</option>
-                                <option value="price_desc" selected="@sortPriceDescSelected">Giá cao → thấp</option>
-                                <option value="area_desc" selected="@sortAreaDescSelected">Diện tích lớn</option>
-                            </select>
-                        </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <label class="field-label-2026">Khu vực</label>
+                                    <select name="areaId" class="control-2026">
+                                        <option value="">Tất cả vị trí</option>
+                                        @foreach (var a in areas)
+                                        {
+                                            <option value="@a.AreaID" selected="@(areaId.HasValue && areaId.Value == a.AreaID)">
+                                                @a.AreaName
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
 
-                        <div class="col-lg-2 col-md-6">
-                            <button type="submit" class="btn-search-2026">
-                                <i class="bi bi-funnel-fill"></i>
-                                Lọc dự án
-                            </button>
-                        </div>
+                                <div class="col-lg-2 col-md-6">
+                                    <label class="field-label-2026">Trạng thái</label>
+                                    <select name="status" class="control-2026">
+                                        <option value="" selected="@statusAllSelected">Mọi tiến độ</option>
+                                        <option value="Sắp mở bán" selected="@statusComingSelected">Sắp mở bán</option>
+                                        <option value="Đang mở bán" selected="@statusSellingSelected">Đang mở bán</option>
+                                        <option value="Đã bàn giao" selected="@statusDoneSelected">Đã bàn giao</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-lg-2 col-md-6">
+                                    <label class="field-label-2026">Sắp xếp</label>
+                                    <select name="sort" class="control-2026">
+                                        <option value="newest" selected="@sortNewestSelected">Mới cập nhật</option>
+                                        <option value="price_asc" selected="@sortPriceAscSelected">Giá thấp → cao</option>
+                                        <option value="price_desc" selected="@sortPriceDescSelected">Giá cao → thấp</option>
+                                        <option value="area_desc" selected="@sortAreaDescSelected">Diện tích lớn</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-lg-2 col-md-6">
+                                    <button type="submit" class="btn-search-2026">
+                                        <i class="bi bi-funnel-fill"></i>
+                                        Lọc dự án
+                                    </button>
+                                </div>
+                                <div class="col-12 filter-clear-mobile-wrap">
+                                    <a href="/Project" class="filter-clear-mobile">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                        Xóa bộ lọc
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </details>
             </div>
         </div>
 
@@ -1678,6 +1936,34 @@
 
 @section Scripts {
     <script>
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const filterDetails = document.querySelector('.filter-details-2026');
+            const mobileQuery = window.matchMedia('(max-width: 767.98px)');
+
+            function syncProjectFilterState() {
+                if (!filterDetails) return;
+
+                const hasActiveFilter = filterDetails.hasAttribute('open') && @hasActiveFilter.ToString().ToLowerInvariant();
+
+                if (mobileQuery.matches) {
+                    if (!@hasActiveFilter.ToString().ToLowerInvariant()) {
+                        filterDetails.removeAttribute('open');
+                    }
+                } else {
+                    filterDetails.setAttribute('open', 'open');
+                }
+            }
+
+            syncProjectFilterState();
+
+            if (mobileQuery.addEventListener) {
+                mobileQuery.addEventListener('change', syncProjectFilterState);
+            } else if (mobileQuery.addListener) {
+                mobileQuery.addListener(syncProjectFilterState);
+            }
+        });
+
         function showToast2026(message, type) {
             const toast = document.getElementById('toast2026');
             const text = document.getElementById('toast2026Text');

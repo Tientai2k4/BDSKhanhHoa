@@ -1,76 +1,669 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Area>
+
 @{
     ViewData["Title"] = "Quản lý Khu vực & Xã";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    var areas = Model?.ToList() ?? new List<BDSKhanhHoa.Models.Area>();
+    int totalAreas = areas.Count;
+    int totalWards = areas.Sum(a => a.Wards?.Count ?? 0);
 }
 
-<div class="container-fluid py-4">
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show rounded-4 border-0 shadow-sm mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+<style>
+    :root {
+        --area-bg: #f6f8fb;
+        --area-card: #ffffff;
+        --area-text: #0f172a;
+        --area-muted: #64748b;
+        --area-line: #e2e8f0;
+        --area-blue: #2563eb;
+        --area-green: #059669;
+        --area-red: #dc2626;
+        --area-shadow: 0 8px 22px rgba(15, 23, 42, .055);
     }
 
-    <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-0">
-            <h5 class="m-0 fw-bold text-primary"><i class="bi bi-map-fill me-2"></i>@ViewData["Title"]</h5>
-            <a asp-action="Create" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
-                <i class="bi bi-plus-lg me-1"></i> Thêm Khu vực mới
-            </a>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light small text-uppercase">
-                        <tr>
-                            <th class="ps-4 py-3">Thông tin Khu vực</th>
-                            <th>Danh sách Xã trực thuộc</th>
-                            <th class="text-end pe-4">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var area in Model)
-                        {
-                            <tr>
-                                <td class="ps-4">
-                                    <div class="fw-bold text-dark">@area.AreaName</div>
-                                    <div class="text-muted small">@area.Description</div>
-                                </td>
-                                <td>
-                                    @if (area.Wards != null && area.Wards.Any())
-                                    {
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach (var ward in area.Wards)
-                                            {
-                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-normal">
-                                                    @ward.WardName
-                                                </span>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
+    .area-page {
+        background: var(--area-bg);
+        min-height: auto;
+        padding: 8px;
+        color: var(--area-text);
+        overflow-x: hidden;
+    }
 
-                                        <span class="text-muted small italic">Chưa có dữ liệu xã</span>
-                                    }
-                                </td>
-                                <td class="text-end pe-4">
-                                    <div class="btn-group shadow-sm rounded-pill overflow-hidden">
-                                        <a asp-action="Edit" asp-route-id="@area.AreaID" class="btn btn-white btn-sm border-end" title="Cấu hình Xã">
-                                            <i class="bi bi-gear-fill text-warning"></i>
-                                        </a>
-                                        <a asp-action="Delete" asp-route-id="@area.AreaID" class="btn btn-white btn-sm">
-                                            <i class="bi bi-trash3-fill text-danger"></i>
-                                        </a>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        .area-page * {
+            box-sizing: border-box;
+        }
+
+    .area-wrap {
+        max-width: 1380px;
+        margin: 0 auto;
+    }
+
+    .area-alert {
+        border: 0;
+        border-radius: 14px;
+        box-shadow: var(--area-shadow);
+        font-weight: 750;
+    }
+
+    .area-toolbar {
+        background: var(--area-card);
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 16px;
+        box-shadow: var(--area-shadow);
+        padding: 14px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .area-title-box {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+    }
+
+    .area-title-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eff6ff;
+        color: var(--area-blue);
+        font-size: 1.18rem;
+        flex: 0 0 auto;
+    }
+
+    .area-title {
+        margin: 0;
+        color: var(--area-text);
+        font-size: clamp(1.16rem, 1.8vw, 1.5rem);
+        font-weight: 950;
+        line-height: 1.15;
+        letter-spacing: -.035em;
+    }
+
+    .area-subtitle {
+        margin: 3px 0 0;
+        color: var(--area-muted);
+        font-size: .84rem;
+        font-weight: 650;
+        line-height: 1.35;
+    }
+
+    .area-add-btn {
+        min-height: 40px;
+        border-radius: 999px;
+        padding: 0 15px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .area-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .area-summary-item {
+        background: var(--area-card);
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 15px;
+        box-shadow: var(--area-shadow);
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .summary-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
+    .summary-label {
+        color: var(--area-muted);
+        font-size: .68rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .045em;
+    }
+
+    .summary-value {
+        color: var(--area-text);
+        font-size: 1.18rem;
+        font-weight: 950;
+        line-height: 1.1;
+    }
+
+    .area-data {
+        background: var(--area-card);
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 16px;
+        box-shadow: var(--area-shadow);
+        overflow: hidden;
+    }
+
+    .area-data-head {
+        padding: 13px 14px;
+        border-bottom: 1px solid #edf2f7;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .area-data-title {
+        margin: 0;
+        color: var(--area-text);
+        font-size: 1rem;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .area-total-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        color: #047857;
+        background: #dcfce7;
+        border: 1px solid #86efac;
+        font-size: .76rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .area-table {
+        width: 100%;
+        margin: 0;
+        table-layout: fixed;
+    }
+
+        .area-table thead th {
+            background: #f8fafc;
+            color: var(--area-muted);
+            border-bottom: 1px solid #e2e8f0;
+            font-size: .68rem;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: .045em;
+            padding: 11px 12px;
+            white-space: nowrap;
+        }
+
+        .area-table tbody td {
+            border-bottom: 1px solid #edf2f7;
+            padding: 12px;
+            vertical-align: middle;
+            min-width: 0;
+        }
+
+        .area-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+
+    .area-name {
+        color: var(--area-text);
+        font-size: .92rem;
+        font-weight: 950;
+        line-height: 1.3;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+    }
+
+        .area-name span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    .area-desc {
+        color: var(--area-muted);
+        font-size: .76rem;
+        font-weight: 650;
+        margin-top: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ward-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .ward-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 180px;
+        min-height: 28px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: var(--area-blue);
+        border: 1px solid #bfdbfe;
+        font-size: .75rem;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .count-pill {
+        min-width: 34px;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 0 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: .78rem;
+        font-weight: 950;
+        background: var(--area-green);
+    }
+
+        .count-pill.empty {
+            background: #94a3b8;
+        }
+
+    .area-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .area-action-btn {
+        min-width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        background: #fff;
+        border: 1px solid var(--area-line);
+        transition: .18s ease;
+    }
+
+        .area-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15,23,42,.08);
+        }
+
+    .area-mobile-list {
+        display: none;
+    }
+
+    .area-mobile-card {
+        background: var(--area-card);
+        border-bottom: 1px solid #edf2f7;
+        padding: 12px;
+    }
+
+        .area-mobile-card:last-child {
+            border-bottom: 0;
+        }
+
+    .area-mobile-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .area-mobile-name {
+        color: var(--area-text);
+        font-weight: 950;
+        line-height: 1.35;
+    }
+
+    .area-mobile-desc {
+        color: var(--area-muted);
+        font-size: .8rem;
+        font-weight: 650;
+        margin-top: 2px;
+    }
+
+    .area-mobile-wards {
+        margin-top: 10px;
+        max-height: 128px;
+        overflow-y: auto;
+    }
+
+    .area-mobile-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 11px;
+    }
+
+        .area-mobile-actions a {
+            min-height: 36px;
+            border-radius: 999px;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+    .empty-box {
+        text-align: center;
+        padding: 36px 14px;
+        color: var(--area-muted);
+    }
+
+    @@media (max-width: 991.98px) {
+        .area-desktop-table
+
+    {
+        display: none;
+    }
+
+    .area-mobile-list {
+        display: block;
+    }
+
+    }
+
+    @@media (max-width: 767.98px) {
+        .area-page
+
+    {
+        padding: 10px;
+    }
+
+    .area-toolbar {
+        padding: 12px;
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .area-title-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
+    }
+
+    .area-title {
+        font-size: 1.15rem;
+    }
+
+    .area-subtitle {
+        display: none;
+    }
+
+    .area-add-btn {
+        width: 100%;
+    }
+
+    .area-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .area-summary-item {
+        padding: 10px;
+        border-radius: 14px;
+    }
+
+    .summary-icon {
+        display: none;
+    }
+
+    .summary-label {
+        font-size: .64rem;
+    }
+
+    .summary-value {
+        font-size: 1.05rem;
+    }
+
+    .area-data {
+        border-radius: 15px;
+    }
+
+    .area-data-head {
+        padding: 12px;
+    }
+
+    .area-mobile-card {
+        padding: 12px;
+    }
+
+    .ward-badge {
+        max-width: 100%;
+        font-size: .72rem;
+    }
+
+    }
+</style>
+
+<div class="area-page">
+    <div class="area-wrap">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
             </div>
-        </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        <section class="area-toolbar">
+            <div class="area-title-box">
+                <span class="area-title-icon"><i class="bi bi-map-fill"></i></span>
+                <div class="min-w-0">
+                    <h1 class="area-title">Quản lý Khu vực & Xã</h1>
+                    <p class="area-subtitle">Danh mục khu vực, xã/phường dùng cho tin bất động sản và dự án.</p>
+                </div>
+            </div>
+
+            <a asp-action="Create" class="btn btn-primary area-add-btn">
+                <i class="bi bi-plus-lg"></i>
+                Thêm khu vực
+            </a>
+        </section>
+
+        <section class="area-summary">
+            <div class="area-summary-item">
+                <span class="summary-icon bg-primary-subtle text-primary"><i class="bi bi-map"></i></span>
+                <div>
+                    <div class="summary-label">Khu vực</div>
+                    <div class="summary-value">@totalAreas</div>
+                </div>
+            </div>
+
+            <div class="area-summary-item">
+                <span class="summary-icon bg-success-subtle text-success"><i class="bi bi-geo-alt"></i></span>
+                <div>
+                    <div class="summary-label">Xã/phường</div>
+                    <div class="summary-value">@totalWards</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="area-data">
+            <div class="area-data-head">
+                <h2 class="area-data-title">
+                    <i class="bi bi-list-check text-primary"></i>
+                    Danh sách khu vực
+                </h2>
+
+                <span class="area-total-pill">
+                    <i class="bi bi-check2-circle"></i>
+                    @totalAreas khu vực
+                </span>
+            </div>
+
+            @if (areas.Any())
+            {
+                <div class="area-desktop-table">
+                    <table class="table table-hover align-middle area-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 26%;" class="ps-4">Khu vực</th>
+                                <th>Xã/phường trực thuộc</th>
+                                <th class="text-center" style="width: 105px;">Số đơn vị</th>
+                                <th class="text-end pe-4" style="width: 120px;">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var area in areas)
+                            {
+                                int wardCount = area.Wards?.Count ?? 0;
+
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="area-name" title="@area.AreaName">
+                                            <i class="bi bi-map text-primary"></i>
+                                            <span>@area.AreaName</span>
+                                        </div>
+                                        <div class="area-desc" title="@(string.IsNullOrWhiteSpace(area.Description) ? "Chưa có mô tả" : area.Description)">
+                                            @(string.IsNullOrWhiteSpace(area.Description) ? "Chưa có mô tả" : area.Description)
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        @if (area.Wards != null && area.Wards.Any())
+                                        {
+                                            <div class="ward-badges">
+                                                @foreach (var ward in area.Wards.OrderBy(w => w.WardName))
+                                                {
+                                                    <span class="ward-badge" title="@ward.WardName">
+                                                        <i class="bi bi-geo-alt"></i>
+                                                        @ward.WardName
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small fst-italic">Chưa có xã/phường</span>
+                                        }
+                                    </td>
+
+                                    <td class="text-center">
+                                        <span class="count-pill @(wardCount == 0 ? "empty" : "")">@wardCount</span>
+                                    </td>
+
+                                    <td class="text-end pe-4">
+                                        <div class="area-actions">
+                                            <a asp-action="Edit" asp-route-id="@area.AreaID" class="area-action-btn" title="Sửa / quản lý xã phường">
+                                                <i class="bi bi-gear-fill text-warning"></i>
+                                            </a>
+
+                                            <a asp-action="Delete" asp-route-id="@area.AreaID" class="area-action-btn" title="Xóa khu vực">
+                                                <i class="bi bi-trash3-fill text-danger"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="area-mobile-list">
+                    @foreach (var area in areas)
+                    {
+                        int wardCount = area.Wards?.Count ?? 0;
+
+                        <article class="area-mobile-card">
+                            <div class="area-mobile-top">
+                                <div class="min-w-0">
+                                    <div class="area-mobile-name">
+                                        <i class="bi bi-map text-primary me-1"></i>
+                                        @area.AreaName
+                                    </div>
+                                    <div class="area-mobile-desc">
+                                        @(string.IsNullOrWhiteSpace(area.Description) ? "Chưa có mô tả" : area.Description)
+                                    </div>
+                                </div>
+
+                                <span class="count-pill @(wardCount == 0 ? "empty" : "")">@wardCount</span>
+                            </div>
+
+                            <div class="area-mobile-wards ward-badges">
+                                @if (area.Wards != null && area.Wards.Any())
+                                {
+                                    @foreach (var ward in area.Wards.OrderBy(w => w.WardName))
+                                    {
+                                        <span class="ward-badge" title="@ward.WardName">
+                                            <i class="bi bi-geo-alt"></i>
+                                            @ward.WardName
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted small fst-italic">Chưa có xã/phường</span>
+                                }
+                            </div>
+
+                            <div class="area-mobile-actions">
+                                <a asp-action="Edit" asp-route-id="@area.AreaID" class="btn btn-outline-primary">
+                                    <i class="bi bi-gear-fill"></i>
+                                    Sửa
+                                </a>
+
+                                <a asp-action="Delete" asp-route-id="@area.AreaID" class="btn btn-outline-danger">
+                                    <i class="bi bi-trash3-fill"></i>
+                                    Xóa
+                                </a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-box">
+                    <i class="bi bi-map display-6 d-block mb-2 opacity-50"></i>
+                    <div class="fw-bold text-dark mb-1">Chưa có khu vực nào</div>
+                    <div class="small mb-3">Hãy thêm khu vực đầu tiên để quản lý xã/phường.</div>
+                    <a asp-action="Create" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="bi bi-plus-lg me-1"></i>
+                        Thêm khu vực
+                    </a>
+                </div>
+            }
+        </section>
     </div>
 </div>

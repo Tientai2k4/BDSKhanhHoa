@@ -1,5 +1,6 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Blog>
 @using System.Globalization
+@using System.Text.RegularExpressions
 
 @functions {
     private static readonly CultureInfo Vi = new CultureInfo("vi-VN");
@@ -7,18 +8,14 @@
     private string GetSafeImage(string? image)
     {
         if (string.IsNullOrWhiteSpace(image))
-        {
             return "/images/no-image.jpg";
-        }
 
         image = image.Trim();
 
         if (image.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             image.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
             image.StartsWith("/"))
-        {
             return image;
-        }
 
         return "/" + image.TrimStart('/');
     }
@@ -37,6 +34,31 @@
     {
         return value.ToString("N0", Vi);
     }
+
+    private string StripHtml(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return "";
+
+        string text = Regex.Replace(html, "<.*?>", " ");
+        text = Regex.Replace(text, @"\s+", " ").Trim();
+        return text;
+    }
+
+    private string GetExcerpt(BDSKhanhHoa.Models.Blog item, int maxLength = 135)
+    {
+        string text = !string.IsNullOrWhiteSpace(item.Summary)
+            ? item.Summary!.Trim()
+            : StripHtml(item.Content);
+
+        if (string.IsNullOrWhiteSpace(text))
+            return "Nội dung bài viết đang được cập nhật.";
+
+        if (text.Length <= maxLength)
+            return text;
+
+        return text.Substring(0, maxLength).Trim() + "...";
+    }
 }
 
 @{
@@ -47,198 +69,71 @@
     string currentCategory = ViewBag.CurrentCategory as string ?? "";
 
     var categories = ViewBag.Categories as IEnumerable<string> ?? new List<string>();
+    var categoryCounts = ViewBag.CategoryCounts as Dictionary<string, int> ?? new Dictionary<string, int>();
 
     int currentPage = ViewBag.CurrentPage is int cp ? cp : 1;
     int totalPages = ViewBag.TotalPages is int tp ? tp : 1;
+    int totalItems = ViewBag.TotalItems is int ti ? ti : 0;
 
-    if (currentPage < 1)
-    {
-        currentPage = 1;
-    }
+    if (currentPage < 1) currentPage = 1;
+    if (totalPages < 1) totalPages = 1;
 
-    if (totalPages < 1)
-    {
-        totalPages = 1;
-    }
-
-    int totalPosts = Model != null ? Model.Count() : 0;
     int startPage = Math.Max(1, currentPage - 2);
     int endPage = Math.Min(totalPages, currentPage + 2);
 }
 
 <style>
-    @@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+    @@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
 
     :root {
-        --blog-bg: #f7f9fc;
-        --blog-surface: #ffffff;
-        --blog-soft: #f1f5f9;
-        --blog-soft-2: #eef4ff;
-        --blog-border: #e2e8f0;
-        --blog-border-strong: #cbd5e1;
-        --blog-text: #0f172a;
+        --blog-bg: #f4f8fc;
+        --blog-card: #ffffff;
+        --blog-soft: #f8fafc;
+        --blog-text: #111827;
         --blog-muted: #64748b;
-        --blog-blue: #2563eb;
-        --blog-blue-dark: #1d4ed8;
-        --blog-sky: #0ea5e9;
-        --blog-green: #16a34a;
-        --blog-orange: #f97316;
-        --blog-red: #ef4444;
-        --blog-yellow: #f59e0b;
-        --blog-radius-sm: 14px;
-        --blog-radius: 20px;
-        --blog-radius-lg: 28px;
-        --blog-shadow-sm: 0 8px 22px rgba(15, 23, 42, .05);
-        --blog-shadow: 0 18px 45px rgba(15, 23, 42, .10);
-        --blog-transition: all .24s cubic-bezier(.4, 0, .2, 1);
+        --blog-border: #e2e8f0;
+        --blog-primary: #0b8ed8;
+        --blog-primary-dark: #086fb0;
+        --blog-radius: 18px;
+        --blog-radius-lg: 24px;
+        --blog-shadow: 0 10px 28px rgba(15, 23, 42, .07);
+        --blog-shadow-hover: 0 18px 42px rgba(15, 23, 42, .13);
     }
 
     body {
-        background: radial-gradient(circle at 8% 0%, rgba(37, 99, 235, .08), transparent 30%), radial-gradient(circle at 90% 4%, rgba(14, 165, 233, .08), transparent 28%), var(--blog-bg);
-        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: 'Roboto', Arial, sans-serif !important;
+        background: var(--blog-bg);
         color: var(--blog-text);
-    }
-
-    .fw-black {
-        font-weight: 900 !important;
     }
 
     .blog-page {
         min-height: 100vh;
-        padding-bottom: 70px;
+        padding: 22px 0 52px;
+        background: radial-gradient(circle at top left, rgba(14, 165, 233, .08), transparent 330px), linear-gradient(180deg, #f7fbff 0%, #f4f8fc 42%, #f4f8fc 100%);
     }
 
-    .blog-shell {
-        max-width: 1180px;
+    .blog-container {
+        width: calc(100% - 56px);
+        max-width: 1500px;
         margin: 0 auto;
-        padding-left: 16px;
-        padding-right: 16px;
     }
 
-    .blog-hero-2026 {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(135deg, rgba(239, 246, 255, .96), rgba(255, 255, 255, .96)), radial-gradient(circle at 12% 20%, rgba(37, 99, 235, .16), transparent 30%), radial-gradient(circle at 84% 6%, rgba(245, 158, 11, .14), transparent 28%);
-        border-bottom: 1px solid var(--blog-border);
-        padding: 70px 0 98px;
-        margin-bottom: -52px;
-    }
-
-    .blog-hero-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 330px;
-        gap: 28px;
-        align-items: center;
-    }
-
-    .hero-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 36px;
-        padding: 0 14px;
-        border-radius: 999px;
-        color: var(--blog-blue);
-        background: #eff6ff;
-        border: 1px solid #bfdbfe;
-        font-size: .8rem;
-        font-weight: 900;
-        margin-bottom: 18px;
-    }
-
-    .hero-title {
-        color: var(--blog-text);
-        font-size: clamp(2rem, 4.5vw, 4rem);
-        line-height: 1.08;
-        letter-spacing: -.045em;
-        font-weight: 950;
-        margin-bottom: 16px;
-    }
-
-        .hero-title span {
-            color: var(--blog-blue);
-        }
-
-    .hero-sub {
-        max-width: 720px;
-        color: var(--blog-muted);
-        font-size: clamp(.98rem, 1.35vw, 1.12rem);
-        line-height: 1.8;
-        font-weight: 600;
-        margin-bottom: 0;
-    }
-
-    .hero-side-card {
-        background: rgba(255, 255, 255, .82);
-        border: 1px solid rgba(226, 232, 240, .9);
-        border-radius: 28px;
-        padding: 22px;
-        box-shadow: var(--blog-shadow-sm);
-        backdrop-filter: blur(16px);
-    }
-
-    .hero-side-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 13px;
-        border-radius: 18px;
-        background: #fff;
+    .blog-filter-card {
+        margin-bottom: 22px;
+        padding: 18px;
+        border-radius: 24px;
+        background: rgba(255,255,255,.96);
         border: 1px solid var(--blog-border);
-        margin-bottom: 10px;
+        box-shadow: var(--blog-shadow);
     }
 
-        .hero-side-row:last-child {
-            margin-bottom: 0;
-        }
-
-    .hero-side-icon {
-        width: 42px;
-        height: 42px;
-        border-radius: 15px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        background: linear-gradient(135deg, var(--blog-blue), var(--blog-sky));
-        flex-shrink: 0;
-        font-size: 1.12rem;
-    }
-
-    .hero-side-label {
-        color: var(--blog-muted);
-        font-size: .74rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        margin-bottom: 2px;
-    }
-
-    .hero-side-value {
-        color: var(--blog-text);
-        font-weight: 950;
-        line-height: 1.25;
-    }
-
-    .search-box-2026 {
-        position: relative;
-        z-index: 10;
-        background: rgba(255, 255, 255, .94);
-        border: 1px solid rgba(255, 255, 255, .9);
-        border-radius: 28px;
-        padding: 22px;
-        box-shadow: 0 20px 55px rgba(15, 23, 42, .10);
-        backdrop-filter: blur(18px);
-        margin-bottom: 36px;
-    }
-
-    .filter-head {
+    .filter-top {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 16px;
-        padding-bottom: 16px;
-        margin-bottom: 16px;
+        gap: 14px;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
         border-bottom: 1px solid var(--blog-border);
     }
 
@@ -246,688 +141,716 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        color: var(--blog-text);
-        font-size: 1.02rem;
-        font-weight: 950;
         margin: 0;
+        color: #111827;
+        font-size: 1.08rem;
+        font-weight: 900;
     }
 
         .filter-title i {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             border-radius: 14px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: #fff;
-            background: linear-gradient(135deg, var(--blog-blue), var(--blog-sky));
+            background: var(--blog-primary);
         }
 
     .filter-note {
-        color: var(--blog-muted);
-        font-size: .86rem;
-        font-weight: 650;
         margin: 0;
-    }
-
-    .field-label {
         color: var(--blog-muted);
-        font-size: .76rem;
-        font-weight: 950;
-        text-transform: uppercase;
-        letter-spacing: .08em;
-        margin-bottom: 8px;
+        font-size: .95rem;
+        font-weight: 500;
     }
 
-    .input-wrap {
+    .form-label-blog {
+        display: block;
+        margin-bottom: 7px;
+        color: #64748b;
+        font-size: .82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .blog-input-wrap {
         position: relative;
     }
 
-        .input-wrap i {
+        .blog-input-wrap i {
             position: absolute;
-            left: 15px;
             top: 50%;
+            left: 15px;
             transform: translateY(-50%);
             color: #94a3b8;
             pointer-events: none;
         }
 
-    .control-2026 {
+    .blog-control {
         width: 100%;
-        min-height: 52px;
-        border-radius: 16px;
+        height: 50px;
+        padding: 0 14px;
+        border-radius: 15px;
         border: 1.5px solid var(--blog-border);
         background: #fff;
-        color: var(--blog-text);
-        font-weight: 750;
-        padding: 0 14px;
+        color: #111827;
         outline: none;
-        transition: var(--blog-transition);
-        box-shadow: none;
+        font-size: .98rem;
+        font-weight: 500;
+        transition: .2s ease;
     }
 
-    .input-wrap .control-2026 {
+    .blog-input-wrap .blog-control {
         padding-left: 42px;
     }
 
-    .control-2026:focus {
-        border-color: var(--blog-blue);
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, .10);
+    .blog-control:focus {
+        border-color: var(--blog-primary);
+        box-shadow: 0 0 0 4px rgba(14, 142, 216, .12);
     }
 
-    .btn-filter {
+    .blog-btn-primary {
         width: 100%;
-        min-height: 52px;
+        height: 50px;
         border: none;
-        border-radius: 16px;
-        background: linear-gradient(135deg, var(--blog-blue), var(--blog-sky));
-        color: #fff;
-        font-weight: 950;
+        border-radius: 15px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        transition: var(--blog-transition);
-        box-shadow: 0 12px 28px rgba(37, 99, 235, .24);
+        color: #fff;
+        background: linear-gradient(135deg, var(--blog-primary), #147eea);
+        font-size: .98rem;
+        font-weight: 800;
+        text-decoration: none;
+        box-shadow: 0 10px 22px rgba(14, 142, 216, .23);
+        transition: .2s ease;
     }
 
-        .btn-filter:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 16px 34px rgba(37, 99, 235, .32);
+        .blog-btn-primary:hover {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(14, 142, 216, .30);
         }
 
-    .result-head {
+    .category-scroll {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 8px;
+        overflow: visible;
+        padding: 2px 0 0;
+    }
+
+    .category-chip {
+        width: 100%;
+        min-height: 38px;
+        padding: 8px 12px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        color: #334155;
+        background: #fff;
+        border: 1px solid var(--blog-border);
+        text-decoration: none;
+        font-size: .86rem;
+        line-height: 1.25;
+        font-weight: 800;
+        transition: .2s ease;
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+        .category-chip span {
+            margin-left: auto;
+            min-width: 26px;
+            height: 24px;
+            padding: 0 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--blog-primary-dark);
+            background: #eaf6ff;
+            font-size: .78rem;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+
+        .category-chip:hover,
+        .category-chip.active {
+            color: #fff;
+            background: var(--blog-primary);
+            border-color: var(--blog-primary);
+        }
+
+            .category-chip:hover span,
+            .category-chip.active span {
+                color: var(--blog-primary-dark);
+                background: #fff;
+            }
+
+    .section-head {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
-        gap: 16px;
+        gap: 18px;
         flex-wrap: wrap;
-        margin-bottom: 22px;
+        margin-bottom: 18px;
     }
 
     .section-kicker {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: var(--blog-blue);
-        font-size: .75rem;
-        font-weight: 950;
+        color: var(--blog-primary-dark);
+        font-size: .78rem;
+        font-weight: 900;
+        letter-spacing: .10em;
         text-transform: uppercase;
-        letter-spacing: .12em;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
     }
 
         .section-kicker::before {
             content: "";
             width: 24px;
             height: 2px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, var(--blog-blue), var(--blog-sky));
+            border-radius: 99px;
+            background: var(--blog-primary);
         }
 
-    .result-title {
-        color: var(--blog-text);
-        font-size: clamp(1.45rem, 3vw, 2.1rem);
-        font-weight: 950;
-        letter-spacing: -.035em;
-        margin: 0 0 6px;
+    .section-title {
+        margin: 0 0 4px;
+        color: #0f172a;
+        font-size: 1.65rem;
+        line-height: 1.25;
+        letter-spacing: -.02em;
+        font-weight: 900;
     }
 
-    .result-sub {
-        color: var(--blog-muted);
-        font-weight: 650;
+    .section-sub {
         margin: 0;
+        color: var(--blog-muted);
+        font-size: .95rem;
+        font-weight: 400;
     }
 
-        .result-sub strong {
-            color: var(--blog-blue);
-            font-weight: 950;
+        .section-sub strong {
+            color: var(--blog-primary-dark);
+            font-weight: 900;
         }
 
-    .quick-chip-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .quick-chip {
-        min-height: 38px;
-        padding: 0 13px;
+    .reset-link {
+        height: 38px;
+        padding: 0 14px;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        color: var(--blog-muted);
-        background: #fff;
-        border: 1px solid var(--blog-border);
-        font-size: .82rem;
-        font-weight: 850;
-        box-shadow: var(--blog-shadow-sm);
+        color: var(--blog-primary-dark);
+        background: #eaf6ff;
+        border: 1px solid #bae6fd;
+        text-decoration: none;
+        font-size: .88rem;
+        font-weight: 700;
+        transition: .2s ease;
     }
+
+        .reset-link:hover {
+            color: #fff;
+            background: var(--blog-primary);
+        }
 
     .blog-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 22px;
+        gap: 18px;
     }
 
-    .blog-card-2026 {
-        display: flex;
-        flex-direction: column;
+    .blog-card {
         height: 100%;
         overflow: hidden;
-        border-radius: 26px;
+        border-radius: 22px;
+        display: flex;
+        flex-direction: column;
+        color: inherit;
+        text-decoration: none;
         background: #fff;
         border: 1px solid var(--blog-border);
-        box-shadow: var(--blog-shadow-sm);
-        transition: var(--blog-transition);
-        text-decoration: none;
-        color: inherit;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .05);
+        transition: .22s ease;
     }
 
-        .blog-card-2026:hover {
-            transform: translateY(-7px);
-            box-shadow: var(--blog-shadow);
-            border-color: #bfdbfe;
+        .blog-card:hover {
+            color: inherit;
+            transform: translateY(-5px);
+            border-color: #bae6fd;
+            box-shadow: var(--blog-shadow-hover);
         }
 
-    .blog-img-wrap-2026 {
+    .blog-card-image {
         position: relative;
-        height: 218px;
+        height: 195px;
         overflow: hidden;
         background: var(--blog-soft);
     }
 
-        .blog-img-wrap-2026::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to bottom, rgba(15, 23, 42, .20), transparent 48%, rgba(15, 23, 42, .40));
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .blog-img-wrap-2026 img {
+        .blog-card-image img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            object-position: center center;
             display: block;
-            transition: transform .45s ease;
+            transition: .4s ease;
         }
 
-    .blog-card-2026:hover .blog-img-wrap-2026 img {
-        transform: scale(1.06);
+    .blog-card:hover .blog-card-image img {
+        transform: scale(1.05);
     }
 
-    .blog-cat-badge-2026 {
+    .blog-card-image::after {
+        content: "";
         position: absolute;
-        top: 13px;
-        left: 13px;
+        inset: 0;
+        background: linear-gradient(to bottom, rgba(15,23,42,.06), transparent 42%, rgba(15,23,42,.30));
+        pointer-events: none;
+    }
+
+    .blog-card-category {
+        position: absolute;
+        left: 12px;
+        top: 12px;
         z-index: 2;
-        max-width: calc(100% - 26px);
-        min-height: 32px;
-        padding: 0 12px;
+        max-width: calc(100% - 24px);
+        height: 30px;
+        padding: 0 11px;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
-        gap: 7px;
+        gap: 6px;
         color: #fff;
-        background: rgba(37, 99, 235, .94);
-        border: 1px solid rgba(255,255,255,.26);
-        backdrop-filter: blur(12px);
-        font-size: .72rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-        box-shadow: 0 10px 22px rgba(15, 23, 42, .18);
+        background: rgba(14, 142, 216, .94);
+        border: 1px solid rgba(255,255,255,.28);
+        backdrop-filter: blur(10px);
+        font-size: .75rem;
+        font-weight: 700;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    .blog-card-body-2026 {
-        padding: 20px;
+    .blog-card-body {
+        flex: 1;
         display: flex;
         flex-direction: column;
-        flex: 1;
+        padding: 16px;
     }
 
-    .blog-meta-2026 {
+    .blog-meta {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 8px 12px;
+        margin-bottom: 9px;
         color: var(--blog-muted);
-        font-size: .78rem;
-        font-weight: 750;
-        margin-bottom: 11px;
+        font-size: .8rem;
+        font-weight: 500;
     }
 
-        .blog-meta-2026 span {
+        .blog-meta span {
             display: inline-flex;
             align-items: center;
             gap: 5px;
         }
 
-        .blog-meta-2026 i {
-            color: var(--blog-blue);
+        .blog-meta i {
+            color: var(--blog-primary);
         }
 
-    .blog-title-2026 {
-        color: var(--blog-text);
-        font-size: 1.08rem;
-        line-height: 1.48;
-        font-weight: 950;
-        letter-spacing: -.02em;
-        margin: 0 0 10px;
+    .blog-card-title {
+        margin: 0 0 8px;
+        color: #111827;
+        font-size: 1.02rem;
+        line-height: 1.42;
+        letter-spacing: -.01em;
+        font-weight: 900;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        transition: var(--blog-transition);
+        transition: .2s ease;
     }
 
-    .blog-card-2026:hover .blog-title-2026 {
-        color: var(--blog-blue);
+    .blog-card:hover .blog-card-title {
+        color: var(--blog-primary-dark);
     }
 
-    .blog-summary-2026 {
+    .blog-card-desc {
+        margin: 0 0 14px;
         color: #475569;
-        font-size: .9rem;
-        line-height: 1.72;
-        font-weight: 550;
-        margin: 0 0 18px;
+        font-size: .92rem;
+        line-height: 1.62;
+        font-weight: 400;
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
 
-    .blog-card-footer-2026 {
+    .blog-card-footer {
         margin-top: auto;
-        padding-top: 15px;
+        padding-top: 13px;
         border-top: 1px dashed var(--blog-border);
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
         gap: 12px;
     }
 
-    .readmore-2026 {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        color: var(--blog-blue);
+    .read-more {
+        color: var(--blog-primary-dark);
         font-size: .82rem;
-        font-weight: 950;
+        font-weight: 900;
+        letter-spacing: .06em;
         text-transform: uppercase;
-        letter-spacing: .08em;
     }
 
-    .read-icon {
-        width: 34px;
-        height: 34px;
+    .read-circle {
+        width: 32px;
+        height: 32px;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: var(--blog-blue);
-        background: #eff6ff;
-        transition: var(--blog-transition);
+        color: var(--blog-primary-dark);
+        background: #eaf6ff;
+        transition: .2s ease;
     }
 
-    .blog-card-2026:hover .read-icon {
+    .blog-card:hover .read-circle {
         color: #fff;
-        background: var(--blog-blue);
+        background: var(--blog-primary);
         transform: translateX(2px);
     }
 
-    .empty-box-2026 {
-        border-radius: 28px;
-        border: 2px dashed var(--blog-border-strong);
-        background: #fff;
+    .empty-card {
+        padding: 42px 20px;
+        border-radius: 24px;
         text-align: center;
-        padding: 56px 22px;
-        box-shadow: var(--blog-shadow-sm);
+        background: #fff;
+        border: 2px dashed #cbd5e1;
+        box-shadow: var(--blog-shadow);
     }
 
-    .empty-icon-2026 {
-        width: 84px;
-        height: 84px;
-        border-radius: 28px;
+    .empty-icon {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 16px;
+        border-radius: 24px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: var(--blog-blue);
-        background: #eff6ff;
-        font-size: 2.5rem;
-        margin-bottom: 18px;
+        color: var(--blog-primary);
+        background: #eaf6ff;
+        font-size: 2.1rem;
     }
 
-    .btn-reset {
-        min-height: 46px;
-        padding: 0 20px;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        color: #fff;
-        background: linear-gradient(135deg, var(--blog-blue), var(--blog-sky));
+    .empty-title {
+        color: #111827;
+        font-size: 1.15rem;
         font-weight: 900;
-        text-decoration: none;
-        box-shadow: 0 12px 26px rgba(37,99,235,.22);
+        margin-bottom: 7px;
+    }
+
+    .empty-text {
+        color: var(--blog-muted);
+        margin-bottom: 18px;
+        line-height: 1.65;
     }
 
     .pagination-wrap {
         display: flex;
         justify-content: center;
-        margin-top: 42px;
+        margin-top: 34px;
     }
 
-    .pagination-2026 {
+    .pagination-blog {
         display: flex;
-        gap: 7px;
         flex-wrap: wrap;
         justify-content: center;
-        padding: 8px;
+        gap: 6px;
+        padding: 7px;
         border-radius: 999px;
-        background: rgba(255,255,255,.86);
+        background: #fff;
         border: 1px solid var(--blog-border);
-        box-shadow: var(--blog-shadow-sm);
+        box-shadow: var(--blog-shadow);
     }
 
-    .page-link-2026 {
-        width: 42px;
-        height: 42px;
+    .page-link-blog,
+    .page-dots {
+        width: 39px;
+        height: 39px;
         border-radius: 50%;
-        border: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: var(--blog-text);
-        background: transparent;
+        color: #111827;
         text-decoration: none;
-        font-weight: 950;
-        transition: var(--blog-transition);
+        font-size: .9rem;
+        font-weight: 800;
+        transition: .2s ease;
     }
 
-        .page-link-2026:hover {
-            color: var(--blog-blue);
-            background: #eff6ff;
+        .page-link-blog:hover {
+            color: var(--blog-primary);
+            background: #eaf6ff;
         }
 
-        .page-link-2026.active {
+        .page-link-blog.active {
             color: #fff;
-            background: linear-gradient(135deg, var(--blog-blue), var(--blog-sky));
-            box-shadow: 0 10px 22px rgba(37,99,235,.22);
+            background: var(--blog-primary);
         }
+
+    .page-dots {
+        color: var(--blog-muted);
+    }
 
     @@media (max-width: 1199.98px) {
         .blog-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-
-        .blog-hero-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .hero-side-card {
-            max-width: 520px;
-        }
     }
 
     @@media (max-width: 991.98px) {
-        .blog-hero-2026 {
-            padding: 58px 0 90px;
-            margin-bottom: -44px;
+        .blog-container {
+            width: calc(100% - 32px);
         }
 
-        .search-box-2026 {
-            padding: 18px;
-            border-radius: 24px;
+        .blog-page {
+            padding-top: 16px;
         }
 
-        .filter-head {
+        .blog-filter-card {
+            border-radius: 22px;
+        }
+
+        .filter-top {
             align-items: flex-start;
             flex-direction: column;
-        }
-
-        .blog-img-wrap-2026 {
-            height: 210px;
         }
     }
 
     @@media (max-width: 767.98px) {
-        .blog-shell {
-            padding-left: 10px;
-            padding-right: 10px;
+        .blog-container {
+            width: calc(100% - 20px);
         }
 
-        .blog-hero-2026 {
-            padding: 46px 0 78px;
+        .blog-page {
+            padding-top: 10px;
         }
 
-        .hero-title {
-            font-size: 2rem;
-        }
-
-        .hero-sub {
-            font-size: .94rem;
-        }
-
-        .hero-side-card {
+        .filter-top {
             display: none;
         }
 
-        .filter-head {
-            display: none;
+        .blog-filter-card {
+            padding: 14px;
+            margin-bottom: 18px;
         }
 
-        .control-2026,
-        .btn-filter {
-            min-height: 50px;
-            border-radius: 15px;
+        .blog-control,
+        .blog-btn-primary {
+            height: 48px;
+            border-radius: 14px;
         }
 
-        .result-head {
-            margin-top: 4px;
+        .category-scroll {
+            margin-top: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
         }
 
-        .quick-chip-row {
-            width: 100%;
+        .category-chip {
+            min-height: 38px;
+            border-radius: 13px;
+            padding: 7px 9px;
+            font-size: .8rem;
         }
 
-        .quick-chip {
-            flex: 1;
-            justify-content: center;
+            .category-chip span {
+                min-width: 23px;
+                height: 22px;
+                padding: 0 7px;
+                font-size: .72rem;
+            }
+
+        .section-head {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .section-title {
+            font-size: 1.38rem;
         }
 
         .blog-grid {
             grid-template-columns: 1fr;
-            gap: 16px;
+            gap: 14px;
         }
 
-        .blog-card-2026 {
-            border-radius: 22px;
+        .blog-card {
+            border-radius: 20px;
         }
 
-        .blog-img-wrap-2026 {
-            height: 220px;
+        .blog-card-image {
+            height: 205px;
         }
 
-        .blog-card-body-2026 {
-            padding: 17px;
+        .blog-card-body {
+            padding: 15px;
         }
 
-        .pagination-2026 {
-            border-radius: 22px;
+        .pagination-blog {
+            border-radius: 18px;
         }
 
-        .page-link-2026 {
-            width: 38px;
-            height: 38px;
+        .page-link-blog,
+        .page-dots {
+            width: 36px;
+            height: 36px;
         }
     }
 
     @@media (max-width: 575.98px) {
-        .blog-hero-2026 {
-            padding-top: 36px;
-            padding-bottom: 70px;
+        .category-scroll {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .hero-badge {
-            min-height: 32px;
-            padding: 0 11px;
-            font-size: .72rem;
-            margin-bottom: 14px;
+        .category-chip {
+            font-size: .76rem;
         }
 
-        .hero-title {
-            font-size: 1.72rem;
+        .blog-card-image {
+            height: 190px;
         }
 
-        .blog-img-wrap-2026 {
-            height: 205px;
+        .blog-card-title {
+            font-size: .98rem;
         }
 
-        .blog-meta-2026 {
-            font-size: .74rem;
-        }
-
-        .blog-title-2026 {
-            font-size: 1rem;
-        }
-
-        .blog-summary-2026 {
-            font-size: .86rem;
-        }
-
-        .empty-box-2026 {
-            padding: 42px 18px;
-            border-radius: 22px;
+        .blog-card-desc {
+            font-size: .88rem;
         }
     }
+
+
+    @@media (max-width: 360px) {
+        .category-scroll {
+            grid-template-columns: 1fr;
+        }
+    }
+
 </style>
 
 <div class="blog-page">
-    <section class="blog-hero-2026">
-        <div class="blog-shell">
-            <div class="blog-hero-grid">
-                <div>
-                    <div class="hero-badge">
-                        <i class="bi bi-stars"></i>
-                        Tin tức BĐS Khánh Hòa 2026
-                    </div>
-
-                    <h1 class="hero-title">
-                        Tin tức & kiến thức <br class="d-none d-md-block" />
-                        <span>bất động sản</span>
-                    </h1>
-
-                    <p class="hero-sub">
-                        Cập nhật thông tin thị trường, pháp lý, kinh nghiệm mua bán, đầu tư và các xu hướng bất động sản mới nhất tại Khánh Hòa.
-                    </p>
-                </div>
-
-                <aside class="hero-side-card">
-                    <div class="hero-side-row">
-                        <div class="hero-side-icon">
-                            <i class="bi bi-newspaper"></i>
-                        </div>
-                        <div>
-                            <div class="hero-side-label">Bài viết hiển thị</div>
-                            <div class="hero-side-value">@FormatNumber(totalPosts) bài</div>
-                        </div>
-                    </div>
-
-                    <div class="hero-side-row">
-                        <div class="hero-side-icon" style="background:linear-gradient(135deg,#16a34a,#10b981);">
-                            <i class="bi bi-tags-fill"></i>
-                        </div>
-                        <div>
-                            <div class="hero-side-label">Danh mục</div>
-                            <div class="hero-side-value">@(categories.Any() ? FormatNumber(categories.Count()) + " chuyên mục" : "Đang cập nhật")</div>
-                        </div>
-                    </div>
-
-                    <div class="hero-side-row">
-                        <div class="hero-side-icon" style="background:linear-gradient(135deg,#f59e0b,#f97316);">
-                            <i class="bi bi-lightning-charge-fill"></i>
-                        </div>
-                        <div>
-                            <div class="hero-side-label">Bộ lọc</div>
-                            <div class="hero-side-value">Tìm nhanh theo nhu cầu</div>
-                        </div>
-                    </div>
-                </aside>
-            </div>
-        </div>
-    </section>
-
-    <div class="blog-shell">
-        <div class="search-box-2026">
-            <div class="filter-head">
+    <main class="blog-container">
+        <section class="blog-filter-card">
+            <div class="filter-top">
                 <h2 class="filter-title">
                     <i class="bi bi-funnel-fill"></i>
                     Tìm kiếm bài viết
                 </h2>
 
                 <p class="filter-note">
-                    Lọc nhanh theo từ khóa và chuyên mục bạn quan tâm.
+                    Lọc nhanh theo từ khóa hoặc chuyên mục bạn đang quan tâm.
                 </p>
             </div>
 
-            <form action="/Blog/Index" method="get">
+            <form asp-controller="Blog" asp-action="Index" method="get">
                 <div class="row g-3 align-items-end">
                     <div class="col-lg-5">
-                        <label class="field-label">Từ khóa</label>
-                        <div class="input-wrap">
+                        <label class="form-label-blog">Từ khóa</label>
+                        <div class="blog-input-wrap">
                             <i class="bi bi-search"></i>
                             <input type="text"
                                    name="keyword"
                                    value="@keyword"
-                                   class="control-2026"
-                                   placeholder="Nhập từ khóa bài viết..." />
+                                   class="blog-control"
+                                   placeholder="Ví dụ: pháp lý, quy hoạch, kinh nghiệm mua bán..." />
                         </div>
                     </div>
 
                     <div class="col-lg-4">
-                        <label class="field-label">Danh mục</label>
-                        <select name="category" class="control-2026">
+                        <label class="form-label-blog">Danh mục</label>
+                        <select name="category" class="blog-control">
                             <option value="">Tất cả danh mục</option>
                             @foreach (var cat in categories)
                             {
-                                <option value="@cat" selected="@(string.Equals(currentCategory, cat, StringComparison.OrdinalIgnoreCase))">
-                                    @cat
-                                </option>
+                                if (string.Equals(currentCategory, cat, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <option value="@cat" selected>@cat</option>
+                                }
+                                else
+                                {
+                                    <option value="@cat">@cat</option>
+                                }
                             }
                         </select>
                     </div>
 
                     <div class="col-lg-3">
-                        <button type="submit" class="btn-filter">
+                        <button type="submit" class="blog-btn-primary">
                             <i class="bi bi-search"></i>
-                            Lọc bài viết
+                            Tìm bài viết
                         </button>
                     </div>
                 </div>
             </form>
-        </div>
 
-        <div class="result-head">
+            @if (categories.Any())
+            {
+                <div class="category-scroll mt-3">
+                    <a class="category-chip @(string.IsNullOrWhiteSpace(currentCategory) ? "active" : "")"
+                       href="@Url.Action("Index", "Blog", new { keyword = keyword })">
+                        <i class="bi bi-grid-fill"></i>
+                        Tất cả
+                    </a>
+
+                    @foreach (var cat in categories)
+                    {
+                        int count = categoryCounts.ContainsKey(cat) ? categoryCounts[cat] : 0;
+
+                        <a class="category-chip @(string.Equals(currentCategory, cat, StringComparison.OrdinalIgnoreCase) ? "active" : "")"
+                           href="@Url.Action("Index", "Blog", new { category = cat, keyword = keyword })">
+                            @cat
+                            <span>@FormatNumber(count)</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="section-head">
             <div>
-                <div class="section-kicker">Market insights</div>
-                <h2 class="result-title">Bài viết mới nhất</h2>
-                <p class="result-sub">
-                    Đang hiển thị <strong>@FormatNumber(totalPosts)</strong> bài viết phù hợp.
+                <div class="section-kicker">Bài viết mới nhất</div>
+                <h2 class="section-title">Tin tức & kiến thức nổi bật</h2>
+                <p class="section-sub">
+                    Tìm thấy <strong>@FormatNumber(totalItems)</strong> bài viết phù hợp.
                 </p>
             </div>
 
-           
-        </div>
+            @if (!string.IsNullOrWhiteSpace(keyword) || !string.IsNullOrWhiteSpace(currentCategory))
+            {
+                <a href="@Url.Action("Index", "Blog")" class="reset-link">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Xóa bộ lọc
+                </a>
+            }
+        </section>
 
         @if (Model != null && Model.Any())
         {
@@ -936,10 +859,13 @@
                 {
                     string imageUrl = GetSafeImage(item.ImageURL);
                     string categoryName = GetSafeText(item.Category, "Tin tức");
-                    string summary = GetSafeText(item.Summary, "Nội dung tóm tắt bài viết đang được cập nhật.");
+                    string excerpt = GetExcerpt(item);
 
-                    <a asp-action="Details" asp-route-id="@item.BlogID" class="blog-card-2026">
-                        <div class="blog-img-wrap-2026">
+                    <a asp-controller="Blog"
+                       asp-action="Details"
+                       asp-route-id="@item.BlogID"
+                       class="blog-card">
+                        <div class="blog-card-image">
                             <img src="@imageUrl"
                                  alt="@item.Title"
                                  loading="lazy"
@@ -947,14 +873,14 @@
                                  draggable="false"
                                  onerror="this.onerror=null;this.src='/images/no-image.jpg';" />
 
-                            <span class="blog-cat-badge-2026" title="@categoryName">
+                            <span class="blog-card-category" title="@categoryName">
                                 <i class="bi bi-tag-fill"></i>
                                 @categoryName
                             </span>
                         </div>
 
-                        <div class="blog-card-body-2026">
-                            <div class="blog-meta-2026">
+                        <div class="blog-card-body">
+                            <div class="blog-meta">
                                 <span>
                                     <i class="bi bi-calendar3"></i>
                                     @FormatDate(item.CreatedAt)
@@ -966,16 +892,14 @@
                                 </span>
                             </div>
 
-                            <h2 class="blog-title-2026">@item.Title</h2>
+                            <h2 class="blog-card-title">@item.Title</h2>
 
-                            <p class="blog-summary-2026">@summary</p>
+                            <p class="blog-card-desc">@excerpt</p>
 
-                            <div class="blog-card-footer-2026">
-                                <span class="readmore-2026">
-                                    Đọc tiếp
-                                </span>
+                            <div class="blog-card-footer">
+                                <span class="read-more">Đọc tiếp</span>
 
-                                <span class="read-icon">
+                                <span class="read-circle">
                                     <i class="bi bi-arrow-right"></i>
                                 </span>
                             </div>
@@ -987,10 +911,11 @@
             @if (totalPages > 1)
             {
                 <div class="pagination-wrap">
-                    <nav class="pagination-2026">
+                    <nav class="pagination-blog" aria-label="Phân trang bài viết">
                         @if (currentPage > 1)
                         {
-                            <a class="page-link-2026"
+                            <a class="page-link-blog"
+                               title="Trang trước"
                                href="@Url.Action("Index", "Blog", new { page = currentPage - 1, keyword = keyword, category = currentCategory })">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
@@ -998,18 +923,18 @@
 
                         @if (startPage > 1)
                         {
-                            <a class="page-link-2026"
+                            <a class="page-link-blog"
                                href="@Url.Action("Index", "Blog", new { page = 1, keyword = keyword, category = currentCategory })">1</a>
 
                             @if (startPage > 2)
                             {
-                                <span class="page-link-2026">...</span>
+                                <span class="page-dots">...</span>
                             }
                         }
 
                         @for (int i = startPage; i <= endPage; i++)
                         {
-                            <a class="page-link-2026 @(currentPage == i ? "active" : "")"
+                            <a class="page-link-blog @(currentPage == i ? "active" : "")"
                                href="@Url.Action("Index", "Blog", new { page = i, keyword = keyword, category = currentCategory })">
                                 @i
                             </a>
@@ -1019,16 +944,19 @@
                         {
                             @if (endPage < totalPages - 1)
                             {
-                                <span class="page-link-2026">...</span>
+                                <span class="page-dots">...</span>
                             }
 
-                            <a class="page-link-2026"
-                               href="@Url.Action("Index", "Blog", new { page = totalPages, keyword = keyword, category = currentCategory })">@totalPages</a>
+                            <a class="page-link-blog"
+                               href="@Url.Action("Index", "Blog", new { page = totalPages, keyword = keyword, category = currentCategory })">
+                                @totalPages
+                            </a>
                         }
 
                         @if (currentPage < totalPages)
                         {
-                            <a class="page-link-2026"
+                            <a class="page-link-blog"
+                               title="Trang sau"
                                href="@Url.Action("Index", "Blog", new { page = currentPage + 1, keyword = keyword, category = currentCategory })">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
@@ -1039,22 +967,22 @@
         }
         else
         {
-            <section class="empty-box-2026">
-                <div class="empty-icon-2026">
+            <section class="empty-card">
+                <div class="empty-icon">
                     <i class="bi bi-journal-x"></i>
                 </div>
 
-                <h3 class="fw-black text-dark mb-2">Không tìm thấy bài viết nào</h3>
+                <h3 class="empty-title">Không tìm thấy bài viết phù hợp</h3>
 
-                <p class="text-muted mb-4">
-                    Hãy thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc danh mục hiện tại.
+                <p class="empty-text">
+                    Hãy thử nhập từ khóa ngắn hơn hoặc chọn lại chuyên mục khác.
                 </p>
 
-                <a href="/Blog/Index" class="btn-reset">
+                <a href="@Url.Action("Index", "Blog")" class="blog-btn-primary" style="width:auto;padding:0 22px;">
                     <i class="bi bi-arrow-clockwise"></i>
                     Xóa bộ lọc
                 </a>
             </section>
         }
-    </div>
+    </main>
 </div>

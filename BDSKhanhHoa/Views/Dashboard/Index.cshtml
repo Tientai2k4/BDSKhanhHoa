@@ -1,14 +1,14 @@
 ﻿@using BDSKhanhHoa.Models
+@using System.Globalization
 @{
     Layout = "~/Views/Shared/_UserLayout.cshtml";
+    ViewData["Title"] = "Bảng điều khiển cá nhân";
 
-    // Ép kiểu dữ liệu an toàn
     var user = ViewBag.CurrentUser as User;
+
     int totalProps = ViewBag.TotalProperties ?? 0;
     int activeProps = ViewBag.ActiveProperties ?? 0;
     int pendingProps = ViewBag.PendingProperties ?? 0;
-
-    // --- BỔ SUNG LẤY DỮ LIỆU TỪ VIEWBAG ---
     int soldProps = ViewBag.SoldProperties ?? 0;
     int rentedProps = ViewBag.RentedProperties ?? 0;
 
@@ -21,411 +21,1047 @@
     var recentTransactions = ViewBag.RecentTransactions as List<Transaction> ?? new List<Transaction>();
     var recentProperties = ViewBag.RecentProperties as List<Property> ?? new List<Property>();
     var recentNotifications = ViewBag.RecentNotifications as List<Notification> ?? new List<Notification>();
+
+    var vi = CultureInfo.GetCultureInfo("vi-VN");
+
+    string DisplayName = !string.IsNullOrWhiteSpace(user?.FullName)
+        ? user!.FullName
+        : (!string.IsNullOrWhiteSpace(user?.Username) ? user!.Username : "thành viên");
+
+    string Avatar = string.IsNullOrWhiteSpace(user?.Avatar)
+        ? "/images/avatars/default-user.png"
+        : user!.Avatar;
+
+    string FormatPrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0) return "Thỏa thuận";
+        if (price.Value >= 1_000_000_000M) return (price.Value / 1_000_000_000M).ToString("0.##", vi) + " tỷ";
+        if (price.Value >= 1_000_000M) return (price.Value / 1_000_000M).ToString("0.##", vi) + " triệu";
+        return price.Value.ToString("N0", vi) + " đ";
+    }
+
+    string StatusText(string? status)
+    {
+        return (status ?? "").Trim() switch
+        {
+            "Approved" or "Active" => "Hiển thị",
+            "Pending" => "Chờ duyệt",
+            "Rejected" => "Bị từ chối",
+            "Sold" => "Đã bán",
+            "Rented" => "Đã thuê",
+            "Expired" => "Hết hạn",
+            _ => "Chưa rõ"
+        };
+    }
+
+    string StatusClass(string? status)
+    {
+        return (status ?? "").Trim() switch
+        {
+            "Approved" or "Active" => "dash-status-success",
+            "Pending" => "dash-status-warning",
+            "Rejected" => "dash-status-danger",
+            "Sold" or "Rented" => "dash-status-info",
+            "Expired" => "dash-status-muted",
+            _ => "dash-status-muted"
+        };
+    }
 }
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
 <style>
-    /* CSS UI/UX Chuẩn 2026 */
-    .dashboard-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border-radius: 20px;
-        padding: 35px 30px;
-        color: white;
-        margin-bottom: 30px;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+    :root {
+        --dash-primary: #2563eb;
+        --dash-primary-dark: #1d4ed8;
+        --dash-success: #16a34a;
+        --dash-warning: #f59e0b;
+        --dash-danger: #ef4444;
+        --dash-info: #0284c7;
+        --dash-purple: #7c3aed;
+        --dash-text: #0f172a;
+        --dash-muted: #64748b;
+        --dash-border: #e2e8f0;
+        --dash-soft: #f8fafc;
+        --dash-card: #ffffff;
+        --dash-radius: 18px;
+        --dash-shadow: 0 10px 28px rgba(15, 23, 42, .055);
+        --dash-shadow-sm: 0 6px 18px rgba(15, 23, 42, .045);
     }
 
-        .dashboard-header::after {
-            content: '';
+    .dashboard-page {
+        color: var(--dash-text);
+        padding-bottom: 28px;
+    }
+
+    .dash-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 24px;
+        padding: 22px;
+        margin-bottom: 16px;
+        color: #fff;
+        background: radial-gradient(circle at 88% 12%, rgba(96, 165, 250, .42), transparent 30%), linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+        box-shadow: 0 16px 38px rgba(37, 99, 235, .20);
+    }
+
+    .dash-hero-inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .dash-user {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .dash-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 20px;
+        object-fit: cover;
+        border: 3px solid rgba(255,255,255,.78);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .26);
+        flex: 0 0 auto;
+    }
+
+    .dash-title {
+        margin: 0;
+        font-size: clamp(1.2rem, 2.4vw, 1.75rem);
+        font-weight: 950;
+        letter-spacing: -.035em;
+        line-height: 1.22;
+    }
+
+    .dash-subtitle {
+        margin: 5px 0 0;
+        color: rgba(255,255,255,.80);
+        font-size: .88rem;
+        font-weight: 650;
+        line-height: 1.45;
+    }
+
+    .dash-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        flex: 0 0 auto;
+    }
+
+    .dash-action-btn {
+        min-height: 40px;
+        padding: 0 14px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 900;
+        white-space: nowrap;
+        border: 1px solid rgba(255,255,255,.28);
+        transition: .18s ease;
+    }
+
+    .dash-action-primary {
+        background: #fff;
+        color: var(--dash-primary);
+    }
+
+    .dash-action-soft {
+        background: rgba(255,255,255,.12);
+        color: #fff;
+        backdrop-filter: blur(8px);
+    }
+
+    .dash-action-btn:hover {
+        transform: translateY(-1px);
+        color: var(--dash-primary);
+        background: #fff;
+    }
+
+    .dash-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .dash-stat-card {
+        background: var(--dash-card);
+        border: 1px solid var(--dash-border);
+        border-radius: var(--dash-radius);
+        padding: 15px;
+        box-shadow: var(--dash-shadow-sm);
+        min-width: 0;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .dash-stat-card::after {
+            content: "";
             position: absolute;
-            top: -50%;
-            right: -5%;
-            width: 350px;
-            height: 350px;
-            background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(255,255,255,0) 70%);
-            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            right: -30px;
+            top: -32px;
+            border-radius: 999px;
+            background: currentColor;
+            opacity: .075;
         }
 
-    .stat-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 25px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
-        transition: all 0.3s ease;
-        position: relative;
+    .dash-stat-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .dash-stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 1.12rem;
+        flex: 0 0 auto;
+    }
+
+    .dash-stat-label {
+        margin: 0 0 8px;
+        color: var(--dash-muted);
+        font-size: .72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        line-height: 1.25;
+    }
+
+    .dash-stat-value {
+        margin: 0;
+        color: var(--dash-text);
+        font-size: 1.55rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .dash-stat-note {
+        margin-top: 9px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .dash-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 5px 8px;
+        font-size: .7rem;
+        font-weight: 850;
+        line-height: 1;
+        border: 1px solid transparent;
+    }
+
+    .dash-blue {
+        color: var(--dash-primary);
+    }
+
+    .dash-green {
+        color: var(--dash-success);
+    }
+
+    .dash-orange {
+        color: var(--dash-warning);
+    }
+
+    .dash-red {
+        color: var(--dash-danger);
+    }
+
+    .dash-purple {
+        color: var(--dash-purple);
+    }
+
+    .dash-bg-blue {
+        background: #eff6ff;
+        color: var(--dash-primary);
+    }
+
+    .dash-bg-green {
+        background: #ecfdf5;
+        color: var(--dash-success);
+    }
+
+    .dash-bg-orange {
+        background: #fffbeb;
+        color: #b45309;
+    }
+
+    .dash-bg-red {
+        background: #fef2f2;
+        color: var(--dash-danger);
+    }
+
+    .dash-bg-purple {
+        background: #f5f3ff;
+        color: var(--dash-purple);
+    }
+
+    .dash-bg-muted {
+        background: #f8fafc;
+        color: #475569;
+        border-color: #e2e8f0;
+    }
+
+    .dash-section-card {
+        background: #fff;
+        border: 1px solid var(--dash-border);
+        border-radius: var(--dash-radius);
+        box-shadow: var(--dash-shadow-sm);
         overflow: hidden;
         height: 100%;
     }
 
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.06);
-            border-color: #cbd5e1;
-        }
-
-    .stat-icon {
-        width: 55px;
-        height: 55px;
-        border-radius: 14px;
+    .dash-section-head {
+        min-height: 58px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--dash-border);
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-size: 1.6rem;
+        justify-content: space-between;
+        gap: 10px;
+        background: linear-gradient(180deg, #fff, #fbfdff);
     }
 
-    /* Các Widget bên phải */
-    .widget-card {
-        background: #fff;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
-        padding: 20px;
-        margin-bottom: 24px;
+    .dash-section-title {
+        margin: 0;
+        color: var(--dash-text);
+        font-size: .98rem;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        line-height: 1.25;
     }
 
-    .modern-table {
-        background: #fff;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
-        overflow: hidden;
+    .dash-section-link {
+        font-size: .78rem;
+        font-weight: 900;
+        text-decoration: none;
+        color: var(--dash-primary);
+        white-space: nowrap;
     }
 
-        .modern-table thead th {
+    .dash-chart-box {
+        padding: 16px;
+        min-height: 288px;
+    }
+
+        .dash-chart-box canvas {
+            min-height: 250px;
+        }
+
+    .dash-mini-list {
+        padding: 13px;
+        display: grid;
+        gap: 10px;
+    }
+
+    .dash-mini-item {
+        border: 1px solid #edf2f7;
+        background: #f8fafc;
+        border-radius: 15px;
+        padding: 11px;
+        min-width: 0;
+    }
+
+    .dash-mini-title {
+        color: var(--dash-text);
+        font-weight: 900;
+        margin: 0 0 4px;
+        font-size: .88rem;
+        line-height: 1.35;
+    }
+
+    .dash-mini-meta {
+        color: var(--dash-muted);
+        font-size: .76rem;
+        font-weight: 700;
+        line-height: 1.45;
+        margin: 0;
+    }
+
+    .dash-empty {
+        padding: 28px 16px;
+        text-align: center;
+        color: var(--dash-muted);
+    }
+
+        .dash-empty i {
+            font-size: 2.15rem;
+            opacity: .35;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+    .dash-table-wrap {
+        overflow-x: auto;
+    }
+
+    .dash-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+
+        .dash-table th {
             background: #f8fafc;
             color: #64748b;
-            font-weight: 600;
-            font-size: 0.85rem;
+            font-size: .72rem;
             text-transform: uppercase;
-            padding: 15px 20px;
+            letter-spacing: .05em;
+            font-weight: 900;
+            padding: 12px 14px;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--dash-border);
         }
 
-        .modern-table tbody td {
-            padding: 15px 20px;
-            vertical-align: middle;
+        .dash-table td {
+            padding: 12px 14px;
             border-bottom: 1px solid #f1f5f9;
-            font-weight: 500;
+            vertical-align: middle;
         }
 
-    .appt-item {
-        padding: 15px;
-        border-radius: 12px;
-        background: #f8fafc;
-        border-left: 4px solid #3b82f6;
-        transition: 0.2s;
+    .dash-property-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
     }
 
-        .appt-item:hover {
-            background: #f1f5f9;
-        }
-
-    /* Timeline thông báo */
-    .timeline {
-        padding-left: 20px;
-        position: relative;
+    .dash-property-img {
+        width: 58px;
+        height: 58px;
+        border-radius: 14px;
+        object-fit: cover;
+        flex: 0 0 auto;
+        background: #e2e8f0;
     }
 
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #e2e8f0;
-        }
-
-    .timeline-item {
-        position: relative;
-        margin-bottom: 15px;
+    .dash-property-title {
+        max-width: 280px;
+        color: var(--dash-text);
+        font-size: .86rem;
+        font-weight: 900;
+        line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
     }
 
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -25px;
-            top: 5px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #3b82f6;
-            border: 3px solid #e0e7ff;
+    .dash-price {
+        color: #dc2626;
+        font-size: .86rem;
+        font-weight: 950;
+        white-space: nowrap;
+    }
+
+    .dash-status-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: .72rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .dash-status-success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .dash-status-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .dash-status-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .dash-status-info {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .dash-status-muted {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .dash-icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: var(--dash-primary);
+        text-decoration: none;
+    }
+
+    .dash-transaction-item,
+    .dash-notification-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 11px 0;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+        .dash-transaction-item:last-child,
+        .dash-notification-item:last-child {
+            border-bottom: 0;
         }
+
+    .dash-trans-type,
+    .dash-noti-title {
+        font-weight: 900;
+        color: var(--dash-text);
+        font-size: .84rem;
+        line-height: 1.35;
+        margin: 0 0 3px;
+    }
+
+    .dash-trans-date,
+    .dash-noti-content,
+    .dash-noti-time {
+        color: var(--dash-muted);
+        font-size: .74rem;
+        font-weight: 650;
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    .dash-trans-money {
+        font-weight: 950;
+        color: #dc2626;
+        font-size: .84rem;
+        white-space: nowrap;
+    }
+
+    .dash-trans-status {
+        font-size: .7rem;
+        font-weight: 900;
+        color: var(--dash-success);
+    }
+
+    @@media (max-width: 991.98px) {
+        .dash-hero-inner {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .dash-hero-actions {
+            width: 100%;
+            justify-content: stretch;
+        }
+
+        .dash-action-btn {
+            flex: 1 1 0;
+        }
+
+        .dash-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .dashboard-page {
+            padding-bottom: 18px;
+        }
+
+        .dash-hero {
+            border-radius: 17px;
+            padding: 13px;
+            margin-bottom: 11px;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, .14);
+        }
+
+        .dash-user {
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .dash-avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 15px;
+            border-width: 2px;
+        }
+
+        .dash-title {
+            font-size: 1.02rem;
+            line-height: 1.25;
+        }
+
+        .dash-subtitle {
+            font-size: .74rem;
+            margin-top: 3px;
+        }
+
+        .dash-hero-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+            margin-top: 2px;
+        }
+
+        .dash-action-btn {
+            min-height: 34px;
+            padding: 0 9px;
+            border-radius: 12px;
+            font-size: .72rem;
+        }
+
+        .dash-stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 11px;
+        }
+
+        .dash-stat-card {
+            border-radius: 15px;
+            padding: 10px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .045);
+        }
+
+        .dash-stat-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 11px;
+            font-size: .9rem;
+        }
+
+        .dash-stat-label {
+            font-size: .58rem;
+            letter-spacing: .035em;
+            margin-bottom: 6px;
+        }
+
+        .dash-stat-value {
+            font-size: 1.22rem;
+        }
+
+        .dash-stat-note {
+            margin-top: 7px;
+            gap: 4px;
+        }
+
+        .dash-pill {
+            padding: 4px 6px;
+            font-size: .6rem;
+        }
+
+        .dash-section-card {
+            border-radius: 16px;
+            margin-bottom: 11px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .045);
+        }
+
+        .dash-section-head {
+            min-height: 48px;
+            padding: 11px 12px;
+        }
+
+        .dash-section-title {
+            font-size: .86rem;
+        }
+
+        .dash-section-link {
+            font-size: .7rem;
+        }
+
+        .dash-chart-box {
+            padding: 10px;
+            min-height: 210px;
+        }
+
+            .dash-chart-box canvas {
+                min-height: 190px;
+            }
+
+        .dash-mini-list {
+            padding: 10px;
+            gap: 8px;
+        }
+
+        .dash-mini-item {
+            border-radius: 13px;
+            padding: 9px;
+        }
+
+        .dash-mini-title {
+            font-size: .78rem;
+        }
+
+        .dash-mini-meta {
+            font-size: .68rem;
+        }
+
+        .dash-table thead {
+            display: none;
+        }
+
+        .dash-table,
+        .dash-table tbody,
+        .dash-table tr,
+        .dash-table td {
+            display: block;
+            width: 100%;
+        }
+
+            .dash-table tr {
+                border: 1px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 9px;
+                margin: 10px;
+                background: #fff;
+                box-shadow: 0 4px 12px rgba(15, 23, 42, .035);
+            }
+
+            .dash-table td {
+                border-bottom: 0;
+                padding: 5px 0;
+            }
+
+                .dash-table td[data-label]::before {
+                    content: attr(data-label);
+                    display: block;
+                    margin-bottom: 3px;
+                    color: #94a3b8;
+                    font-size: .58rem;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: .04em;
+                }
+
+        .dash-property-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+        }
+
+        .dash-property-title {
+            max-width: 100%;
+            font-size: .8rem;
+        }
+
+        .dash-price {
+            font-size: .8rem;
+        }
+
+        .dash-status-badge {
+            font-size: .66rem;
+            padding: 4px 8px;
+        }
+
+        .dash-icon-btn {
+            width: 32px;
+            height: 32px;
+        }
+
+        .dash-transaction-item,
+        .dash-notification-item {
+            padding: 9px 0;
+        }
+    }
 </style>
 
-<div class="container-fluid p-0 animate__animated animate__fadeIn">
-
-    <div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-4">
-        <div class="position-relative z-1 d-flex align-items-center gap-4">
-            <img src="@(user?.Avatar ?? "/images/avatars/default-user.png")" class="rounded-circle border border-3 border-light shadow" width="80" height="80" style="object-fit:cover;">
-            <div>
-                <h2 class="fw-bolder mb-1 text-white">Xin chào, @(user?.FullName ?? user?.Username)!</h2>
-                <p class="mb-0 text-white-50 fw-medium">
-                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>Khu vực Khánh Hòa |
-                    <i class="bi bi-clock me-1"></i>Hôm nay: @DateTime.Now.ToString("dd/MM/yyyy")
-                </p>
-            </div>
-        </div>
-     
-    </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="w-100">
-                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tin Đăng Của Bạn</p>
-                        <h2 class="fw-black mb-1 text-dark">@totalProps <small class="fs-6 text-muted fw-medium">tin</small></h2>
-                        <span class="badge bg-success-subtle text-success mb-2"><i class="bi bi-check-circle me-1"></i>@activeProps đang hiển thị</span>
-
-                        <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center">
-                            <span class="text-primary small fw-bold" title="Đã bán thành công">
-                                <i class="bi bi-bag-check-fill me-1"></i>Đã bán: @soldProps
-                            </span>
-                            <span class="text-info small fw-bold" title="Đã cho thuê thành công">
-                                <i class="bi bi-key-fill me-1"></i>Đã thuê: @rentedProps
-                            </span>
-                        </div>
-                    </div>
-                    <div class="stat-icon bg-primary-subtle text-primary ms-2"><i class="bi bi-houses"></i></div>
+<div class="dashboard-page animate__animated animate__fadeIn">
+    <section class="dash-hero">
+        <div class="dash-hero-inner">
+            <div class="dash-user">
+                <img src="@Avatar" class="dash-avatar" alt="Avatar" />
+                <div class="min-w-0">
+                    <h1 class="dash-title">Xin chào, @DisplayName!</h1>
+                    <p class="dash-subtitle">
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i>Khánh Hòa
+                        <span class="mx-1">•</span>
+                        <i class="bi bi-calendar2-week me-1"></i>@DateTime.Now.ToString("dd/MM/yyyy")
+                    </p>
                 </div>
             </div>
-        </div>
 
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Tương Tác & Lượt Xem</p>
-                        <h2 class="fw-black mb-1 text-dark">@totalViews <small class="fs-6 text-muted fw-medium">lượt</small></h2>
-                        <span class="badge bg-danger-subtle text-danger"><i class="bi bi-heart-fill me-1"></i>@totalFavs lượt lưu tin</span>
-                    </div>
-                    <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-eye"></i></div>
+            <div class="dash-hero-actions">
+                <a href="/Property/Create" class="dash-action-btn dash-action-primary">
+                    <i class="bi bi-plus-circle-fill"></i>
+                    Đăng tin
+                </a>
+                <a href="/Property/MyAds" class="dash-action-btn dash-action-soft">
+                    <i class="bi bi-card-list"></i>
+                    Quản lý tin
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dash-stats-grid">
+        <div class="dash-stat-card dash-blue">
+            <div class="dash-stat-head">
+                <div>
+                    <p class="dash-stat-label">Tin đăng</p>
+                    <h2 class="dash-stat-value">@totalProps</h2>
                 </div>
+                <div class="dash-stat-icon dash-bg-blue"><i class="bi bi-houses-fill"></i></div>
+            </div>
+            <div class="dash-stat-note">
+                <span class="dash-pill dash-bg-green"><i class="bi bi-eye-fill"></i>@activeProps hiển thị</span>
+                <span class="dash-pill dash-bg-orange"><i class="bi bi-hourglass"></i>@pendingProps chờ</span>
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Yêu Cầu Tư Vấn (Leads)</p>
-                        <h2 class="fw-black mb-1 text-dark">@newConsults <small class="fs-6 text-muted fw-medium">khách</small></h2>
-                        @if (newConsults > 0)
-                        {
-                            <span class="badge bg-warning text-dark animate__animated animate__pulse animate__infinite"><i class="bi bi-fire me-1"></i>Cần liên hệ ngay!</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-light text-secondary border">Chưa có yêu cầu mới</span>
-                        }
-                    </div>
-                    <div class="stat-icon bg-warning-subtle text-warning-emphasis"><i class="bi bi-headset"></i></div>
+        <div class="dash-stat-card dash-green">
+            <div class="dash-stat-head">
+                <div>
+                    <p class="dash-stat-label">Lượt xem</p>
+                    <h2 class="dash-stat-value">@totalViews</h2>
                 </div>
+                <div class="dash-stat-icon dash-bg-green"><i class="bi bi-eye-fill"></i></div>
+            </div>
+            <div class="dash-stat-note">
+                <span class="dash-pill dash-bg-red"><i class="bi bi-heart-fill"></i>@totalFavs lưu tin</span>
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <p class="text-muted fw-bold mb-1 fs-6 text-uppercase">Lịch Hẹn Xem Nhà</p>
-                        <h2 class="fw-black mb-1 text-dark">@pendingApptsCount <small class="fs-6 text-muted fw-medium">lịch</small></h2>
-                        <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-calendar-event me-1"></i>Đang chờ xác nhận</span>
-                    </div>
-                    <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-calendar-check"></i></div>
+        <div class="dash-stat-card dash-orange">
+            <div class="dash-stat-head">
+                <div>
+                    <p class="dash-stat-label">Tư vấn mới</p>
+                    <h2 class="dash-stat-value">@newConsults</h2>
                 </div>
+                <div class="dash-stat-icon dash-bg-orange"><i class="bi bi-headset"></i></div>
+            </div>
+            <div class="dash-stat-note">
+                @if (newConsults > 0)
+                {
+                    <span class="dash-pill dash-bg-orange"><i class="bi bi-fire"></i>Cần liên hệ</span>
+                }
+                else
+                {
+                    <span class="dash-pill dash-bg-muted"><i class="bi bi-check2-circle"></i>Ổn định</span>
+                }
             </div>
         </div>
-    </div>
 
-    <div class="row g-4 mb-4">
+        <div class="dash-stat-card dash-purple">
+            <div class="dash-stat-head">
+                <div>
+                    <p class="dash-stat-label">Lịch chờ</p>
+                    <h2 class="dash-stat-value">@pendingApptsCount</h2>
+                </div>
+                <div class="dash-stat-icon dash-bg-purple"><i class="bi bi-calendar-check-fill"></i></div>
+            </div>
+            <div class="dash-stat-note">
+                <span class="dash-pill dash-bg-blue"><i class="bi bi-bag-check-fill"></i>@soldProps bán</span>
+                <span class="dash-pill dash-bg-blue"><i class="bi bi-key-fill"></i>@rentedProps thuê</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3 mb-3">
         <div class="col-xl-8">
-            <div class="modern-table h-100 d-flex flex-column">
-                <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-graph-up-arrow text-primary me-2"></i>Lưu lượng truy cập (7 ngày qua)</h5>
+            <section class="dash-section-card">
+                <div class="dash-section-head">
+                    <h5 class="dash-section-title"><i class="bi bi-graph-up-arrow text-primary"></i>Lưu lượng truy cập 7 ngày</h5>
                 </div>
-                <div class="p-4 flex-grow-1">
-                    <canvas id="viewChart" style="min-height: 280px;"></canvas>
+                <div class="dash-chart-box">
+                    <canvas id="viewChart"></canvas>
                 </div>
-            </div>
+            </section>
         </div>
 
         <div class="col-xl-4">
-            <div class="widget-card bg-primary text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border:none;">
-                <h6 class="fw-bold opacity-75 mb-3 text-uppercase"><i class="bi bi-shield-check me-2"></i>Trạng thái tài khoản</h6>
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <i class="bi bi-patch-check-fill text-warning" style="font-size: 2.5rem;"></i>
-                    <div>
-                        <h4 class="fw-bold mb-0">Thành viên Tiêu chuẩn</h4>
-                        <small class="opacity-75">Tham gia từ @user?.CreatedAt?.ToString("MM/yyyy")</small>
-                    </div>
+            <section class="dash-section-card">
+                <div class="dash-section-head">
+                    <h5 class="dash-section-title"><i class="bi bi-calendar-range text-success"></i>Lịch hẹn sắp tới</h5>
+                    <a href="/Appointments/Index" class="dash-section-link">Xem tất cả</a>
                 </div>
-                <a href="/Account/Profile" class="btn btn-light btn-sm fw-bold w-100 text-primary">Cập nhật hồ sơ xác thực (KYC)</a>
-            </div>
 
-            <div class="widget-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-calendar-range text-success me-2"></i>Lịch hẹn sắp tới</h6>
-                    <a href="/Appointments/Index" class="small fw-bold text-decoration-none">Xem tất cả</a>
-                </div>
                 @if (upcomingAppointments.Any())
                 {
-                    <div class="d-flex flex-column gap-2">
+                    <div class="dash-mini-list">
                         @foreach (var appt in upcomingAppointments)
                         {
-                            <div class="appt-item">
-                                <h6 class="fw-bold text-dark mb-1 fs-6">@appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy")</h6>
-                                <p class="mb-1 text-muted small text-truncate">Gặp: <strong>@(appt.Buyer?.FullName ?? "Khách hàng")</strong></p>
-                                <p class="mb-0 text-primary small text-truncate"><i class="bi bi-house me-1"></i>@appt.Property?.Title</p>
+                            <div class="dash-mini-item">
+                                <h6 class="dash-mini-title">
+                                    <i class="bi bi-clock text-primary me-1"></i>
+                                    @appt.AppointmentDate.ToString("HH:mm - dd/MM/yyyy", vi)
+                                </h6>
+                                <p class="dash-mini-meta text-truncate">
+                                    Gặp: <strong>@(appt.Buyer?.FullName ?? "Khách hàng")</strong>
+                                </p>
+                                <p class="dash-mini-meta text-truncate">
+                                    <i class="bi bi-house-door text-primary me-1"></i>@(appt.Property?.Title ?? "Bất động sản")
+                                </p>
                             </div>
                         }
                     </div>
                 }
                 else
                 {
-                    <div class="text-center py-3">
-                        <i class="bi bi-calendar-x fs-1 text-muted opacity-25"></i>
-                        <p class="text-muted small mt-2 m-0">Bạn chưa có lịch hẹn nào sắp tới.</p>
+                    <div class="dash-empty">
+                        <i class="bi bi-calendar-x"></i>
+                        <div>Chưa có lịch hẹn sắp tới.</div>
                     </div>
                 }
-            </div>
+            </section>
         </div>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-3">
         <div class="col-xl-8">
-            <div class="modern-table pb-2 h-100">
-                <div class="d-flex justify-content-between align-items-center p-4 border-bottom">
-                    <h5 class="fw-bold mb-0"><i class="bi bi-card-list text-success me-2"></i>Bất động sản mới đăng</h5>
-                    <a href="/Property/MyAds" class="btn btn-sm btn-outline-primary fw-bold">Quản lý kho tin</a>
+            <section class="dash-section-card">
+                <div class="dash-section-head">
+                    <h5 class="dash-section-title"><i class="bi bi-card-list text-success"></i>Bất động sản mới đăng</h5>
+                    <a href="/Property/MyAds" class="dash-section-link">Quản lý</a>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th width="45%">Thông tin BĐS</th>
-                                <th>Mức giá</th>
-                                <th>Trạng thái</th>
-                                <th class="text-end">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (recentProperties.Any())
-                            {
-                                foreach (var prop in recentProperties)
+
+                @if (recentProperties.Any())
+                {
+                    <div class="dash-table-wrap">
+                        <table class="dash-table">
+                            <thead>
+                                <tr>
+                                    <th>Thông tin BĐS</th>
+                                    <th>Mức giá</th>
+                                    <th>Trạng thái</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var prop in recentProperties)
                                 {
                                     <tr>
-                                        <td>
-                                            <div class="d-flex gap-3 align-items-center">
-                                                <img src="@(string.IsNullOrEmpty(prop.MainImage) ? "/images/default-house.jpg" : prop.MainImage)" class="rounded-3 object-fit-cover shadow-sm" width="65" height="65">
+                                        <td data-label="Tin đăng">
+                                            <div class="dash-property-info">
+                                                <img src="@(string.IsNullOrWhiteSpace(prop.MainImage) ? "/images/default-house.jpg" : prop.MainImage)"
+                                                     class="dash-property-img"
+                                                     alt="@prop.Title"
+                                                     loading="lazy"
+                                                     onerror="this.src='/images/default-house.jpg'" />
                                                 <div>
-                                                    <h6 class="fw-bold mb-1 text-dark text-truncate" style="max-width: 250px;" title="@prop.Title">@prop.Title</h6>
-                                                    <small class="text-muted"><i class="bi bi-clock me-1"></i>@prop.CreatedAt.ToString("dd/MM/yyyy")</small>
+                                                    <div class="dash-property-title" title="@prop.Title">@prop.Title</div>
+                                                    <p class="dash-mini-meta mb-0"><i class="bi bi-clock me-1"></i>@prop.CreatedAt.ToString("dd/MM/yyyy", vi)</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><span class="text-danger fw-bold">@(prop.Price.HasValue? prop.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")</span></td>
-                                        <td>
-                                            @if (prop.Status == "Approved" || prop.Status == "Active")
-                                            {
-                                                <span class="badge bg-success-subtle text-success px-2 py-1">Hiển thị</span>
-                                            }
-                                            else if (prop.Status == "Pending")
-                                            {
-
-                                                <span class="badge bg-warning-subtle text-warning-emphasis px-2 py-1">Chờ duyệt</span>
-                                            }
-                                            else
-                                            {
-
-                                                <span class="badge bg-danger-subtle text-danger px-2 py-1">Bị từ chối</span>
-                                            }
-                                        </td>
-                                        <td class="text-end">
-                                            <a href="/Property/Edit/@prop.PropertyID" class="btn btn-sm btn-light border text-warning"><i class="bi bi-pencil-square"></i></a>
+                                        <td data-label="Giá"><span class="dash-price">@FormatPrice(prop.Price)</span></td>
+                                        <td data-label="Trạng thái"><span class="dash-status-badge @StatusClass(prop.Status)">@StatusText(prop.Status)</span></td>
+                                        <td data-label="Thao tác" class="text-md-end">
+                                            <a href="/Property/Edit/@prop.PropertyID" class="dash-icon-btn" title="Chỉnh sửa">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </a>
                                         </td>
                                     </tr>
                                 }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="4" class="text-center py-5 text-muted fw-medium">
-                                        <i class="bi bi-folder2-open display-4 opacity-50 d-block mb-2"></i>
-                                        Bạn chưa đăng bất động sản nào.
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="dash-empty">
+                        <i class="bi bi-folder2-open"></i>
+                        <div>Bạn chưa đăng bất động sản nào.</div>
+                        <a href="/Property/Create" class="btn btn-primary btn-sm rounded-pill fw-bold mt-2 px-3">
+                            <i class="bi bi-plus-lg me-1"></i>Đăng tin ngay
+                        </a>
+                    </div>
+                }
+            </section>
         </div>
 
         <div class="col-xl-4">
-            <div class="widget-card mb-4">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-receipt text-secondary me-2"></i>Giao dịch gần đây</h6>
-                    <a href="/Payment/History" class="small fw-bold text-decoration-none">Chi tiết</a>
+            <section class="dash-section-card mb-3">
+                <div class="dash-section-head">
+                    <h5 class="dash-section-title"><i class="bi bi-receipt text-secondary"></i>Giao dịch gần đây</h5>
+                    <a href="/Payment/History" class="dash-section-link">Chi tiết</a>
                 </div>
-                @if (recentTransactions.Any())
-                {
-                    <div class="d-flex flex-column gap-3">
-                        @foreach (var trans in recentTransactions)
+
+                <div class="dash-mini-list">
+                    @if (recentTransactions.Any())
+                    {
+                        foreach (var trans in recentTransactions)
                         {
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1 text-dark fw-bold text-truncate" style="max-width: 150px; font-size:0.9rem;">@trans.Type</h6>
-                                    <small class="text-muted">@trans.CreatedAt.ToString("dd/MM/yyyy")</small>
+                            <div class="dash-transaction-item">
+                                <div class="min-w-0">
+                                    <p class="dash-trans-type text-truncate">@trans.Type</p>
+                                    <p class="dash-trans-date">@trans.CreatedAt.ToString("dd/MM/yyyy", vi)</p>
                                 </div>
                                 <div class="text-end">
-                                    <span class="d-block fw-bold text-danger">-@trans.Amount.ToString("N0")đ</span>
-                                    @if (trans.Status == "Success")
-                                    {
-                                        <small class="text-success fw-bold">Thành công</small>
-                                    }
-                                    else
-                                    {
-
-                                        <small class="text-warning fw-bold">Chờ xử lý</small>
-                                    }
+                                    <div class="dash-trans-money">-@trans.Amount.ToString("N0", vi)đ</div>
+                                    <div class="dash-trans-status">@(trans.Status == "Success" ? "Thành công" : "Chờ xử lý")</div>
                                 </div>
                             </div>
                         }
-                    </div>
-                }
-                else
-                {
-                    <p class="text-center text-muted small m-0 py-2">Chưa có giao dịch phát sinh.</p>
-                }
-            </div>
+                    }
+                    else
+                    {
+                        <div class="dash-empty py-2">
+                            <i class="bi bi-receipt-cutoff"></i>
+                            <div>Chưa có giao dịch.</div>
+                        </div>
+                    }
+                </div>
+            </section>
 
-            <div class="widget-card">
-                <h6 class="fw-bold border-bottom pb-3 mb-3"><i class="bi bi-bell text-warning me-2"></i>Thông báo hệ thống</h6>
-                @if (recentNotifications.Any())
-                {
-                    <div class="timeline">
-                        @foreach (var noti in recentNotifications)
+            <section class="dash-section-card">
+                <div class="dash-section-head">
+                    <h5 class="dash-section-title"><i class="bi bi-bell-fill text-warning"></i>Thông báo hệ thống</h5>
+                </div>
+
+                <div class="dash-mini-list">
+                    @if (recentNotifications.Any())
+                    {
+                        foreach (var noti in recentNotifications)
                         {
-                            <div class="timeline-item">
-                                <h6 class="fw-bold text-dark mb-1 fs-6">@noti.Title</h6>
-                                <p class="text-muted small mb-1 line-clamp-2">@noti.Content</p>
-                                <small class="text-primary fw-medium">@noti.CreatedAt.ToString("HH:mm - dd/MM")</small>
+                            <div class="dash-notification-item">
+                                <div class="min-w-0">
+                                    <p class="dash-noti-title">@noti.Title</p>
+                                    <p class="dash-noti-content">@noti.Content</p>
+                                    <p class="dash-noti-time text-primary fw-bold mt-1">@noti.CreatedAt.ToString("HH:mm - dd/MM", vi)</p>
+                                </div>
                             </div>
                         }
-                    </div>
-                }
-                else
-                {
-                    <p class="text-center text-muted small m-0 py-2">Không có thông báo mới.</p>
-                }
-            </div>
+                    }
+                    else
+                    {
+                        <div class="dash-empty py-2">
+                            <i class="bi bi-bell-slash"></i>
+                            <div>Không có thông báo mới.</div>
+                        </div>
+                    }
+                </div>
+            </section>
         </div>
     </div>
 </div>
@@ -433,34 +1069,34 @@
 @section Scripts {
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            // Lấy dữ liệu biểu đồ từ Controller đẩy xuống
-            const rawLabels = @Html.Raw(ViewBag.ChartLabels);
-            const rawData = @Html.Raw(ViewBag.ChartData);
+            const rawLabels = @Html.Raw(ViewBag.ChartLabels ?? "[]");
+            const rawData = @Html.Raw(ViewBag.ChartData ?? "[]");
+            const chartEl = document.getElementById('viewChart');
 
-            const ctx = document.getElementById('viewChart').getContext('2d');
+            if (!chartEl || typeof Chart === 'undefined') return;
 
-            // Tạo Gradient màu cực đẹp
-            let gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)'); // Blue
-            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+            const ctx = chartEl.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+            gradient.addColorStop(0, 'rgba(37, 99, 235, 0.32)');
+            gradient.addColorStop(1, 'rgba(37, 99, 235, 0.02)');
 
             new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: rawLabels,
                     datasets: [{
-                        label: 'Lượt xem trang',
+                        label: 'Lượt xem',
                         data: rawData,
-                        borderColor: '#3b82f6',
+                        borderColor: '#2563eb',
                         backgroundColor: gradient,
                         borderWidth: 3,
                         pointBackgroundColor: '#ffffff',
-                        pointBorderColor: '#3b82f6',
+                        pointBorderColor: '#2563eb',
                         pointBorderWidth: 2,
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                         fill: true,
-                        tension: 0.4 // Đường cong mượt
+                        tension: 0.38
                     }]
                 },
                 options: {
@@ -469,27 +1105,22 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: '#1e293b',
-                            titleFont: { size: 13, family: "'Inter', sans-serif" },
-                            bodyFont: { size: 14, weight: 'bold', family: "'Inter', sans-serif" },
-                            padding: 12,
-                            cornerRadius: 8,
+                            backgroundColor: '#0f172a',
+                            padding: 11,
+                            cornerRadius: 10,
                             displayColors: false
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { borderDash: [5, 5], color: '#f1f5f9', drawBorder: false },
-                            ticks: { color: '#94a3b8', font: { family: "'Inter', sans-serif" }, stepSize: 1 }
+                            grid: { color: '#f1f5f9' },
+                            ticks: { color: '#94a3b8', precision: 0 }
                         },
                         x: {
-                            grid: { display: false, drawBorder: false },
-                            ticks: { color: '#64748b', font: { family: "'Inter', sans-serif", weight: '500' } }
+                            grid: { display: false },
+                            ticks: { color: '#64748b' }
                         }
-                    },
-                    animation: {
-                        y: { duration: 1500, easing: 'easeOutElastic' }
                     }
                 }
             });

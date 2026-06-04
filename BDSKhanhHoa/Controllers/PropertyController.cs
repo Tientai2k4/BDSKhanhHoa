@@ -1018,11 +1018,16 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> Create(Property prop, IFormFile MainImageFile, List<IFormFile> AdditionalImages)
         {
             var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out int userId)) return RedirectToAction("Login", "Account");
+
+            if (!int.TryParse(userIdStr, out int userId))
+            {
+                return RedirectToAction("Login", "Account");
+            }
 
             await NormalizePackageAndExpiredPropertiesAsync(userId);
 
             var currentUser = await _context.Users.FindAsync(userId);
+
             if (currentUser == null || string.IsNullOrWhiteSpace(currentUser.Phone))
             {
                 TempData["Error"] = "Tài khoản chưa có Số Điện Thoại, không thể đăng tin.";
@@ -1031,15 +1036,40 @@ namespace BDSKhanhHoa.Controllers
 
             var isBusiness = await _context.BusinessProfiles
                 .AnyAsync(b => b.UserID == userId && b.VerificationStatus == "Approved");
-            if (isBusiness) return Forbid();
+
+            if (isBusiness)
+            {
+                return Forbid();
+            }
 
             if (!ModelState.IsValid)
             {
-                ViewBag.ParentTypes = await _context.PropertyTypes.Where(t => t.ParentID == null).ToListAsync();
-                var subTypes = await _context.PropertyTypes.Where(t => t.ParentID != null).Select(t => new { t.TypeID, t.TypeName, t.ParentID }).ToListAsync();
+                ViewBag.ParentTypes = await _context.PropertyTypes
+                    .Where(t => t.ParentID == null)
+                    .ToListAsync();
+
+                var subTypes = await _context.PropertyTypes
+                    .Where(t => t.ParentID != null)
+                    .Select(t => new
+                    {
+                        t.TypeID,
+                        t.TypeName,
+                        t.ParentID
+                    })
+                    .ToListAsync();
+
                 ViewBag.SubTypesJson = System.Text.Json.JsonSerializer.Serialize(subTypes);
-                ViewBag.Areas = new SelectList(await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(), "AreaID", "AreaName");
-                ViewBag.MasterFeatures = await _context.PropertyFeatures.Where(f => f.PropertyID == null).ToListAsync();
+
+                ViewBag.Areas = new SelectList(
+                    await _context.Areas.OrderBy(a => a.AreaName).ToListAsync(),
+                    "AreaID",
+                    "AreaName"
+                );
+
+                ViewBag.MasterFeatures = await _context.PropertyFeatures
+                    .Where(f => f.PropertyID == null)
+                    .ToListAsync();
+
                 TempData["Error"] = "Vui lòng kiểm tra lại các thông tin bắt buộc.";
                 return View(prop);
             }
@@ -1064,12 +1094,26 @@ namespace BDSKhanhHoa.Controllers
             if (MainImageFile != null && MainImageFile.Length > 0)
             {
                 string uploadDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties");
-                if (!Directory.Exists(uploadDir)) Directory.CreateDirectory(uploadDir);
+
+                if (!Directory.Exists(uploadDir))
+                {
+                    Directory.CreateDirectory(uploadDir);
+                }
+
                 string fileName = Guid.NewGuid().ToString() + Path.GetExtension(MainImageFile.FileName);
-                using (var stream = new FileStream(Path.Combine(uploadDir, fileName), FileMode.Create)) { await MainImageFile.CopyToAsync(stream); }
+                string filePath = Path.Combine(uploadDir, fileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await MainImageFile.CopyToAsync(stream);
+                }
+
                 prop.MainImage = "/uploads/properties/" + fileName;
             }
-            else { prop.MainImage = "/images/no-image.jpg"; }
+            else
+            {
+                prop.MainImage = "/images/no-image.jpg";
+            }
 
             prop.UserID = userId;
             prop.Views = 0;
@@ -1077,8 +1121,8 @@ namespace BDSKhanhHoa.Controllers
             prop.CreatedAt = DateTime.Now;
             prop.UpdatedAt = DateTime.Now;
 
-            bool isDiamond = !string.IsNullOrEmpty(selectedPackage.PackageType) &&
-                             selectedPackage.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
+            bool isDiamond = !string.IsNullOrWhiteSpace(selectedPackage.PackageType)
+                             && selectedPackage.PackageType.Contains("Kim Cương", StringComparison.OrdinalIgnoreCase);
 
             if (isDiamond)
             {
@@ -1086,7 +1130,9 @@ namespace BDSKhanhHoa.Controllers
                 prop.IsAutoApproved = true;
                 prop.ApprovedAt = DateTime.Now;
                 prop.VipExpiryDate = DateTime.Now.AddDays(Math.Max(1, selectedPackage.DurationDays));
-                TempData["Success"] = $"Tin VIP '{selectedPackage.PackageName}' của bạn đã được hệ thống duyệt tự động và hiển thị ngay lập tức!";
+
+                TempData["Success"] =
+                    $"Tin VIP '{selectedPackage.PackageName}' của bạn đã được hệ thống duyệt tự động và hiển thị ngay lập tức!";
             }
             else
             {
@@ -1094,105 +1140,183 @@ namespace BDSKhanhHoa.Controllers
                 prop.IsAutoApproved = false;
                 prop.ApprovedAt = null;
                 prop.VipExpiryDate = null;
+
                 TempData["Success"] = IsNormalPackage(selectedPackage)
                     ? $"Đăng tin thành công với gói Tin Thường. Sau khi Admin duyệt, tin sẽ hiển thị tối đa {NormalPropertyVisibleDays} ngày."
                     : $"Đăng tin thành công với gói '{selectedPackage.PackageName}'. Vui lòng chờ quản trị viên kiểm duyệt để được hiển thị.";
             }
 
-            using var dbTransaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                _context.Properties.Add(prop);
-                await _context.SaveChangesAsync();
+                var strategy = _context.Database.CreateExecutionStrategy();
 
-                bool consumed = await ConsumeOnePackageCreditAsync(userId, selectedPackage.PackageID, prop.PropertyID);
-
-                if (!consumed)
+                await strategy.ExecuteAsync(async () =>
                 {
-                    await dbTransaction.RollbackAsync();
-                    TempData["Error"] = "Ví của bạn không đủ lượt đăng cho gói đã chọn. Vui lòng mua thêm gói.";
-                    return RedirectToAction("Create");
-                }
+                    await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-                await _context.SaveChangesAsync();
-
-                var features = new List<PropertyFeature>();
-                string bedrooms = Request.Form["Bedrooms"], bathrooms = Request.Form["Bathrooms"],
-                       direction = Request.Form["Direction"], legalStatus = Request.Form["LegalStatus"];
-                var amenities = Request.Form["Amenities"].ToList();
-
-                string bedroomsRaw = Request.Form["Bedrooms"].ToString();
-                string bathroomsRaw = Request.Form["Bathrooms"].ToString();
-
-                int bedroomsValue = 0;
-                int bathroomsValue = 0;
-
-                if (!string.IsNullOrWhiteSpace(bedroomsRaw))
-                {
-                    int.TryParse(bedroomsRaw, out bedroomsValue);
-                }
-
-                if (!string.IsNullOrWhiteSpace(bathroomsRaw))
-                {
-                    int.TryParse(bathroomsRaw, out bathroomsValue);
-                }
-
-                if (bedroomsValue < 0) bedroomsValue = 0;
-                if (bathroomsValue < 0) bathroomsValue = 0;
-
-                features.Add(new PropertyFeature
-                {
-                    PropertyID = prop.PropertyID,
-                    FeatureGroup = "Cấu trúc",
-                    FeatureName = "Phòng ngủ",
-                    FeatureValue = bedroomsValue.ToString()
-                });
-
-                features.Add(new PropertyFeature
-                {
-                    PropertyID = prop.PropertyID,
-                    FeatureGroup = "Cấu trúc",
-                    FeatureName = "Phòng vệ sinh",
-                    FeatureValue = bathroomsValue.ToString()
-                });
-                if (!string.IsNullOrEmpty(direction)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Hướng nhà", FeatureName = "Hướng nhà", FeatureValue = direction });
-                if (!string.IsNullOrEmpty(legalStatus)) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Pháp lý", FeatureName = "Pháp lý", FeatureValue = legalStatus });
-                if (amenities.Any()) features.Add(new PropertyFeature { PropertyID = prop.PropertyID, FeatureGroup = "Tiện ích", FeatureName = "Tiện ích", FeatureValue = string.Join(", ", amenities) });
-
-                if (features.Any())
-                {
-                    _context.PropertyFeatures.AddRange(features);
+                    _context.Properties.Add(prop);
                     await _context.SaveChangesAsync();
-                }
 
-                if (AdditionalImages != null && AdditionalImages.Any())
-                {
-                    string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
-                    if (!Directory.Exists(galleryDir)) Directory.CreateDirectory(galleryDir);
-                    foreach (var file in AdditionalImages.Take(10))
+                    bool consumed = await ConsumeOnePackageCreditAsync(
+                        userId,
+                        selectedPackage.PackageID,
+                        prop.PropertyID
+                    );
+
+                    if (!consumed)
                     {
-                        if (file.Length > 0)
+                        throw new InvalidOperationException("NOT_ENOUGH_PACKAGE_CREDIT");
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    var features = new List<PropertyFeature>();
+
+                    string bedroomsRaw = Request.Form["Bedrooms"].ToString();
+                    string bathroomsRaw = Request.Form["Bathrooms"].ToString();
+                    string direction = Request.Form["Direction"].ToString();
+                    string legalStatus = Request.Form["LegalStatus"].ToString();
+
+                    var amenities = Request.Form["Amenities"].ToList();
+
+                    int bedroomsValue = 0;
+                    int bathroomsValue = 0;
+
+                    if (!string.IsNullOrWhiteSpace(bedroomsRaw))
+                    {
+                        int.TryParse(bedroomsRaw, out bedroomsValue);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(bathroomsRaw))
+                    {
+                        int.TryParse(bathroomsRaw, out bathroomsValue);
+                    }
+
+                    if (bedroomsValue < 0)
+                    {
+                        bedroomsValue = 0;
+                    }
+
+                    if (bathroomsValue < 0)
+                    {
+                        bathroomsValue = 0;
+                    }
+
+                    features.Add(new PropertyFeature
+                    {
+                        PropertyID = prop.PropertyID,
+                        FeatureGroup = "Cấu trúc",
+                        FeatureName = "Phòng ngủ",
+                        FeatureValue = bedroomsValue.ToString()
+                    });
+
+                    features.Add(new PropertyFeature
+                    {
+                        PropertyID = prop.PropertyID,
+                        FeatureGroup = "Cấu trúc",
+                        FeatureName = "Phòng vệ sinh",
+                        FeatureValue = bathroomsValue.ToString()
+                    });
+
+                    if (!string.IsNullOrWhiteSpace(direction))
+                    {
+                        features.Add(new PropertyFeature
                         {
-                            string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-                            using (var stream = new FileStream(Path.Combine(galleryDir, fileName), FileMode.Create)) { await file.CopyToAsync(stream); }
-                            _context.PropertyImages.Add(new PropertyImage { PropertyID = prop.PropertyID, ImageURL = "/uploads/properties/gallery/" + fileName, IsMain = false });
+                            PropertyID = prop.PropertyID,
+                            FeatureGroup = "Hướng nhà",
+                            FeatureName = "Hướng nhà",
+                            FeatureValue = direction.Trim()
+                        });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(legalStatus))
+                    {
+                        features.Add(new PropertyFeature
+                        {
+                            PropertyID = prop.PropertyID,
+                            FeatureGroup = "Pháp lý",
+                            FeatureName = "Pháp lý",
+                            FeatureValue = legalStatus.Trim()
+                        });
+                    }
+
+                    if (amenities.Any())
+                    {
+                        var cleanAmenities = amenities
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Select(x => x.Trim())
+                            .Distinct()
+                            .ToList();
+
+                        if (cleanAmenities.Any())
+                        {
+                            features.Add(new PropertyFeature
+                            {
+                                PropertyID = prop.PropertyID,
+                                FeatureGroup = "Tiện ích",
+                                FeatureName = "Tiện ích",
+                                FeatureValue = string.Join(", ", cleanAmenities)
+                            });
                         }
                     }
-                    await _context.SaveChangesAsync();
-                }
 
-                await dbTransaction.CommitAsync();
+                    if (features.Any())
+                    {
+                        _context.PropertyFeatures.AddRange(features);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    if (AdditionalImages != null && AdditionalImages.Any())
+                    {
+                        string galleryDir = Path.Combine(_hostEnvironment.WebRootPath, "uploads/properties/gallery");
+
+                        if (!Directory.Exists(galleryDir))
+                        {
+                            Directory.CreateDirectory(galleryDir);
+                        }
+
+                        foreach (var file in AdditionalImages.Take(10))
+                        {
+                            if (file == null || file.Length <= 0)
+                            {
+                                continue;
+                            }
+
+                            string fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+                            string filePath = Path.Combine(galleryDir, fileName);
+
+                            using (var stream = new FileStream(filePath, FileMode.Create))
+                            {
+                                await file.CopyToAsync(stream);
+                            }
+
+                            _context.PropertyImages.Add(new PropertyImage
+                            {
+                                PropertyID = prop.PropertyID,
+                                ImageURL = "/uploads/properties/gallery/" + fileName,
+                                IsMain = false
+                            });
+                        }
+
+                        await _context.SaveChangesAsync();
+                    }
+
+                    await dbTransaction.CommitAsync();
+                });
             }
-            catch (Exception)
+            catch (InvalidOperationException ex) when (ex.Message == "NOT_ENOUGH_PACKAGE_CREDIT")
             {
-                await dbTransaction.RollbackAsync();
-                TempData["Error"] = "Lỗi hệ thống khi lưu dữ liệu. Vui lòng thử lại.";
+                TempData["Error"] = "Ví của bạn không đủ lượt đăng cho gói đã chọn. Vui lòng mua thêm gói.";
+                return RedirectToAction("Create");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = "Lỗi hệ thống khi lưu dữ liệu. Vui lòng thử lại. Chi tiết: " + ex.Message;
                 return RedirectToAction("Create");
             }
 
             return RedirectToAction("MyAds");
         }
-
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {

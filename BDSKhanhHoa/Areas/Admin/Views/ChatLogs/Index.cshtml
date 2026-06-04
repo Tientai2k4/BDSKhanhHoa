@@ -1,133 +1,962 @@
-﻿@model IEnumerable<BDSKhanhHoa.Models.ChatLogs>
+﻿@model List<BDSKhanhHoa.Areas.Admin.Controllers.ChatLogsController.ChatConversationListItemVm>
+
 @{
     ViewData["Title"] = "Lịch sử Chatbot AI";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
-    var userDict = ViewBag.UserDict as Dictionary<int, string> ?? new Dictionary<int, string>();
+
+    int totalConversations = ViewBag.TotalConversations ?? (Model?.Count ?? 0);
+    int totalMessages = ViewBag.TotalMessages ?? (Model?.Sum(x => x.TotalMessages) ?? 0);
+    int memberConversations = ViewBag.MemberConversations ?? (Model?.Count(x => x.UserId.HasValue && x.UserId.Value > 0) ?? 0);
+    int guestConversations = ViewBag.GuestConversations ?? (totalConversations - memberConversations);
 }
 
-<div class="container-fluid py-4 animate__animated animate__fadeIn">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+    :root {
+        --ai-primary: #2563eb;
+        --ai-primary-dark: #1d4ed8;
+        --ai-primary-soft: #eff6ff;
+        --ai-sky-soft: #f0f9ff;
+        --ai-success: #059669;
+        --ai-success-soft: #ecfdf5;
+        --ai-warning: #d97706;
+        --ai-warning-soft: #fffbeb;
+        --ai-danger: #dc2626;
+        --ai-danger-soft: #fef2f2;
+        --ai-dark: #0f172a;
+        --ai-text: #334155;
+        --ai-muted: #64748b;
+        --ai-border: #e2e8f0;
+        --ai-soft: #f8fafc;
+        --ai-card: #ffffff;
+        --ai-radius: 18px;
+        --ai-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+        --ai-shadow-hover: 0 16px 36px rgba(37, 99, 235, .10);
+    }
+
+    .ai-log-page {
+        padding: 18px 0 42px;
+        color: var(--ai-text);
+    }
+
+    .ai-topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 16px;
+        margin-bottom: 14px;
+    }
+
+    .ai-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        color: var(--ai-primary);
+        background: var(--ai-primary-soft);
+        border: 1px solid #bfdbfe;
+        font-size: .76rem;
+        font-weight: 850;
+        margin-bottom: 8px;
+    }
+
+    .ai-title {
+        margin: 0;
+        color: var(--ai-dark);
+        font-size: clamp(1.35rem, 2vw, 1.8rem);
+        line-height: 1.2;
+        font-weight: 950;
+        letter-spacing: -.025em;
+    }
+
+    .ai-subtitle {
+        margin: 5px 0 0;
+        color: var(--ai-muted);
+        font-size: .9rem;
+        line-height: 1.55;
+        font-weight: 500;
+        max-width: 820px;
+    }
+
+    .ai-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .ai-btn {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        text-decoration: none;
+        border: 1px solid var(--ai-border);
+        background: #fff;
+        color: var(--ai-dark);
+        font-size: .84rem;
+        font-weight: 850;
+        transition: .2s ease;
+    }
+
+        .ai-btn:hover {
+            color: var(--ai-primary);
+            background: var(--ai-primary-soft);
+            border-color: #bfdbfe;
+        }
+
+    .ai-btn-danger {
+        border-color: #fecaca;
+        background: var(--ai-danger-soft);
+        color: var(--ai-danger);
+    }
+
+        .ai-btn-danger:hover {
+            color: #fff;
+            background: var(--ai-danger);
+            border-color: var(--ai-danger);
+        }
+
+    .ai-alert {
+        border: 0;
+        border-radius: 16px;
+        box-shadow: var(--ai-shadow);
+        margin-bottom: 14px;
+    }
+
+    .ai-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .ai-stat-card {
+        min-height: 74px;
+        padding: 13px 14px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        background: #fff;
+        border: 1px solid var(--ai-border);
+        box-shadow: var(--ai-shadow);
+    }
+
+    .ai-stat-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.08rem;
+        color: var(--ai-primary);
+        background: var(--ai-primary-soft);
+    }
+
+    .ai-stat-label {
+        color: var(--ai-muted);
+        font-size: .75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 3px;
+    }
+
+    .ai-stat-value {
+        color: var(--ai-dark);
+        font-size: 1.12rem;
+        line-height: 1.1;
+        font-weight: 950;
+    }
+
+    .ai-panel {
+        border: 1px solid var(--ai-border);
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: var(--ai-shadow);
+        overflow: hidden;
+    }
+
+    .ai-panel-head {
+        padding: 14px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--ai-border);
+        background: #fff;
+    }
+
+    .ai-panel-title {
+        margin: 0;
+        color: var(--ai-dark);
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .ai-panel-desc {
+        margin: 3px 0 0;
+        color: var(--ai-muted);
+        font-size: .82rem;
+        line-height: 1.45;
+    }
+
+    .ai-search {
+        width: min(360px, 100%);
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--ai-soft);
+        border: 1px solid #dbe4ef;
+        color: var(--ai-muted);
+        flex-shrink: 0;
+    }
+
+        .ai-search input {
+            flex: 1;
+            min-width: 0;
+            border: 0;
+            outline: none;
+            background: transparent;
+            color: var(--ai-dark);
+            font-size: .88rem;
+            font-weight: 650;
+        }
+
+    .ai-session-list {
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+    }
+
+    .ai-session-card {
+        border: 1px solid var(--ai-border);
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+        transition: .18s ease;
+    }
+
+        .ai-session-card:hover {
+            border-color: #bfdbfe;
+            box-shadow: var(--ai-shadow-hover);
+            transform: translateY(-1px);
+        }
+
+    .ai-session-main {
+        display: grid;
+        grid-template-columns: 215px minmax(0, 1fr) 146px;
+        gap: 14px;
+        padding: 14px;
+        align-items: start;
+    }
+
+    .ai-user {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .ai-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1rem;
+    }
+
+        .ai-avatar.is-user {
+            color: var(--ai-primary);
+            background: var(--ai-primary-soft);
+        }
+
+        .ai-avatar.is-guest {
+            color: var(--ai-muted);
+            background: #f1f5f9;
+        }
+
+    .ai-user-name {
+        color: var(--ai-dark);
+        font-size: .92rem;
+        font-weight: 900;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ai-user-type {
+        color: var(--ai-muted);
+        font-size: .76rem;
+        font-weight: 650;
+        margin-top: 2px;
+    }
+
+    .ai-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 9px;
+    }
+
+    .ai-tag {
+        min-height: 26px;
+        padding: 0 9px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: .72rem;
+        font-weight: 850;
+        background: #f8fafc;
+        border: 1px solid var(--ai-border);
+        color: #475569;
+    }
+
+    .ai-tag-primary {
+        color: var(--ai-primary);
+        background: var(--ai-primary-soft);
+        border-color: #bfdbfe;
+    }
+
+    .ai-preview {
+        display: grid;
+        gap: 7px;
+    }
+
+    .ai-preview-row {
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: var(--ai-soft);
+        border: 1px solid #eef2f7;
+    }
+
+        .ai-preview-row.bot {
+            background: var(--ai-sky-soft);
+            border-color: #dbeafe;
+        }
+
+    .ai-preview-label {
+        margin-bottom: 4px;
+        font-size: .72rem;
+        font-weight: 900;
+        color: #475569;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .ai-preview-row.bot .ai-preview-label {
+        color: var(--ai-primary-dark);
+    }
+
+    .ai-preview-text {
+        color: var(--ai-dark);
+        font-size: .86rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .ai-page-url {
+        margin-top: 7px;
+        color: var(--ai-muted);
+        font-size: .75rem;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+    }
+
+    .ai-side {
+        text-align: right;
+    }
+
+    .ai-date {
+        color: var(--ai-dark);
+        font-weight: 900;
+        font-size: .88rem;
+    }
+
+    .ai-time {
+        color: var(--ai-muted);
+        font-size: .76rem;
+        font-weight: 650;
+        margin-top: 2px;
+    }
+
+    .ai-side-actions {
+        margin-top: 10px;
+        display: grid;
+        gap: 7px;
+    }
+
+    .ai-view-btn,
+    .ai-delete-btn {
+        width: 100%;
+        min-height: 35px;
+        border-radius: 999px;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: .8rem;
+        font-weight: 850;
+        text-decoration: none;
+        transition: .18s ease;
+    }
+
+    .ai-view-btn {
+        color: #fff;
+        background: var(--ai-primary);
+    }
+
+        .ai-view-btn:hover {
+            color: #fff;
+            background: var(--ai-primary-dark);
+        }
+
+    .ai-delete-btn {
+        color: var(--ai-danger);
+        background: var(--ai-danger-soft);
+        border: 1px solid #fecaca;
+    }
+
+        .ai-delete-btn:hover {
+            color: #fff;
+            background: var(--ai-danger);
+        }
+
+    .ai-empty {
+        padding: 42px 16px;
+        text-align: center;
+        color: var(--ai-muted);
+    }
+
+        .ai-empty i {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+    .chat-modal .modal-content,
+    .chat-modal {
+        border-radius: 20px;
+    }
+
+    .chat-modal-header {
+        padding: 16px 18px;
+        border: 0;
+        color: #fff;
+        background: linear-gradient(135deg, var(--ai-primary-dark), #0ea5e9);
+    }
+
+    .chat-modal-subtitle {
+        color: rgba(255,255,255,.86);
+        font-size: .84rem;
+        margin-top: 2px;
+    }
+
+    .chat-modal-body {
+        background: #f8fafc;
+        padding: 16px;
+    }
+
+    .chat-conversation-info {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+
+    .chat-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .chat-msg-row {
+        display: flex;
+        flex-direction: column;
+        max-width: 82%;
+    }
+
+        .chat-msg-row.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .chat-msg-row.assistant {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+    .chat-msg-meta {
+        margin-bottom: 5px;
+        color: var(--ai-muted);
+        font-size: .74rem;
+        font-weight: 800;
+    }
+
+    .chat-msg-bubble {
+        padding: 12px 14px;
+        border-radius: 18px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        line-height: 1.62;
+        font-size: .9rem;
+        box-shadow: 0 8px 22px rgba(15,23,42,.07);
+    }
+
+    .chat-msg-row.user .chat-msg-bubble {
+        color: #fff;
+        background: linear-gradient(135deg, var(--ai-primary), var(--ai-primary-dark));
+        border-radius: 18px 18px 5px 18px;
+    }
+
+    .chat-msg-row.assistant .chat-msg-bubble {
+        color: var(--ai-dark);
+        background: #fff;
+        border: 1px solid var(--ai-border);
+        border-radius: 18px 18px 18px 5px;
+    }
+
+    .chat-msg-bubble p {
+        margin: 0 0 .7rem;
+    }
+
+        .chat-msg-bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+    .chat-msg-bubble ul,
+    .chat-msg-bubble ol {
+        margin: .45rem 0 .7rem;
+        padding-left: 1.25rem;
+    }
+
+    .chat-msg-bubble a {
+        color: var(--ai-primary);
+        font-weight: 850;
+        text-decoration: none;
+    }
+
+        .chat-msg-bubble a:hover {
+            text-decoration: underline;
+        }
+
+    @@media (max-width: 1199.98px) {
+        .ai-session-main {
+            grid-template-columns: 190px minmax(0, 1fr) 135px;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .ai-topbar {
+            display: block;
+        }
+
+        .ai-actions {
+            margin-top: 12px;
+            justify-content: flex-start;
+        }
+
+        .ai-stat-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ai-panel-head {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .ai-search {
+            width: 100%;
+        }
+
+        .ai-session-main {
+            grid-template-columns: 1fr;
+        }
+
+        .ai-side {
+            text-align: left;
+        }
+
+        .ai-side-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .chat-msg-row {
+            max-width: 94%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .ai-log-page {
+            padding-top: 10px;
+        }
+
+        .ai-title {
+            font-size: 1.22rem;
+        }
+
+        .ai-subtitle {
+            font-size: .84rem;
+        }
+
+        .ai-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .ai-btn {
+            width: 100%;
+        }
+
+        .ai-stat-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .ai-stat-card {
+            min-height: 64px;
+            padding: 11px 12px;
+        }
+
+        .ai-stat-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+        }
+
+        .ai-session-list {
+            padding: 10px;
+        }
+
+        .ai-session-main {
+            padding: 12px;
+        }
+
+        .ai-tags {
+            gap: 5px;
+        }
+
+        .ai-tag {
+            font-size: .7rem;
+        }
+
+        .ai-preview-row {
+            padding: 9px 10px;
+        }
+
+        .ai-preview-text {
+            font-size: .84rem;
+            -webkit-line-clamp: 4;
+        }
+
+        .ai-side-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .modal-dialog {
+            margin: 8px;
+        }
+
+        .chat-modal-body {
+            padding: 12px;
+        }
+
+        .chat-msg-row {
+            max-width: 100%;
+        }
+
+        .chat-msg-bubble {
+            font-size: .86rem;
+            padding: 11px 12px;
+        }
+    }
+</style>
+
+<div class="container-fluid ai-log-page animate__animated animate__fadeIn">
+    <section class="ai-topbar">
         <div>
-            <h4 class="fw-bold text-primary mb-1"><i class="bi bi-robot me-2"></i>Lịch sử tư vấn Chatbot AI</h4>
-            <p class="text-muted mb-0 small">Theo dõi chi tiết các cuộc hội thoại giữa khách hàng và AI.</p>
+            <div class="ai-kicker">
+                <i class="bi bi-robot"></i>
+                Quản trị Chatbot AI
+            </div>
+
+            <h1 class="ai-title">Lịch sử hội thoại Chatbot AI</h1>
+
+            <p class="ai-subtitle">
+                Theo dõi từng phiên chat, xem nhanh câu hỏi đầu tiên, phản hồi cuối phiên và mở chi tiết toàn bộ hội thoại khi cần kiểm tra.
+            </p>
         </div>
-    </div>
+
+        <div class="ai-actions">
+            <a href="/Admin/AISettings" class="ai-btn">
+                <i class="bi bi-database-gear"></i>
+                Huấn luyện AI
+            </a>
+
+            @if (User.IsInRole("Admin") && totalConversations > 0)
+            {
+                <form asp-action="DeleteAll" method="post" class="d-inline" onsubmit="return confirm('Bạn chắc chắn muốn xóa TOÀN BỘ lịch sử Chatbot AI? Hành động này không thể hoàn tác.');">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="ai-btn ai-btn-danger">
+                        <i class="bi bi-trash3-fill"></i>
+                        Xóa tất cả
+                    </button>
+                </form>
+            }
+        </div>
+    </section>
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3" role="alert">
+        <div class="alert alert-success alert-dismissible fade show ai-alert" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="card border-0 shadow-sm" style="border-radius: 16px;">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light text-muted" style="font-size: 0.85rem; text-transform: uppercase;">
-                        <tr>
-                            <th class="ps-4 py-3" style="border-top-left-radius: 16px; width: 15%;">Người dùng</th>
-                            <th class="py-3" style="width: 30%;">Câu hỏi (Tóm tắt)</th>
-                            <th class="py-3" style="width: 35%;">AI Phản hồi (Tóm tắt)</th>
-                            <th class="py-3 text-center" style="width: 10%;">Thời gian</th>
-                            <th class="pe-4 py-3 text-end" style="border-top-right-radius: 16px; width: 10%;">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model != null && Model.Any())
-                        {
-                            foreach (var item in Model)
-                            {
-                                string userName = "Khách vãng lai";
-                                string badgeClass = "bg-secondary bg-opacity-10 text-secondary";
-                                string iconClass = "bi-person";
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show ai-alert" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
 
-                                if (item.UserID.HasValue && userDict.ContainsKey(item.UserID.Value))
-                                {
-                                    userName = userDict[item.UserID.Value];
-                                    badgeClass = "bg-primary bg-opacity-10 text-primary";
-                                    iconClass = "bi-person-check-fill";
-                                }
-
-                                <tr>
-                                    <td class="ps-4 py-3">
-                                        <div class="badge @badgeClass px-2 py-1 rounded-pill" style="font-size: 0.8rem;">
-                                            <i class="bi @iconClass me-1"></i> @userName
-                                        </div>
-                                    </td>
-                                    <td class="py-3">
-                                        <div class="text-truncate text-dark fw-medium" style="max-width: 250px; font-size: 0.9rem;" title="@item.UserMessage">
-                                            @item.UserMessage
-                                        </div>
-                                    </td>
-                                    <td class="py-3">
-                                        <div class="text-truncate text-muted" style="max-width: 300px; font-size: 0.9rem;" title="@item.BotResponse">
-                                            @item.BotResponse
-                                        </div>
-                                    </td>
-                                    <td class="py-3 text-center text-muted" style="font-size: 0.85rem;">
-                                        @(item.CreatedAt.HasValue? item.CreatedAt.Value.ToString("dd/MM/yyyy HH:mm") : "N/A")
-                                    </td>
-                                    <td class="pe-4 py-3 text-end">
-                                        <button type="button" class="btn btn-sm btn-info text-white rounded-circle me-1 shadow-sm" title="Xem chi tiết" onclick="viewChatDetail(@item.LogID)">
-                                            <i class="bi bi-eye-fill"></i>
-                                        </button>
-
-                                        @if (User.IsInRole("Admin"))
-                                        {
-                                            <form asp-action="Delete" asp-route-id="@item.LogID" method="post" onsubmit="return confirm('Bạn có chắc chắn muốn xóa bản ghi này?');" style="display:inline;">
-                                                <button type="submit" class="btn btn-sm btn-danger rounded-circle shadow-sm" title="Xóa">
-                                                    <i class="bi bi-trash3-fill"></i>
-                                                </button>
-                                            </form>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-                                    Chưa có dữ liệu lịch sử chat nào.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <section class="ai-stat-grid">
+        <div class="ai-stat-card">
+            <div class="ai-stat-icon">
+                <i class="bi bi-chat-square-dots-fill"></i>
+            </div>
+            <div>
+                <div class="ai-stat-label">Phiên chat</div>
+                <div class="ai-stat-value">@totalConversations</div>
             </div>
         </div>
-    </div>
+
+        <div class="ai-stat-card">
+            <div class="ai-stat-icon" style="background:#f0f9ff;color:#0ea5e9;">
+                <i class="bi bi-list-columns-reverse"></i>
+            </div>
+            <div>
+                <div class="ai-stat-label">Tin nhắn</div>
+                <div class="ai-stat-value">@totalMessages</div>
+            </div>
+        </div>
+
+        <div class="ai-stat-card">
+            <div class="ai-stat-icon" style="background:#ecfdf5;color:#059669;">
+                <i class="bi bi-person-check-fill"></i>
+            </div>
+            <div>
+                <div class="ai-stat-label">Thành viên</div>
+                <div class="ai-stat-value">@memberConversations</div>
+            </div>
+        </div>
+
+        <div class="ai-stat-card">
+            <div class="ai-stat-icon" style="background:#f1f5f9;color:#64748b;">
+                <i class="bi bi-person-fill-question"></i>
+            </div>
+            <div>
+                <div class="ai-stat-label">Khách</div>
+                <div class="ai-stat-value">@guestConversations</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="ai-panel">
+        <div class="ai-panel-head">
+            <div>
+                <h2 class="ai-panel-title">
+                    <i class="bi bi-clock-history text-primary me-1"></i>
+                    Danh sách phiên chat gần đây
+                </h2>
+                <p class="ai-panel-desc">
+                    Hiển thị tối đa 500 phiên mới nhất.
+                </p>
+            </div>
+
+            <div class="ai-search">
+                <i class="bi bi-search"></i>
+                <input type="text" id="chatSearchInput" placeholder="Tìm hội thoại..." autocomplete="off" />
+            </div>
+        </div>
+
+        @if (Model != null && Model.Any())
+        {
+            <div class="ai-session-list" id="chatSessionList">
+                @foreach (var item in Model)
+                {
+                    string userType = item.UserId.HasValue && item.UserId.Value > 0 ? "Thành viên" : "Khách";
+                    string userIcon = item.UserId.HasValue && item.UserId.Value > 0 ? "bi-person-check-fill" : "bi-person";
+                    string firstPreview = item.FirstUserMessage ?? "";
+                    string lastPreview = item.LastMessage ?? "";
+
+                    if (firstPreview.Length > 190) firstPreview = firstPreview.Substring(0, 190) + "...";
+                    if (lastPreview.Length > 210) lastPreview = lastPreview.Substring(0, 210) + "...";
+
+                    <article class="ai-session-card" data-search="@($"{item.UserName} {item.FirstUserMessage} {item.LastMessage} {item.Scenario} {item.PageTitle} {item.PageUrl} {item.SourceLabel}".ToLower())">
+                        <div class="ai-session-main">
+                            <div class="ai-user">
+                                <div class="ai-avatar @(item.UserId.HasValue ? "is-user" : "is-guest")">
+                                    <i class="bi @userIcon"></i>
+                                </div>
+
+                                <div class="min-w-0">
+                                    <div class="ai-user-name" title="@item.UserName">@item.UserName</div>
+                                    <div class="ai-user-type">@userType · @item.SourceLabel</div>
+                                </div>
+                            </div>
+
+                            <div class="min-w-0">
+                                <div class="ai-tags">
+                                    <span class="ai-tag ai-tag-primary">@item.Scenario</span>
+
+                                    @if (!string.IsNullOrWhiteSpace(item.Stage))
+                                    {
+                                        <span class="ai-tag">
+                                            <i class="bi bi-diagram-3"></i>
+                                            @item.Stage
+                                        </span>
+                                    }
+
+                                    <span class="ai-tag">
+                                        <i class="bi bi-chat-left-text"></i>
+                                        @item.QuestionCount hỏi · @item.AnswerCount đáp
+                                    </span>
+                                </div>
+
+                                <div class="ai-preview">
+                                    <div class="ai-preview-row">
+                                        <div class="ai-preview-label">
+                                            <i class="bi bi-person-circle"></i>
+                                            Câu hỏi đầu tiên
+                                        </div>
+                                        <div class="ai-preview-text">@firstPreview</div>
+                                    </div>
+
+                                    <div class="ai-preview-row bot">
+                                        <div class="ai-preview-label">
+                                            <i class="bi bi-robot"></i>
+                                            Phản hồi cuối phiên
+                                        </div>
+                                        <div class="ai-preview-text">@lastPreview</div>
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.PageTitle) || !string.IsNullOrWhiteSpace(item.PageUrl))
+                                {
+                                    <div class="ai-page-url">
+                                        <i class="bi bi-window-sidebar me-1"></i>
+                                        @(string.IsNullOrWhiteSpace(item.PageTitle) ? "Trang người dùng đang xem" : item.PageTitle)
+
+                                        @if (!string.IsNullOrWhiteSpace(item.PageUrl))
+                                        {
+                                            <span> · @item.PageUrl</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="ai-side">
+                                <div class="ai-date">@item.UpdatedAt.ToString("dd/MM/yyyy")</div>
+                                <div class="ai-time">@item.UpdatedAt.ToString("HH:mm:ss")</div>
+
+                                <div class="ai-side-actions">
+                                    <button type="button" class="ai-view-btn" onclick="viewChatConversation('@item.Id')">
+                                        <i class="bi bi-eye-fill"></i>
+                                        Xem
+                                    </button>
+
+                                    @if (User.IsInRole("Admin"))
+                                    {
+                                        <form asp-action="Delete" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Bạn chắc chắn muốn xóa toàn bộ phiên chat này?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="ai-delete-btn">
+                                                <i class="bi bi-trash3"></i>
+                                                Xóa
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            <div id="chatNoResult" class="ai-empty" style="display:none;">
+                <i class="bi bi-search"></i>
+                <div class="fw-bold text-dark mb-1">Không tìm thấy hội thoại phù hợp</div>
+                <div class="small">Hãy thử từ khóa khác ngắn hơn.</div>
+            </div>
+        }
+        else
+        {
+            <div class="ai-empty">
+                <i class="bi bi-inbox"></i>
+                <div class="fw-bold text-dark mb-1">Chưa có dữ liệu lịch sử chat</div>
+                <div class="small">Khi người dùng gửi câu hỏi cho Chatbot AI, lịch sử sẽ hiển thị tại đây.</div>
+            </div>
+        }
+    </section>
 </div>
 
-<div class="modal fade" id="chatDetailModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
-            <div class="modal-header bg-light border-0 px-4 py-3">
-                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-chat-quote-fill text-primary me-2"></i>Chi tiết hội thoại</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4" style="background: #f8fafc;">
-                <div class="text-center mb-3">
-                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1" id="detailTime"></span>
+<div class="modal fade" id="chatConversationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg chat-modal">
+            <div class="modal-header chat-modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-chat-quote-fill me-2"></i>
+                        Toàn bộ phiên hội thoại
+                    </h5>
+                    <div class="chat-modal-subtitle" id="chatModalSubtitle">Đang tải...</div>
                 </div>
 
-                <div class="d-flex flex-column align-items-end mb-4">
-                    <span class="text-muted small fw-bold mb-1" id="detailUserName">Khách hàng</span>
-                    <div class="p-3 text-white shadow-sm" id="detailUserMsg" style="background: #2563eb; border-radius: 18px 18px 4px 18px; max-width: 85%; font-size: 0.95rem;">
-                    </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+
+            <div class="modal-body chat-modal-body">
+                <div class="chat-conversation-info" id="chatConversationInfo">
+                    <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">Đang tải...</span>
                 </div>
 
-                <div class="d-flex flex-column align-items-start">
-                    <span class="text-primary small fw-bold mb-1"><i class="bi bi-robot me-1"></i>Gemini AI</span>
-                    <div class="p-3 bg-white shadow-sm border" id="detailBotMsg" style="border-color: #e5ecf4; border-radius: 18px 18px 18px 4px; max-width: 95%; font-size: 0.95rem; color: #0f172a;">
+                <div id="chatConversationTimeline" class="chat-timeline">
+                    <div class="text-center py-5 text-muted">
+                        <div class="spinner-border text-primary mb-3"></div>
+                        <div>Đang tải toàn bộ hội thoại...</div>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer border-0 px-4 py-3 bg-light">
-                <button type="button" class="btn btn-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Đóng</button>
+
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>
+                    Đóng
+                </button>
             </div>
         </div>
     </div>
@@ -135,34 +964,127 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <script>
-        function viewChatDetail(logId) {
-            // Hiển thị loading nhẹ
-            document.getElementById('detailUserMsg').innerHTML = 'Đang tải...';
-            document.getElementById('detailBotMsg').innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Đang giải mã...';
+        (function () {
+            const searchInput = document.getElementById('chatSearchInput');
+            const cards = Array.from(document.querySelectorAll('.ai-session-card'));
+            const noResult = document.getElementById('chatNoResult');
+            const modalEl = document.getElementById('chatConversationModal');
+            const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+            const timeline = document.getElementById('chatConversationTimeline');
+            const info = document.getElementById('chatConversationInfo');
+            const subtitle = document.getElementById('chatModalSubtitle');
+            const detailsUrl = '@Url.Action("Details", "ChatLogs", new { area = "Admin" })';
 
-            // Mở Modal
-            var myModal = new bootstrap.Modal(document.getElementById('chatDetailModal'));
-            myModal.show();
+            function escapeHtml(value) {
+                return (value || '').toString()
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
 
-            // Fetch data
-            fetch('/Admin/ChatLogs/Details/' + logId)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('detailTime').innerText = data.time;
-                    document.getElementById('detailUserName').innerText = data.userName;
+            function renderMarkdown(text) {
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({ breaks: true, gfm: true });
+                    return marked.parse(text || '');
+                }
 
-                    // Render User Message (text thường)
-                    document.getElementById('detailUserMsg').innerText = data.userMessage;
+                return escapeHtml(text || '').replace(/\n/g, '<br>');
+            }
 
-                    // Render Bot Response (Biên dịch Markdown ra HTML)
-                    // Thiết lập options cho marked để xuống dòng tự nhiên
-                    marked.setOptions({ breaks: true });
-                    document.getElementById('detailBotMsg').innerHTML = marked.parse(data.botResponse);
-                })
-                .catch(error => {
-                    document.getElementById('detailBotMsg').innerHTML = '<span class="text-danger">Không thể tải dữ liệu chi tiết!</span>';
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    const keyword = (this.value || '').trim().toLowerCase();
+                    let visible = 0;
+
+                    cards.forEach(function (card) {
+                        const haystack = card.dataset.search || '';
+                        const matched = !keyword || haystack.includes(keyword);
+
+                        card.style.display = matched ? '' : 'none';
+
+                        if (matched) {
+                            visible++;
+                        }
+                    });
+
+                    if (noResult) {
+                        noResult.style.display = visible === 0 ? '' : 'none';
+                    }
                 });
-        }
+            }
+
+            window.viewChatConversation = function (id) {
+                if (!modal || !timeline || !info || !subtitle) {
+                    return;
+                }
+
+                subtitle.innerText = 'Đang tải dữ liệu hội thoại...';
+                info.innerHTML = '<span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">Đang tải...</span>';
+                timeline.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-3"></div><div>Đang tải toàn bộ hội thoại...</div></div>';
+
+                modal.show();
+
+                fetch(detailsUrl + '?id=' + encodeURIComponent(id), {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                })
+                    .then(function (res) {
+                        if (!res.ok) {
+                            throw new Error('Không thể tải dữ liệu.');
+                        }
+
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        subtitle.innerText = (data.userName || 'Khách hàng') + ' · ' + (data.source || 'AI');
+
+                        info.innerHTML = `
+                            <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2">${escapeHtml(data.scenario || 'General')}</span>
+                            <span class="badge bg-light text-dark border rounded-pill px-3 py-2">${escapeHtml(data.totalMessages || 0)} tin nhắn</span>
+                            <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">${escapeHtml(data.startedAt || '')}</span>
+                            ${data.pageUrl ? `<div class="w-100 small text-muted mt-1"><i class="bi bi-window-sidebar me-1"></i>${escapeHtml(data.pageTitle || 'Trang người dùng đang xem')} · ${escapeHtml(data.pageUrl)}</div>` : ''}
+                        `;
+
+                        const messages = Array.isArray(data.messages) ? data.messages : [];
+
+                        if (!messages.length) {
+                            timeline.innerHTML = '<div class="text-center text-muted py-5">Không có tin nhắn trong phiên này.</div>';
+                            return;
+                        }
+
+                        let html = '';
+
+                        messages.forEach(function (m) {
+                            const role = (m.role || '').toLowerCase() === 'user' ? 'user' : 'assistant';
+                            const label = role === 'user' ? (data.userName || 'Khách hàng') : 'Trợ lý AI BĐS Khánh Hòa';
+                            const icon = role === 'user' ? 'bi-person-circle' : 'bi-robot';
+                            const contentHtml = role === 'assistant'
+                                ? renderMarkdown(m.content || '')
+                                : escapeHtml(m.content || '').replace(/\n/g, '<br>');
+
+                            html += `
+                                <div class="chat-msg-row ${role}">
+                                    <div class="chat-msg-meta">
+                                        <i class="bi ${icon} me-1"></i>
+                                        ${escapeHtml(label)} · ${escapeHtml(m.time || '')}
+                                    </div>
+
+                                    <div class="chat-msg-bubble">${contentHtml}</div>
+                                </div>
+                            `;
+                        });
+
+                        timeline.innerHTML = html;
+                    })
+                    .catch(function () {
+                        timeline.innerHTML = '<div class="alert alert-danger rounded-4 mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>Không thể tải dữ liệu chi tiết hội thoại.</div>';
+                    });
+            };
+        })();
     </script>
 }

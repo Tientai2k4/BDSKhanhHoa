@@ -1,81 +1,501 @@
 ﻿@model BDSKhanhHoa.Models.Area
+
 @{
-    ViewData["Title"] = "Cấu hình Khu vực & Xã";
+    ViewData["Title"] = "Cấu hình khu vực & xã/phường";
     Layout = "~/Areas/Admin/Views/Shared/_AdminLayout.cshtml";
+
+    int wardCount = Model.Wards?.Count ?? 0;
 }
 
-<div class="row">
-    <div class="col-lg-5">
-        <div class="card shadow-sm border-0 rounded-4 mb-4">
-            <div class="card-header bg-white py-3 border-0">
-                <h5 class="fw-bold text-primary m-0"><i class="bi bi-pencil-square me-2"></i>Thông tin Khu vực</h5>
-            </div>
-            <div class="card-body">
-                <form asp-action="Edit">
-                    <input type="hidden" asp-for="AreaID" />
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted text-uppercase">Tên Khu vực</label>
-                        <input asp-for="AreaName" class="form-control form-control-lg rounded-3" />
-                        <span asp-validation-for="AreaName" class="text-danger small"></span>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label fw-bold small text-muted text-uppercase">Mô tả</label>
-                        <textarea asp-for="Description" class="form-control rounded-3" rows="3"></textarea>
-                    </div>
-                    <div class="d-flex gap-2 border-top pt-3">
-                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Cập nhật</button>
-                        <a asp-action="Index" class="btn btn-light rounded-pill px-4 border">Quay lại</a>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<style>
+    .area-edit-page {
+        padding: 14px 0 40px;
+    }
 
-    <div class="col-lg-7">
-        <div class="card shadow-sm border-0 rounded-4 h-100">
-            <div class="card-header bg-light py-3 border-0 d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold text-dark m-0"><i class="bi bi-geo-alt me-2"></i>Đơn vị Xã/Phường trực thuộc</h5>
-            </div>
-            <div class="card-body">
-                <form asp-action="AddWard" method="post" class="mb-4">
-                    <input type="hidden" name="AreaID" value="@Model.AreaID" />
-                    <div class="input-group">
-                        <input type="text" name="WardName" class="form-control" placeholder="Nhập tên Xã/Phường mới..." required />
-                        <button type="submit" class="btn btn-success px-4 fw-bold"><i class="bi bi-plus-lg me-1"></i> Thêm Xã</button>
-                    </div>
-                </form>
+    .area-wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+    }
 
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light small text-uppercase">
-                            <tr>
-                                <th>Tên Xã/Phường</th>
-                                <th class="text-end">Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (Model.Wards != null && Model.Wards.Any())
-                            {
-                                foreach (var ward in Model.Wards)
+    .area-alert {
+        border-radius: 18px;
+        border: 0;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .07);
+        font-weight: 700;
+    }
+
+    .area-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        background: #fff;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, .07);
+        overflow: hidden;
+    }
+
+    .area-card-header {
+        padding: 18px 22px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        background: #fff;
+    }
+
+    .area-card-body {
+        padding: 22px;
+    }
+
+    .area-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 1.18rem;
+        font-weight: 900;
+        letter-spacing: -.02em;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+    }
+
+        .area-title i {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: #2563eb;
+            font-size: 1rem;
+        }
+
+    .area-subtitle {
+        margin: 5px 0 0;
+        color: #64748b;
+        font-size: .9rem;
+        font-weight: 500;
+    }
+
+    .area-label {
+        color: #334155;
+        font-size: .8rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 8px;
+    }
+
+    .area-control {
+        min-height: 47px;
+        border-radius: 15px;
+        border: 1.5px solid #dbe4ef;
+        background: #f8fafc;
+        color: #0f172a;
+        font-size: .95rem;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+        .area-control:focus {
+            background: #fff;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .10) !important;
+        }
+
+    textarea.area-control {
+        min-height: 110px;
+        resize: vertical;
+    }
+
+    .validation-summary-errors {
+        padding: 13px 15px;
+        border-radius: 16px;
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+        margin-bottom: 16px;
+        font-weight: 700;
+    }
+
+        .validation-summary-errors ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+    .field-validation-error {
+        display: block;
+        margin-top: 7px;
+        font-size: .84rem;
+        font-weight: 700;
+        color: #dc2626;
+    }
+
+    .area-actions {
+        margin-top: 20px;
+        padding-top: 17px;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+    }
+
+    .area-btn {
+        min-height: 42px;
+        border-radius: 999px;
+        padding: 0 20px;
+        font-weight: 900;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+    }
+
+    .area-info-box {
+        margin-top: 16px;
+        padding: 15px;
+        border-radius: 18px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+        font-size: .9rem;
+        font-weight: 650;
+        line-height: 1.6;
+    }
+
+    .ward-add-box {
+        padding: 16px;
+        border-radius: 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 18px;
+    }
+
+    .ward-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .ward-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, .04);
+    }
+
+    .ward-name {
+        min-width: 0;
+        color: #0f172a;
+        font-size: .94rem;
+        font-weight: 850;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        word-break: break-word;
+    }
+
+        .ward-name i {
+            color: #2563eb;
+        }
+
+    .ward-count-badge {
+        min-height: 32px;
+        padding: 0 13px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: #2563eb;
+        font-size: .82rem;
+        font-weight: 900;
+    }
+
+    .empty-ward {
+        padding: 34px 16px;
+        border-radius: 18px;
+        border: 1px dashed #cbd5e1;
+        background: #f8fafc;
+        text-align: center;
+        color: #64748b;
+        font-weight: 650;
+    }
+
+        .empty-ward i {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 2rem;
+            color: #94a3b8;
+        }
+
+    @@media (max-width: 991.98px) {
+        .area-edit-page {
+            padding-top: 10px;
+        }
+
+        .area-card-body {
+            padding: 18px;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .area-card-header {
+            padding: 16px;
+        }
+
+        .area-card-body {
+            padding: 16px;
+        }
+
+        .area-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .area-btn {
+            width: 100%;
+        }
+
+        .ward-item {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+            .ward-item form,
+            .ward-item button {
+                width: 100%;
+            }
+
+            .ward-item button {
+                justify-content: center;
+            }
+
+        .ward-add-box .input-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+            .ward-add-box .input-group .form-control,
+            .ward-add-box .input-group .btn {
+                width: 100%;
+                border-radius: 15px !important;
+            }
+    }
+</style>
+
+<div class="container-fluid area-edit-page">
+    <div class="area-wrap">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show area-alert mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+            </div>
+        }
+
+        <div class="row g-3 g-xl-4">
+            <div class="col-xl-5 col-lg-5">
+                <div class="area-card">
+                    <div class="area-card-header">
+                        <div>
+                            <h1 class="area-title">
+                                <i class="bi bi-pencil-square"></i>
+                                Thông tin khu vực
+                            </h1>
+                            <p class="area-subtitle">
+                                Cập nhật tên khu vực và mô tả hiển thị trong hệ thống.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="area-card-body">
+                        <form asp-area="Admin"
+                              asp-controller="Areas"
+                              asp-action="Edit"
+                              asp-route-id="@Model.AreaID"
+                              method="post"
+                              autocomplete="off">
+                            @Html.AntiForgeryToken()
+
+                            <div asp-validation-summary="All"></div>
+
+                            <div class="mb-3">
+                                <label for="AreaName" class="form-label area-label">
+                                    Tên khu vực <span class="text-danger">*</span>
+                                </label>
+
+                                <input type="text"
+                                       id="AreaName"
+                                       name="AreaName"
+                                       value="@Model.AreaName"
+                                       class="form-control area-control"
+                                       placeholder="Ví dụ: Nha Trang, Cam Lâm, Diên Khánh..."
+                                       maxlength="100"
+                                       required />
+
+                                @if (ViewData.ModelState["AreaName"]?.Errors.Count > 0)
                                 {
-                                    <tr>
-                                        <td class="fw-semibold">@ward.WardName</td>
-                                        <td class="text-end">
-                                            <form asp-action="DeleteWard" asp-route-id="@ward.WardID" method="post" onsubmit="return confirm('Xóa xã này?')">
-                                                <button type="submit" class="btn btn-link text-danger p-0"><i class="bi bi-x-circle-fill fs-5"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
+                                    <span class="field-validation-error">
+                                        @ViewData.ModelState["AreaName"]!.Errors.First().ErrorMessage
+                                    </span>
                                 }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="2" class="text-center text-muted py-4">Chưa có xã nào thuộc khu vực này.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="Description" class="form-label area-label">
+                                    Mô tả
+                                </label>
+
+                                <textarea id="Description"
+                                          name="Description"
+                                          class="form-control area-control"
+                                          placeholder="Ví dụ: Khu vực Khánh Hòa cũ, khu vực Ninh Thuận cũ..."
+                                          maxlength="255">@Model.Description</textarea>
+
+                                @if (ViewData.ModelState["Description"]?.Errors.Count > 0)
+                                {
+                                    <span class="field-validation-error">
+                                        @ViewData.ModelState["Description"]!.Errors.First().ErrorMessage
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="area-info-box">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Khi đổi tên khu vực, các xã/phường trực thuộc vẫn được giữ nguyên.
+                                Không nên đổi tên khu vực nếu đang dùng cho nhiều tin BĐS hoặc dự án mà chưa kiểm tra lại dữ liệu.
+                            </div>
+
+                            <div class="area-actions">
+                                <a asp-action="Index" class="btn btn-light border area-btn">
+                                    <i class="bi bi-arrow-left"></i>
+                                    Quay lại
+                                </a>
+
+                                <a asp-action="Delete" asp-route-id="@Model.AreaID" class="btn btn-outline-danger area-btn">
+                                    <i class="bi bi-trash3"></i>
+                                    Xóa khu vực
+                                </a>
+
+                                <button type="submit" class="btn btn-primary area-btn">
+                                    <i class="bi bi-check2"></i>
+                                    Cập nhật
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-7 col-lg-7">
+                <div class="area-card">
+                    <div class="area-card-header">
+                        <div>
+                            <h2 class="area-title">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                Xã/phường trực thuộc
+                            </h2>
+                            <p class="area-subtitle">
+                                Khu vực: <strong>@Model.AreaName</strong>
+                            </p>
+                        </div>
+
+                        <span class="ward-count-badge">
+                            @wardCount đơn vị
+                        </span>
+                    </div>
+
+                    <div class="area-card-body">
+                        <div class="ward-add-box">
+                            <form asp-area="Admin"
+                                  asp-controller="Areas"
+                                  asp-action="AddWard"
+                                  method="post"
+                                  autocomplete="off">
+                                @Html.AntiForgeryToken()
+
+                                <input type="hidden" name="AreaID" value="@Model.AreaID" />
+
+                                <label for="WardName" class="form-label area-label">
+                                    Thêm xã/phường mới
+                                </label>
+
+                                <div class="input-group">
+                                    <input type="text"
+                                           id="WardName"
+                                           name="WardName"
+                                           class="form-control area-control"
+                                           placeholder="Ví dụ: Phường Nha Trang, Xã Cam Lâm..."
+                                           maxlength="100"
+                                           required />
+
+                                    <button type="submit" class="btn btn-success area-btn">
+                                        <i class="bi bi-plus-lg"></i>
+                                        Thêm
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        @if (Model.Wards != null && Model.Wards.Any())
+                        {
+                            <div class="ward-list">
+                                @foreach (var ward in Model.Wards.OrderBy(w => w.WardName))
+                                {
+                                    <div class="ward-item">
+                                        <div class="ward-name">
+                                            <i class="bi bi-pin-map-fill"></i>
+                                            <span>@ward.WardName</span>
+                                        </div>
+
+                                        <form asp-area="Admin"
+                                              asp-controller="Areas"
+                                              asp-action="DeleteWard"
+                                              asp-route-id="@ward.WardID"
+                                              method="post"
+                                              onsubmit="return confirm('Bạn chắc chắn muốn xóa xã/phường này? Nếu xã/phường đang có tin BĐS hoặc dự án sử dụng, hệ thống sẽ chặn xóa.');">
+                                            @Html.AntiForgeryToken()
+
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold">
+                                                <i class="bi bi-trash3-fill me-1"></i>
+                                                Xóa
+                                            </button>
+                                        </form>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-ward">
+                                <i class="bi bi-map"></i>
+                                Chưa có xã/phường nào thuộc khu vực này.
+                            </div>
+                        }
+
+                        <div class="area-info-box mt-3">
+                            <i class="bi bi-shield-check me-1"></i>
+                            Hệ thống sẽ không cho xóa xã/phường nếu đang có tin bất động sản hoặc dự án sử dụng xã/phường đó.
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

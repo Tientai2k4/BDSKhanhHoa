@@ -6,17 +6,6 @@
 
     var pages = Model ?? Enumerable.Empty<BDSKhanhHoa.Models.StaticPage>();
 
-    int totalPages = pages.Count();
-    int faqCount = pages.Count(p => p.PageKey == "faq");
-    int vipPolicyCount = pages.Count(p => p.PageKey == "vip-policy");
-    int systemPolicyCount = pages.Count(p =>
-        p.PageKey == "terms" ||
-        p.PageKey == "privacy" ||
-        p.PageKey == "rules" ||
-        p.PageKey == "anti-spam" ||
-        p.PageKey == "vip-policy" ||
-        p.PageKey == "faq");
-
     string GetPageIcon(string? key)
     {
         return key switch
@@ -49,39 +38,23 @@
         };
     }
 
-    string GetPageUsageText(string? key)
+    string GetShortDescription(string? value)
     {
-        return key switch
+        if (string.IsNullOrWhiteSpace(value))
         {
-            "faq" => "Đang dùng cho nút Hỏi đáp thường gặp ở footer",
-            "vip-policy" => "Đang dùng cho nút Báo giá đăng tin ở footer",
-            "terms" => "Trang điều khoản sử dụng dịch vụ",
-            "privacy" => "Trang chính sách bảo mật thông tin",
-            "rules" => "Trang quy định kiểm duyệt và đăng tin",
-            "anti-spam" => "Trang chính sách chống spam và cảnh báo lừa đảo",
-            "ai_knowledge_base" => "Dữ liệu huấn luyện / tri thức cho trợ lý AI",
-            _ => "Trang nội dung tĩnh của hệ thống"
-        };
-    }
+            return "Chưa có mô tả ngắn cho trang này.";
+        }
 
-    bool IsImportantPage(string? key)
-    {
-        return key == "faq" ||
-               key == "vip-policy" ||
-               key == "terms" ||
-               key == "privacy" ||
-               key == "rules" ||
-               key == "anti-spam" ||
-               key == "ai_knowledge_base";
+        return value.Trim();
     }
 }
 
 <style>
     .static-page-wrap {
         min-height: calc(100vh - 100px);
-        background: radial-gradient(circle at top right, rgba(37, 99, 235, .08), transparent 360px), #f8fafc;
+        background: #f8fafc;
         margin: -24px;
-        padding: 26px;
+        padding: 20px 24px 40px;
     }
 
     .static-container {
@@ -89,186 +62,101 @@
         margin: 0 auto;
     }
 
-    .static-hero {
-        background: radial-gradient(circle at top right, rgba(37, 99, 235, .15), transparent 340px), linear-gradient(135deg, #ffffff, #f8fbff);
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 28px;
-        padding: 24px;
-        box-shadow: 0 16px 42px rgba(15, 23, 42, .06);
+    .page-header-card {
         margin-bottom: 18px;
-    }
-
-    .hero-icon {
-        width: 62px;
-        height: 62px;
-        border-radius: 22px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #2563eb, #60a5fa);
-        color: #fff;
-        font-size: 1.8rem;
-        box-shadow: 0 16px 30px rgba(37, 99, 235, .22);
-        flex-shrink: 0;
-    }
-
-    .hero-title {
-        color: #0f172a;
-        font-size: clamp(1.45rem, 2.4vw, 2.15rem);
-        font-weight: 950;
-        letter-spacing: -.04em;
-        line-height: 1.12;
-        margin: 0;
-    }
-
-    .hero-subtitle {
-        color: #64748b;
-        font-size: .98rem;
-        font-weight: 600;
-        margin: 7px 0 0;
-        line-height: 1.55;
-    }
-
-    .btn-create-page {
-        min-height: 48px;
-        border-radius: 999px;
-        padding: 10px 22px;
-        font-weight: 900;
-        box-shadow: 0 14px 26px rgba(37, 99, 235, .22);
-        white-space: nowrap;
-    }
-
-    .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-        margin-bottom: 18px;
-    }
-
-    .summary-card {
+        padding: 20px 22px;
+        border-radius: 24px;
         background: #fff;
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 22px;
-        padding: 17px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .055);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 16px;
+        flex-wrap: wrap;
     }
 
-    .summary-label {
-        color: #64748b;
-        font-size: .76rem;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: .055em;
-        margin-bottom: 6px;
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
     }
 
-    .summary-value {
-        color: #0f172a;
-        font-size: 1.55rem;
-        font-weight: 950;
-        line-height: 1;
-    }
-
-    .summary-desc {
-        color: #94a3b8;
-        font-size: .78rem;
-        font-weight: 650;
-        margin-top: 6px;
-    }
-
-    .summary-icon {
-        width: 48px;
-        height: 48px;
+    .header-icon {
+        width: 54px;
+        height: 54px;
         border-radius: 18px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.35rem;
         flex-shrink: 0;
+        color: #fff;
+        background: linear-gradient(135deg, #2563eb, #60a5fa);
+        font-size: 1.55rem;
+        box-shadow: 0 12px 26px rgba(37, 99, 235, .2);
     }
 
-    .icon-blue {
-        background: #dbeafe;
-        color: #2563eb;
-    }
-
-    .icon-orange {
-        background: #ffedd5;
-        color: #ea580c;
-    }
-
-    .icon-vip {
-        background: #fef3c7;
-        color: #b45309;
-    }
-
-    .icon-green {
-        background: #dcfce7;
-        color: #059669;
-    }
-
-    .filter-panel {
-        background: #fff;
-        border: 1px solid rgba(148, 163, 184, .24);
-        border-radius: 22px;
-        padding: 16px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
-        margin-bottom: 18px;
-    }
-
-    .soft-input {
-        min-height: 46px;
-        border-radius: 15px;
-        border: 1px solid #dbe4ef;
-        background: #f8fafc;
-        font-weight: 700;
+    .page-title {
+        margin: 0;
         color: #0f172a;
-        box-shadow: none !important;
+        font-size: 1.52rem;
+        line-height: 1.22;
+        letter-spacing: -.025em;
+        font-weight: 950;
     }
 
-        .soft-input:focus {
-            background: #fff;
-            border-color: #93c5fd;
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
-        }
+    .page-subtitle {
+        margin: 5px 0 0;
+        color: #64748b;
+        font-size: .94rem;
+        line-height: 1.55;
+        font-weight: 550;
+    }
 
-
-
+    .btn-create-page {
+        min-height: 44px;
+        border-radius: 999px;
+        padding: 0 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-weight: 900;
+        white-space: nowrap;
+        box-shadow: 0 12px 24px rgba(37, 99, 235, .2);
+    }
 
     .page-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 18px;
+        gap: 16px;
     }
 
     .page-card {
         position: relative;
-        background: #fff;
-        border-radius: 24px;
-        border: 1px solid rgba(148, 163, 184, .2);
-        box-shadow: 0 14px 34px rgba(15, 23, 42, .06);
-        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-        overflow: hidden;
-        min-height: 298px;
+        min-height: 250px;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
+        border-radius: 22px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, .22);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .055);
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
+
+        .page-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 44px rgba(15, 23, 42, .10);
+            border-color: rgba(37, 99, 235, .28);
+        }
 
         .page-card::before {
             content: "";
             display: block;
             height: 5px;
             background: #cbd5e1;
-        }
-
-        .page-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 22px 52px rgba(15, 23, 42, .11);
-            border-color: rgba(37, 99, 235, .28);
         }
 
         .page-card.page-blue::before {
@@ -300,7 +188,7 @@
         }
 
     .page-card-body {
-        padding: 22px;
+        padding: 20px;
         display: flex;
         flex-direction: column;
         flex: 1;
@@ -311,20 +199,27 @@
         justify-content: space-between;
         align-items: flex-start;
         gap: 12px;
-        margin-bottom: 13px;
+        margin-bottom: 14px;
+    }
+
+    .page-info {
+        min-width: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
     }
 
     .page-icon {
-        width: 50px;
-        height: 50px;
-        border-radius: 18px;
+        width: 48px;
+        height: 48px;
+        border-radius: 17px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        flex-shrink: 0;
         background: #eff6ff;
         color: #2563eb;
-        font-size: 1.32rem;
-        flex-shrink: 0;
+        font-size: 1.25rem;
     }
 
     .page-red .page-icon {
@@ -358,12 +253,12 @@
     }
 
     .page-title-line {
-        color: #0f172a;
-        font-weight: 950;
-        letter-spacing: -.025em;
-        line-height: 1.2;
-        font-size: 1.16rem;
         margin: 0;
+        color: #0f172a;
+        font-size: 1.08rem;
+        line-height: 1.28;
+        letter-spacing: -.015em;
+        font-weight: 950;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -371,21 +266,21 @@
     }
 
     .page-key-badge {
+        max-width: 145px;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 999px;
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        max-width: 150px;
-        border-radius: 999px;
-        padding: 6px 10px;
+        flex-shrink: 0;
+        color: #0f172a;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        color: #0f172a;
-        font-size: .74rem;
+        font-size: .73rem;
         font-weight: 900;
         white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis;
-        flex-shrink: 0;
     }
 
         .page-key-badge span {
@@ -394,12 +289,11 @@
         }
 
     .page-description {
+        margin: 0 0 16px;
         color: #64748b;
-        font-size: .92rem;
-        font-weight: 600;
-        line-height: 1.55;
-        margin-bottom: 14px;
-        min-height: 58px;
+        font-size: .91rem;
+        line-height: 1.58;
+        font-weight: 560;
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
@@ -407,63 +301,54 @@
     }
 
     .page-meta {
+        margin-top: auto;
+        padding-top: 14px;
+        border-top: 1px dashed #e2e8f0;
+        display: grid;
+        gap: 7px;
         color: #64748b;
         font-size: .8rem;
-        font-weight: 750;
-        margin-top: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 7px;
+        font-weight: 700;
     }
 
     .page-meta-row {
+        min-width: 0;
         display: flex;
         align-items: center;
         gap: 7px;
-        min-width: 0;
     }
+
+        .page-meta-row i {
+            flex-shrink: 0;
+        }
 
         .page-meta-row span {
             overflow: hidden;
-            text-overflow: ellipsis;
             white-space: nowrap;
+            text-overflow: ellipsis;
         }
 
-    .important-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        width: fit-content;
-        border-radius: 999px;
-        padding: 5px 9px;
-        background: #ecfdf5;
-        color: #047857;
-        border: 1px solid #bbf7d0;
-        font-size: .72rem;
-        font-weight: 900;
-        margin-top: 10px;
-    }
-
     .page-actions {
+        margin-top: 16px;
         display: grid;
-        grid-template-columns: 1fr 46px 46px;
-        gap: 9px;
-        margin-top: 18px;
+        grid-template-columns: 1fr 44px 44px;
+        gap: 8px;
     }
 
     .btn-main-action {
-        min-height: 44px;
+        min-height: 42px;
         border-radius: 999px;
-        font-weight: 900;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 7px;
+        font-size: .88rem;
+        font-weight: 900;
     }
 
     .btn-circle-action {
-        width: 46px;
-        height: 44px;
+        width: 44px;
+        height: 42px;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
@@ -472,45 +357,44 @@
 
     .empty-state {
         grid-column: 1 / -1;
+        padding: 54px 18px;
+        border-radius: 24px;
         background: #fff;
         border: 1px dashed #cbd5e1;
-        border-radius: 26px;
-        padding: 56px 18px;
+        box-shadow: 0 10px 26px rgba(15, 23, 42, .045);
         text-align: center;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, .045);
     }
 
     .empty-icon {
-        width: 82px;
-        height: 82px;
-        border-radius: 28px;
+        width: 76px;
+        height: 76px;
+        margin: 0 auto 14px;
+        border-radius: 26px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        background: #f1f5f9;
         color: #94a3b8;
-        font-size: 2.2rem;
-        margin-bottom: 16px;
+        background: #f1f5f9;
+        font-size: 2.1rem;
     }
 
     .empty-title {
-        color: #0f172a;
-        font-weight: 950;
-        font-size: 1.2rem;
         margin-bottom: 7px;
+        color: #0f172a;
+        font-size: 1.14rem;
+        font-weight: 950;
     }
 
     .empty-desc {
+        max-width: 520px;
+        margin: 0 auto 18px;
         color: #64748b;
-        font-weight: 600;
-        margin-bottom: 18px;
+        font-size: .92rem;
+        line-height: 1.6;
+        font-weight: 560;
     }
 
     @@media (max-width: 1199.98px) {
-        .summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
         .page-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -519,157 +403,123 @@
     @@media (max-width: 767.98px) {
         .static-page-wrap {
             margin: -16px;
+            padding: 14px 14px 34px;
+        }
+
+        .page-header-card {
+            align-items: flex-start;
+            border-radius: 20px;
             padding: 16px;
         }
 
-        .static-hero {
-            border-radius: 22px;
-            padding: 18px;
+        .page-header-left {
+            align-items: flex-start;
         }
 
-            .static-hero .d-flex {
-                align-items: flex-start !important;
-            }
+        .header-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            font-size: 1.35rem;
+        }
 
-        .hero-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: 18px;
-            font-size: 1.45rem;
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .page-subtitle {
+            font-size: .88rem;
         }
 
         .btn-create-page {
             width: 100%;
         }
 
-        .summary-grid {
-            grid-template-columns: 1fr;
-        }
-
         .page-grid {
             grid-template-columns: 1fr;
-            gap: 14px;
+            gap: 13px;
         }
 
         .page-card {
             min-height: unset;
+            border-radius: 20px;
         }
 
         .page-card-body {
-            padding: 18px;
+            padding: 16px;
+        }
+
+        .page-top {
+            flex-direction: column;
+        }
+
+        .page-key-badge {
+            max-width: 100%;
         }
 
         .page-actions {
-            grid-template-columns: 1fr 44px 44px;
+            grid-template-columns: 1fr 42px 42px;
         }
 
-  
+        .btn-circle-action {
+            width: 42px;
+        }
+    }
+
+    @@media (max-width: 420px) {
+        .page-info {
+            flex-direction: column;
+        }
+
+        .page-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .btn-circle-action {
+            width: 100%;
+        }
     }
 </style>
 
 <div class="static-page-wrap">
     <div class="static-container">
-
-        <section class="static-hero">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="hero-icon">
-                        <i class="bi bi-file-earmark-richtext-fill"></i>
-                    </div>
-
-                    <div>
-                        <h3 class="hero-title">Quản lý nội dung trang tĩnh</h3>
-                        <p class="hero-subtitle">
-                            Cấu hình nội dung hiển thị cho Điều khoản, Chính sách, FAQ, Báo giá đăng tin và dữ liệu hỗ trợ hệ thống.
-                        </p>
-                    </div>
+        <section class="page-header-card">
+            <div class="page-header-left">
+                <div class="header-icon">
+                    <i class="bi bi-file-earmark-richtext-fill"></i>
                 </div>
 
-                <a asp-action="Create" class="btn btn-primary btn-create-page">
-                    <i class="bi bi-plus-circle-fill me-1"></i>
-                    Tạo trang mới
-                </a>
+                <div>
+                    <h1 class="page-title">Quản lý nội dung trang tĩnh</h1>
+                    <p class="page-subtitle">
+                        Quản lý các trang nội dung như điều khoản, chính sách, FAQ, báo giá và dữ liệu hỗ trợ hệ thống.
+                    </p>
+                </div>
             </div>
+
+            <a asp-action="Create" class="btn btn-primary btn-create-page">
+                <i class="bi bi-plus-circle-fill"></i>
+                Tạo trang mới
+            </a>
         </section>
 
         @if (TempData["SuccessMessage"] != null)
         {
-            <div class="alert alert-success alert-dismissible fade show rounded-4 border-0 shadow-sm" role="alert">
+            <div class="alert alert-success alert-dismissible fade show rounded-4 border-0 shadow-sm mb-3" role="alert">
                 <i class="bi bi-check-circle-fill me-2"></i>
                 <strong>Thành công!</strong> @TempData["SuccessMessage"]
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
             </div>
         }
 
-        <section class="summary-grid">
-            <div class="summary-card">
-                <div>
-                    <div class="summary-label">Tổng trang</div>
-                    <div class="summary-value">@totalPages.ToString("N0")</div>
-                    <div class="summary-desc">Trang tĩnh đang quản lý</div>
-                </div>
-                <span class="summary-icon icon-blue">
-                    <i class="bi bi-files"></i>
-                </span>
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show rounded-4 border-0 shadow-sm mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Lỗi!</strong> @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
             </div>
-
-            <div class="summary-card">
-                <div>
-                    <div class="summary-label">Trang chính sách</div>
-                    <div class="summary-value">@systemPolicyCount.ToString("N0")</div>
-                    <div class="summary-desc">Điều khoản, bảo mật, quy định</div>
-                </div>
-                <span class="summary-icon icon-green">
-                    <i class="bi bi-shield-check"></i>
-                </span>
-            </div>
-
-            <div class="summary-card">
-                <div>
-                    <div class="summary-label">FAQ</div>
-                    <div class="summary-value">@faqCount.ToString("N0")</div>
-                    <div class="summary-desc">Dùng cho nút Hỏi đáp thường gặp</div>
-                </div>
-                <span class="summary-icon icon-orange">
-                    <i class="bi bi-question-circle-fill"></i>
-                </span>
-            </div>
-
-            <div class="summary-card">
-                <div>
-                    <div class="summary-label">Báo giá đăng tin</div>
-                    <div class="summary-value">@vipPolicyCount.ToString("N0")</div>
-                    <div class="summary-desc">Dùng cho nút Báo giá đăng tin</div>
-                </div>
-                <span class="summary-icon icon-vip">
-                    <i class="bi bi-gem"></i>
-                </span>
-            </div>
-        </section>
-
-       
-
-        <section class="filter-panel">
-            <div class="row g-3 align-items-end">
-                <div class="col-lg-8">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Tìm kiếm nhanh</label>
-                    <input type="text"
-                           id="pageSearchInput"
-                           class="form-control soft-input"
-                           placeholder="Tìm theo tiêu đề, mô tả hoặc PageKey..." />
-                </div>
-
-                <div class="col-lg-4">
-                    <label class="form-label small fw-bold text-muted text-uppercase">Lọc nhanh</label>
-                    <select id="pageFilterSelect" class="form-select soft-input">
-                        <option value="all">Tất cả trang</option>
-                        <option value="important">Trang quan trọng</option>
-                        <option value="footer">Trang đang dùng ở footer</option>
-                        <option value="policy">Chính sách / điều khoản</option>
-                    </select>
-                </div>
-            </div>
-        </section>
+        }
 
         <section class="page-grid" id="pageGrid">
             @if (pages.Any())
@@ -678,36 +528,20 @@
                 {
                     string colorClass = GetPageColorClass(p.PageKey);
                     string iconClass = GetPageIcon(p.PageKey);
-                    bool important = IsImportantPage(p.PageKey);
-                    bool isFooterPage = p.PageKey == "faq" || p.PageKey == "vip-policy";
-                    bool isPolicyPage = p.PageKey == "terms" || p.PageKey == "privacy" || p.PageKey == "rules" || p.PageKey == "anti-spam" || p.PageKey == "vip-policy";
 
-                    <div class="page-item"
-                         id="page-card-@p.PageID"
-                         data-title="@((p.Title ?? "").ToLower())"
-                         data-description="@((p.Description ?? "").ToLower())"
-                         data-key="@((p.PageKey ?? "").ToLower())"
-                         data-important="@(important ? "true" : "false")"
-                         data-footer="@(isFooterPage ? "true" : "false")"
-                         data-policy="@(isPolicyPage ? "true" : "false")">
+                    <div class="page-item" id="page-card-@p.PageID">
                         <article class="page-card @colorClass h-100">
                             <div class="page-card-body">
                                 <div class="page-top">
-                                    <div class="d-flex align-items-start gap-3 min-w-0">
+                                    <div class="page-info">
                                         <span class="page-icon">
                                             <i class="bi @iconClass"></i>
                                         </span>
 
                                         <div class="min-w-0">
-                                            <h5 class="page-title-line" title="@p.Title">@p.Title</h5>
-
-                                            @if (important)
-                                            {
-                                                <span class="important-pill">
-                                                    <i class="bi bi-pin-angle-fill"></i>
-                                                    Trang quan trọng
-                                                </span>
-                                            }
+                                            <h2 class="page-title-line" title="@p.Title">
+                                                @p.Title
+                                            </h2>
                                         </div>
                                     </div>
 
@@ -717,19 +551,14 @@
                                     </span>
                                 </div>
 
-                                <div class="page-description">
-                                    @(string.IsNullOrWhiteSpace(p.Description) ? "Không có mô tả. Bạn nên bổ sung mô tả ngắn để dễ quản lý và hỗ trợ SEO tốt hơn." : p.Description)
-                                </div>
+                                <p class="page-description">
+                                    @GetShortDescription(p.Description)
+                                </p>
 
                                 <div class="page-meta">
                                     <div class="page-meta-row">
                                         <i class="bi bi-link-45deg text-primary"></i>
                                         <span>/Page/@p.PageKey</span>
-                                    </div>
-
-                                    <div class="page-meta-row">
-                                        <i class="bi bi-info-circle text-secondary"></i>
-                                        <span>@GetPageUsageText(p.PageKey)</span>
                                     </div>
 
                                     <div class="page-meta-row">
@@ -757,7 +586,6 @@
                                             class="btn btn-outline-danger btn-circle-action btn-delete"
                                             data-id="@p.PageID"
                                             data-title="@p.Title"
-                                            data-key="@p.PageKey"
                                             title="Xóa trang này">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
@@ -775,8 +603,9 @@
                     </div>
 
                     <div class="empty-title">Chưa có trang tĩnh nào</div>
+
                     <p class="empty-desc">
-                        Bạn có thể tạo các trang như FAQ, Chính sách VIP, Điều khoản, Bảo mật để liên kết ra footer website.
+                        Bạn có thể tạo các trang như FAQ, chính sách, điều khoản hoặc dữ liệu hỗ trợ hệ thống.
                     </p>
 
                     <a asp-action="Create" class="btn btn-primary rounded-pill fw-bold px-4">
@@ -786,14 +615,6 @@
                 </div>
             }
         </section>
-
-        <div id="emptySearchState" class="empty-state d-none mt-3">
-            <div class="empty-icon">
-                <i class="bi bi-search"></i>
-            </div>
-            <div class="empty-title">Không tìm thấy trang phù hợp</div>
-            <p class="empty-desc">Thử đổi từ khóa hoặc chọn lại bộ lọc khác.</p>
-        </div>
     </div>
 </div>
 
@@ -802,71 +623,9 @@
 
     <script>
         $(document).ready(function () {
-            function normalizeText(value) {
-                return (value || '').toString().toLowerCase().trim();
-            }
-
-            function applyPageFilter() {
-                const keyword = normalizeText($('#pageSearchInput').val());
-                const filter = $('#pageFilterSelect').val();
-                let visibleCount = 0;
-
-                $('.page-item').each(function () {
-                    const item = $(this);
-
-                    const title = item.data('title') || '';
-                    const description = item.data('description') || '';
-                    const key = item.data('key') || '';
-
-                    const isImportant = item.data('important') === true || item.data('important') === 'true';
-                    const isFooter = item.data('footer') === true || item.data('footer') === 'true';
-                    const isPolicy = item.data('policy') === true || item.data('policy') === 'true';
-
-                    const matchKeyword =
-                        keyword === '' ||
-                        title.includes(keyword) ||
-                        description.includes(keyword) ||
-                        key.includes(keyword);
-
-                    let matchFilter = true;
-
-                    if (filter === 'important') {
-                        matchFilter = isImportant;
-                    }
-
-                    if (filter === 'footer') {
-                        matchFilter = isFooter;
-                    }
-
-                    if (filter === 'policy') {
-                        matchFilter = isPolicy;
-                    }
-
-                    if (matchKeyword && matchFilter) {
-                        item.removeClass('d-none');
-                        visibleCount++;
-                    } else {
-                        item.addClass('d-none');
-                    }
-                });
-
-                if (visibleCount === 0 && $('.page-item').length > 0) {
-                    $('#emptySearchState').removeClass('d-none');
-                } else {
-                    $('#emptySearchState').addClass('d-none');
-                }
-            }
-
-            $('#pageSearchInput').on('input', applyPageFilter);
-            $('#pageFilterSelect').on('change', applyPageFilter);
-
             $('.btn-delete').click(function () {
                 const id = $(this).data('id');
                 const title = $(this).data('title') || 'trang tĩnh này';
-                const pageKey = $(this).data('key') || '';
-
-                const protectedKeys = ['faq', 'vip-policy', 'terms', 'privacy', 'rules', 'anti-spam', 'ai_knowledge_base'];
-                const isProtected = protectedKeys.includes(pageKey);
 
                 Swal.fire({
                     title: 'Xác nhận xóa trang?',
@@ -877,11 +636,9 @@
                                 <strong>${escapeHtml(title)}</strong>
                             </p>
 
-                            <div class="alert ${isProtected ? 'alert-danger' : 'alert-warning'} rounded-4 mb-0">
+                            <div class="alert alert-warning rounded-4 mb-0">
                                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                ${isProtected
-                                    ? 'Đây là trang quan trọng có thể đang được dùng ở footer hoặc chính sách hệ thống. Chỉ xóa khi bạn chắc chắn đã có trang thay thế.'
-                                    : 'Thao tác này không thể hoàn tác sau khi xóa.'}
+                                Thao tác này không thể hoàn tác sau khi xóa.
                             </div>
                         </div>
                     `,
@@ -906,7 +663,10 @@
                                 if (res && res.success) {
                                     $('#page-card-' + id).fadeOut(250, function () {
                                         $(this).remove();
-                                        applyPageFilter();
+
+                                        if ($('.page-item').length === 0) {
+                                            location.reload();
+                                        }
                                     });
 
                                     Swal.fire({
@@ -915,7 +675,7 @@
                                         icon: 'success',
                                         title: res.message || 'Đã xóa trang tĩnh thành công.',
                                         showConfirmButton: false,
-                                        timer: 2500,
+                                        timer: 2400,
                                         timerProgressBar: true
                                     });
                                 } else {

@@ -8,7 +8,12 @@
     var areas = ViewBag.Areas as List<BDSKhanhHoa.Models.Area> ?? new List<BDSKhanhHoa.Models.Area>();
     var wards = ViewBag.Wards as List<BDSKhanhHoa.Models.Ward> ?? new List<BDSKhanhHoa.Models.Ward>();
     var packages = ViewBag.Packages as List<BDSKhanhHoa.Models.PostServicePackage> ?? new List<BDSKhanhHoa.Models.PostServicePackage>();
+    var propertyImages = ViewBag.PropertyImages as List<BDSKhanhHoa.Models.PropertyImage> ?? new List<BDSKhanhHoa.Models.PropertyImage>();
+
     int currentAreaID = ViewBag.CurrentAreaID is int aid ? aid : 0;
+    var currentPackage = packages.FirstOrDefault(p => p.PackageID == Model.PackageID) ?? Model.PostServicePackage;
+
+    string returnUrl = ViewBag.ReturnUrl as string ?? "/Admin/Properties/Index";
 }
 
 @functions {
@@ -21,6 +26,7 @@
             "Rejected" => "Bị từ chối",
             "Sold" => "Đã bán",
             "Rented" => "Đã cho thuê",
+            "Expired" => "Tin hết hạn",
             "Deleted" => "Đã xóa",
             _ => string.IsNullOrWhiteSpace(status) ? "Chưa xác định" : status
         };
@@ -35,6 +41,68 @@
 
         return price.Value.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ";
     }
+
+    public string FormatMoneyInput(decimal? value)
+    {
+        if (!value.HasValue || value.Value <= 0)
+        {
+            return "";
+        }
+
+        return decimal.Truncate(value.Value) == value.Value
+            ? value.Value.ToString("0", System.Globalization.CultureInfo.InvariantCulture)
+            : value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public string FormatDecimalInput(decimal? value)
+    {
+        if (!value.HasValue || value.Value <= 0)
+        {
+            return "";
+        }
+
+        return value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public string FormatDecimalText(decimal? value, string unit = "")
+    {
+        if (!value.HasValue || value.Value <= 0)
+        {
+            return "Chưa cập nhật";
+        }
+
+        string text = value.Value.ToString("0.##", new System.Globalization.CultureInfo("vi-VN"));
+        return string.IsNullOrWhiteSpace(unit) ? text : $"{text} {unit}";
+    }
+
+    public string FormatPackagePrice(decimal? price)
+    {
+        if (!price.HasValue || price.Value <= 0)
+        {
+            return "Miễn phí";
+        }
+
+        return price.Value.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ";
+    }
+
+    public string SafeImage(string? image)
+    {
+        if (string.IsNullOrWhiteSpace(image))
+        {
+            return "/images/no-image.jpg";
+        }
+
+        image = image.Trim();
+
+        if (image.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            image.StartsWith("/"))
+        {
+            return image;
+        }
+
+        return "/" + image.TrimStart('/');
+    }
 }
 
 <style>
@@ -44,10 +112,8 @@
         --edit-danger: #dc2626;
         --edit-success: #059669;
         --edit-dark: #0f172a;
-        --edit-text: #334155;
         --edit-muted: #64748b;
         --edit-border: #e2e8f0;
-        --edit-soft: #f8fafc;
         --edit-card: #ffffff;
         --edit-radius: 18px;
         --edit-shadow: 0 14px 35px rgba(15, 23, 42, .07);
@@ -59,9 +125,7 @@
         min-height: calc(100vh - 80px);
     }
 
-    .edit-hero,
-    .edit-card,
-    .side-card {
+    .edit-hero, .edit-card, .side-card {
         background: var(--edit-card);
         border: 1px solid rgba(148, 163, 184, .25);
         border-radius: var(--edit-radius);
@@ -71,7 +135,7 @@
     .edit-hero {
         padding: 20px 22px;
         margin-bottom: 16px;
-        background: radial-gradient(circle at top right, rgba(245, 158, 11, .16), transparent 280px), #ffffff;
+        background: radial-gradient(circle at top right, rgba(245, 158, 11, .16), transparent 280px), #fff;
     }
 
     .edit-title {
@@ -115,7 +179,7 @@
         gap: 10px;
         padding: 16px 18px;
         border-bottom: 1px solid #edf2f7;
-        background: #ffffff;
+        background: #fff;
     }
 
     .edit-card-icon {
@@ -155,8 +219,7 @@
         margin-bottom: 7px;
     }
 
-    .admin-edit-page .form-control,
-    .admin-edit-page .form-select {
+    .admin-edit-page .form-control, .admin-edit-page .form-select {
         border: 1px solid #dbe4ef;
         border-radius: 14px;
         min-height: 45px;
@@ -171,8 +234,7 @@
         line-height: 1.65;
     }
 
-    .admin-edit-page .form-control:focus,
-    .admin-edit-page .form-select:focus {
+    .admin-edit-page .form-control:focus, .admin-edit-page .form-select:focus {
         border-color: #93c5fd;
         background: #fff;
         box-shadow: 0 0 0 4px rgba(37, 99, 235, .09) !important;
@@ -217,24 +279,50 @@
         text-align: right;
     }
 
-    .package-admin-box {
-        border: 1px solid #fde68a;
-        background: linear-gradient(135deg, #fffbeb, #ffffff);
+    .package-locked-box {
+        border: 1px solid #bfdbfe;
+        background: linear-gradient(135deg, #eff6ff, #fff);
         border-radius: 16px;
         padding: 14px;
     }
 
-        .package-admin-box .form-label {
-            font-weight: 900;
-            color: #7c2d12;
-        }
-
-    .package-select-admin {
-        background: #fff !important;
-        border-color: #facc15 !important;
-        font-weight: 800 !important;
-        color: #0f172a !important;
+    .package-locked-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+        color: #1d4ed8;
+        font-weight: 900;
+        font-size: .92rem;
     }
+
+    .package-current-name {
+        color: #0f172a;
+        font-weight: 900;
+        line-height: 1.45;
+        margin-bottom: 5px;
+    }
+
+    .package-current-meta {
+        color: #64748b;
+        font-size: .82rem;
+        font-weight: 650;
+        line-height: 1.55;
+    }
+
+    .package-lock-note {
+        margin-top: 12px;
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: .8rem;
+        font-weight: 700;
+        line-height: 1.55;
+    }
+
     .warning-box {
         border: 1px solid #fde68a;
         background: #fffbeb;
@@ -246,18 +334,131 @@
         line-height: 1.55;
     }
 
-    .btn-save-admin {
-        min-height: 48px;
-        border-radius: 999px;
-        font-weight: 900;
-        box-shadow: 0 12px 25px rgba(37, 99, 235, .18);
+    .locked-edit-box {
+        border: 1px solid #fecaca;
+        background: #fff1f2;
+        color: #991b1b;
+        border-radius: 16px;
+        padding: 13px 14px;
+        font-size: .85rem;
+        font-weight: 700;
+        line-height: 1.55;
     }
 
-    .btn-back-admin {
+    .btn-save-admin, .btn-back-admin {
         min-height: 46px;
         border-radius: 999px;
         font-weight: 850;
     }
+
+    .btn-save-admin {
+        min-height: 48px;
+        font-weight: 900;
+        box-shadow: 0 12px 25px rgba(37, 99, 235, .18);
+    }
+
+    .metric-preview {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .metric-item {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        border-radius: 14px;
+        padding: 11px 12px;
+    }
+
+    .metric-label {
+        color: #64748b;
+        font-size: .74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        color: #0f172a;
+        font-size: .92rem;
+        font-weight: 900;
+        line-height: 1.35;
+    }
+
+    .image-manager {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .image-tile {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #fff;
+        padding: 10px;
+        position: relative;
+    }
+
+        .image-tile img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #f1f5f9;
+        }
+
+    .image-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        margin-top: 8px;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+    .image-action-line {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #334155;
+    }
+
+    .image-main-badge {
+        position: absolute;
+        top: 17px;
+        left: 17px;
+        border-radius: 999px;
+        padding: 4px 9px;
+        background: #2563eb;
+        color: #fff;
+        font-size: .7rem;
+        font-weight: 900;
+    }
+
+    .upload-box {
+        border: 1px dashed #93c5fd;
+        border-radius: 16px;
+        background: #eff6ff;
+        padding: 14px;
+    }
+
+    .upload-preview {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+        .upload-preview img {
+            width: 100%;
+            height: 86px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid #bfdbfe;
+            background: #fff;
+        }
 
     @@media (max-width: 991.98px) {
         .admin-edit-page {
@@ -271,48 +472,359 @@
         .property-img {
             height: 190px;
         }
+
+        .metric-preview {
+            grid-template-columns: 1fr;
+        }
+
+        .image-manager {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
     }
+
+    @@media (max-width: 575.98px) {
+        .image-manager, .upload-preview {
+            grid-template-columns: 1fr;
+        }
+    }
+
+
+    /* =========================================================
+           RESPONSIVE COMPACT PATCH - ADMIN PROPERTY EDIT
+           Mục tiêu: bỏ hero dài, bỏ khoảng trắng đầu trang, gọn trên mobile/desktop.
+           ========================================================= */
+    .admin-edit-page {
+        padding: 8px 14px 24px !important;
+        margin-top: -12px !important;
+        overflow-x: hidden !important;
+    }
+
+    .edit-mini-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, .96);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .045);
+    }
+
+    .edit-mini-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        color: #0f172a;
+        font-size: .9rem;
+        font-weight: 900;
+    }
+
+        .edit-mini-title span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    .edit-mini-actions {
+        display: flex;
+        gap: 7px;
+        flex: 0 0 auto;
+    }
+
+    .edit-mini-btn {
+        min-height: 34px;
+        border-radius: 999px;
+        padding: 6px 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: .78rem;
+        font-weight: 850;
+        text-decoration: none;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #334155;
+    }
+
+        .edit-mini-btn:hover {
+            color: #2563eb;
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+    .edit-card {
+        margin-bottom: 10px !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .045) !important;
+    }
+
+    .edit-card-head {
+        padding: 12px 14px !important;
+        gap: 9px !important;
+    }
+
+    .edit-card-icon {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 12px !important;
+        font-size: .98rem !important;
+    }
+
+    .edit-card-title {
+        font-size: .95rem !important;
+        line-height: 1.22 !important;
+    }
+
+    .edit-card-note {
+        font-size: .72rem !important;
+        line-height: 1.32 !important;
+    }
+
+    .edit-card-body {
+        padding: 14px !important;
+    }
+
+    .admin-edit-page .form-label {
+        font-size: .84rem !important;
+        margin-bottom: 5px !important;
+    }
+
+    .admin-edit-page .form-control,
+    .admin-edit-page .form-select {
+        min-height: 41px !important;
+        border-radius: 12px !important;
+        font-size: .86rem !important;
+    }
+
+    .admin-edit-page textarea.form-control {
+        min-height: 128px !important;
+    }
+
+    .side-card {
+        padding: 14px !important;
+        border-radius: 16px !important;
+        top: 10px !important;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .045) !important;
+    }
+
+    .property-img {
+        height: 170px !important;
+        border-radius: 13px !important;
+    }
+
+    .warning-box,
+    .locked-edit-box,
+    .package-locked-box {
+        padding: 10px 11px !important;
+        border-radius: 13px !important;
+        font-size: .74rem !important;
+        line-height: 1.42 !important;
+        margin-bottom: 9px !important;
+    }
+
+    .package-locked-title {
+        margin-bottom: 7px !important;
+        font-size: .82rem !important;
+    }
+
+    .package-current-name {
+        font-size: .84rem !important;
+    }
+
+    .package-current-meta,
+    .package-lock-note {
+        font-size: .72rem !important;
+    }
+
+    .info-row {
+        padding: 7px 0 !important;
+        font-size: .77rem !important;
+    }
+
+    .btn-save-admin,
+    .btn-back-admin {
+        min-height: 40px !important;
+        border-radius: 13px !important;
+        font-size: .82rem !important;
+    }
+
+    .metric-preview {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 7px !important;
+        margin-top: 10px !important;
+    }
+
+    .metric-item {
+        padding: 8px 9px !important;
+        border-radius: 12px !important;
+    }
+
+    .metric-label {
+        font-size: .6rem !important;
+    }
+
+    .metric-value {
+        font-size: .78rem !important;
+    }
+
+    .image-manager {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+
+    .image-tile {
+        padding: 7px !important;
+        border-radius: 13px !important;
+    }
+
+        .image-tile img {
+            height: 92px !important;
+            border-radius: 10px !important;
+        }
+
+    .image-actions {
+        gap: 5px !important;
+        margin-top: 6px !important;
+        font-size: .72rem !important;
+    }
+
+    .upload-box {
+        padding: 11px !important;
+        border-radius: 13px !important;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .metric-preview,
+        .image-manager {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @@media (max-width: 991.98px) {
+        .admin-edit-page {
+            padding: 0 8px 18px !important;
+            margin-top: -18px !important;
+        }
+
+        .side-card {
+            position: static !important;
+        }
+
+        .property-img {
+            height: 160px !important;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .edit-mini-nav {
+            padding: 9px !important;
+            border-radius: 14px !important;
+        }
+
+        .edit-mini-title {
+            font-size: .8rem !important;
+            max-width: 48% !important;
+        }
+
+        .edit-mini-actions {
+            gap: 5px !important;
+        }
+
+        .edit-mini-btn {
+            min-height: 32px !important;
+            padding: 5px 8px !important;
+            font-size: .7rem !important;
+        }
+
+        .edit-card-head {
+            padding: 11px 12px !important;
+        }
+
+        .edit-card-note {
+            display: none !important;
+        }
+
+        .edit-card-body {
+            padding: 12px !important;
+        }
+
+        .admin-edit-page .row.g-3 {
+            --bs-gutter-y: .65rem !important;
+        }
+
+        .metric-preview {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .image-manager,
+        .upload-preview {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .image-tile img {
+            height: 86px !important;
+        }
+
+        .side-card .d-grid.gap-2 {
+            position: sticky;
+            bottom: 6px;
+            z-index: 20;
+            padding: 8px;
+            margin-left: -8px;
+            margin-right: -8px;
+            border-radius: 16px;
+            background: rgba(255,255,255,.94);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 -8px 24px rgba(15,23,42,.08);
+        }
+    }
+
 </style>
 
 <div class="admin-edit-page">
-    <section class="edit-hero">
-        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3">
-            <div>
-                <h1 class="edit-title">
-                    <i class="bi bi-pencil-square text-warning me-2"></i>
-                    Admin chỉnh sửa tin đăng
-                </h1>
-                <p class="edit-subtitle">
-                    Chỉ chỉnh sửa các lỗi cần thiết để kiểm duyệt nội dung. Tất cả thao tác sẽ được ghi lịch sử quản trị.
-                </p>
-            </div>
 
-            <div class="d-flex gap-2 flex-wrap align-items-center">
-                <span class="status-pill">
-                    <i class="bi bi-activity"></i>
-                    @StatusText(Model.Status)
-                </span>
-
-                <a href="/Admin/Properties/Index" class="btn btn-light border btn-back-admin px-4">
-                    <i class="bi bi-arrow-left me-1"></i>
-                    Quay lại
-                </a>
-            </div>
+    <div class="edit-mini-nav">
+        <div class="edit-mini-title">
+            <i class="bi bi-pencil-square text-warning"></i>
+            <span>Sửa tin #@Model.PropertyID</span>
         </div>
-    </section>
+        <div class="edit-mini-actions">
+            <a href="@returnUrl" class="edit-mini-btn"><i class="bi bi-arrow-left"></i>Quay lại</a>
+            <a href="/Property/Details/@Model.PropertyID" target="_blank" class="edit-mini-btn"><i class="bi bi-eye"></i>Xem tin</a>
+        </div>
+    </div>
 
-    <form action="/Admin/Properties/Edit" method="post">
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 rounded-4 shadow-sm mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+        </div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show border-0 rounded-4 shadow-sm mb-3">
+            <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Đóng"></button>
+        </div>
+    }
+
+    <form action="/Admin/Properties/Edit" method="post" enctype="multipart/form-data">
         @Html.AntiForgeryToken()
-
         <input type="hidden" name="PropertyID" value="@Model.PropertyID" />
+        <input type="hidden" name="ReturnUrl" value="@returnUrl" />
+        <input type="hidden" name="PackageID" value="@Model.PackageID" />
 
         <div class="row g-3">
             <div class="col-lg-8">
                 <section class="edit-card">
                     <div class="edit-card-head">
-                        <div class="edit-card-icon">
-                            <i class="bi bi-card-text"></i>
-                        </div>
+                        <div class="edit-card-icon"><i class="bi bi-card-text"></i></div>
                         <div>
                             <h5 class="edit-card-title">Thông tin chính</h5>
                             <p class="edit-card-note">Tiêu đề, mô tả, loại bất động sản và vị trí hiển thị.</p>
@@ -323,12 +835,7 @@
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label">Tiêu đề tin đăng <span class="text-danger">*</span></label>
-                                <input type="text"
-                                       name="Title"
-                                       value="@Model.Title"
-                                       class="form-control"
-                                       maxlength="255"
-                                       required />
+                                <input type="text" name="Title" value="@Model.Title" class="form-control" maxlength="255" required />
                             </div>
 
                             <div class="col-md-6">
@@ -356,9 +863,7 @@
                                     <option value="">-- Chọn khu vực --</option>
                                     @foreach (var area in areas)
                                     {
-                                        <option value="@area.AreaID" selected="@(area.AreaID == currentAreaID)">
-                                            @area.AreaName
-                                        </option>
+                                        <option value="@area.AreaID" selected="@(area.AreaID == currentAreaID)">@area.AreaName</option>
                                     }
                                 </select>
                             </div>
@@ -367,29 +872,21 @@
                                 <label class="form-label">Phường / Xã <span class="text-danger">*</span></label>
                                 <select name="WardID" id="wardSelect" class="form-select" required>
                                     <option value="">-- Chọn phường / xã --</option>
-                                    @foreach (var ward in wards.Where(w => w.AreaID == currentAreaID))
+                                    @foreach (var ward in wards.Where(w => w.AreaID == currentAreaID).OrderBy(w => w.WardName))
                                     {
-                                        <option value="@ward.WardID" selected="@(ward.WardID == Model.WardID)">
-                                            @ward.WardName
-                                        </option>
+                                        <option value="@ward.WardID" selected="@(ward.WardID == Model.WardID)">@ward.WardName</option>
                                     }
                                 </select>
                             </div>
 
                             <div class="col-12">
                                 <label class="form-label">Địa chỉ chi tiết</label>
-                                <input type="text"
-                                       name="AddressDetail"
-                                       value="@Model.AddressDetail"
-                                       class="form-control"
-                                       maxlength="255" />
+                                <input type="text" name="AddressDetail" value="@Model.AddressDetail" class="form-control" maxlength="255" />
                             </div>
 
                             <div class="col-12">
                                 <label class="form-label">Mô tả chi tiết <span class="text-danger">*</span></label>
-                                <textarea name="Description"
-                                          class="form-control"
-                                          required>@Model.Description</textarea>
+                                <textarea name="Description" class="form-control" required>@Model.Description</textarea>
                             </div>
                         </div>
                     </div>
@@ -397,12 +894,10 @@
 
                 <section class="edit-card">
                     <div class="edit-card-head">
-                        <div class="edit-card-icon">
-                            <i class="bi bi-rulers"></i>
-                        </div>
+                        <div class="edit-card-icon"><i class="bi bi-rulers"></i></div>
                         <div>
                             <h5 class="edit-card-title">Giá & thông số</h5>
-                            <p class="edit-card-note">Admin chỉ sửa khi phát hiện nhập sai hoặc sai định dạng.</p>
+                            <p class="edit-card-note">Các số thập phân được hiển thị gọn, không có .00 hoặc số 0 dư.</p>
                         </div>
                     </div>
 
@@ -410,57 +905,87 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label">Giá</label>
-                                <input type="number"
-                                       name="Price"
-                                       value="@Model.Price"
-                                       class="form-control"
-                                       min="0"
-                                       step="1000"
-                                       placeholder="Để trống nếu thỏa thuận" />
+                                <input type="number" name="Price" value="@FormatMoneyInput(Model.Price)" class="form-control js-clean-number" min="0" step="1000" inputmode="decimal" placeholder="Để trống nếu thỏa thuận" />
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label">Diện tích</label>
-                                <input type="number"
-                                       name="AreaSize"
-                                       value="@Model.AreaSize"
-                                       class="form-control"
-                                       min="0"
-                                       step="0.01"
-                                       placeholder="m²" />
+                                <input type="number" name="AreaSize" value="@FormatDecimalInput(Model.AreaSize)" class="form-control js-clean-number" min="0" step="0.01" inputmode="decimal" placeholder="m²" />
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label">Chiều ngang</label>
-                                <input type="number"
-                                       name="Width"
-                                       value="@Model.Width"
-                                       class="form-control"
-                                       min="0"
-                                       step="0.01"
-                                       placeholder="m" />
+                                <input type="number" name="Width" value="@FormatDecimalInput(Model.Width)" class="form-control js-clean-number" min="0" step="0.01" inputmode="decimal" placeholder="m" />
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label">Chiều dài</label>
-                                <input type="number"
-                                       name="Length"
-                                       value="@Model.Length"
-                                       class="form-control"
-                                       min="0"
-                                       step="0.01"
-                                       placeholder="m" />
+                                <input type="number" name="Length" value="@FormatDecimalInput(Model.Length)" class="form-control js-clean-number" min="0" step="0.01" inputmode="decimal" placeholder="m" />
                             </div>
-
-                         
 
                             <div class="col-12">
-                                <label class="form-label">Ghi chú chỉnh sửa của Admin</label>
-                                <textarea name="AdminEditNote"
-                                          class="form-control"
-                                          rows="4"
-                                          placeholder="Ví dụ: Chuẩn hóa tiêu đề, sửa khu vực bị chọn sai, điều chỉnh định dạng giá..."></textarea>
+                                <div class="metric-preview">
+                                    <div class="metric-item"><div class="metric-label">Giá hiện tại</div><div class="metric-value">@FormatPrice(Model.Price)</div></div>
+                                    <div class="metric-item"><div class="metric-label">Diện tích</div><div class="metric-value">@FormatDecimalText(Model.AreaSize, "m²")</div></div>
+                                    <div class="metric-item"><div class="metric-label">Chiều ngang</div><div class="metric-value">@FormatDecimalText(Model.Width, "m")</div></div>
+                                    <div class="metric-item"><div class="metric-label">Chiều dài</div><div class="metric-value">@FormatDecimalText(Model.Length, "m")</div></div>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="edit-card">
+                    <div class="edit-card-head">
+                        <div class="edit-card-icon"><i class="bi bi-images"></i></div>
+                        <div>
+                            <h5 class="edit-card-title">Quản lý ảnh tin đăng</h5>
+                            <p class="edit-card-note">Admin được phép thêm ảnh, xóa ảnh và chọn ảnh đại diện. Ảnh hỗ trợ: JPG, JPEG, PNG, WEBP; tối đa 5MB/ảnh.</p>
+                        </div>
+                    </div>
+
+                    <div class="edit-card-body">
+                        @if (propertyImages.Any())
+                        {
+                            <div class="image-manager mb-3">
+                                @foreach (var image in propertyImages)
+                                {
+                                    <div class="image-tile">
+                                        @if (image.IsMain == true || image.ImageURL == Model.MainImage)
+                                        {
+                                            <span class="image-main-badge">Ảnh chính</span>
+                                        }
+
+                                        <img src="@SafeImage(image.ImageURL)" alt="Ảnh tin đăng" onerror="this.src='/images/no-image.jpg'" />
+
+                                        <div class="image-actions">
+                                            <label class="image-action-line">
+                                                <input type="radio" name="MainImageId" value="@image.ImageID" @(image.IsMain == true || image.ImageURL == Model.MainImage ? "checked" : "") />
+                                                Chọn làm ảnh đại diện
+                                            </label>
+
+                                            <label class="image-action-line text-danger">
+                                                <input type="checkbox" name="DeleteImageIds" value="@image.ImageID" />
+                                                Xóa ảnh này
+                                            </label>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning rounded-4 fw-semibold">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                Tin đăng này chưa có ảnh phụ trong bảng PropertyImages. Bạn có thể tải ảnh mới bên dưới.
+                            </div>
+                        }
+
+                        <div class="upload-box">
+                            <label class="form-label mb-2">Thêm ảnh mới</label>
+                            <input type="file" name="NewImages" id="NewImages" class="form-control" accept="image/jpeg,image/jpg,image/png,image/webp" multiple />
+                            <div class="small text-muted fw-semibold mt-2">Có thể chọn nhiều ảnh cùng lúc. Nếu xóa hết ảnh cũ và không thêm ảnh mới, ảnh đại diện sẽ chuyển về trống.</div>
+                            <div id="uploadPreview" class="upload-preview"></div>
                         </div>
                     </div>
                 </section>
@@ -468,100 +993,47 @@
 
             <div class="col-lg-4">
                 <aside class="side-card">
-                    <img src="@(string.IsNullOrWhiteSpace(Model.MainImage) ? "/images/no-image.jpg" : Model.MainImage)"
-                         class="property-img mb-3"
-                         alt="@Model.Title"
-                         onerror="this.src='/images/no-image.jpg'" />
+                    <img src="@SafeImage(Model.MainImage)" class="property-img mb-3" alt="@Model.Title" onerror="this.src='/images/no-image.jpg'" />
 
-                    <div class="warning-box mb-3">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        Admin chỉ nên chỉnh sửa lỗi cần thiết. Không nên thay đổi bản chất tin đăng nếu chưa có căn cứ rõ ràng.
-                    </div>
-                    <div class="package-admin-box mb-3">
-                        <label class="form-label d-flex align-items-center justify-content-between mb-2">
-                            <span>
-                                <i class="bi bi-gem text-warning me-1"></i>
-                                Gói tin áp dụng
-                            </span>
-                            <span class="text-danger">*</span>
-                        </label>
+                    <div class="warning-box mb-3"><i class="bi bi-exclamation-triangle-fill me-1"></i>Admin chỉ nên chỉnh sửa lỗi cần thiết. Không thay đổi bản chất tin đăng nếu chưa có căn cứ rõ ràng.</div>
+                    <div class="locked-edit-box mb-3"><i class="bi bi-lock-fill me-1"></i>Gói tin của người dùng đã bị khóa trên màn hình chỉnh sửa Admin. Nếu cần thay đổi gói, hãy xử lý bằng nghiệp vụ thanh toán/giao dịch riêng.</div>
 
-                        @if (packages.Any())
+                    <div class="package-locked-box mb-3">
+                        <div class="package-locked-title"><span><i class="bi bi-gem me-1"></i>Gói tin hiện tại</span><span class="badge bg-primary rounded-pill">Đã khóa</span></div>
+                        @if (currentPackage != null)
                         {
-                            <select name="PackageID" class="form-select package-select-admin" required>
-                                @foreach (var package in packages)
-                                {
-                                    var packagePrice = package.Price > 0
-                                    ? package.Price.ToString("N0", new System.Globalization.CultureInfo("vi-VN")) + " đ"
-                                    : "Miễn phí";
-
-                                    <option value="@package.PackageID" selected="@(package.PackageID == Model.PackageID)">
-                                        @package.PackageName - @package.PackageType - @packagePrice
-                                    </option>
-                                }
-                            </select>
-
-                            <div class="small text-muted fw-semibold mt-2">
-                                Đổi gói tin tại đây nếu Admin cần điều chỉnh quyền ưu tiên hiển thị.
+                            <div class="package-current-name">@currentPackage.PackageName</div>
+                            <div class="package-current-meta">
+                                <div><strong>Loại gói:</strong> @currentPackage.PackageType</div>
+                                <div><strong>Giá gói:</strong> @FormatPackagePrice(currentPackage.Price)</div>
+                                <div><strong>Thời hạn:</strong> @(currentPackage.DurationDays > 0 ? $"{currentPackage.DurationDays} ngày" : "Không xác định")</div>
                             </div>
                         }
                         else
                         {
-                            <input type="hidden" name="PackageID" value="@Model.PackageID" />
-
-                            <div class="alert alert-warning small rounded-4 mb-0">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                Chưa tải được danh sách gói tin. Hệ thống sẽ giữ nguyên gói hiện tại.
-                            </div>
+                            <div class="package-current-name">Chưa xác định gói tin</div>
+                            <div class="package-current-meta">Hệ thống vẫn giữ nguyên PackageID hiện tại: #@Model.PackageID.</div>
                         }
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Mã tin</span>
-                        <span class="info-value">#@Model.PropertyID</span>
+                        <div class="package-lock-note"><i class="bi bi-shield-check me-1"></i>Admin không thể chọn gói khác ở form này. Dữ liệu gửi lên chỉ giữ nguyên gói hiện tại.</div>
                     </div>
 
-                    <div class="info-row">
-                        <span class="info-label">Người đăng</span>
-                        <span class="info-value">@(Model.User?.FullName ?? "Không rõ")</span>
-                    </div>
-
-                    <div class="info-row">
-                        <span class="info-label">SĐT</span>
-                        <span class="info-value">@(Model.User?.Phone ?? "Chưa có")</span>
-                    </div>
-
-                    <div class="info-row">
-                        <span class="info-label">Trạng thái</span>
-                        <span class="info-value">@StatusText(Model.Status)</span>
-                    </div>
-
-                    <div class="info-row">
-                        <span class="info-label">Giá hiện tại</span>
-                        <span class="info-value">@FormatPrice(Model.Price)</span>
-                    </div>
-
-                    <div class="info-row">
-                        <span class="info-label">Ngày đăng</span>
-                        <span class="info-value">@Model.CreatedAt.ToString("dd/MM/yyyy")</span>
-                    </div>
+                    <div class="info-row"><span class="info-label">Mã tin</span><span class="info-value">#@Model.PropertyID</span></div>
+                    <div class="info-row"><span class="info-label">Người đăng</span><span class="info-value">@(Model.User?.FullName ?? Model.User?.Username ?? "Không rõ")</span></div>
+                    <div class="info-row"><span class="info-label">SĐT</span><span class="info-value">@(Model.User?.Phone ?? "Chưa có")</span></div>
+                    <div class="info-row"><span class="info-label">Trạng thái</span><span class="info-value">@StatusText(Model.Status)</span></div>
+                    <div class="info-row"><span class="info-label">Giá hiện tại</span><span class="info-value">@FormatPrice(Model.Price)</span></div>
+                    <div class="info-row"><span class="info-label">Diện tích</span><span class="info-value">@FormatDecimalText(Model.AreaSize, "m²")</span></div>
+                    <div class="info-row"><span class="info-label">Kích thước</span><span class="info-value">@FormatDecimalText(Model.Width, "m") x @FormatDecimalText(Model.Length, "m")</span></div>
+                    <div class="info-row"><span class="info-label">Ngày đăng</span><span class="info-value">@Model.CreatedAt.ToString("dd/MM/yyyy")</span></div>
+                    @if (Model.VipExpiryDate.HasValue)
+                    {
+                        <div class="info-row"><span class="info-label">Hết hạn VIP</span><span class="info-value">@Model.VipExpiryDate.Value.ToString("dd/MM/yyyy")</span></div>
+                    }
 
                     <div class="d-grid gap-2 mt-3">
-                        <button type="submit" class="btn btn-primary btn-save-admin">
-                            <i class="bi bi-save2-fill me-1"></i>
-                            Lưu chỉnh sửa
-                        </button>
-
-                        <a href="/Property/Details/@Model.PropertyID"
-                           target="_blank"
-                           class="btn btn-outline-info btn-back-admin">
-                            <i class="bi bi-eye-fill me-1"></i>
-                            Xem tin ngoài website
-                        </a>
-
-                        <a href="/Admin/Properties/Index"
-                           class="btn btn-light border btn-back-admin">
-                            Hủy bỏ
-                        </a>
+                        <button type="submit" class="btn btn-primary btn-save-admin"><i class="bi bi-save2-fill me-1"></i>Lưu chỉnh sửa</button>
+                        <a href="/Property/Details/@Model.PropertyID" target="_blank" class="btn btn-outline-info btn-back-admin"><i class="bi bi-eye-fill me-1"></i>Xem tin ngoài website</a>
+                        <a href="@returnUrl" class="btn btn-light border btn-back-admin">Hủy bỏ</a>
                     </div>
                 </aside>
             </div>
@@ -577,31 +1049,24 @@
 
         function filterSubTypes(parentId) {
             const select = document.getElementById('subTypeSelect');
+            if (!select) return;
             select.innerHTML = '<option value="">-- Chọn loại bất động sản --</option>';
-
-            if (!parentId) {
-                return;
-            }
+            if (!parentId) return;
 
             const filtered = subTypes.filter(x => String(x.ParentID) === String(parentId));
-
             filtered.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.TypeID;
                 option.textContent = item.TypeName;
-
-                if (Number(item.TypeID) === Number(currentTypeId)) {
-                    option.selected = true;
-                }
-
+                if (Number(item.TypeID) === Number(currentTypeId)) option.selected = true;
                 select.appendChild(option);
             });
         }
 
         function loadWards(areaId) {
             const wardSelect = document.getElementById('wardSelect');
+            if (!wardSelect) return;
             wardSelect.innerHTML = '<option value="">Đang tải...</option>';
-
             if (!areaId) {
                 wardSelect.innerHTML = '<option value="">-- Chọn khu vực trước --</option>';
                 return;
@@ -611,29 +1076,61 @@
                 .then(response => response.json())
                 .then(data => {
                     wardSelect.innerHTML = '<option value="">-- Chọn phường / xã --</option>';
-
                     data.forEach(item => {
                         const option = document.createElement('option');
                         option.value = item.wardID;
                         option.textContent = item.wardName;
-
-                        if (Number(item.wardID) === Number(currentWardId)) {
-                            option.selected = true;
-                        }
-
+                        if (Number(item.wardID) === Number(currentWardId)) option.selected = true;
                         wardSelect.appendChild(option);
                     });
                 })
-                .catch(() => {
-                    wardSelect.innerHTML = '<option value="">Không tải được phường / xã</option>';
+                .catch(() => { wardSelect.innerHTML = '<option value="">Không tải được phường / xã</option>'; });
+        }
+
+        function cleanNumberValue(value) {
+            if (value === null || value === undefined) return '';
+            value = String(value).trim();
+            if (!value) return '';
+            value = value.replace(',', '.');
+            const number = Number(value);
+            if (!Number.isFinite(number)) return value;
+            if (number <= 0) return '';
+            return Number.isInteger(number) ? String(number) : String(parseFloat(number.toFixed(2)));
+        }
+
+        function cleanNumberInputs() {
+            document.querySelectorAll('.js-clean-number').forEach(input => {
+                input.value = cleanNumberValue(input.value);
+                input.addEventListener('blur', function () { this.value = cleanNumberValue(this.value); });
+            });
+        }
+
+        function previewNewImages() {
+            const input = document.getElementById('NewImages');
+            const preview = document.getElementById('uploadPreview');
+            if (!input || !preview) return;
+
+            input.addEventListener('change', function () {
+                preview.innerHTML = '';
+                Array.from(this.files || []).forEach(file => {
+                    if (!file.type.startsWith('image/')) return;
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.alt = file.name;
+                        preview.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
                 });
+            });
         }
 
         document.addEventListener('DOMContentLoaded', function () {
             const parentSelect = document.getElementById('parentTypeSelect');
-            if (parentSelect && parentSelect.value) {
-                filterSubTypes(parentSelect.value);
-            }
+            if (parentSelect && parentSelect.value) filterSubTypes(parentSelect.value);
+            cleanNumberInputs();
+            previewNewImages();
         });
     </script>
 }

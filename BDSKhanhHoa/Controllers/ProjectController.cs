@@ -37,13 +37,36 @@ namespace BDSKhanhHoa.Controllers
 
         [HttpGet]
         [Route("Project")]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int page = 1)
         {
             await LoadProjectFiltersAsync();
 
-            var projects = await BuildBaseQuery()
-                .OrderByDescending(p => p.PublishedAt)
-                .Take(12)
+            const int pageSize = 12;
+
+            var query = BuildBaseQuery()
+                .OrderByDescending(p => p.PublishedAt);
+
+            int totalResults = await query.CountAsync();
+            int totalPages = (int)Math.Ceiling(totalResults / (double)pageSize);
+
+            if (totalPages < 1)
+            {
+                totalPages = 1;
+            }
+
+            if (page < 1)
+            {
+                page = 1;
+            }
+
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            var projects = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
             ViewData["Title"] = "Dự án Bất động sản tại Khánh Hòa";
@@ -51,7 +74,9 @@ namespace BDSKhanhHoa.Controllers
             ViewBag.AreaId = null;
             ViewBag.Status = "";
             ViewBag.Sort = "newest";
-            ViewBag.TotalResults = await BuildBaseQuery().CountAsync();
+            ViewBag.TotalResults = totalResults;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = totalPages;
 
             return View("Search", projects);
         }
