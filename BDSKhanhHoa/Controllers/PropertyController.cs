@@ -2135,6 +2135,230 @@ namespace BDSKhanhHoa.Controllers
         }
 
         [HttpPost]
+        public async Task<IActionResult> SubmitReply(
+            [FromForm] int propertyId,
+            [FromForm] int parentId,
+            [FromForm] string content)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!int.TryParse(userIdStr, out int currentUserId))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng đăng nhập để trả lời bình luận."
+                });
+            }
+
+            content = content?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nội dung trả lời không được để trống."
+                });
+            }
+
+            if (content.Length > 1000)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nội dung trả lời tối đa 1000 ký tự."
+                });
+            }
+
+            var property = await _context.Properties
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PropertyID == propertyId && p.IsDeleted == false);
+
+            if (property == null)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Không tìm thấy tin đăng."
+                });
+            }
+
+            var lockCheck = await CheckPropertyInteractionLockedAsync(propertyId);
+            if (lockCheck.IsLocked)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = lockCheck.Message
+                });
+            }
+
+            var parentComment = await _context.Comments
+                .Include(c => c.Property)
+                .Include(c => c.Replies)
+                .FirstOrDefaultAsync(c =>
+                    c.CommentID == parentId &&
+                    c.PropertyID == propertyId &&
+                    c.ParentID == null);
+
+            if (parentComment == null)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Không tìm thấy cuộc trò chuyện cần trả lời."
+                });
+            }
+
+            if (parentComment.IsHidden)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Bình luận này đã bị ẩn, không thể trả lời."
+                });
+            }
+
+            bool isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Staff");
+            bool isSeller = property.UserID == currentUserId;
+            bool isOriginalBuyer = parentComment.UserID == currentUserId;
+            bool hasJoinedThread = parentComment.Replies != null &&
+                                   parentComment.Replies.Any(r => r.UserID == currentUserId && r.IsHidden == false);
+
+            if (!isSeller && !isOriginalBuyer && !hasJoinedThread && !isAdminOrStaff)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Bạn chỉ được trả lời trong cuộc trò chuyện liên quan đến bạn."
+                });
+            }
+
+            var reply = new Comment
+            {
+                PropertyID = propertyId,
+                UserID = currentUserId,
+                ParentID = parentComment.CommentID,
+                Content = content,
+                CreatedAt = DateTime.Now,
+                IsHidden = false
+            };
+
+            _context.Comments.Add(reply);
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                await CreateCommentReplyNotificationsAsync(property, parentComment.CommentID, currentUserId, content);
+            }
+            catch
+            {
+                // Không để lỗi thông báo làm hỏng việc gửi trả lời.
+            }
+
+            return Json(new
+            {
+                success = true,
+                message = "Đã gửi trả lời thành công."
+            });
+        }
+
+        private async Task CreateCommentReplyNotificationsAsync(Property property, int parentCommentId, int replierUserId, string replyContent)
+        {
+            var threadComments = await _context.Comments
+                .AsNoTracking()
+                .Where(c => c.CommentID == parentCommentId || c.ParentID == parentCommentId)
+                .Select(c => new
+                {
+                    c.CommentID,
+                    c.UserID,
+                    c.ParentID,
+                    c.IsHidden
+                })
+                .ToListAsync();
+
+            var parentComment = threadComments.FirstOrDefault(c => c.CommentID == parentCommentId && c.ParentID == null);
+            if (parentComment == null)
+            {
+                return;
+            }
+
+            List<int> receiverIds = new List<int>();
+
+            if (property.UserID > 0 && property.UserID != replierUserId)
+            {
+                receiverIds.Add(property.UserID);
+            }
+
+            if (parentComment.UserID > 0 && parentComment.UserID != replierUserId)
+            {
+                receiverIds.Add(parentComment.UserID);
+            }
+
+            receiverIds.AddRange(threadComments
+                .Where(c => c.UserID > 0 && c.UserID != replierUserId && c.IsHidden == false)
+                .Select(c => c.UserID));
+
+            receiverIds = receiverIds
+                .Where(id => id > 0 && id != replierUserId)
+                .Distinct()
+                .ToList();
+
+            if (!receiverIds.Any())
+            {
+                return;
+            }
+
+            string propertyTitle = string.IsNullOrWhiteSpace(property.Title)
+                ? $"tin bất động sản #{property.PropertyID}"
+                : property.Title.Trim();
+
+            string preview = BuildNotificationPreview(replyContent, 160);
+
+            foreach (int receiverId in receiverIds)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserID = receiverId,
+                    Title = "Có phản hồi mới trong bình luận",
+                    Content = $@"Bình luận tại tin ""{propertyTitle}"" vừa có phản hồi mới.
+
+Nội dung phản hồi: {preview}
+
+Bấm để xem và trả lời lại khi cần.",
+                    ActionUrl = $"/Property/Details/{property.PropertyID}#comment-{parentCommentId}",
+                    ActionText = "Xem và trả lời",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private static string BuildNotificationPreview(string? value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "Không có nội dung.";
+            }
+
+            string text = value.Trim();
+
+            while (text.Contains("  "))
+            {
+                text = text.Replace("  ", " ");
+            }
+
+            if (text.Length > maxLength)
+            {
+                text = text.Substring(0, maxLength).Trim() + "...";
+            }
+
+            return text;
+        }
+        [HttpPost]
         public async Task<IActionResult> SendMessage(
        [FromForm] int receiverId,
        [FromForm] int propertyId,

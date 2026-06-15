@@ -18,6 +18,10 @@
         public bool UseAnswerModel { get; set; }
         public bool UseExtractionModel { get; set; }
         public bool UseFallbackModel { get; set; }
+
+        // Bật khi câu hỏi cần kiến thức ngoài website: pháp lý, thủ tục, lãi suất, quy định, dự án, thị trường.
+        // GeminiAIClient sẽ tự thêm tools: google_search nếu Gemini.EnableGoogleSearchGrounding = true.
+        public bool UseGoogleSearchGrounding { get; set; }
     }
 
     public class AIChatCompletionResult

@@ -59,10 +59,15 @@
     {
         pendingBusiness = _context.BusinessProfiles.Count(b => b.VerificationStatus == "Pending");
         pendingProjects = _context.Projects.Count(p => p.ApprovalStatus == "Pending" && p.IsDeleted == false);
-        pendingAppointments = _context.Appointments.Count(a => a.Status == "Pending");
         pendingTransactions = _context.Transactions.Count(t => t.Status == "Pending");
     }
 
+    if (isAdmin || isStaff)
+    {
+        pendingAppointments = _context.Appointments.Count(a =>
+            a.Status == "Pending" ||
+            a.Status == "Chờ xác nhận");
+    }
     int totalBusinessTasks = pendingBusiness + pendingProjects;
     int totalPropertyTasks = pendingProperties;
     int totalCrmTasks =
@@ -130,8 +135,8 @@
         }
 
         /* ==============================
-                           SIDEBAR
-                        ============================== */
+                                   SIDEBAR
+                                ============================== */
         .sidebar {
             width: var(--sidebar-w);
             height: 100vh;
@@ -354,8 +359,8 @@
         }
 
         /* ==============================
-                           MAIN WRAPPER
-                        ============================== */
+                                   MAIN WRAPPER
+                                ============================== */
         .wrapper {
             margin-left: var(--sidebar-w);
             min-height: 100vh;
@@ -504,8 +509,8 @@
         }
 
         /* ==============================
-                           MOBILE
-                        ============================== */
+                                   MOBILE
+                                ============================== */
         @@media (max-width: 991.98px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1015,6 +1020,23 @@
                     }
                 </a>
             </li>
+            @if (isStaff && !isAdmin)
+            {
+                <li class="nav-item">
+                    <a href="/Admin/Appointments/Index"
+                       class="nav-link-custom @(currentController == "Appointments" ? "active" : "")">
+                        <div class="nav-left">
+                            <i class="bi bi-calendar2-check-fill icon-main text-success"></i>
+                            <span class="nav-text">Quản lý lịch hẹn</span>
+                        </div>
+
+                        @if (pendingAppointments > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill sidebar-badge">@pendingAppointments</span>
+                        }
+                    </a>
+                </li>
+            }
             @if (isAdmin)
             {
                 <li class="nav-item">

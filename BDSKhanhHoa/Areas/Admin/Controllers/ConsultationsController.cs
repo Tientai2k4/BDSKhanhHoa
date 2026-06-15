@@ -2,6 +2,7 @@
 using BDSKhanhHoa.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -20,7 +21,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         private readonly ApplicationDbContext _context;
 
         private const string REMIND_MARKER = "[REMIND_SELLER]";
-        private const string REMIND_DISPLAY_TEXT = "Đã gửi thông báo nhắc người bán";
+        private const string REMIND_DISPLAY_TEXT = "Đã gửi thông báo nhắc người phụ trách";
 
         public ConsultationsController(ApplicationDbContext context)
         {
@@ -29,15 +30,31 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
         [HttpGet]
         public async Task<IActionResult> Index(
-            string? status = "All",
+            int? projectId = null,
             string? keyword = null,
             string? source = "All",
-            string dateRange = "all",
+            string? remindFilter = "CanRemind",
+            string? dateRange = "all",
             int page = 1)
         {
-            const int pageSize = 15;
+            const int pageSize = 12;
 
-            var query = _context.Consultations
+            keyword = CleanKeyword(keyword);
+            source = NormalizeFilter(source, "All");
+            remindFilter = NormalizeFilter(remindFilter, "CanRemind");
+            dateRange = NormalizeFilter(dateRange, "all");
+
+            var projectList = await _context.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted)
+                .OrderBy(p => p.ProjectName)
+                .Select(p => new { p.ProjectID, p.ProjectName })
+                .ToListAsync();
+
+            ViewBag.ProjectList = new SelectList(projectList, "ProjectID", "ProjectName", projectId);
+            ViewBag.CurrentProjectId = projectId;
+
+            IQueryable<Consultation> scopedQuery = _context.Consultations
                 .AsNoTracking()
                 .Include(c => c.Property).ThenInclude(p => p.User)
                 .Include(c => c.Project).ThenInclude(p => p.Owner)
@@ -45,85 +62,65 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Include(c => c.AssignedUser)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(status) &&
-                !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            if (projectId.HasValue && projectId.Value > 0)
             {
-                query = query.Where(c => c.Status == status);
+                scopedQuery = scopedQuery.Where(c => c.ProjectID == projectId.Value);
+                source = "Project";
             }
 
-            if (!string.IsNullOrWhiteSpace(source) &&
-                !source.Equals("All", StringComparison.OrdinalIgnoreCase))
-            {
-                if (source.Equals("Property", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(c => c.PropertyID != null);
-                }
-                else if (source.Equals("Project", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(c => c.ProjectID != null);
-                }
-            }
+            scopedQuery = ApplySourceFilter(scopedQuery, source);
+            scopedQuery = ApplyDateFilter(scopedQuery, dateRange);
+            scopedQuery = ApplyKeywordFilter(scopedQuery, keyword);
 
-            if (!string.IsNullOrWhiteSpace(keyword))
-            {
-                keyword = keyword.Trim();
+            ViewBag.TotalLeads = await scopedQuery.CountAsync();
+            ViewBag.NeedsReminderLeads = await scopedQuery.CountAsync(c =>
+                (c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi") &&
+                (c.SellerNote == null || !c.SellerNote.Contains(REMIND_MARKER)));
 
-                query = query.Where(c =>
-                    (c.FullName != null && EF.Functions.Like(c.FullName, $"%{keyword}%")) ||
-                    (c.Phone != null && EF.Functions.Like(c.Phone, $"%{keyword}%")) ||
-                    (c.Email != null && EF.Functions.Like(c.Email, $"%{keyword}%")) ||
-                    (c.Property != null && c.Property.Title != null && EF.Functions.Like(c.Property.Title, $"%{keyword}%")) ||
-                    (c.Project != null && c.Project.ProjectName != null && EF.Functions.Like(c.Project.ProjectName, $"%{keyword}%")) ||
-                    (c.AssignedUser != null && c.AssignedUser.FullName != null && EF.Functions.Like(c.AssignedUser.FullName, $"%{keyword}%"))
-                );
-            }
+            ViewBag.RemindedLeads = await scopedQuery.CountAsync(c =>
+                c.SellerNote != null && c.SellerNote.Contains(REMIND_MARKER));
 
-            var today = DateTime.Now.Date;
+            ViewBag.HandledLeads = await scopedQuery.CountAsync(c =>
+                !(c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi") ||
+                (c.SellerNote != null && c.SellerNote.Contains(REMIND_MARKER)));
 
-            switch (dateRange?.Trim().ToLowerInvariant())
-            {
-                case "today":
-                    query = query.Where(c => c.CreatedAt >= today && c.CreatedAt < today.AddDays(1));
-                    break;
+            ViewBag.NewLeads = await scopedQuery.CountAsync(c =>
+                c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi");
 
-                case "week":
-                    query = query.Where(c => c.CreatedAt >= today.AddDays(-7));
-                    break;
+            ViewBag.ProcessingLeads = await scopedQuery.CountAsync(c =>
+                c.Status == "Contacted" || c.Status == "Đã liên hệ");
 
-                case "month":
-                    query = query.Where(c => c.CreatedAt >= today.AddMonths(-1));
-                    break;
-            }
+            ViewBag.ClosedLeads = await scopedQuery.CountAsync(c =>
+                c.Status == "Closed" || c.Status == "Resolved" || c.Status == "Đã chốt" || c.Status == "Hoàn tất tư vấn");
 
-            ViewBag.TotalLeads = await query.CountAsync();
-            ViewBag.NewLeads = await query.CountAsync(c => c.Status == "New");
-            ViewBag.ProcessingLeads = await query.CountAsync(c => c.Status == "Contacted");
-            ViewBag.ClosedLeads = await query.CountAsync(c => c.Status == "Closed");
-            ViewBag.JunkLeads = await query.CountAsync(c => c.Status == "Cancelled" || c.Status == "Spam");
+            ViewBag.JunkLeads = await scopedQuery.CountAsync(c =>
+                c.Status == "Cancelled" || c.Status == "Spam" || c.Status == "Invalid" || c.Status == "Không hợp lệ");
 
-            ViewBag.RemindedLeads = await query.CountAsync(c =>
-                c.SellerNote != null &&
-                c.SellerNote.Contains(REMIND_MARKER));
+            IQueryable<Consultation> listQuery = ApplyReminderFilter(scopedQuery, remindFilter);
 
-            int totalItems = await query.CountAsync();
+            int totalItems = await listQuery.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
-
             page = Math.Clamp(page, 1, totalPages);
 
-            var list = await query
-                .OrderByDescending(c => c.CreatedAt)
+            var leads = await listQuery
+                .OrderByDescending(c =>
+                    (c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi") &&
+                    (c.SellerNote == null || !c.SellerNote.Contains(REMIND_MARKER)))
+                .ThenByDescending(c => c.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
-            ViewBag.Status = status;
             ViewBag.Keyword = keyword;
             ViewBag.Source = source;
+            ViewBag.RemindFilter = remindFilter;
             ViewBag.DateRange = dateRange;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
+            ViewBag.TotalFilteredItems = totalItems;
+            ViewBag.RemindMarker = REMIND_MARKER;
 
-            return View(list);
+            return View(leads);
         }
 
         [HttpGet]
@@ -141,82 +138,46 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
                 if (c == null)
                 {
-                    return Json(new
-                    {
-                        success = false,
-                        message = "Không tìm thấy yêu cầu tư vấn."
-                    });
+                    return Json(new { success = false, message = "Không tìm thấy yêu cầu tư vấn." });
                 }
 
-                string sourceName = c.Property?.Title
-                                    ?? c.Project?.ProjectName
-                                    ?? "Bất động sản bị xóa";
-
-                string sourceType = c.PropertyID != null
-                    ? "Tin lẻ BĐS"
-                    : c.ProjectID != null
-                        ? "Dự án"
-                        : "Không xác định";
-
-                string handlerName = c.AssignedUser?.FullName
-                                     ?? c.Property?.User?.FullName
-                                     ?? c.Project?.Owner?.FullName
-                                     ?? "Chưa phân công";
-
-                string handlerPhone = c.AssignedUser?.Phone
-                                     ?? c.Property?.User?.Phone
-                                     ?? c.Project?.Owner?.Phone
-                                     ?? "N/A";
-
                 bool wasReminded = IsReminded(c.SellerNote);
-                string cleanSellerNote = CleanReminderMarker(c.SellerNote);
+                bool canRemind = CanRemindConsultation(c.Status, c.SellerNote);
 
                 var responseData = new
                 {
                     id = c.ConsultID,
-                    customerName = c.FullName ?? "Khách vãng lai",
-                    customerPhone = c.Phone ?? "N/A",
-                    customerEmail = c.Email ?? "Không có",
-
-                    sourceName = sourceName,
-                    sourceType = sourceType,
-
-                    handlerName = handlerName,
-                    handlerPhone = handlerPhone,
-
-                    note = c.Note ?? "Không có lời nhắn",
-
-                    sellerNote = string.IsNullOrWhiteSpace(cleanSellerNote)
+                    customerName = string.IsNullOrWhiteSpace(c.FullName) ? "Khách vãng lai" : c.FullName.Trim(),
+                    customerPhone = string.IsNullOrWhiteSpace(c.Phone) ? "Không có" : c.Phone.Trim(),
+                    customerEmail = string.IsNullOrWhiteSpace(c.Email) ? "Không có" : c.Email.Trim(),
+                    sourceName = GetConsultationSourceName(c),
+                    sourceType = GetConsultationSourceType(c),
+                    handlerName = GetConsultationHandlerName(c),
+                    handlerPhone = c.AssignedUser?.Phone ?? c.Property?.User?.Phone ?? c.Project?.Owner?.Phone ?? "Không có",
+                    note = string.IsNullOrWhiteSpace(c.Note) ? "Không có lời nhắn" : c.Note.Trim(),
+                    sellerNote = string.IsNullOrWhiteSpace(CleanReminderMarker(c.SellerNote))
                         ? "Chưa có ghi chú xử lý."
-                        : cleanSellerNote,
-
-                    status = c.Status ?? "N/A",
-                    wasReminded = wasReminded,
-                    remindedText = wasReminded ? REMIND_DISPLAY_TEXT : "Chưa gửi nhắc nhở",
-
+                        : CleanReminderMarker(c.SellerNote),
+                    status = GetConsultationStatusText(c.Status),
+                    rawStatus = c.Status ?? "",
+                    wasReminded,
+                    canRemind,
+                    remindedText = wasReminded ? REMIND_DISPLAY_TEXT : "Chưa gửi thông báo",
                     createdAt = c.CreatedAt.ToString("HH:mm dd/MM/yyyy"),
                     updatedAt = c.UpdatedAt?.ToString("HH:mm dd/MM/yyyy") ?? "Chưa cập nhật"
                 };
 
-                return Json(new
-                {
-                    success = true,
-                    data = responseData
-                });
+                return Json(new { success = true, data = responseData });
             }
             catch (Exception ex)
             {
-                return Json(new
-                {
-                    success = false,
-                    message = "Lỗi hệ thống: " + ex.Message
-                });
+                return Json(new { success = false, message = "Lỗi hệ thống: " + ex.Message });
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RemindSeller(int id, bool force = false)
+        public async Task<IActionResult> RemindSeller(int id)
         {
             var c = await _context.Consultations
                 .Include(x => x.Property).ThenInclude(p => p.User)
@@ -226,35 +187,33 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
 
             if (c == null)
             {
-                return Json(new
-                {
-                    success = false,
-                    message = "Không tìm thấy yêu cầu tư vấn."
-                });
+                return Json(new { success = false, message = "Không tìm thấy yêu cầu tư vấn." });
             }
 
-            bool wasReminded = IsReminded(c.SellerNote);
-
-            if (wasReminded && !force)
+            if (!CanRemindConsultation(c.Status, c.SellerNote))
             {
+                bool wasReminded = IsReminded(c.SellerNote);
+
                 return Json(new
                 {
                     success = false,
-                    code = "ALREADY_REMINDED",
-                    message = "Yêu cầu này đã từng được gửi thông báo cho người bán. Bạn có muốn gửi nhắc lại không?"
+                    code = wasReminded ? "ALREADY_REMINDED" : "ALREADY_HANDLED",
+                    message = wasReminded
+                        ? "Yêu cầu này đã được thông báo rồi, hệ thống không gửi lại để tránh làm phiền người phụ trách."
+                        : "Yêu cầu này đã được tiếp nhận/xử lý, Admin không cần bấm chuông nữa."
                 });
             }
 
             int? targetUserId = c.AssignedToUserID
-                                ?? c.Property?.UserID
-                                ?? c.Project?.OwnerUserID;
+                                ?? c.Project?.OwnerUserID
+                                ?? c.Property?.UserID;
 
             if (targetUserId == null || targetUserId.Value <= 0)
             {
                 return Json(new
                 {
                     success = false,
-                    message = "Yêu cầu này chưa xác định được người phụ trách để nhắc nhở."
+                    message = "Yêu cầu này chưa xác định được người phụ trách để thông báo."
                 });
             }
 
@@ -274,33 +233,20 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 });
             }
 
+            DateTime now = DateTime.Now;
             string actorName = User.FindFirst("FullName")?.Value
                                ?? User.FindFirstValue(ClaimTypes.Name)
+                               ?? User.Identity?.Name
                                ?? "Admin/Staff";
 
-            DateTime now = DateTime.Now;
-
-            string sourceName = c.Property?.Title
-                                ?? c.Project?.ProjectName
-                                ?? "nguồn bất động sản không xác định";
-
-            string customerName = string.IsNullOrWhiteSpace(c.FullName)
-                ? "khách vãng lai"
-                : c.FullName.Trim();
-
-            string notificationTitle = force
-                ? "🔔 Nhắc lại: Khách đang chờ tư vấn"
-                : "🔔 Admin nhắc nhở: Khách chờ tư vấn";
-
-            string notificationContent =
-                $"Bạn có một yêu cầu tư vấn từ khách hàng {customerName} liên quan đến \"{sourceName}\". " +
-                "Vui lòng liên hệ khách hàng và cập nhật trạng thái xử lý trên hệ thống.";
+            string customerName = string.IsNullOrWhiteSpace(c.FullName) ? "khách vãng lai" : c.FullName.Trim();
+            string sourceName = GetConsultationSourceName(c);
 
             _context.Notifications.Add(new Notification
             {
                 UserID = targetUserId.Value,
-                Title = notificationTitle,
-                Content = notificationContent,
+                Title = "🔔 Admin nhắc xử lý yêu cầu tư vấn",
+                Content = $"Bạn có yêu cầu tư vấn mới/chưa xử lý từ khách {customerName}, liên quan đến \"{sourceName}\". Vui lòng liên hệ khách và cập nhật trạng thái trên hệ thống.",
                 ActionUrl = BuildLeadActionUrl(c),
                 ActionText = "Xem yêu cầu",
                 CreatedAt = now,
@@ -310,14 +256,9 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             string remindLog =
                 $"{REMIND_MARKER} {now:HH:mm dd/MM/yyyy} - {actorName} đã gửi thông báo nhắc người phụ trách: {targetUser.FullName ?? targetUser.Username}.";
 
-            if (string.IsNullOrWhiteSpace(c.SellerNote))
-            {
-                c.SellerNote = remindLog;
-            }
-            else
-            {
-                c.SellerNote = c.SellerNote.Trim() + Environment.NewLine + remindLog;
-            }
+            c.SellerNote = string.IsNullOrWhiteSpace(c.SellerNote)
+                ? remindLog
+                : c.SellerNote.Trim() + Environment.NewLine + remindLog;
 
             c.UpdatedAt = now;
 
@@ -326,94 +267,152 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return Json(new
             {
                 success = true,
+                id = c.ConsultID,
                 reminded = true,
                 remindedAt = now.ToString("HH:mm dd/MM/yyyy"),
-                message = force
-                    ? "Đã gửi nhắc lại thành công và vẫn giữ trạng thái đã thông báo."
-                    : "Đã gửi thông báo nhắc nhở thành công và đánh dấu yêu cầu này là đã thông báo."
-            });
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Delete(int id, bool blockSpam = false)
-        {
-            var item = await _context.Consultations.FindAsync(id);
-
-            if (item == null)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Không tìm thấy yêu cầu tư vấn."
-                });
-            }
-
-            _context.Consultations.Remove(item);
-            await _context.SaveChangesAsync();
-
-            string msg = blockSpam
-                ? "Đã xóa yêu cầu rác và ghi nhận là Spam."
-                : "Đã xóa vĩnh viễn yêu cầu tư vấn khỏi hệ thống.";
-
-            return Json(new
-            {
-                success = true,
-                message = msg
+                message = "Đã gửi chuông thông báo. Mục này sẽ được ẩn khỏi danh sách cần xử lý."
             });
         }
 
         [HttpGet]
-        public async Task<IActionResult> ExportCsv()
+        public async Task<IActionResult> ExportCsv(
+            int? projectId = null,
+            string? keyword = null,
+            string? source = "All",
+            string? remindFilter = "All",
+            string? dateRange = "all")
         {
-            var leads = await _context.Consultations
+            keyword = CleanKeyword(keyword);
+            source = NormalizeFilter(source, "All");
+            remindFilter = NormalizeFilter(remindFilter, "All");
+            dateRange = NormalizeFilter(dateRange, "all");
+
+            IQueryable<Consultation> query = _context.Consultations
                 .AsNoTracking()
-                .Include(c => c.Property)
-                .Include(c => c.Project)
+                .Include(c => c.Property).ThenInclude(p => p.User)
+                .Include(c => c.Project).ThenInclude(p => p.Owner)
                 .Include(c => c.AssignedUser)
+                .AsQueryable();
+
+            if (projectId.HasValue && projectId.Value > 0)
+            {
+                query = query.Where(c => c.ProjectID == projectId.Value);
+                source = "Project";
+            }
+
+            query = ApplySourceFilter(query, source);
+            query = ApplyDateFilter(query, dateRange);
+            query = ApplyKeywordFilter(query, keyword);
+            query = ApplyReminderFilter(query, remindFilter);
+
+            var leads = await query
                 .OrderByDescending(c => c.CreatedAt)
                 .ToListAsync();
 
             var builder = new StringBuilder();
             builder.Append('\uFEFF');
-            builder.AppendLine("Mã Lead,Ngày Tạo,Khách Hàng,SĐT,Email,Nguồn,Người Phụ Trách,Trạng Thái,Đã Nhắc");
+            builder.AppendLine("MaYeuCau,NgayTao,KhachHang,SDT,Email,Nguon,LoaiNguon,NguoiPhuTrach,TrangThai,TinhTrangThongBao");
 
             foreach (var c in leads)
             {
-                string sourceName = c.Property?.Title
-                                    ?? c.Project?.ProjectName
-                                    ?? "N/A";
-
-                string handlerName = c.AssignedUser?.FullName ?? "N/A";
-
-                string statusText = c.Status switch
-                {
-                    "New" => "Mới gửi",
-                    "Contacted" => "Đã liên hệ",
-                    "Closed" => "Đã chốt",
-                    "Cancelled" => "Đã hủy",
-                    "Spam" => "Spam",
-                    _ => c.Status ?? "N/A"
-                };
-
-                string remindedText = IsReminded(c.SellerNote) ? "Đã nhắc" : "Chưa nhắc";
-
                 builder.AppendLine(
                     $"{c.ConsultID}," +
                     $"{c.CreatedAt:dd/MM/yyyy HH:mm}," +
                     $"\"{EscapeCsv(c.FullName ?? "Khách vãng lai")}\"," +
-                    $"\"{EscapeCsv(c.Phone ?? "N/A")}\"," +
-                    $"\"{EscapeCsv(c.Email ?? "N/A")}\"," +
-                    $"\"{EscapeCsv(sourceName)}\"," +
-                    $"\"{EscapeCsv(handlerName)}\"," +
-                    $"\"{EscapeCsv(statusText)}\"," +
-                    $"\"{EscapeCsv(remindedText)}\"");
+                    $"\"{EscapeCsv(c.Phone ?? "")}\"," +
+                    $"\"{EscapeCsv(c.Email ?? "")}\"," +
+                    $"\"{EscapeCsv(GetConsultationSourceName(c))}\"," +
+                    $"\"{EscapeCsv(GetConsultationSourceType(c))}\"," +
+                    $"\"{EscapeCsv(GetConsultationHandlerName(c))}\"," +
+                    $"\"{EscapeCsv(GetConsultationStatusText(c.Status))}\"," +
+                    $"\"{EscapeCsv(IsReminded(c.SellerNote) ? "Đã thông báo" : "Chưa thông báo")}\"");
             }
 
             return File(
                 Encoding.UTF8.GetBytes(builder.ToString()),
                 "text/csv",
-                $"ThongKeYeuCauTuVan_BDS_{DateTime.Now:yyyyMMdd}.csv");
+                $"YeuCauTuVanCanGiamSat_{DateTime.Now:yyyyMMddHHmm}.csv");
+        }
+
+        private static IQueryable<Consultation> ApplySourceFilter(IQueryable<Consultation> query, string source)
+        {
+            if (source.Equals("Property", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(c => c.PropertyID != null && c.ProjectID == null);
+            }
+
+            if (source.Equals("Project", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(c => c.ProjectID != null);
+            }
+
+            return query;
+        }
+
+        private static IQueryable<Consultation> ApplyDateFilter(IQueryable<Consultation> query, string dateRange)
+        {
+            DateTime today = DateTime.Now.Date;
+
+            return dateRange.Trim().ToLowerInvariant() switch
+            {
+                "today" => query.Where(c => c.CreatedAt >= today && c.CreatedAt < today.AddDays(1)),
+                "week" => query.Where(c => c.CreatedAt >= today.AddDays(-7)),
+                "month" => query.Where(c => c.CreatedAt >= today.AddMonths(-1)),
+                _ => query
+            };
+        }
+
+        private static IQueryable<Consultation> ApplyKeywordFilter(IQueryable<Consultation> query, string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return query;
+            }
+
+            return query.Where(c =>
+                (c.FullName != null && EF.Functions.Like(c.FullName, $"%{keyword}%")) ||
+                (c.Phone != null && EF.Functions.Like(c.Phone, $"%{keyword}%")) ||
+                (c.Email != null && EF.Functions.Like(c.Email, $"%{keyword}%")) ||
+                (c.Property != null && c.Property.Title != null && EF.Functions.Like(c.Property.Title, $"%{keyword}%")) ||
+                (c.Project != null && c.Project.ProjectName != null && EF.Functions.Like(c.Project.ProjectName, $"%{keyword}%")) ||
+                (c.AssignedUser != null && c.AssignedUser.FullName != null && EF.Functions.Like(c.AssignedUser.FullName, $"%{keyword}%")) ||
+                (c.Property != null && c.Property.User != null && c.Property.User.FullName != null && EF.Functions.Like(c.Property.User.FullName, $"%{keyword}%")) ||
+                (c.Project != null && c.Project.Owner != null && c.Project.Owner.FullName != null && EF.Functions.Like(c.Project.Owner.FullName, $"%{keyword}%")));
+        }
+
+        private static IQueryable<Consultation> ApplyReminderFilter(IQueryable<Consultation> query, string remindFilter)
+        {
+            if (remindFilter.Equals("CanRemind", StringComparison.OrdinalIgnoreCase) ||
+                remindFilter.Equals("NeedNotify", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(c =>
+                    (c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi") &&
+                    (c.SellerNote == null || !c.SellerNote.Contains(REMIND_MARKER)));
+            }
+
+            if (remindFilter.Equals("Reminded", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(c => c.SellerNote != null && c.SellerNote.Contains(REMIND_MARKER));
+            }
+
+            if (remindFilter.Equals("Handled", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(c =>
+                    !(c.Status == null || c.Status == "" || c.Status == "New" || c.Status == "Mới" || c.Status == "Mới gửi") ||
+                    (c.SellerNote != null && c.SellerNote.Contains(REMIND_MARKER)));
+            }
+
+            return query;
+        }
+
+        private static bool CanRemindConsultation(string? status, string? sellerNote)
+        {
+            bool isNew = string.IsNullOrWhiteSpace(status) ||
+                         status == "New" ||
+                         status == "Mới" ||
+                         status == "Mới gửi";
+
+            return isNew && !IsReminded(sellerNote);
         }
 
         private static bool IsReminded(string? text)
@@ -432,14 +431,82 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return Regex.Replace(text, Regex.Escape(REMIND_MARKER), "", RegexOptions.IgnoreCase).Trim();
         }
 
-        private static string EscapeCsv(string value)
+        private static string CleanKeyword(string? keyword)
         {
-            return value.Replace("\"", "\"\"");
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return string.Empty;
+            }
+
+            keyword = keyword.Trim();
+            return keyword.Length > 80 ? keyword.Substring(0, 80) : keyword;
+        }
+
+        private static string NormalizeFilter(string? value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        }
+
+        private static string EscapeCsv(string? value)
+        {
+            return (value ?? string.Empty).Replace("\"", "\"\"");
+        }
+
+        private static string GetConsultationSourceName(Consultation c)
+        {
+            return c.Property?.Title
+                   ?? c.Project?.ProjectName
+                   ?? "Bất động sản / dự án đã bị gỡ";
+        }
+
+        private static string GetConsultationSourceType(Consultation c)
+        {
+            if (c.ProjectID.HasValue)
+            {
+                return "Dự án";
+            }
+
+            if (c.PropertyID.HasValue)
+            {
+                return "Tin lẻ BĐS";
+            }
+
+            return "Không xác định";
+        }
+
+        private static string GetConsultationHandlerName(Consultation c)
+        {
+            return c.AssignedUser?.FullName
+                   ?? c.Property?.User?.FullName
+                   ?? c.Project?.Owner?.FullName
+                   ?? "Chưa phân công";
+        }
+
+        private static string GetConsultationStatusText(string? status)
+        {
+            return status switch
+            {
+                null => "Mới gửi",
+                "" => "Mới gửi",
+                "New" => "Mới gửi",
+                "Mới" => "Mới gửi",
+                "Mới gửi" => "Mới gửi",
+                "Contacted" => "Đã tiếp nhận",
+                "Đã liên hệ" => "Đã tiếp nhận",
+                "Closed" => "Hoàn tất tư vấn",
+                "Resolved" => "Hoàn tất tư vấn",
+                "Hoàn tất tư vấn" => "Hoàn tất tư vấn",
+                "Spam" => "Spam/Rác",
+                "Cancelled" => "Khách hủy",
+                "Invalid" => "Không hợp lệ",
+                "Không hợp lệ" => "Không hợp lệ",
+                _ => status
+            };
         }
 
         private static string BuildLeadActionUrl(Consultation consultation)
         {
-            return "/User/Consultations";
+            return "/Consultations/Index?statusFilter=All";
         }
     }
 }

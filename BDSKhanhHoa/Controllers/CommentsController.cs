@@ -180,28 +180,64 @@ namespace BDSKhanhHoa.Controllers
         public async Task<IActionResult> Reply(int parentId, string content)
         {
             if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId))
-                return Json(new { success = false, message = "Vui lòng đăng nhập để phản hồi." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Vui lòng đăng nhập để phản hồi."
+                });
+            }
 
             content = content?.Trim() ?? "";
 
             if (string.IsNullOrWhiteSpace(content))
-                return Json(new { success = false, message = "Nội dung phản hồi không được để trống." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nội dung phản hồi không được để trống."
+                });
+            }
 
             if (content.Length > 1000)
-                return Json(new { success = false, message = "Nội dung phản hồi tối đa 1000 ký tự." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Nội dung phản hồi tối đa 1000 ký tự."
+                });
+            }
 
             var parentComment = await _context.Comments
                 .Include(c => c.Property)
                 .FirstOrDefaultAsync(c => c.CommentID == parentId && c.ParentID == null);
 
             if (parentComment == null)
-                return Json(new { success = false, message = "Không tìm thấy bình luận cần phản hồi." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Không tìm thấy bình luận cần phản hồi."
+                });
+            }
 
             if (parentComment.Property == null || parentComment.Property.UserID != currentUserId)
-                return Json(new { success = false, message = "Bạn không có quyền phản hồi bình luận này." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Bạn không có quyền phản hồi bình luận này."
+                });
+            }
 
             if (parentComment.IsHidden)
-                return Json(new { success = false, message = "Bình luận này đã bị ẩn, không thể phản hồi." });
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Bình luận này đã bị ẩn, không thể phản hồi."
+                });
+            }
 
             var replyComment = new Comment
             {
@@ -216,13 +252,95 @@ namespace BDSKhanhHoa.Controllers
             _context.Comments.Add(replyComment);
             await _context.SaveChangesAsync();
 
+            bool notificationCreated = false;
+
+            try
+            {
+                notificationCreated = await CreateReplyNotificationIfNeededAsync(parentComment.CommentID, currentUserId, content);
+            }
+            catch
+            {
+                notificationCreated = false;
+            }
+
             return Json(new
             {
                 success = true,
-                message = "Đã gửi phản hồi thành công."
+                message = notificationCreated
+                    ? "Đã gửi phản hồi và thông báo cho người bình luận."
+                    : "Đã gửi phản hồi thành công."
             });
         }
+        // =====================================================
+        // TẠO THÔNG BÁO KHI CÓ NGƯỜI TRẢ LỜI BÌNH LUẬN
+        // Không cần thêm cột / bảng SQL. Dùng bảng Notifications hiện có.
+        // =====================================================
+        private async Task<bool> CreateReplyNotificationIfNeededAsync(int parentCommentId, int replierUserId, string replyContent)
+        {
+            var parentComment = await _context.Comments
+                .AsNoTracking()
+                .Include(c => c.Property)
+                .FirstOrDefaultAsync(c => c.CommentID == parentCommentId && c.ParentID == null);
 
+            if (parentComment == null)
+            {
+                return false;
+            }
+
+            if (parentComment.UserID <= 0 || parentComment.UserID == replierUserId)
+            {
+                return false;
+            }
+
+            string propertyTitle = string.IsNullOrWhiteSpace(parentComment.Property?.Title)
+                ? $"tin bất động sản #{parentComment.PropertyID}"
+                : parentComment.Property.Title.Trim();
+
+            string preview = BuildNotificationPreview(replyContent, 160);
+
+            string content = $@"Bình luận của bạn tại tin ""{propertyTitle}"" vừa có phản hồi mới.
+
+Nội dung phản hồi: {preview}
+
+Bấm để xem bình luận và phản hồi lại khi cần.";
+
+            var notification = new Notification
+            {
+                UserID = parentComment.UserID,
+                Title = "Có người trả lời bình luận của bạn",
+                Content = content,
+                ActionUrl = $"/Property/Details/{parentComment.PropertyID}#comment-{parentComment.CommentID}",
+                ActionText = "Xem và phản hồi",
+                IsRead = false,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+        private static string BuildNotificationPreview(string? value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "Không có nội dung.";
+            }
+
+            string text = value.Trim();
+
+            while (text.Contains("  "))
+            {
+                text = text.Replace("  ", " ");
+            }
+
+            if (text.Length > maxLength)
+            {
+                text = text.Substring(0, maxLength).Trim() + "...";
+            }
+
+            return text;
+        }
         // =====================================================
         // CHỈ ĐƯỢC XÓA BÌNH LUẬN / PHẢN HỒI CỦA CHÍNH MÌNH
         // ADMIN ĐƯỢC XÓA TẤT CẢ

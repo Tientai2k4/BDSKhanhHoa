@@ -1,5 +1,26 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Comment>
 
+@functions {
+    private string GetSafeAvatar(string? avatar)
+    {
+        if (string.IsNullOrWhiteSpace(avatar))
+        {
+            return "/images/avatars/default-user.png";
+        }
+
+        avatar = avatar.Trim();
+
+        if (avatar.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            avatar.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            avatar.StartsWith("/"))
+        {
+            return avatar;
+        }
+
+        return "/" + avatar.TrimStart('/');
+    }
+}
+
 @{
     ViewData["Title"] = "Tương tác khách hàng";
     Layout = "~/Views/Shared/_UserLayout.cshtml";
@@ -1002,7 +1023,7 @@
                     </div>
                     <h1 class="cc-title">Hội thoại & Phản hồi</h1>
                     <p class="cc-desc">
-                        Quản lý bình luận trên tin đăng, phản hồi khách hàng nhanh và gọn gàng hơn.
+                        Quản lý bình luận trên tin đăng, phản hồi nhanh; khi trả lời, khách sẽ nhận thông báo để bấm vào xem và phản hồi lại.
                     </p>
                 </div>
 
@@ -1178,13 +1199,13 @@
                     {
                         bool hasMyReply = c.Replies != null && c.Replies.Any(r => r.UserID == currentUserId && !r.IsHidden);
                         bool hasHidden = c.IsHidden || (c.Replies != null && c.Replies.Any(r => r.IsHidden));
-                        string avatar = string.IsNullOrWhiteSpace(c.User?.Avatar) ? "/images/default-user.png" : c.User.Avatar;
+                        string avatar = GetSafeAvatar(c.User?.Avatar);
                         string customerName = string.IsNullOrWhiteSpace(c.User?.FullName) ? "Khách hàng" : c.User.FullName;
                         string commentContent = (c.Content ?? "").Trim();
 
                         <article class="cc-thread" id="thread-@c.CommentID">
                             <div class="cc-main">
-                                <img src="@avatar" class="cc-avatar" alt="@customerName" />
+                                <img src="@avatar" class="cc-avatar" alt="@customerName" onerror="this.src='/images/avatars/default-user.png'" />
 
                                 <div>
                                     <div class="cc-head">
@@ -1274,7 +1295,7 @@
                                                class="cc-reply-input"
                                                id="txt-reply-@c.CommentID"
                                                maxlength="1000"
-                                               placeholder="Nhập phản hồi cho khách hàng..." />
+                                               placeholder="Nhập phản hồi cho khách hàng... Người bình luận sẽ nhận thông báo." />
 
                                         <button type="button"
                                                 class="cc-send-btn btn-submit-reply"
@@ -1291,7 +1312,7 @@
                                 <div class="cc-replies">
                                     @foreach (var r in c.Replies.OrderBy(r => r.CreatedAt))
                                     {
-                                        string replyAvatar = string.IsNullOrWhiteSpace(r.User?.Avatar) ? "/images/default-user.png" : r.User.Avatar;
+                                        string replyAvatar = GetSafeAvatar(r.User?.Avatar);
                                         string replyName = r.UserID == currentUserId
                                         ? "Bạn"
                                         : string.IsNullOrWhiteSpace(r.User?.FullName) ? "Người dùng" : r.User.FullName;
@@ -1299,7 +1320,7 @@
                                         string replyContent = (r.Content ?? "").Trim();
 
                                         <div class="cc-reply-item" id="reply-item-@r.CommentID">
-                                            <img src="@replyAvatar" class="cc-avatar-sm" alt="@replyName" />
+                                            <img src="@replyAvatar" class="cc-avatar-sm" alt="@replyName" onerror="this.src='/images/avatars/default-user.png'" />
 
                                             <div>
                                                 <div class="cc-reply-bubble @(r.IsHidden ? "hidden" : "")">
@@ -1485,7 +1506,7 @@
                 },
                 success: function (res) {
                     if (res && res.success) {
-                        toastSuccess(res.message);
+                        toastSuccess(res.message || 'Đã gửi phản hồi và thông báo cho người bình luận.');
                         setTimeout(function () {
                             location.reload();
                         }, 650);
@@ -1525,7 +1546,7 @@
                     },
                     success: function (res) {
                         if (res && res.success) {
-                            toastSuccess(res.message);
+                            toastSuccess(res.message || 'Đã xóa thành công.');
 
                             const thread = $('#thread-' + id);
                             const reply = $('#reply-item-' + id);

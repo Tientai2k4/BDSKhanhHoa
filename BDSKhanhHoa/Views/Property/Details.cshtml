@@ -58,6 +58,24 @@
         return "/" + image.TrimStart('/');
     }
 
+    private string GetSafeAvatar(string? avatar)
+    {
+        if (string.IsNullOrWhiteSpace(avatar))
+        {
+            return "/images/avatars/default-user.png";
+        }
+
+        avatar = avatar.Trim();
+
+        if (avatar.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            avatar.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            avatar.StartsWith("/"))
+        {
+            return avatar;
+        }
+
+        return "/" + avatar.TrimStart('/');
+    }
 
 
     private string CleanPublicDescription(string? description)
@@ -1582,8 +1600,8 @@ Quy tắc trả lời khi phân tích tin này:
 
 
     /* =====================================================
-                               KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
-                            ===================================================== */
+                                   KHÓA TIN ĐÃ BÁN / ĐÃ CHO THUÊ
+                                ===================================================== */
     .pd-locked-alert {
         display: flex;
         align-items: flex-start;
@@ -1774,10 +1792,10 @@ Quy tắc trả lời khi phân tích tin này:
 
 
     /* =====================================================
-                           FONT DỄ ĐỌC CHO TIẾNG VIỆT - MOBILE & DESKTOP
-                           Dùng Be Vietnam Pro, giảm độ đậm quá gắt để tiêu đề và nội dung dễ nhìn hơn.
-                           Lưu ý: không đổi icon Bootstrap, chỉ đổi chữ.
-                        ===================================================== */
+                               FONT DỄ ĐỌC CHO TIẾNG VIỆT - MOBILE & DESKTOP
+                               Dùng Be Vietnam Pro, giảm độ đậm quá gắt để tiêu đề và nội dung dễ nhìn hơn.
+                               Lưu ý: không đổi icon Bootstrap, chỉ đổi chữ.
+                            ===================================================== */
     body,
     .pd-page,
     .pd-page button,
@@ -2362,9 +2380,10 @@ Quy tắc trả lời khi phân tích tin này:
                         @if (isAuthenticated)
                         {
                             <div class="pd-comment-form">
-                                <img src="@(User.FindFirst("Avatar")?.Value ?? "/images/avatars/default-user.png")"
+                                <img src="@GetSafeAvatar(currentUserInfo?.Avatar)"
                                      class="pd-avatar"
-                                     alt="Avatar" />
+                                     alt="Avatar"
+                                     onerror="this.src='/images/avatars/default-user.png'" />
 
                                 <div class="flex-grow-1">
                                     <textarea id="commentContent"
@@ -2402,11 +2421,15 @@ Quy tắc trả lời khi phân tích tin này:
                                 .OrderBy(r => r.CreatedAt)
                                 .ToList();
 
-                                <div class="pd-comment-thread">
+                                bool canReplyThisThread = canInteract &&
+                                (isAdminOrStaff || isOwner || c.UserID == currentUserId || replies.Any(r => r.UserID == currentUserId));
+
+                                <div class="pd-comment-thread" id="comment-@c.CommentID">
                                     <div class="pd-comment-item">
-                                        <img src="@(c.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                        <img src="@GetSafeAvatar(c.User?.Avatar)"
                                              class="pd-avatar"
-                                             alt="Avatar" />
+                                             alt="@(c.User?.FullName ?? "Người dùng")"
+                                             onerror="this.src='/images/avatars/default-user.png'" />
 
                                         <div class="pd-comment-bubble">
                                             <div class="pd-comment-head">
@@ -2429,23 +2452,23 @@ Quy tắc trả lời khi phân tích tin này:
 
                                             <p class="pd-comment-text">@c.Content</p>
 
-                                            @if (isOwner || isAdminOrStaff)
+                                            @if (canReplyThisThread)
                                             {
                                                 <button type="button" class="pd-reply-toggle" onclick="toggleReplyForm(@c.CommentID)">
                                                     <i class="bi bi-reply-fill me-1"></i>
-                                                    Trả lời câu hỏi này
+                                                    Trả lời
                                                 </button>
                                             }
                                         </div>
                                     </div>
 
-                                    @if (isOwner || isAdminOrStaff)
+                                    @if (canReplyThisThread)
                                     {
                                         <div class="pd-reply-form" id="replyForm_@c.CommentID">
                                             <textarea id="replyContent_@c.CommentID"
                                           class="form-control mb-2"
                                           rows="2"
-                                          placeholder="Nhập câu trả lời của bạn..."></textarea>
+                                          placeholder="Nhập phản hồi... Người trong cuộc trò chuyện sẽ nhận thông báo."></textarea>
 
                                             <div class="text-end">
                                                 <button type="button" class="btn btn-sm btn-light rounded-pill me-1 fw-bold" onclick="toggleReplyForm(@c.CommentID)">
@@ -2468,9 +2491,10 @@ Quy tắc trả lời khi phân tích tin này:
                                                 bool isReplyFromOwner = r.UserID == Model.UserID;
 
                                                 <div class="pd-reply-item">
-                                                    <img src="@(r.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                                    <img src="@GetSafeAvatar(r.User?.Avatar)"
                                                          class="pd-reply-avatar"
-                                                         alt="Avatar" />
+                                                         alt="@(r.User?.FullName ?? "Người dùng")"
+                                                         onerror="this.src='/images/avatars/default-user.png'" />
 
                                                     <div class="pd-reply-bubble" style="@(!isReplyFromOwner ? "background:#f8fafc;border-color:#e2e8f0;" : "")">
                                                         <div class="pd-comment-head">
@@ -2514,7 +2538,7 @@ Quy tắc trả lời khi phân tích tin này:
                         <div class="pd-contact-head">
                             <a href="/Nguoi-Dang-Tin/@Model.UserID" title="Xem hồ sơ người đăng">
                                 <span class="pd-seller-avatar-wrap">
-                                    <img src="@(Model.User?.Avatar ?? "/images/avatars/default-user.png")"
+                                    <img src="@GetSafeAvatar(Model.User?.Avatar)"
                                          class="pd-seller-avatar"
                                          alt="Avatar người đăng" />
                                     <span class="pd-online-dot"></span>

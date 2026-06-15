@@ -47,6 +47,32 @@ namespace BDSKhanhHoa.Services.AI
 
             if (primary.Success) return primary;
 
+            // Nếu lỗi do công cụ Google Search Grounding chưa bật/không khả dụng ở tài khoản,
+            // thử lại cùng model nhưng không dùng grounding để chatbot vẫn trả lời được.
+            if (request.UseGoogleSearchGrounding)
+            {
+                AIChatCompletionRequest noGroundingRequest = new()
+                {
+                    SystemPrompt = request.SystemPrompt,
+                    UserPrompt = request.UserPrompt,
+                    Temperature = request.Temperature,
+                    MaxOutputTokens = request.MaxOutputTokens,
+                    ModelOverride = request.ModelOverride,
+                    UseAnswerModel = request.UseAnswerModel,
+                    UseExtractionModel = request.UseExtractionModel,
+                    UseFallbackModel = request.UseFallbackModel,
+                    UseGoogleSearchGrounding = false
+                };
+
+                AIChatCompletionResult noGrounding = await SendToGeminiAsync(
+                    noGroundingRequest,
+                    primaryModel,
+                    apiKey,
+                    cancellationToken);
+
+                if (noGrounding.Success) return noGrounding;
+            }
+
             bool canFallback =
                 primary.IsQuotaExceeded &&
                 !request.UseFallbackModel &&
@@ -65,7 +91,7 @@ namespace BDSKhanhHoa.Services.AI
                 SystemPrompt = request.SystemPrompt,
                 UserPrompt = request.UserPrompt,
                 Temperature = Math.Min(request.Temperature, 0.2),
-                MaxOutputTokens = Math.Min(request.MaxOutputTokens, 1600),
+                MaxOutputTokens = Math.Min(request.MaxOutputTokens, 4096),
                 UseFallbackModel = true
             };
 
@@ -92,35 +118,85 @@ namespace BDSKhanhHoa.Services.AI
 
             string url = $"{baseUrl}/{model}:generateContent";
 
-            var body = new
+            object body;
+
+            bool enableGoogleSearchGrounding =
+                request.UseGoogleSearchGrounding &&
+                _settings.Gemini.EnableGoogleSearchGrounding;
+
+            if (enableGoogleSearchGrounding)
             {
-                systemInstruction = new
+                // Google Search Grounding: cho phép Gemini tự tìm kiếm nguồn ngoài khi câu hỏi cần thông tin rộng/mới.
+                // Không dùng grounding để bịa tin BĐS trong website; ChatbotService vẫn chặn việc đề xuất tin nếu không có SQL.
+                body = new
                 {
-                    parts = new[] { new { text = request.SystemPrompt ?? string.Empty } }
-                },
-                contents = new[]
-                {
-                    new
+                    systemInstruction = new
                     {
-                        role = "user",
-                        parts = new[] { new { text = request.UserPrompt ?? string.Empty } }
+                        parts = new[] { new { text = request.SystemPrompt ?? string.Empty } }
+                    },
+                    contents = new[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            parts = new[] { new { text = request.UserPrompt ?? string.Empty } }
+                        }
+                    },
+                    tools = new[]
+                    {
+                        new
+                        {
+                            google_search = new { }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = Math.Clamp(request.Temperature, 0.0, 1.0),
+                        maxOutputTokens = Math.Clamp(request.MaxOutputTokens, 256, 8192),
+                        topP = Math.Clamp(_settings.Gemini.TopP, 0.1, 1.0),
+                        topK = Math.Clamp(_settings.Gemini.TopK, 1, 100)
+                    },
+                    safetySettings = new[]
+                    {
+                        new { category = "HARM_CATEGORY_HARASSMENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_HATE_SPEECH", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
                     }
-                },
-                generationConfig = new
+                };
+            }
+            else
+            {
+                body = new
                 {
-                    temperature = Math.Clamp(request.Temperature, 0.0, 1.0),
-                    maxOutputTokens = Math.Clamp(request.MaxOutputTokens, 256, 8192),
-                    topP = Math.Clamp(_settings.Gemini.TopP, 0.1, 1.0),
-                    topK = Math.Clamp(_settings.Gemini.TopK, 1, 100)
-                },
-                safetySettings = new[]
-                {
-                    new { category = "HARM_CATEGORY_HARASSMENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
-                    new { category = "HARM_CATEGORY_HATE_SPEECH", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
-                    new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
-                    new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
-                }
-            };
+                    systemInstruction = new
+                    {
+                        parts = new[] { new { text = request.SystemPrompt ?? string.Empty } }
+                    },
+                    contents = new[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            parts = new[] { new { text = request.UserPrompt ?? string.Empty } }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = Math.Clamp(request.Temperature, 0.0, 1.0),
+                        maxOutputTokens = Math.Clamp(request.MaxOutputTokens, 256, 8192),
+                        topP = Math.Clamp(_settings.Gemini.TopP, 0.1, 1.0),
+                        topK = Math.Clamp(_settings.Gemini.TopK, 1, 100)
+                    },
+                    safetySettings = new[]
+                    {
+                        new { category = "HARM_CATEGORY_HARASSMENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_HATE_SPEECH", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+                        new { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_MEDIUM_AND_ABOVE" }
+                    }
+                };
+            }
 
             int maxRetry = Math.Max(0, _settings.Gemini.MaxRetryCount);
 
@@ -340,6 +416,47 @@ namespace BDSKhanhHoa.Services.AI
             }
 
             result.Text = string.Join("\n", texts).Trim();
+
+            // Lấy nguồn groundingMetadata nếu Gemini trả về, rồi gắn vào cuối câu trả lời.
+            // Widget đã hỗ trợ markdown link nên người dùng bấm được nguồn tham khảo.
+            if (candidate.TryGetProperty("groundingMetadata", out JsonElement groundingMetadata) &&
+                groundingMetadata.TryGetProperty("groundingChunks", out JsonElement groundingChunks) &&
+                groundingChunks.ValueKind == JsonValueKind.Array)
+            {
+                List<string> sources = new();
+
+                foreach (JsonElement chunk in groundingChunks.EnumerateArray())
+                {
+                    if (!chunk.TryGetProperty("web", out JsonElement web)) continue;
+
+                    string? uri = web.TryGetProperty("uri", out JsonElement uriElement)
+                        ? uriElement.GetString()
+                        : null;
+
+                    string? title = web.TryGetProperty("title", out JsonElement titleElement)
+                        ? titleElement.GetString()
+                        : null;
+
+                    if (string.IsNullOrWhiteSpace(uri)) continue;
+
+                    title = string.IsNullOrWhiteSpace(title)
+                        ? "Nguồn tham khảo"
+                        : title.Trim();
+
+                    string line = $"- [{title}]({uri})";
+
+                    if (!sources.Contains(line, StringComparer.OrdinalIgnoreCase))
+                        sources.Add(line);
+
+                    if (sources.Count >= 5) break;
+                }
+
+                if (sources.Count > 0 && !string.IsNullOrWhiteSpace(result.Text))
+                {
+                    result.Text += "\n\nNguồn tham khảo:\n" + string.Join("\n", sources);
+                }
+            }
+
             return result;
         }
 

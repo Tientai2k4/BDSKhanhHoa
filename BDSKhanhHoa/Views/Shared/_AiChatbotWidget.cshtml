@@ -18,7 +18,7 @@
             <div class="bds-ai-avatar"><i class="bi bi-stars"></i></div>
             <div class="bds-ai-header-text">
                 <h6>Trợ lý AI BĐS Khánh Hòa</h6>
-                <small>Tư vấn mua bán · pháp lý · đăng tin</small>
+                <small>Tư vấn BĐS · pháp lý · vay vốn · nguồn tham khảo</small>
             </div>
         </div>
 
@@ -233,6 +233,30 @@
             align-self: flex-start;
             align-items: flex-start
         }
+
+
+        /* FIX: câu trả lời dài phải hiển thị đầy đủ, không bị line-clamp hoặc max-height */
+        .bds-ai-message.bot {
+            max-width: 98%;
+        }
+
+            .bds-ai-message.bot .bds-ai-bubble {
+                max-height: none !important;
+                overflow: visible !important;
+                display: block !important;
+                white-space: normal !important;
+            }
+
+                .bds-ai-message.bot .bds-ai-bubble p,
+                .bds-ai-message.bot .bds-ai-bubble div,
+                .bds-ai-message.bot .bds-ai-bubble span,
+                .bds-ai-message.bot .bds-ai-bubble li {
+                    max-height: none !important;
+                    overflow: visible !important;
+                    -webkit-line-clamp: unset !important;
+                    -webkit-box-orient: initial !important;
+                }
+
 
     .bds-ai-bubble {
         padding: 11px 14px;
@@ -611,7 +635,20 @@
 
         function renderMarkdown(text) {
             let html = escapeHtml(text || '');
+
+            // Markdown cơ bản: **đậm**
             html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Markdown link: [Tên nguồn](https://...)
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, function (_, label, url) {
+                return '<a href="' + url + '" target="_blank" rel="noopener noreferrer nofollow">' + label + '</a>';
+            });
+
+            // Link thô nếu AI trả trực tiếp URL
+            html = html.replace(/(^|\s)(https?:\/\/[^\s<]+)/g, function (_, prefix, url) {
+                return prefix + '<a href="' + url + '" target="_blank" rel="noopener noreferrer nofollow">' + url + '</a>';
+            });
+
             html = html.replace(/\n\s*\n/g, '</p><p>');
             html = html.replace(/\n/g, '<br>');
             return '<p>' + html + '</p>';
@@ -725,18 +762,34 @@
 
             const propFields = [
                 ['ID tin', 'chatbot-property-id'], ['Tiêu đề tin', 'chatbot-property-title'], ['Giá', 'chatbot-property-price'], ['Diện tích', 'chatbot-property-area'],
-                ['Vị trí', 'chatbot-property-location'], ['Loại BĐS', 'chatbot-property-type'], ['Pháp lý', 'chatbot-property-legal'], ['Mô tả', 'chatbot-property-description']
+                ['Đơn giá', 'chatbot-property-unit-price'], ['Vị trí', 'chatbot-property-location'], ['Khu vực', 'chatbot-property-region'], ['Phường/Xã', 'chatbot-property-ward'],
+                ['Loại BĐS', 'chatbot-property-type'], ['Pháp lý', 'chatbot-property-legal'], ['Phòng ngủ', 'chatbot-property-bedrooms'], ['Phòng tắm', 'chatbot-property-bathrooms'],
+                ['Hướng nhà', 'chatbot-property-direction'], ['Tiện ích', 'chatbot-property-utilities'], ['Tình trạng tin', 'chatbot-property-status'], ['Ngày đăng', 'chatbot-property-posted-date'],
+                ['Người đăng', 'chatbot-property-owner'], ['Mô tả', 'chatbot-property-description']
             ];
             const propLines = propFields.map(function (f) { const v = getMetaContent(f[1]); return v ? f[0] + ': ' + v : ''; }).filter(Boolean);
             if (propLines.length) { parts.push(''); parts.push('[THÔNG TIN TIN BẤT ĐỘNG SẢN]'); parts.push(...propLines); }
 
             const projectFields = [
                 ['ID dự án', 'chatbot-project-id'], ['Tên dự án', 'chatbot-project-name'], ['Chủ đầu tư', 'chatbot-project-investor'], ['Khu vực', 'chatbot-project-location'],
+                ['Giá', 'chatbot-project-price'], ['Quy mô', 'chatbot-project-scale'], ['Loại sản phẩm', 'chatbot-project-product-type'], ['Tiến độ', 'chatbot-project-progress'],
                 ['Pháp lý', 'chatbot-project-legal'], ['Trạng thái', 'chatbot-project-status'], ['Mô tả', 'chatbot-project-description']
             ];
             const projectLines = projectFields.map(function (f) { const v = getMetaContent(f[1]); return v ? f[0] + ': ' + v : ''; }).filter(Boolean);
             if (projectLines.length) { parts.push(''); parts.push('[THÔNG TIN DỰ ÁN]'); parts.push(...projectLines); }
-            return parts.join('\n').substring(0, 8000);
+
+            if ((pageType === 'PropertyDetail' || pageType === 'ProjectDetail') && !directContext) {
+                const main = document.querySelector('main') || document.querySelector('.container') || document.body;
+                let visibleText = main ? (main.innerText || '').replace(/\s+/g, ' ').trim() : '';
+                visibleText = visibleText.replace(/Trợ lý AI BĐS Khánh Hòa.*$/i, '').trim();
+                if (visibleText.length > 120) {
+                    parts.push('');
+                    parts.push('[VĂN BẢN HIỂN THỊ TRÊN TRANG - RÚT GỌN]');
+                    parts.push(visibleText.substring(0, 3500));
+                }
+            }
+
+            return parts.join('\n').substring(0, 10000);
         }
 
         async function sendMessage(rawText) {

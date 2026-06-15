@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         private readonly ApplicationDbContext _context;
 
         private const string REMIND_MARKER = "[REMIND_SELLER_APPOINTMENT]";
-        private const string REMIND_DISPLAY_TEXT = "Đã gửi thông báo nhắc người bán";
+        private const string REMIND_DISPLAY_TEXT = "Đã gửi thông báo nhắc người phụ trách";
 
         public AppointmentsController(ApplicationDbContext context)
         {
@@ -30,12 +31,18 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
         public async Task<IActionResult> Index(
             string? keyword = null,
             string? source = "All",
-            string dateRange = "all",
+            string? remindFilter = "CanRemind",
+            string? dateRange = "all",
             int page = 1)
         {
-            const int pageSize = 15;
+            const int pageSize = 12;
 
-            var query = _context.Appointments
+            keyword = CleanKeyword(keyword);
+            source = NormalizeFilter(source, "All");
+            remindFilter = NormalizeFilter(remindFilter, "CanRemind");
+            dateRange = NormalizeFilter(dateRange, "all");
+
+            IQueryable<Appointment> scopedQuery = _context.Appointments
                 .AsNoTracking()
                 .Include(a => a.Property).ThenInclude(p => p.Project)
                 .Include(a => a.Project)
@@ -44,84 +51,62 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 .Include(a => a.Lead).ThenInclude(l => l.Project)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(source) &&
-                !source.Equals("All", StringComparison.OrdinalIgnoreCase))
-            {
-                if (source.Equals("Property", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(a => a.PropertyID != null);
-                }
-                else if (source.Equals("Project", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(a => a.ProjectID != null && a.PropertyID == null);
-                }
-                else if (source.Equals("Lead", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(a => a.LeadID != null);
-                }
-            }
+            scopedQuery = ApplySourceFilter(scopedQuery, source);
+            scopedQuery = ApplyDateFilter(scopedQuery, dateRange);
+            scopedQuery = ApplyKeywordFilter(scopedQuery, keyword);
 
-            if (!string.IsNullOrWhiteSpace(keyword))
-            {
-                keyword = keyword.Trim();
+            ViewBag.TotalAppointments = await scopedQuery.CountAsync();
+            ViewBag.NeedsReminderAppointments = await scopedQuery.CountAsync(a =>
+                (a.Status == "Pending" || a.Status == "Chờ xác nhận") &&
+                (a.NegotiationNote == null || !a.NegotiationNote.Contains(REMIND_MARKER)));
 
-                query = query.Where(a =>
-                    (a.CustomerName != null && EF.Functions.Like(a.CustomerName, $"%{keyword}%")) ||
-                    (a.CustomerPhone != null && EF.Functions.Like(a.CustomerPhone, $"%{keyword}%")) ||
-                    (a.AssignedStaffName != null && EF.Functions.Like(a.AssignedStaffName, $"%{keyword}%")) ||
-                    (a.Buyer != null && a.Buyer.Username != null && EF.Functions.Like(a.Buyer.Username, $"%{keyword}%")) ||
-                    (a.Buyer != null && a.Buyer.FullName != null && EF.Functions.Like(a.Buyer.FullName, $"%{keyword}%")) ||
-                    (a.Seller != null && a.Seller.FullName != null && EF.Functions.Like(a.Seller.FullName, $"%{keyword}%")) ||
-                    (a.Property != null && a.Property.Title != null && EF.Functions.Like(a.Property.Title, $"%{keyword}%")) ||
-                    (a.Project != null && a.Project.ProjectName != null && EF.Functions.Like(a.Project.ProjectName, $"%{keyword}%")) ||
-                    (a.Lead != null && a.Lead.Project != null && a.Lead.Project.ProjectName != null && EF.Functions.Like(a.Lead.Project.ProjectName, $"%{keyword}%"))
-                );
-            }
+            ViewBag.RemindedAppointments = await scopedQuery.CountAsync(a =>
+                a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER));
 
-            var today = DateTime.Now.Date;
+            ViewBag.HandledAppointments = await scopedQuery.CountAsync(a =>
+                !(a.Status == "Pending" || a.Status == "Chờ xác nhận") ||
+                (a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER)));
 
-            switch (dateRange?.Trim().ToLowerInvariant())
-            {
-                case "today":
-                    query = query.Where(a => a.AppointmentDate >= today && a.AppointmentDate < today.AddDays(1));
-                    break;
+            ViewBag.PendingAppointments = await scopedQuery.CountAsync(a =>
+                a.Status == "Pending" || a.Status == "Chờ xác nhận" ||
+                a.Status == "Rescheduled" || a.Status == "Đang dời lịch");
 
-                case "week":
-                    query = query.Where(a => a.AppointmentDate >= today.AddDays(-7));
-                    break;
+            ViewBag.ConfirmedAppointments = await scopedQuery.CountAsync(a =>
+                a.Status == "Confirmed" || a.Status == "Đã xác nhận");
 
-                case "month":
-                    query = query.Where(a => a.AppointmentDate >= today.AddMonths(-1));
-                    break;
-            }
+            ViewBag.CompletedAppointments = await scopedQuery.CountAsync(a =>
+                a.Status == "Completed" || a.Status == "Đã hoàn tất");
 
-            ViewBag.TotalAppointments = await query.CountAsync();
-            ViewBag.PendingAppointments = await query.CountAsync(a => a.Status == "Pending" || a.Status == "Rescheduled");
-            ViewBag.ConfirmedAppointments = await query.CountAsync(a => a.Status == "Confirmed");
-            ViewBag.CompletedAppointments = await query.CountAsync(a => a.Status == "Completed");
-            ViewBag.CancelledAppointments = await query.CountAsync(a => a.Status == "Cancelled");
-            ViewBag.InterestedCount = await query.CountAsync(a => a.ResultStatus == "Interested" || a.ResultStatus == "DepositPending");
-            ViewBag.RemindedAppointments = await query.CountAsync(a => a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER));
+            ViewBag.CancelledAppointments = await scopedQuery.CountAsync(a =>
+                a.Status == "Cancelled" || a.Status == "Đã hủy" ||
+                a.Status == "NoShow" || a.Status == "Khách không đến");
 
-            int totalItems = await query.CountAsync();
+            IQueryable<Appointment> listQuery = ApplyReminderFilter(scopedQuery, remindFilter);
+
+            int totalItems = await listQuery.CountAsync();
             int totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
-
             page = Math.Clamp(page, 1, totalPages);
 
-            var list = await query
-                .OrderByDescending(a => a.AppointmentDate)
+            var appointments = await listQuery
+                .OrderByDescending(a =>
+                    (a.Status == "Pending" || a.Status == "Chờ xác nhận") &&
+                    (a.NegotiationNote == null || !a.NegotiationNote.Contains(REMIND_MARKER)))
+                .ThenBy(a => a.AppointmentDate)
                 .ThenByDescending(a => a.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
             ViewBag.Keyword = keyword;
-            ViewBag.Source = string.IsNullOrWhiteSpace(source) ? "All" : source;
-            ViewBag.DateRange = string.IsNullOrWhiteSpace(dateRange) ? "all" : dateRange;
+            ViewBag.Source = source;
+            ViewBag.RemindFilter = remindFilter;
+            ViewBag.DateRange = dateRange;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = totalPages;
+            ViewBag.TotalFilteredItems = totalItems;
+            ViewBag.RemindMarker = REMIND_MARKER;
 
-            return View(list);
+            return View(appointments);
         }
 
         [HttpGet]
@@ -133,25 +118,18 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     .AsNoTracking()
                     .Include(x => x.Buyer)
                     .Include(x => x.Seller)
-                    .Include(x => x.Property)
+                    .Include(x => x.Property).ThenInclude(p => p.Project)
                     .Include(x => x.Project)
+                    .Include(x => x.Lead).ThenInclude(l => l.Project)
                     .FirstOrDefaultAsync(x => x.AppointmentID == id);
 
                 if (a == null)
                 {
-                    return Json(new
-                    {
-                        success = false,
-                        message = "Không tìm thấy lịch hẹn."
-                    });
+                    return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
                 }
 
-                string sourceName = a.Property?.Title
-                                    ?? a.Project?.ProjectName
-                                    ?? "Không xác định";
-
                 bool wasReminded = IsReminded(a.NegotiationNote);
-                string cleanNegotiationNote = CleanReminderMarker(a.NegotiationNote);
+                bool canRemind = CanRemindAppointment(a.Status, a.NegotiationNote);
 
                 var responseData = new
                 {
@@ -160,101 +138,73 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                     proposedDate = a.ProposedAppointmentDate?.ToString("HH:mm dd/MM/yyyy") ?? "Không có",
                     createdAt = a.CreatedAt.ToString("HH:mm dd/MM/yyyy"),
                     completedAt = a.CompletedAt?.ToString("HH:mm dd/MM/yyyy") ?? "Chưa hoàn tất",
-
-                    status = a.Status ?? "N/A",
-                    resultStatus = a.ResultStatus ?? "Chưa có",
-
-                    buyerName = !string.IsNullOrWhiteSpace(a.CustomerName)
-                        ? a.CustomerName
-                        : (a.Buyer?.FullName ?? a.Buyer?.Username ?? "Khách vãng lai"),
-
-                    buyerPhone = a.CustomerPhone ?? "Không có",
-
-                    sellerName = a.Seller?.FullName ?? "Chưa xác định",
+                    status = GetAppointmentStatusText(a.Status),
+                    rawStatus = a.Status ?? "",
+                    resultStatus = GetAppointmentResultText(a.ResultStatus),
+                    buyerName = GetCustomerName(a),
+                    buyerPhone = string.IsNullOrWhiteSpace(a.CustomerPhone) ? "Không có" : a.CustomerPhone.Trim(),
+                    sellerName = GetSellerName(a),
                     sellerPhone = a.Seller?.Phone ?? "Không có",
-
-                    source = sourceName,
-                    location = a.MeetingLocation ?? "Chưa xác định",
-                    note = a.Note ?? "Không có ghi chú",
-
-                    negotiationNote = string.IsNullOrWhiteSpace(cleanNegotiationNote)
+                    source = GetAppointmentSourceName(a),
+                    sourceType = GetAppointmentSourceType(a),
+                    location = string.IsNullOrWhiteSpace(a.MeetingLocation) ? "Chưa xác định" : a.MeetingLocation.Trim(),
+                    note = string.IsNullOrWhiteSpace(a.Note) ? "Không có ghi chú" : a.Note.Trim(),
+                    negotiationNote = string.IsNullOrWhiteSpace(CleanReminderMarker(a.NegotiationNote))
                         ? "Chưa có lịch sử thương lượng."
-                        : cleanNegotiationNote,
-
-                    resultNote = a.ResultNote ?? "Không có",
-                    wasReminded = wasReminded,
-                    remindedText = wasReminded ? REMIND_DISPLAY_TEXT : "Chưa gửi nhắc nhở"
+                        : CleanReminderMarker(a.NegotiationNote),
+                    resultNote = string.IsNullOrWhiteSpace(a.ResultNote) ? "Không có" : a.ResultNote.Trim(),
+                    wasReminded,
+                    canRemind,
+                    remindedText = wasReminded ? REMIND_DISPLAY_TEXT : "Chưa gửi thông báo"
                 };
 
-                return Json(new
-                {
-                    success = true,
-                    data = responseData
-                });
+                return Json(new { success = true, data = responseData });
             }
             catch (Exception ex)
             {
-                return Json(new
-                {
-                    success = false,
-                    message = "Lỗi xử lý hệ thống: " + ex.Message
-                });
+                return Json(new { success = false, message = "Lỗi xử lý hệ thống: " + ex.Message });
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RemindSeller(int id, bool force = false)
+        public async Task<IActionResult> RemindSeller(int id)
         {
             var a = await _context.Appointments
-                .Include(x => x.Property)
+                .Include(x => x.Property).ThenInclude(p => p.Project)
                 .Include(x => x.Project)
                 .Include(x => x.Seller)
                 .Include(x => x.Buyer)
+                .Include(x => x.Lead).ThenInclude(l => l.Project)
                 .FirstOrDefaultAsync(x => x.AppointmentID == id);
 
             if (a == null)
             {
+                return Json(new { success = false, message = "Không tìm thấy lịch hẹn." });
+            }
+
+            if (!CanRemindAppointment(a.Status, a.NegotiationNote))
+            {
+                bool wasReminded = IsReminded(a.NegotiationNote);
+
                 return Json(new
                 {
                     success = false,
-                    message = "Không tìm thấy lịch hẹn."
+                    code = wasReminded ? "ALREADY_REMINDED" : "ALREADY_HANDLED",
+                    message = wasReminded
+                        ? "Lịch hẹn này đã được thông báo rồi, hệ thống không gửi lại để tránh làm phiền người phụ trách."
+                        : "Lịch hẹn này đã được tiếp nhận/xử lý, Admin không cần bấm chuông nữa."
                 });
             }
 
-            bool wasReminded = IsReminded(a.NegotiationNote);
-
-            if (wasReminded && !force)
-            {
-                return Json(new
-                {
-                    success = false,
-                    code = "ALREADY_REMINDED",
-                    message = "Lịch hẹn này đã từng được gửi thông báo cho người bán. Bạn có muốn gửi nhắc lại không?"
-                });
-            }
-
-            int? targetUserId = null;
-
-            if (a.SellerID > 0)
-            {
-                targetUserId = a.SellerID;
-            }
-            else if (a.Property?.UserID != null && a.Property.UserID > 0)
-            {
-                targetUserId = a.Property.UserID;
-            }
-            else if (a.Project?.OwnerUserID != null && a.Project.OwnerUserID > 0)
-            {
-                targetUserId = a.Project.OwnerUserID;
-            }
+            int? targetUserId = GetAppointmentTargetUserId(a);
 
             if (targetUserId == null || targetUserId.Value <= 0)
             {
                 return Json(new
                 {
                     success = false,
-                    message = "Lịch hẹn này chưa xác định được người bán hoặc người phụ trách để nhắc nhở."
+                    message = "Lịch hẹn này chưa xác định được người bán hoặc người phụ trách để thông báo."
                 });
             }
 
@@ -270,39 +220,25 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Người bán/người phụ trách không tồn tại hoặc tài khoản đã bị khóa."
+                    message = "Người phụ trách không tồn tại hoặc tài khoản đã bị khóa."
                 });
             }
 
             DateTime now = DateTime.Now;
-
             string actorName = User.FindFirst("FullName")?.Value
+                               ?? User.FindFirstValue(ClaimTypes.Name)
                                ?? User.Identity?.Name
                                ?? "Admin/Staff";
 
-            string customerName = !string.IsNullOrWhiteSpace(a.CustomerName)
-                ? a.CustomerName.Trim()
-                : (a.Buyer?.FullName ?? a.Buyer?.Username ?? "khách hàng");
-
-            string sourceName = a.Property?.Title
-                                ?? a.Project?.ProjectName
-                                ?? "nguồn bất động sản không xác định";
-
+            string customerName = GetCustomerName(a);
+            string sourceName = GetAppointmentSourceName(a);
             string appointmentTime = a.AppointmentDate.ToString("HH:mm dd/MM/yyyy");
-
-            string notificationTitle = force
-                ? "🔔 Nhắc lại: Lịch hẹn đang chờ xử lý"
-                : "🔔 Admin nhắc nhở: Xử lý lịch hẹn";
-
-            string notificationContent =
-                $"Bạn có lịch hẹn với khách hàng {customerName} vào {appointmentTime}, liên quan đến \"{sourceName}\". " +
-                "Vui lòng kiểm tra, liên hệ khách và cập nhật tiến độ xử lý trên hệ thống.";
 
             _context.Notifications.Add(new Notification
             {
                 UserID = targetUserId.Value,
-                Title = notificationTitle,
-                Content = notificationContent,
+                Title = "🔔 Admin nhắc xử lý lịch hẹn",
+                Content = $"Bạn có lịch hẹn mới/chưa xử lý với khách {customerName} vào {appointmentTime}, liên quan đến \"{sourceName}\". Vui lòng liên hệ khách và cập nhật trạng thái trên hệ thống.",
                 ActionUrl = BuildAppointmentActionUrl(a),
                 ActionText = "Xem lịch hẹn",
                 CreatedAt = now,
@@ -312,123 +248,196 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             string remindLog =
                 $"{REMIND_MARKER} {now:HH:mm dd/MM/yyyy} - {actorName} đã gửi thông báo nhắc người phụ trách: {targetUser.FullName ?? targetUser.Username}.";
 
-            if (string.IsNullOrWhiteSpace(a.NegotiationNote))
-            {
-                a.NegotiationNote = remindLog;
-            }
-            else
-            {
-                a.NegotiationNote = a.NegotiationNote.Trim() + Environment.NewLine + remindLog;
-            }
+            a.NegotiationNote = string.IsNullOrWhiteSpace(a.NegotiationNote)
+                ? remindLog
+                : a.NegotiationNote.Trim() + Environment.NewLine + remindLog;
 
             await _context.SaveChangesAsync();
 
             return Json(new
             {
                 success = true,
+                id = a.AppointmentID,
                 reminded = true,
                 remindedAt = now.ToString("HH:mm dd/MM/yyyy"),
-                message = force
-                    ? "Đã gửi nhắc lại thành công và vẫn giữ trạng thái đã thông báo."
-                    : "Đã gửi thông báo nhắc nhở thành công và đánh dấu lịch hẹn này là đã thông báo."
-            });
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Delete(int id, bool blockSpam = false)
-        {
-            var item = await _context.Appointments.FindAsync(id);
-
-            if (item == null)
-            {
-                return Json(new
-                {
-                    success = false,
-                    message = "Không tìm thấy lịch hẹn."
-                });
-            }
-
-            _context.Appointments.Remove(item);
-            await _context.SaveChangesAsync();
-
-            string msg = blockSpam
-                ? "Đã xóa lịch hẹn ảo và ghi nhận là dữ liệu Spam."
-                : "Đã xóa vĩnh viễn dữ liệu lịch hẹn khỏi hệ thống.";
-
-            return Json(new
-            {
-                success = true,
-                message = msg
+                message = "Đã gửi chuông thông báo. Mục này sẽ được ẩn khỏi danh sách cần xử lý."
             });
         }
 
         [HttpGet]
-        public async Task<IActionResult> ExportCsv()
+        public async Task<IActionResult> ExportCsv(
+            string? keyword = null,
+            string? source = "All",
+            string? remindFilter = "All",
+            string? dateRange = "all")
         {
-            var appointments = await _context.Appointments
+            keyword = CleanKeyword(keyword);
+            source = NormalizeFilter(source, "All");
+            remindFilter = NormalizeFilter(remindFilter, "All");
+            dateRange = NormalizeFilter(dateRange, "all");
+
+            IQueryable<Appointment> query = _context.Appointments
                 .AsNoTracking()
                 .Include(a => a.Buyer)
                 .Include(a => a.Seller)
-                .Include(a => a.Property)
+                .Include(a => a.Property).ThenInclude(p => p.Project)
                 .Include(a => a.Project)
+                .Include(a => a.Lead).ThenInclude(l => l.Project)
+                .AsQueryable();
+
+            query = ApplySourceFilter(query, source);
+            query = ApplyDateFilter(query, dateRange);
+            query = ApplyKeywordFilter(query, keyword);
+            query = ApplyReminderFilter(query, remindFilter);
+
+            var appointments = await query
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync();
 
             var builder = new StringBuilder();
             builder.Append('\uFEFF');
-            builder.AppendLine("Mã Lịch Hẹn,Ngày Tạo,Thời Gian Hẹn,Khách Hàng,SĐT Khách,Người Bán/Phụ Trách,Nguồn BĐS,Trạng Thái,Kết Quả,Đã Nhắc");
+            builder.AppendLine("MaLichHen,NgayTao,ThoiGianHen,KhachHang,SDTKhach,NguoiPhuTrach,Nguon,LoaiNguon,TrangThai,KetQua,TinhTrangThongBao");
 
             foreach (var a in appointments)
             {
-                var customer = string.IsNullOrWhiteSpace(a.CustomerName)
-                    ? (a.Buyer?.FullName ?? a.Buyer?.Username ?? "N/A")
-                    : a.CustomerName;
-
-                var seller = a.Seller?.FullName ?? "N/A";
-
-                var sourceName = a.Property?.Title
-                                 ?? a.Project?.ProjectName
-                                 ?? "N/A";
-
-                string statusText = a.Status switch
-                {
-                    "Pending" => "Chờ xác nhận",
-                    "Confirmed" => "Đã xác nhận",
-                    "Rescheduled" => "Đang dời lịch",
-                    "Cancelled" => "Đã hủy",
-                    "Completed" => "Hoàn tất",
-                    _ => a.Status ?? "N/A"
-                };
-
-                string resultText = a.ResultStatus switch
-                {
-                    "Interested" => "Khách ưng ý",
-                    "DepositPending" => "Chờ chốt cọc",
-                    "FollowUp" => "Cần bám sát",
-                    "NotInterested" => "Không ưng",
-                    _ => "Chưa có"
-                };
-
-                string remindedText = IsReminded(a.NegotiationNote) ? "Đã nhắc" : "Chưa nhắc";
-
                 builder.AppendLine(
                     $"{a.AppointmentID}," +
                     $"{a.CreatedAt:dd/MM/yyyy HH:mm}," +
                     $"{a.AppointmentDate:dd/MM/yyyy HH:mm}," +
-                    $"\"{EscapeCsv(customer)}\"," +
-                    $"\"{EscapeCsv(a.CustomerPhone ?? "N/A")}\"," +
-                    $"\"{EscapeCsv(seller)}\"," +
-                    $"\"{EscapeCsv(sourceName)}\"," +
-                    $"\"{EscapeCsv(statusText)}\"," +
-                    $"\"{EscapeCsv(resultText)}\"," +
-                    $"\"{EscapeCsv(remindedText)}\"");
+                    $"\"{EscapeCsv(GetCustomerName(a))}\"," +
+                    $"\"{EscapeCsv(a.CustomerPhone ?? "")}\"," +
+                    $"\"{EscapeCsv(GetSellerName(a))}\"," +
+                    $"\"{EscapeCsv(GetAppointmentSourceName(a))}\"," +
+                    $"\"{EscapeCsv(GetAppointmentSourceType(a))}\"," +
+                    $"\"{EscapeCsv(GetAppointmentStatusText(a.Status))}\"," +
+                    $"\"{EscapeCsv(GetAppointmentResultText(a.ResultStatus))}\"," +
+                    $"\"{EscapeCsv(IsReminded(a.NegotiationNote) ? "Đã thông báo" : "Chưa thông báo")}\"");
             }
 
             return File(
                 Encoding.UTF8.GetBytes(builder.ToString()),
                 "text/csv",
-                $"ThongKeLichHen_BDS_{DateTime.Now:yyyyMMdd}.csv");
+                $"LichHenCanGiamSat_{DateTime.Now:yyyyMMddHHmm}.csv");
+        }
+
+        private static IQueryable<Appointment> ApplySourceFilter(IQueryable<Appointment> query, string source)
+        {
+            if (source.Equals("Property", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a =>
+                    a.PropertyID != null &&
+                    a.ProjectID == null &&
+                    a.LeadID == null &&
+                    (a.Property == null || a.Property.ProjectID == null));
+            }
+
+            if (source.Equals("Project", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a =>
+                    a.ProjectID != null ||
+                    a.LeadID != null ||
+                    (a.Property != null && a.Property.ProjectID != null));
+            }
+
+            if (source.Equals("Lead", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a => a.LeadID != null);
+            }
+
+            return query;
+        }
+
+        private static IQueryable<Appointment> ApplyDateFilter(IQueryable<Appointment> query, string dateRange)
+        {
+            DateTime today = DateTime.Now.Date;
+
+            return dateRange.Trim().ToLowerInvariant() switch
+            {
+                "today" => query.Where(a => a.CreatedAt >= today && a.CreatedAt < today.AddDays(1)),
+                "appointment_today" => query.Where(a => a.AppointmentDate >= today && a.AppointmentDate < today.AddDays(1)),
+                "week" => query.Where(a => a.CreatedAt >= today.AddDays(-7)),
+                "month" => query.Where(a => a.CreatedAt >= today.AddMonths(-1)),
+                _ => query
+            };
+        }
+
+        private static IQueryable<Appointment> ApplyKeywordFilter(IQueryable<Appointment> query, string keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return query;
+            }
+
+            return query.Where(a =>
+                (a.CustomerName != null && EF.Functions.Like(a.CustomerName, $"%{keyword}%")) ||
+                (a.CustomerPhone != null && EF.Functions.Like(a.CustomerPhone, $"%{keyword}%")) ||
+                (a.AssignedStaffName != null && EF.Functions.Like(a.AssignedStaffName, $"%{keyword}%")) ||
+                (a.Buyer != null && a.Buyer.Username != null && EF.Functions.Like(a.Buyer.Username, $"%{keyword}%")) ||
+                (a.Buyer != null && a.Buyer.FullName != null && EF.Functions.Like(a.Buyer.FullName, $"%{keyword}%")) ||
+                (a.Seller != null && a.Seller.FullName != null && EF.Functions.Like(a.Seller.FullName, $"%{keyword}%")) ||
+                (a.Property != null && a.Property.Title != null && EF.Functions.Like(a.Property.Title, $"%{keyword}%")) ||
+                (a.Project != null && a.Project.ProjectName != null && EF.Functions.Like(a.Project.ProjectName, $"%{keyword}%")) ||
+                (a.Lead != null && a.Lead.Project != null && a.Lead.Project.ProjectName != null && EF.Functions.Like(a.Lead.Project.ProjectName, $"%{keyword}%")));
+        }
+
+        private static IQueryable<Appointment> ApplyReminderFilter(IQueryable<Appointment> query, string remindFilter)
+        {
+            if (remindFilter.Equals("CanRemind", StringComparison.OrdinalIgnoreCase) ||
+                remindFilter.Equals("NeedNotify", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a =>
+                    (a.Status == "Pending" || a.Status == "Chờ xác nhận") &&
+                    (a.NegotiationNote == null || !a.NegotiationNote.Contains(REMIND_MARKER)));
+            }
+
+            if (remindFilter.Equals("Reminded", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a => a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER));
+            }
+
+            if (remindFilter.Equals("Handled", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(a =>
+                    !(a.Status == "Pending" || a.Status == "Chờ xác nhận") ||
+                    (a.NegotiationNote != null && a.NegotiationNote.Contains(REMIND_MARKER)));
+            }
+
+            return query;
+        }
+
+        private static int? GetAppointmentTargetUserId(Appointment appointment)
+        {
+            if (appointment.SellerID > 0)
+            {
+                return appointment.SellerID;
+            }
+
+            if (appointment.Project?.OwnerUserID != null && appointment.Project.OwnerUserID > 0)
+            {
+                return appointment.Project.OwnerUserID;
+            }
+
+            if (appointment.Lead?.Project?.OwnerUserID != null && appointment.Lead.Project.OwnerUserID > 0)
+            {
+                return appointment.Lead.Project.OwnerUserID;
+            }
+
+            if (appointment.Property?.Project?.OwnerUserID != null && appointment.Property.Project.OwnerUserID > 0)
+            {
+                return appointment.Property.Project.OwnerUserID;
+            }
+
+            if (appointment.Property?.UserID != null && appointment.Property.UserID > 0)
+            {
+                return appointment.Property.UserID;
+            }
+
+            return null;
+        }
+
+        private static bool CanRemindAppointment(string? status, string? negotiationNote)
+        {
+            return (status == "Pending" || status == "Chờ xác nhận") && !IsReminded(negotiationNote);
         }
 
         private static bool IsReminded(string? text)
@@ -447,14 +456,118 @@ namespace BDSKhanhHoa.Areas.Admin.Controllers
             return Regex.Replace(text, Regex.Escape(REMIND_MARKER), "", RegexOptions.IgnoreCase).Trim();
         }
 
-        private static string EscapeCsv(string value)
+        private static string CleanKeyword(string? keyword)
         {
-            return value.Replace("\"", "\"\"");
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                return string.Empty;
+            }
+
+            keyword = keyword.Trim();
+            return keyword.Length > 80 ? keyword.Substring(0, 80) : keyword;
+        }
+
+        private static string NormalizeFilter(string? value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        }
+
+        private static string EscapeCsv(string? value)
+        {
+            return (value ?? string.Empty).Replace("\"", "\"\"");
+        }
+
+        private static string GetCustomerName(Appointment a)
+        {
+            return !string.IsNullOrWhiteSpace(a.CustomerName)
+                ? a.CustomerName.Trim()
+                : (a.Buyer?.FullName ?? a.Buyer?.Username ?? "Khách vãng lai");
+        }
+
+        private static string GetSellerName(Appointment a)
+        {
+            if (a.Seller != null)
+            {
+                return a.Seller.FullName ?? a.Seller.Username ?? "Người phụ trách";
+            }
+
+            if (!string.IsNullOrWhiteSpace(a.AssignedStaffName))
+            {
+                return a.AssignedStaffName.Trim();
+            }
+
+            return "Chưa xác định";
+        }
+
+        private static string GetAppointmentSourceName(Appointment a)
+        {
+            return a.Property?.Title
+                   ?? a.Project?.ProjectName
+                   ?? a.Lead?.Project?.ProjectName
+                   ?? "Bất động sản / dự án";
+        }
+
+        private static string GetAppointmentSourceType(Appointment a)
+        {
+            if (a.ProjectID.HasValue || a.LeadID.HasValue || a.Property?.ProjectID != null)
+            {
+                return "Dự án";
+            }
+
+            if (a.PropertyID.HasValue)
+            {
+                return "Tin lẻ BĐS";
+            }
+
+            return "Không xác định";
+        }
+
+        private static string GetAppointmentStatusText(string? status)
+        {
+            return status switch
+            {
+                "Pending" => "Chờ xác nhận",
+                "Confirmed" => "Đã xác nhận",
+                "Cancelled" => "Đã hủy",
+                "Completed" => "Đã hoàn tất",
+                "Rescheduled" => "Đang dời lịch",
+                "NoShow" => "Khách không đến",
+                "Chờ xác nhận" => "Chờ xác nhận",
+                "Đã xác nhận" => "Đã xác nhận",
+                "Đã hủy" => "Đã hủy",
+                "Đã hoàn tất" => "Đã hoàn tất",
+                "Đang dời lịch" => "Đang dời lịch",
+                "Khách không đến" => "Khách không đến",
+                _ => "Chờ xác nhận"
+            };
+        }
+
+        private static string GetAppointmentResultText(string? resultStatus)
+        {
+            return resultStatus switch
+            {
+                "Interested" => "Khách quan tâm",
+                "NotInterested" => "Khách không quan tâm",
+                "DepositPending" => "Chờ đặt cọc",
+                "FollowUp" => "Cần chăm sóc thêm",
+                "Khách quan tâm" => "Khách quan tâm",
+                "Khách không quan tâm" => "Khách không quan tâm",
+                "Chờ đặt cọc" => "Chờ đặt cọc",
+                "Cần chăm sóc thêm" => "Cần chăm sóc thêm",
+                _ => "Chưa có kết quả"
+            };
         }
 
         private static string BuildAppointmentActionUrl(Appointment appointment)
         {
-            return "/User/Appointments";
+            bool isProjectAppointment =
+                appointment.ProjectID.HasValue ||
+                appointment.LeadID.HasValue ||
+                (appointment.Property != null && appointment.Property.ProjectID.HasValue);
+
+            return isProjectAppointment
+                ? "/Appointments/Index?mode=DoanhNghiep&tab=lich-den"
+                : "/Appointments/Index?mode=CaNhan&tab=lich-den";
         }
     }
 }

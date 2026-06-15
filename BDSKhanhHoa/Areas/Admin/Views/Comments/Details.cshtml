@@ -15,171 +15,193 @@
     string propertyTitle = !string.IsNullOrWhiteSpace(Model.Property?.Title)
         ? Model.Property.Title
         : $"Tin bất động sản #{Model.PropertyID}";
+
+    int riskScore = ViewBag.RiskScore ?? 0;
+    string riskLabel = ViewBag.RiskLabel ?? "An toàn";
+    string riskClass = ViewBag.RiskClass ?? "risk-safe";
+    string riskReasons = ViewBag.RiskReasons ?? "chưa phát hiện dấu hiệu bất thường";
+    int userRecentCount = ViewBag.UserRecentCount ?? 0;
+    int duplicateCount = ViewBag.DuplicateCount ?? 0;
 }
 
 <style>
     :root {
-        --detail-bg: #f5f7fb;
+        --detail-bg: #f6f8fc;
         --detail-card: #ffffff;
         --detail-text: #0f172a;
         --detail-muted: #64748b;
-        --detail-border: #e5e7eb;
-        --detail-primary: #2563eb;
-        --detail-success: #16a34a;
-        --detail-warning: #f59e0b;
-        --detail-danger: #dc2626;
-        --detail-radius: 22px;
+        --detail-line: #e2e8f0;
+        --detail-blue: #2563eb;
+        --detail-green: #16a34a;
+        --detail-orange: #f59e0b;
+        --detail-red: #dc2626;
+        --detail-radius: 18px;
+        --detail-shadow: 0 10px 28px rgba(15, 23, 42, .055);
     }
 
     .comment-detail-page {
-        background: radial-gradient(circle at 0% 0%, rgba(37,99,235,.08), transparent 28%), radial-gradient(circle at 100% 0%, rgba(124,58,237,.08), transparent 26%), linear-gradient(180deg, #f8fafc 0%, var(--detail-bg) 100%);
-        min-height: calc(100vh - 80px);
-        padding: 8px 0 32px;
+        min-height: calc(100vh - 76px);
+        padding: 10px 0 30px;
+        background: radial-gradient(circle at 0 0, rgba(37,99,235,.07), transparent 28%), linear-gradient(180deg, #f8fafc 0%, var(--detail-bg) 100%);
         color: var(--detail-text);
-    }
-
-    .detail-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        margin-bottom: 18px;
-        flex-wrap: wrap;
-    }
-
-    .detail-title-wrap {
-        min-width: 0;
-    }
-
-    .detail-title {
-        font-size: clamp(1.25rem, 2.2vw, 1.85rem);
-        font-weight: 950;
-        letter-spacing: -.035em;
-        margin: 0;
-        color: var(--detail-text);
-    }
-
-    .detail-sub {
-        color: var(--detail-muted);
-        font-size: .86rem;
-        font-weight: 700;
-        margin-top: 4px;
-    }
-
-    .detail-btn {
-        border: 0;
-        min-height: 40px;
-        padding: 9px 14px;
-        border-radius: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        font-size: .82rem;
-        font-weight: 900;
-        text-decoration: none;
-        transition: .18s ease;
-        white-space: nowrap;
-    }
-
-        .detail-btn:hover {
-            transform: translateY(-1px);
-        }
-
-    .btn-primary-soft {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .btn-danger-soft {
-        background: #fee2e2;
-        color: #b91c1c;
-    }
-
-    .btn-warning-soft {
-        background: #fef3c7;
-        color: #b45309;
-    }
-
-    .btn-dark-soft {
-        background: #e2e8f0;
-        color: #0f172a;
     }
 
     .detail-card {
         background: var(--detail-card);
-        border: 1px solid var(--detail-border);
+        border: 1px solid var(--detail-line);
         border-radius: var(--detail-radius);
-        box-shadow: 0 14px 38px rgba(15, 23, 42, .06);
+        box-shadow: var(--detail-shadow);
         overflow: hidden;
     }
 
-    .detail-card-head {
-        padding: 18px;
-        border-bottom: 1px solid var(--detail-border);
-        display: flex;
+    .detail-header {
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        justify-content: space-between;
         gap: 12px;
     }
 
-    .detail-card-title {
+    .detail-title {
         margin: 0;
-        font-size: 1rem;
+        font-size: 1.13rem;
         font-weight: 950;
-        color: var(--detail-text);
+        line-height: 1.25;
+        letter-spacing: -.025em;
     }
 
-    .detail-card-sub {
+    .detail-desc {
+        margin: 4px 0 0;
         color: var(--detail-muted);
         font-size: .78rem;
         font-weight: 700;
-        margin: 3px 0 0;
+        line-height: 1.45;
     }
 
-    .detail-card-body {
-        padding: 20px;
-    }
-
-    .comment-author {
+    .detail-header-actions {
         display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .detail-btn {
+        border: 0;
+        min-height: 38px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        display: inline-flex;
         align-items: center;
-        gap: 14px;
-        margin-bottom: 18px;
+        justify-content: center;
+        gap: 7px;
+        font-size: .78rem;
+        font-weight: 900;
+        line-height: 1;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: .16s ease;
     }
 
-    .comment-author-avatar {
-        width: 58px;
-        height: 58px;
-        border-radius: 999px;
-        object-fit: cover;
-        border: 3px solid #fff;
-        box-shadow: 0 12px 24px rgba(15,23,42,.12);
-        background: #f1f5f9;
+        .detail-btn:hover {
+            transform: translateY(-1px);
+            text-decoration: none;
+        }
+
+    .btn-blue {
+        background: #dbeafe;
+        color: #1d4ed8;
     }
 
-    .comment-author-name {
-        font-size: 1.05rem;
-        font-weight: 950;
+    .btn-green {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .btn-orange {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .btn-red {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .btn-gray {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .card-head {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--detail-line);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .card-title {
         margin: 0;
-        color: var(--detail-text);
+        font-size: .96rem;
+        font-weight: 950;
     }
 
-    .comment-author-meta {
-        margin-top: 4px;
+    .card-sub {
+        margin-top: 3px;
         color: var(--detail-muted);
-        font-size: .82rem;
+        font-size: .74rem;
         font-weight: 700;
     }
 
-    .status-pill {
+    .card-body {
+        padding: 16px;
+    }
+
+    .author-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .author-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 999px;
+        object-fit: cover;
+        background: #f1f5f9;
+        border: 3px solid #fff;
+        box-shadow: 0 10px 22px rgba(15,23,42,.12);
+        flex: 0 0 auto;
+    }
+
+    .author-name {
+        margin: 0;
+        color: var(--detail-text);
+        font-size: 1rem;
+        font-weight: 950;
+    }
+
+    .author-meta {
+        margin-top: 3px;
+        color: var(--detail-muted);
+        font-size: .78rem;
+        font-weight: 750;
+    }
+
+    .status-pill,
+    .risk-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
         padding: 7px 10px;
         border-radius: 999px;
-        font-size: .74rem;
-        font-weight: 900;
+        font-size: .72rem;
+        font-weight: 950;
         white-space: nowrap;
     }
 
@@ -193,82 +215,165 @@
         color: #b45309;
     }
 
-    .comment-content-panel {
-        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-        border: 1px solid #e5e7eb;
-        border-radius: 20px;
-        padding: 18px;
+    .risk-safe {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    .risk-low {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .risk-medium {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .risk-high {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    .content-panel {
+        background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+        border: 1px solid var(--detail-line);
+        border-radius: 16px;
+        padding: 15px;
         color: #334155;
-        font-size: 1rem;
-        line-height: 1.75;
+        font-size: .96rem;
+        line-height: 1.7;
         font-weight: 650;
         white-space: pre-line;
+        word-break: break-word;
+    }
+
+    .moderation-box {
+        border: 1px solid var(--detail-line);
+        border-radius: 16px;
+        padding: 14px;
+        background: #f8fafc;
+        margin-top: 14px;
+    }
+
+    .moderation-title {
+        margin: 0;
+        font-size: .9rem;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .moderation-desc {
+        margin-top: 5px;
+        color: var(--detail-muted);
+        font-size: .75rem;
+        font-weight: 700;
+        line-height: 1.45;
+    }
+
+    .moderation-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 11px;
+    }
+
+    .mini-stat {
+        background: #fff;
+        border: 1px solid #edf2f7;
+        border-radius: 14px;
+        padding: 10px;
+    }
+
+    .mini-label {
+        color: var(--detail-muted);
+        font-size: .65rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+
+    .mini-value {
+        margin-top: 5px;
+        color: var(--detail-text);
+        font-size: 1.1rem;
+        font-weight: 950;
     }
 
     .action-panel {
-        margin-top: 18px;
-        padding-top: 16px;
-        border-top: 1px solid var(--detail-border);
         display: flex;
-        gap: 10px;
         flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--detail-line);
     }
 
     .reply-list {
         display: grid;
-        gap: 12px;
+        gap: 10px;
     }
 
     .reply-item {
         border: 1px solid #eef2f7;
-        border-radius: 18px;
-        padding: 14px;
+        border-radius: 15px;
+        padding: 12px;
         background: #fff;
     }
 
-    .reply-header {
+    .reply-head {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 10px;
+        gap: 10px;
+        margin-bottom: 8px;
     }
 
     .reply-user {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 9px;
         min-width: 0;
     }
 
     .reply-avatar {
-        width: 40px;
-        height: 40px;
+        width: 36px;
+        height: 36px;
         border-radius: 999px;
         object-fit: cover;
         background: #f1f5f9;
+        flex: 0 0 auto;
     }
 
     .reply-name {
-        font-weight: 950;
         color: var(--detail-text);
-        font-size: .88rem;
+        font-size: .84rem;
+        font-weight: 950;
         line-height: 1.2;
     }
 
     .reply-time {
         color: var(--detail-muted);
-        font-size: .74rem;
-        font-weight: 700;
+        font-size: .7rem;
+        font-weight: 750;
         margin-top: 2px;
     }
 
     .reply-content {
         color: #334155;
-        line-height: 1.6;
+        line-height: 1.55;
         font-weight: 650;
-        margin-bottom: 12px;
         white-space: pre-line;
+        word-break: break-word;
+        margin-bottom: 10px;
+    }
+
+    .reply-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
     .property-image {
@@ -279,30 +384,30 @@
     }
 
     .property-body {
-        padding: 18px;
+        padding: 15px;
     }
 
     .property-title {
-        font-size: 1rem;
-        line-height: 1.45;
-        font-weight: 950;
+        margin: 0 0 8px;
         color: var(--detail-text);
-        margin: 0 0 10px;
+        font-size: .98rem;
+        font-weight: 950;
+        line-height: 1.45;
     }
 
     .property-price {
-        color: var(--detail-primary);
-        font-size: 1.2rem;
+        color: var(--detail-blue);
+        font-size: 1.08rem;
         font-weight: 950;
-        margin-bottom: 8px;
+        margin-bottom: 7px;
     }
 
     .property-address {
         color: var(--detail-muted);
-        font-size: .84rem;
+        font-size: .8rem;
         font-weight: 700;
         line-height: 1.5;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
     }
 
     .sticky-side {
@@ -311,124 +416,172 @@
     }
 
     .empty-replies {
-        padding: 30px 18px;
+        padding: 28px 14px;
         text-align: center;
         color: var(--detail-muted);
     }
 
         .empty-replies i {
-            font-size: 2rem;
+            font-size: 1.8rem;
             color: #cbd5e1;
             display: block;
             margin-bottom: 8px;
         }
 
     @@media (max-width: 991.98px) {
+        .comment-detail-page {
+            padding: 8px 8px 24px;
+        }
+
+        .detail-header {
+            grid-template-columns: 1fr;
+            padding: 12px;
+            border-radius: 16px;
+        }
+
+        .detail-header-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            justify-content: stretch;
+        }
+
+            .detail-header-actions .detail-btn,
+            .action-panel .detail-btn,
+            .reply-actions .detail-btn {
+                width: 100%;
+            }
+
         .sticky-side {
             position: static;
         }
 
-        .detail-card-body {
-            padding: 16px;
+        .card-head,
+        .card-body,
+        .property-body {
+            padding: 12px;
         }
 
-        .detail-card-head {
+        .action-panel,
+        .reply-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        .moderation-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .author-box {
             align-items: flex-start;
-            flex-direction: column;
-        }
-
-        .comment-author {
-            align-items: flex-start;
-        }
-
-        .action-panel .detail-btn {
-            width: 100%;
         }
     }
 </style>
 
 <div class="comment-detail-page">
-    <div class="detail-header">
-        <div class="detail-title-wrap">
+    <div class="detail-card detail-header">
+        <div>
             <h1 class="detail-title">
                 <i class="bi bi-chat-square-text-fill text-primary me-2"></i>
                 Chi tiết bình luận #@Model.CommentID
             </h1>
-            <div class="detail-sub">
-                Kiểm tra nội dung, trạng thái hiển thị, phản hồi và tin bất động sản liên quan.
-            </div>
+            <p class="detail-desc">
+                Kiểm tra nội dung, quyết định ẩn/cho hiện, xem phản hồi và mở tin bất động sản liên quan.
+            </p>
         </div>
 
-        <a href="/Admin/Comments/Index" class="detail-btn btn-dark-soft">
-            <i class="bi bi-arrow-left"></i>
-            Quay lại danh sách
-        </a>
+        <div class="detail-header-actions">
+            <a href="/Admin/Comments/Index" class="detail-btn btn-gray">
+                <i class="bi bi-arrow-left"></i>
+                Quay lại danh sách
+            </a>
+
+            <a href="/Property/Details/@Model.PropertyID" target="_blank" class="detail-btn btn-blue">
+                <i class="bi bi-box-arrow-up-right"></i>
+                Mở tin
+            </a>
+        </div>
     </div>
 
     <div class="row g-3">
         <div class="col-12 col-xl-8">
             <div class="detail-card mb-3">
-                <div class="detail-card-head">
+                <div class="card-head">
                     <div>
-                        <h5 class="detail-card-title">
+                        <h5 class="card-title">
                             <i class="bi bi-info-circle text-primary me-2"></i>
-                            Nội dung bình luận
+                            Nội dung cần kiểm duyệt
                         </h5>
-                        <p class="detail-card-sub">
-                            Được tạo lúc @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
-                        </p>
+                        <div class="card-sub">Tạo lúc @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
                     </div>
 
-                    <span class="status-pill @(Model.IsHidden ? "status-hidden" : "status-visible") main-status-badge">
-                        <i class="bi @(Model.IsHidden ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
-                        @(Model.IsHidden ? "Đang ẩn" : "Đang hiển thị")
-                    </span>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="risk-pill @riskClass" title="@riskReasons">
+                            <i class="bi @(riskScore >= 70 ? "bi-exclamation-triangle-fill" : riskScore >= 40 ? "bi-shield-exclamation" : "bi-shield-check")"></i>
+                            @riskLabel · @riskScore
+                        </span>
+
+                        <span class="status-pill @(Model.IsHidden ? "status-hidden" : "status-visible") main-status-badge">
+                            <i class="bi @(Model.IsHidden ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                            @(Model.IsHidden ? "Đang ẩn" : "Đang hiển thị")
+                        </span>
+                    </div>
                 </div>
 
-                <div class="detail-card-body">
-                    <div class="comment-author">
-                        <img src="@avatar"
-                             class="comment-author-avatar"
-                             alt="@fullName"
-                             onerror="this.src='/images/avatars/default-user.png'" />
-
+                <div class="card-body">
+                    <div class="author-box">
+                        <img src="@avatar" class="author-avatar" alt="@fullName" onerror="this.src='/images/avatars/default-user.png'" />
                         <div>
-                            <h5 class="comment-author-name">@fullName</h5>
-                            <div class="comment-author-meta">
-                                <i class="bi bi-person-badge me-1"></i>
-                                UserID: @Model.UserID
+                            <h5 class="author-name">@fullName</h5>
+                            <div class="author-meta">
+                                <i class="bi bi-person-badge me-1"></i>UserID: @Model.UserID
                                 <span class="mx-2">·</span>
-                                <i class="bi bi-clock me-1"></i>
-                                @Model.TimeAgo
+                                <i class="bi bi-clock me-1"></i>@Model.TimeAgo
                             </div>
                         </div>
                     </div>
 
-                    <div class="comment-content-panel">
-                        @Model.Content
+                    <div class="content-panel">@Model.Content</div>
+
+                    <div class="moderation-box">
+                        <h6 class="moderation-title">
+                            <i class="bi bi-robot text-primary"></i>
+                            Kiểm duyệt
+                        </h6>
+                        <div class="moderation-desc">
+                            @riskReasons
+                        </div>
+
+                        <div class="moderation-grid">
+                            <div class="mini-stat">
+                                <div class="mini-label">Điểm nghi vấn</div>
+                                <div class="mini-value">@riskScore / 100</div>
+                            </div>
+                            <div class="mini-stat">
+                                <div class="mini-label">User gửi trong 24h</div>
+                                <div class="mini-value">@userRecentCount.ToString("N0")</div>
+                            </div>
+                            <div class="mini-stat">
+                                <div class="mini-label">Nội dung trùng</div>
+                                <div class="mini-value">@duplicateCount.ToString("N0")</div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="action-panel">
-                        <button type="button"
-                                class="detail-btn btn-warning-soft btn-toggle-admin"
-                                data-id="@Model.CommentID">
-                            <i class="bi @(Model.IsHidden ? "bi-eye" : "bi-eye-slash")"></i>
+                        <button type="button" class="detail-btn @(Model.IsHidden ? "btn-green" : "btn-orange") btn-toggle-admin" data-id="@Model.CommentID">
+                            <i class="bi @(Model.IsHidden ? "bi-eye-fill" : "bi-eye-slash-fill")"></i>
                             <span id="toggleText-@Model.CommentID">
-                                @(Model.IsHidden ? "Cho phép hiển thị" : "Ẩn bình luận")
+                                @(Model.IsHidden ? "Cho hiện" : "Ẩn")
                             </span>
                         </button>
 
-                        <button type="button"
-                                class="detail-btn btn-danger-soft btn-delete-admin"
-                                data-id="@Model.CommentID">
-                            <i class="bi bi-trash"></i>
-                            Xóa bình luận
+                        <button type="button" class="detail-btn btn-red btn-delete-admin" data-id="@Model.CommentID">
+                            <i class="bi bi-trash-fill"></i>
+                            Xóa
                         </button>
 
-                        <a href="/Property/Details/@Model.PropertyID"
-                           target="_blank"
-                           class="detail-btn btn-primary-soft">
-                            <i class="bi bi-box-arrow-up-right"></i>
+                        <a href="/Property/Details/@Model.PropertyID" target="_blank" class="detail-btn btn-blue">
+                            <i class="bi bi-house-door-fill"></i>
                             Xem tin liên quan
                         </a>
                     </div>
@@ -436,44 +589,31 @@
             </div>
 
             <div class="detail-card">
-                <div class="detail-card-head">
+                <div class="card-head">
                     <div>
-                        <h5 class="detail-card-title">
+                        <h5 class="card-title">
                             <i class="bi bi-reply-all-fill text-primary me-2"></i>
-                            Phản hồi bình luận
+                            Phản hồi trong bình luận này
                         </h5>
-                        <p class="detail-card-sub">
-                            Danh sách câu trả lời thuộc bình luận này.
-                        </p>
+                        <div class="card-sub">Ẩn hoặc xóa riêng từng phản hồi khi cần.</div>
                     </div>
 
-                    <span class="status-pill status-visible">
-                        @(Model.Replies?.Count ?? 0) phản hồi
-                    </span>
+                    <span class="status-pill status-visible">@(Model.Replies?.Count ?? 0) phản hồi</span>
                 </div>
 
-                <div class="detail-card-body">
+                <div class="card-body">
                     @if (Model.Replies != null && Model.Replies.Any())
                     {
                         <div class="reply-list">
                             @foreach (var reply in Model.Replies.OrderBy(r => r.CreatedAt))
                             {
-                                string replyAvatar = string.IsNullOrWhiteSpace(reply.User?.Avatar)
-                                ? "/images/avatars/default-user.png"
-                                : reply.User.Avatar;
-
-                                string replyName = !string.IsNullOrWhiteSpace(reply.User?.FullName)
-                                ? reply.User.FullName
-                                : (!string.IsNullOrWhiteSpace(reply.User?.Username) ? reply.User.Username : "Người dùng");
+                                string replyAvatar = string.IsNullOrWhiteSpace(reply.User?.Avatar) ? "/images/avatars/default-user.png" : reply.User.Avatar;
+                                string replyName = !string.IsNullOrWhiteSpace(reply.User?.FullName) ? reply.User.FullName : (!string.IsNullOrWhiteSpace(reply.User?.Username) ? reply.User.Username : "Người dùng");
 
                                 <div class="reply-item" id="reply-row-@reply.CommentID">
-                                    <div class="reply-header">
+                                    <div class="reply-head">
                                         <div class="reply-user">
-                                            <img src="@replyAvatar"
-                                                 class="reply-avatar"
-                                                 alt="@replyName"
-                                                 onerror="this.src='/images/avatars/default-user.png'" />
-
+                                            <img src="@replyAvatar" class="reply-avatar" alt="@replyName" onerror="this.src='/images/avatars/default-user.png'" />
                                             <div>
                                                 <div class="reply-name">@replyName</div>
                                                 <div class="reply-time">
@@ -483,26 +623,26 @@
                                             </div>
                                         </div>
 
-                                        <span class="status-pill @(reply.IsHidden ? "status-hidden" : "status-visible")">
-                                            @(reply.IsHidden ? "Ẩn" : "Hiện")
+                                        <span class="status-pill @(reply.IsHidden ? "status-hidden" : "status-visible") reply-status-@reply.CommentID">
+                                            @(reply.IsHidden ? "Đang ẩn" : "Đang hiện")
                                         </span>
                                     </div>
 
                                     <div class="reply-content">@reply.Content</div>
 
-                                    <div class="d-flex gap-2 flex-wrap">
+                                    <div class="reply-actions">
                                         <button type="button"
-                                                class="detail-btn btn-warning-soft btn-toggle-reply"
+                                                class="detail-btn @(reply.IsHidden ? "btn-green" : "btn-orange") btn-toggle-reply"
                                                 data-id="@reply.CommentID">
-                                            <i class="bi bi-eye-slash"></i>
-                                            Ẩn/hiện
+                                            <i class="bi @(reply.IsHidden ? "bi-eye-fill" : "bi-eye-slash-fill")"></i>
+                                            <span class="reply-toggle-text-@reply.CommentID">
+                                                @(reply.IsHidden ? "Cho hiện" : "Ẩn")
+                                            </span>
                                         </button>
 
-                                        <button type="button"
-                                                class="detail-btn btn-danger-soft btn-delete-reply"
-                                                data-id="@reply.CommentID">
-                                            <i class="bi bi-trash"></i>
-                                            Xóa phản hồi
+                                        <button type="button" class="detail-btn btn-red btn-delete-reply" data-id="@reply.CommentID">
+                                            <i class="bi bi-trash-fill"></i>
+                                            Xóa
                                         </button>
                                     </div>
                                 </div>
@@ -523,15 +663,13 @@
 
         <div class="col-12 col-xl-4">
             <div class="detail-card sticky-side">
-                <div class="detail-card-head">
+                <div class="card-head">
                     <div>
-                        <h5 class="detail-card-title">
+                        <h5 class="card-title">
                             <i class="bi bi-house-door-fill text-primary me-2"></i>
-                            Bất động sản liên quan
+                            Tin bất động sản liên quan
                         </h5>
-                        <p class="detail-card-sub">
-                            Tin mà người dùng đã bình luận.
-                        </p>
+                        <div class="card-sub">Tin mà người dùng đã bình luận.</div>
                     </div>
                 </div>
 
@@ -546,26 +684,20 @@
                         <h5 class="property-title">@propertyTitle</h5>
 
                         <div class="property-price">
-                            @(Model.Property.Price.HasValue
-                                                    ? Model.Property.Price.Value.ToString("N0") + " VNĐ"
-                                                    : "Thỏa thuận")
-                                                               </div>
+                            @(Model.Property.Price.HasValue? Model.Property.Price.Value.ToString("N0") + " VNĐ" : "Thỏa thuận")
+                        </div>
 
                         <div class="property-address">
                             <i class="bi bi-geo-alt-fill me-1"></i>
-                            @(string.IsNullOrWhiteSpace(Model.Property.AddressDetail)
-                                                    ? "Chưa cập nhật địa chỉ"
-                                                    : Model.Property.AddressDetail)
-                    </div>
+                            @(string.IsNullOrWhiteSpace(Model.Property.AddressDetail) ? "Chưa cập nhật địa chỉ" : Model.Property.AddressDetail)
+                        </div>
 
-                        <a href="/Property/Details/@Model.PropertyID"
-                           target="_blank"
-                           class="detail-btn btn-primary-soft w-100">
+                        <a href="/Property/Details/@Model.PropertyID" target="_blank" class="detail-btn btn-blue w-100">
                             <i class="bi bi-box-arrow-up-right"></i>
-                            Xem chi tiết bất động sản
+                            Xem chi tiết tin
                         </a>
                     </div>
-                                }
+                }
                 else
                 {
                     <div class="empty-replies">
@@ -589,39 +721,22 @@
                 const button = $(this);
                 const textSpan = $('#toggleText-' + id);
 
+                button.prop('disabled', true);
+
                 $.post('/Admin/Comments/ToggleVisibility', { id: id })
                     .done(function (response) {
                         if (response.success) {
-                            if (response.isHidden) {
-                                textSpan.text('Cho phép hiển thị');
-                                button.find('i').removeClass('bi-eye-slash').addClass('bi-eye');
-                                $('.main-status-badge')
-                                    .removeClass('status-visible')
-                                    .addClass('status-hidden')
-                                    .html('<i class="bi bi-eye-slash-fill"></i> Đang ẩn');
-                            } else {
-                                textSpan.text('Ẩn bình luận');
-                                button.find('i').removeClass('bi-eye').addClass('bi-eye-slash');
-                                $('.main-status-badge')
-                                    .removeClass('status-hidden')
-                                    .addClass('status-visible')
-                                    .html('<i class="bi bi-eye-fill"></i> Đang hiển thị');
-                            }
-
-                            Swal.fire({
-                                toast: true,
-                                position: 'top-end',
-                                icon: 'success',
-                                title: response.message || 'Đã cập nhật',
-                                showConfirmButton: false,
-                                timer: 1400
-                            });
+                            updateMainStatus(response.isHidden, button, textSpan);
+                            toast('success', response.message || 'Đã cập nhật trạng thái bình luận.');
                         } else {
                             Swal.fire('Lỗi', response.message || 'Không thể cập nhật trạng thái.', 'error');
                         }
                     })
                     .fail(function () {
                         Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    })
+                    .always(function () {
+                        button.prop('disabled', false);
                     });
             });
 
@@ -629,17 +744,15 @@
                 const id = $(this).data('id');
 
                 Swal.fire({
-                    title: 'Xóa bình luận?',
+                    title: 'Xóa?',
                     text: 'Bình luận chính và toàn bộ phản hồi liên quan sẽ bị xóa vĩnh viễn.',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Xóa vĩnh viễn',
-                    cancelButtonText: 'Hủy',
+                    confirmButtonText: 'Xóa bình luận',
+                    cancelButtonText: 'Không xóa',
                     confirmButtonColor: '#dc2626'
                 }).then(function (result) {
-                    if (!result.isConfirmed) {
-                        return;
-                    }
+                    if (!result.isConfirmed) return;
 
                     $.post('/Admin/Comments/Delete', { id: id })
                         .done(function (response) {
@@ -665,26 +778,24 @@
 
             $('.btn-toggle-reply').on('click', function () {
                 const id = $(this).data('id');
+                const button = $(this);
+
+                button.prop('disabled', true);
 
                 $.post('/Admin/Comments/ToggleVisibility', { id: id })
                     .done(function (response) {
                         if (response.success) {
-                            Swal.fire({
-                                toast: true,
-                                position: 'top-end',
-                                icon: 'success',
-                                title: response.message || 'Đã cập nhật phản hồi',
-                                showConfirmButton: false,
-                                timer: 1200
-                            }).then(function () {
-                                location.reload();
-                            });
+                            updateReplyStatus(id, response.isHidden, button);
+                            toast('success', response.message || 'Đã cập nhật phản hồi.');
                         } else {
                             Swal.fire('Lỗi', response.message || 'Không thể cập nhật phản hồi.', 'error');
                         }
                     })
                     .fail(function () {
                         Swal.fire('Lỗi', 'Không thể kết nối máy chủ.', 'error');
+                    })
+                    .always(function () {
+                        button.prop('disabled', false);
                     });
             });
 
@@ -692,33 +803,23 @@
                 const replyId = $(this).data('id');
 
                 Swal.fire({
-                    title: 'Xóa phản hồi?',
+                    title: 'Xóa?',
                     text: 'Phản hồi này sẽ bị xóa vĩnh viễn.',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'Xóa',
-                    cancelButtonText: 'Hủy',
+                    confirmButtonText: 'Xóa phản hồi',
+                    cancelButtonText: 'Không xóa',
                     confirmButtonColor: '#dc2626'
                 }).then(function (result) {
-                    if (!result.isConfirmed) {
-                        return;
-                    }
+                    if (!result.isConfirmed) return;
 
                     $.post('/Admin/Comments/Delete', { id: replyId })
                         .done(function (response) {
                             if (response.success) {
-                                $('#reply-row-' + replyId).fadeOut(250, function () {
+                                $('#reply-row-' + replyId).fadeOut(200, function () {
                                     $(this).remove();
                                 });
-
-                                Swal.fire({
-                                    toast: true,
-                                    position: 'top-end',
-                                    icon: 'success',
-                                    title: response.message || 'Đã xóa phản hồi',
-                                    showConfirmButton: false,
-                                    timer: 1400
-                                });
+                                toast('success', response.message || 'Đã xóa phản hồi.');
                             } else {
                                 Swal.fire('Lỗi', response.message || 'Không thể xóa phản hồi.', 'error');
                             }
@@ -728,6 +829,55 @@
                         });
                 });
             });
+
+            function updateMainStatus(isHidden, button, textSpan) {
+                if (isHidden) {
+                    textSpan.text('Cho hiện');
+                    button.removeClass('btn-orange').addClass('btn-green');
+                    button.find('i').removeClass('bi-eye-slash-fill').addClass('bi-eye-fill');
+
+                    $('.main-status-badge')
+                        .removeClass('status-visible')
+                        .addClass('status-hidden')
+                        .html('<i class="bi bi-eye-slash-fill"></i> Đang ẩn');
+                } else {
+                    textSpan.text('Ẩn');
+                    button.removeClass('btn-green').addClass('btn-orange');
+                    button.find('i').removeClass('bi-eye-fill').addClass('bi-eye-slash-fill');
+
+                    $('.main-status-badge')
+                        .removeClass('status-hidden')
+                        .addClass('status-visible')
+                        .html('<i class="bi bi-eye-fill"></i> Đang hiển thị');
+                }
+            }
+
+            function updateReplyStatus(id, isHidden, button) {
+                $('.reply-status-' + id)
+                    .removeClass('status-visible status-hidden')
+                    .addClass(isHidden ? 'status-hidden' : 'status-visible')
+                    .text(isHidden ? 'Đang ẩn' : 'Đang hiện');
+
+                button
+                    .removeClass('btn-orange btn-green')
+                    .addClass(isHidden ? 'btn-green' : 'btn-orange')
+                    .find('i')
+                    .removeClass('bi-eye-fill bi-eye-slash-fill')
+                    .addClass(isHidden ? 'bi-eye-fill' : 'bi-eye-slash-fill');
+
+                $('.reply-toggle-text-' + id).text(isHidden ? 'Cho hiện' : 'Ẩn');
+            }
+
+            function toast(icon, title) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: icon,
+                    title: title,
+                    showConfirmButton: false,
+                    timer: 1400
+                });
+            }
         });
     </script>
 }

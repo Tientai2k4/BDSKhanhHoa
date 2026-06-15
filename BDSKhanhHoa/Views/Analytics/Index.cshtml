@@ -1,10 +1,15 @@
 ﻿@model IEnumerable<BDSKhanhHoa.Models.Project>
+@using BDSKhanhHoa.Controllers
+@using System.Globalization
 
 @{
     ViewData["Title"] = "Báo cáo hiệu suất";
     Layout = "~/Views/Shared/_BusinessLayout.cshtml";
 
+    var vi = CultureInfo.GetCultureInfo("vi-VN");
+
     int totalProjects = ViewBag.TotalProjects ?? 0;
+    int totalProperties = ViewBag.TotalProperties ?? 0;
 
     int totalLeads = ViewBag.TotalLeads ?? 0;
     int newLeads = ViewBag.NewLeads ?? 0;
@@ -17,11 +22,13 @@
     int confirmedAppointments = ViewBag.ConfirmedAppointments ?? 0;
     int completedAppointments = ViewBag.CompletedAppointments ?? 0;
     int cancelledAppointments = ViewBag.CancelledAppointments ?? 0;
+    int depositPendingAppointments = ViewBag.DepositPendingAppointments ?? 0;
 
+    int totalClosedDeals = ViewBag.TotalClosedDeals ?? 0;
+    int totalViews = ViewBag.TotalViews ?? 0;
     int totalProjectViews = ViewBag.TotalProjectViews ?? 0;
     int totalPropertyViews = ViewBag.TotalPropertyViews ?? 0;
-    int totalViews = ViewBag.TotalViews ?? 0;
-    int totalProperties = ViewBag.TotalProperties ?? 0;
+    int totalInteractions = ViewBag.TotalInteractions ?? 0;
 
     int totalSupportTickets = ViewBag.TotalSupportTickets ?? 0;
     int openSupportTickets = ViewBag.OpenSupportTickets ?? 0;
@@ -31,779 +38,1065 @@
 
     var leadMap = ViewBag.LeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var newLeadMap = ViewBag.NewLeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var contactedLeadMap = ViewBag.ContactedLeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var resolvedLeadMap = ViewBag.ResolvedLeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var invalidLeadMap = ViewBag.InvalidLeadMap as Dictionary<int, int> ?? new Dictionary<int, int>();
 
     var appointmentMap = ViewBag.AppointmentMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var completedAppointmentMap = ViewBag.CompletedAppointmentMap as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var depositPendingAppointmentMap = ViewBag.DepositPendingAppointmentMap as Dictionary<int, int> ?? new Dictionary<int, int>();
 
-    var projectViewMap = ViewBag.ProjectViewMap as Dictionary<int, int> ?? new Dictionary<int, int>();
-    var propertyViewMap = ViewBag.PropertyViewMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var totalViewMap = ViewBag.TotalViewMap as Dictionary<int, int> ?? new Dictionary<int, int>();
-
     var propertyCountMap = ViewBag.PropertyCountMap as Dictionary<int, int> ?? new Dictionary<int, int>();
     var supportMap = ViewBag.SupportMap as Dictionary<int, int> ?? new Dictionary<int, int>();
 
-    decimal leadConversionRate = totalLeads > 0
-        ? Math.Round((decimal)resolvedLeads * 100 / totalLeads, 1)
-        : 0;
+    var closedDealRows = ViewBag.ClosedDealRows as List<AnalyticsController.ClosedDealReportRow> ?? new List<AnalyticsController.ClosedDealReportRow>();
+    var hotProjects = ViewBag.HotProjects as List<AnalyticsController.HotProjectReportRow> ?? new List<AnalyticsController.HotProjectReportRow>();
 
-    decimal appointmentCompletionRate = totalAppointments > 0
-        ? Math.Round((decimal)completedAppointments * 100 / totalAppointments, 1)
-        : 0;
+    decimal closeRate = totalLeads > 0 ? Math.Round((decimal)totalClosedDeals * 100 / totalLeads, 1) : 0;
+    decimal appointmentRate = totalAppointments > 0 ? Math.Round((decimal)completedAppointments * 100 / totalAppointments, 1) : 0;
+    decimal viewToLeadRate = totalViews > 0 ? Math.Round((decimal)totalLeads * 100 / totalViews, 2) : 0;
 
-    decimal viewToLeadRate = totalViews > 0
-        ? Math.Round((decimal)totalLeads * 100 / totalViews, 2)
-        : 0;
+    string closeRateCss = Math.Min(100, closeRate).ToString(CultureInfo.InvariantCulture);
+    string appointmentRateCss = Math.Min(100, appointmentRate).ToString(CultureInfo.InvariantCulture);
+    string viewToLeadRateCss = Math.Min(100, viewToLeadRate * 10).ToString(CultureInfo.InvariantCulture);
 
-    int totalInteractions = totalLeads + totalAppointments + totalSupportTickets;
+    string JsonNumberList(IEnumerable<int> values) => "[" + string.Join(",", values) + "]";
 }
 
 @section Styles {
     <style>
         :root {
-            --ana-blue: #2563eb;
-            --ana-indigo: #4f46e5;
-            --ana-green: #059669;
-            --ana-amber: #d97706;
-            --ana-red: #dc2626;
-            --ana-dark: #0f172a;
-            --ana-muted: #64748b;
-            --ana-border: #e2e8f0;
-            --ana-soft: #f8fafc;
-            --ana-card: #ffffff;
-            --ana-shadow: 0 16px 38px rgba(15, 23, 42, .07);
+            --rp-ink: #172033;
+            --rp-text: #334155;
+            --rp-muted: #64748b;
+            --rp-line: rgba(148, 163, 184, .28);
+            --rp-white: #ffffff;
+            --rp-blue: #2563eb;
+            --rp-purple: #7c3aed;
+            --rp-pink: #db2777;
+            --rp-orange: #f97316;
+            --rp-green: #059669;
+            --rp-cyan: #0891b2;
+            --rp-red: #dc2626;
+            --rp-radius: 24px;
+            --rp-shadow: 0 18px 50px rgba(15, 23, 42, .10);
+            --rp-shadow-soft: 0 10px 30px rgba(15, 23, 42, .07);
         }
 
-        .ana-hero {
+        .report-page {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 6px 0 34px;
+            display: grid;
+            gap: 18px;
+            color: var(--rp-text);
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+        }
+
+        .report-hero {
             position: relative;
             overflow: hidden;
-            background: radial-gradient(circle at top right, rgba(37, 99, 235, .16), transparent 320px), linear-gradient(135deg, #ffffff, #f8fbff);
-            border: 1px solid rgba(148, 163, 184, .22);
-            border-radius: 28px;
+            border-radius: 30px;
             padding: 28px;
-            box-shadow: var(--ana-shadow);
-            margin-bottom: 22px;
+            color: #fff;
+            background: radial-gradient(circle at 8% 15%, rgba(255,255,255,.28), transparent 250px), radial-gradient(circle at 88% 15%, rgba(45,212,191,.35), transparent 280px), linear-gradient(135deg, #1d4ed8 0%, #7c3aed 48%, #db2777 100%);
+            box-shadow: var(--rp-shadow);
         }
 
-        .ana-title {
-            color: var(--ana-dark);
-            font-size: clamp(1.45rem, 2.5vw, 2.25rem);
-            font-weight: 950;
-            letter-spacing: -.04em;
-            margin-bottom: 8px;
+            .report-hero::after {
+                content: "";
+                position: absolute;
+                width: 260px;
+                height: 260px;
+                right: -95px;
+                bottom: -120px;
+                border-radius: 999px;
+                background: rgba(255,255,255,.16);
+            }
+
+        .report-hero-inner {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0,1fr) auto;
+            gap: 18px;
+            align-items: center;
         }
 
-        .ana-subtitle {
-            color: var(--ana-muted);
-            font-weight: 650;
-            line-height: 1.65;
-            margin-bottom: 0;
-        }
-
-        .ana-business {
+        .report-eyebrow {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            margin-top: 13px;
-            color: var(--ana-blue);
+            min-height: 34px;
+            padding: 0 13px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.18);
+            border: 1px solid rgba(255,255,255,.25);
+            font-size: .78rem;
             font-weight: 900;
-        }
-
-        .ana-stat-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 16px;
-            margin-bottom: 22px;
-        }
-
-        .ana-stat {
-            position: relative;
-            overflow: hidden;
-            min-height: 150px;
-            border-radius: 24px;
-            padding: 22px;
-            color: #fff;
-            box-shadow: 0 16px 34px rgba(15, 23, 42, .12);
-        }
-
-            .ana-stat::after {
-                content: "";
-                position: absolute;
-                width: 140px;
-                height: 140px;
-                right: -52px;
-                top: -56px;
-                background: rgba(255,255,255,.16);
-                border-radius: 999px;
-            }
-
-        .ana-stat-label {
-            font-size: .75rem;
-            font-weight: 950;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            opacity: .92;
             margin-bottom: 12px;
         }
 
-        .ana-stat-value {
-            font-size: 2.25rem;
-            line-height: 1;
+        .report-title {
+            margin: 0;
+            font-size: clamp(1.45rem, 2.8vw, 2.55rem);
+            line-height: 1.12;
             font-weight: 950;
             letter-spacing: -.045em;
         }
 
-        .ana-stat-note {
-            margin-top: 10px;
+        .report-subtitle {
+            margin: 10px 0 0;
+            max-width: 850px;
+            line-height: 1.7;
+            font-weight: 650;
+            color: rgba(255,255,255,.88);
+        }
+
+        .business-mini {
+            min-width: 250px;
+            border-radius: 22px;
+            padding: 16px;
+            background: rgba(255,255,255,.16);
+            border: 1px solid rgba(255,255,255,.25);
+            backdrop-filter: blur(12px);
+        }
+
+            .business-mini span {
+                display: block;
+                color: rgba(255,255,255,.72);
+                font-size: .72rem;
+                font-weight: 900;
+                letter-spacing: .08em;
+                text-transform: uppercase;
+                margin-bottom: 7px;
+            }
+
+            .business-mini strong {
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                color: #fff;
+                font-size: .98rem;
+                line-height: 1.4;
+            }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 14px;
+        }
+
+        .kpi-card {
+            position: relative;
+            overflow: hidden;
+            min-height: 142px;
+            border-radius: 24px;
+            padding: 19px;
+            color: #fff;
+            box-shadow: var(--rp-shadow-soft);
+        }
+
+            .kpi-card::after {
+                content: "";
+                position: absolute;
+                width: 130px;
+                height: 130px;
+                right: -56px;
+                top: -58px;
+                border-radius: 999px;
+                background: rgba(255,255,255,.18);
+            }
+
+        .kpi-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .kpi-label {
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .075em;
+            font-weight: 950;
+            opacity: .92;
+        }
+
+        .kpi-icon {
+            width: 43px;
+            height: 43px;
+            display: grid;
+            place-items: center;
+            border-radius: 16px;
+            background: rgba(255,255,255,.18);
+            font-size: 1.18rem;
+            flex-shrink: 0;
+        }
+
+        .kpi-value {
+            position: relative;
+            z-index: 1;
+            margin-top: 18px;
+            font-size: clamp(1.9rem, 3vw, 2.5rem);
+            line-height: 1;
+            font-weight: 950;
+            letter-spacing: -.04em;
+        }
+
+        .kpi-note {
+            position: relative;
+            z-index: 1;
+            margin-top: 9px;
             font-size: .82rem;
             font-weight: 750;
-            opacity: .88;
+            line-height: 1.45;
+            opacity: .90;
         }
 
-        .grad-blue {
-            background: linear-gradient(135deg, #1d4ed8, #60a5fa);
+        .g-blue {
+            background: linear-gradient(135deg, #2563eb, #06b6d4);
         }
 
-        .grad-amber {
-            background: linear-gradient(135deg, #b45309, #f59e0b);
+        .g-green {
+            background: linear-gradient(135deg, #059669, #22c55e);
         }
 
-        .grad-indigo {
-            background: linear-gradient(135deg, #4338ca, #818cf8);
+        .g-orange {
+            background: linear-gradient(135deg, #ea580c, #f59e0b);
         }
 
-        .grad-green {
-            background: linear-gradient(135deg, #047857, #34d399);
+        .g-pink {
+            background: linear-gradient(135deg, #7c3aed, #db2777);
         }
 
-        .ana-card {
+        .panel-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .panel, .project-section {
             background: #fff;
-            border: 1px solid rgba(148, 163, 184, .22);
-            border-radius: 24px;
-            padding: 22px;
-            box-shadow: var(--ana-shadow);
-            height: 100%;
+            border: 1px solid var(--rp-line);
+            border-radius: var(--rp-radius);
+            box-shadow: var(--rp-shadow-soft);
         }
 
-        .ana-card-title {
-            color: var(--ana-dark);
+        .panel {
+            padding: 20px;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .panel-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            font-size: 1.2rem;
+            background: #eff6ff;
+            color: var(--rp-blue);
+        }
+
+            .panel-icon.green {
+                background: #ecfdf5;
+                color: var(--rp-green);
+            }
+
+            .panel-icon.orange {
+                background: #fff7ed;
+                color: var(--rp-orange);
+            }
+
+            .panel-icon.pink {
+                background: #fdf2f8;
+                color: var(--rp-pink);
+            }
+
+        .panel-title {
+            margin: 0;
+            color: var(--rp-ink);
+            font-size: 1rem;
             font-weight: 950;
-            margin-bottom: 16px;
+            line-height: 1.25;
         }
 
-        .ana-row {
+        .panel-sub {
+            margin-top: 3px;
+            color: var(--rp-muted);
+            font-size: .8rem;
+            font-weight: 700;
+        }
+
+        .data-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 12px;
             padding: 11px 0;
-            border-bottom: 1px dashed var(--ana-border);
+            border-bottom: 1px dashed #e2e8f0;
         }
 
-            .ana-row:last-child {
+            .data-row:last-child {
                 border-bottom: 0;
             }
 
-            .ana-row span {
+            .data-row span {
                 color: #475569;
                 font-weight: 750;
+                line-height: 1.4;
             }
 
-            .ana-row strong {
-                color: var(--ana-dark);
+            .data-row strong {
+                color: var(--rp-ink);
                 font-weight: 950;
+                white-space: nowrap;
             }
 
-        .ana-progress {
+        .progress-box {
+            margin-top: 13px;
+            padding: 13px;
+            border-radius: 18px;
+            background: #f8fafc;
+            border: 1px solid #eef2f7;
+        }
+
+        .progress-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 9px;
+            color: #64748b;
+            font-size: .78rem;
+            font-weight: 850;
+        }
+
+        .progress-track {
             height: 10px;
             border-radius: 999px;
             background: #e2e8f0;
             overflow: hidden;
         }
 
-            .ana-progress div {
-                height: 100%;
-                border-radius: 999px;
-            }
-
-        .bar-blue {
-            background: var(--ana-blue);
-        }
-
-        .bar-green {
-            background: var(--ana-green);
-        }
-
-        .bar-amber {
-            background: var(--ana-amber);
-        }
-
-        .ana-table-card {
-            background: #fff;
-            border: 1px solid rgba(148, 163, 184, .22);
-            border-radius: 24px;
-            box-shadow: var(--ana-shadow);
-            overflow: hidden;
-        }
-
-        .ana-table-head {
-            padding: 22px 24px;
-            border-bottom: 1px solid var(--ana-border);
-            background: linear-gradient(135deg, #ffffff, #f8fafc);
-        }
-
-        .ana-table-title {
-            color: var(--ana-dark);
-            font-weight: 950;
-            margin-bottom: 5px;
-        }
-
-        .ana-table-sub {
-            color: var(--ana-muted);
-            font-size: .92rem;
-            font-weight: 650;
-        }
-
-        .ana-table {
-            width: 100%;
-            margin: 0;
-        }
-
-            .ana-table thead th {
-                background: #f8fafc;
-                color: #475569;
-                font-size: .74rem;
-                text-transform: uppercase;
-                letter-spacing: .06em;
-                font-weight: 950;
-                padding: 15px 16px;
-                border-bottom: 1px solid var(--ana-border);
-                white-space: nowrap;
-            }
-
-            .ana-table tbody td {
-                padding: 16px;
-                vertical-align: middle;
-                border-bottom: 1px solid #f1f5f9;
-            }
-
-        .ana-project-name {
-            color: var(--ana-dark);
-            font-weight: 950;
-            line-height: 1.4;
-        }
-
-        .ana-project-meta {
-            color: var(--ana-muted);
-            font-size: .84rem;
-            font-weight: 650;
-            margin-top: 4px;
-        }
-
-        .ana-number-pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 42px;
-            height: 34px;
+        .progress-fill {
+            height: 100%;
             border-radius: 999px;
-            background: #eff6ff;
-            color: var(--ana-blue);
-            font-weight: 950;
-            padding: 0 12px;
-            white-space: nowrap;
+            background: linear-gradient(90deg, #2563eb, #06b6d4);
         }
 
-            .ana-number-pill.green {
-                background: #dcfce7;
-                color: #047857;
+            .progress-fill.green {
+                background: linear-gradient(90deg, #059669, #22c55e);
             }
 
-            .ana-number-pill.amber {
-                background: #fef3c7;
-                color: #b45309;
+            .progress-fill.orange {
+                background: linear-gradient(90deg, #f97316, #facc15);
             }
 
-            .ana-number-pill.gray {
-                background: #f1f5f9;
-                color: #475569;
-            }
+        .chart-card {
+            grid-column: span 2;
+        }
 
-        .ana-status {
+        .chart-wrap {
+            min-height: 270px;
+            max-height: 320px;
+        }
+
+        .closed-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .closed-item {
+            display: grid;
+            grid-template-columns: 42px minmax(0,1fr) auto;
+            gap: 11px;
+            align-items: start;
+            padding: 12px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #fff7ed, #ffffff);
+            border: 1px solid #fed7aa;
+        }
+
+        .closed-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 15px;
+            display: grid;
+            place-items: center;
+            background: #ffedd5;
+            color: #ea580c;
+            font-size: 1.1rem;
+        }
+
+        .closed-name {
+            color: var(--rp-ink);
+            font-weight: 950;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .closed-meta {
+            margin-top: 4px;
+            color: #64748b;
+            font-size: .8rem;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
+        .tag {
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            min-height: 28px;
+            padding: 0 10px;
             border-radius: 999px;
-            padding: 7px 12px;
-            font-size: .76rem;
-            font-weight: 900;
+            font-size: .72rem;
+            font-weight: 950;
             white-space: nowrap;
         }
 
-        .ana-status-green {
+        .tag-green {
             background: #dcfce7;
             color: #047857;
         }
 
-        .ana-status-gray {
+        .tag-blue {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .tag-orange {
+            background: #ffedd5;
+            color: #c2410c;
+        }
+
+        .tag-gray {
             background: #f1f5f9;
             color: #475569;
         }
 
-        .ana-mobile-list {
-            display: none;
+        .project-section {
+            overflow: hidden;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 22px 24px;
+            border-bottom: 1px solid var(--rp-line);
+            background: linear-gradient(135deg, #fff, #f8fafc);
+        }
+
+        .section-title {
+            margin: 0 0 5px;
+            color: var(--rp-ink);
+            font-weight: 950;
+            letter-spacing: -.02em;
+        }
+
+        .section-sub {
+            color: var(--rp-muted);
+            font-size: .9rem;
+            font-weight: 650;
+            line-height: 1.6;
+        }
+
+        .section-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 38px;
+            padding: 0 14px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: var(--rp-blue);
+            font-weight: 950;
+            white-space: nowrap;
+        }
+
+        .project-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0,1fr));
+            gap: 14px;
             padding: 16px;
             background: #f8fafc;
         }
 
-        .ana-mobile-card {
+        .project-card {
+            min-width: 0;
+            border-radius: 22px;
+            padding: 17px;
             background: #fff;
-            border: 1px solid rgba(148, 163, 184, .22);
-            border-radius: 20px;
-            padding: 16px;
-            margin-bottom: 14px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+            border: 1px solid rgba(148,163,184,.24);
+            box-shadow: 0 10px 26px rgba(15, 23, 42, .045);
         }
 
-        .ana-mobile-grid {
+        .project-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 13px;
+        }
+
+        .project-name {
+            color: var(--rp-ink);
+            font-size: 1rem;
+            font-weight: 950;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .project-meta {
+            margin-top: 5px;
+            color: #64748b;
+            font-size: .8rem;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .metric-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 14px;
+            grid-template-columns: repeat(4, minmax(0,1fr));
+            gap: 8px;
         }
 
-        .ana-mobile-box {
+        .metric-box {
+            min-width: 0;
+            padding: 10px;
             border-radius: 16px;
             background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 12px;
-            text-align: center;
+            border: 1px solid #eef2f7;
         }
 
-            .ana-mobile-box strong {
+            .metric-box strong {
                 display: block;
-                font-size: 1.08rem;
+                color: var(--rp-ink);
+                font-size: 1.05rem;
                 font-weight: 950;
-                color: var(--ana-dark);
+                line-height: 1.1;
             }
 
-            .ana-mobile-box span {
+            .metric-box span {
+                display: block;
+                margin-top: 5px;
+                color: #64748b;
                 font-size: .72rem;
-                color: var(--ana-muted);
-                font-weight: 850;
-                text-transform: uppercase;
+                font-weight: 800;
             }
 
-        .ana-empty {
-            padding: 60px 24px;
-            text-align: center;
-            background: #fff;
-            border-radius: 24px;
-            border: 1px dashed #cbd5e1;
+        .project-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 13px;
         }
+
+        .rp-btn {
+            min-height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 8px 12px;
+            border-radius: 13px;
+            font-size: .82rem;
+            font-weight: 900;
+            text-decoration: none;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+            .rp-btn:hover {
+                transform: translateY(-1px);
+            }
+
+        .rp-btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            box-shadow: 0 10px 20px rgba(37,99,235,.18);
+        }
+
+        .rp-btn-light {
+            color: #334155;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+        .rp-btn-green {
+            color: #fff;
+            background: linear-gradient(135deg, #059669, #22c55e);
+        }
+
+        .empty-box {
+            padding: 44px 18px;
+            text-align: center;
+            color: #64748b;
+        }
+
+            .empty-box i {
+                font-size: 2.2rem;
+                color: #94a3b8;
+                margin-bottom: 10px;
+            }
 
         @@media (max-width: 1199.98px) {
-            .ana-stat-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .kpi-grid {
+                grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .panel-grid {
+                grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .chart-card {
+                grid-column: span 2;
             }
         }
 
         @@media (max-width: 991.98px) {
-            .desktop-table-wrap {
-                display: none;
+            .report-hero-inner {
+                grid-template-columns: 1fr;
             }
 
-            .ana-mobile-list {
-                display: block;
+            .business-mini {
+                min-width: 0;
+            }
+
+            .project-grid {
+                grid-template-columns: 1fr;
             }
         }
 
-        @@media (max-width: 575.98px) {
-            .ana-hero,
-            .ana-card,
-            .ana-table-card {
-                border-radius: 20px;
+        @@media (max-width: 767.98px) {
+            .report-page {
+                padding: 6px 8px 28px;
+                gap: 12px;
             }
 
-            .ana-hero,
-            .ana-card {
+            .report-hero {
+                border-radius: 22px;
                 padding: 18px;
             }
 
-            .ana-stat-grid {
+            .report-subtitle {
+                font-size: .88rem;
+            }
+
+            .kpi-grid, .panel-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .chart-card {
+                grid-column: span 1;
+            }
+
+            .panel {
+                padding: 15px;
+                border-radius: 20px;
+            }
+
+            .section-head {
+                display: grid;
+                grid-template-columns: 1fr;
+                padding: 17px;
+            }
+
+            .project-grid {
+                padding: 11px;
+                gap: 11px;
+            }
+
+            .metric-grid {
+                grid-template-columns: repeat(2, minmax(0,1fr));
+            }
+
+            .closed-item {
+                grid-template-columns: 38px minmax(0,1fr);
+            }
+
+                .closed-item .tag {
+                    grid-column: 2;
+                    width: fit-content;
+                }
+
+            .project-actions {
+                display: grid;
                 grid-template-columns: 1fr;
             }
 
-            .ana-mobile-grid {
+            .rp-btn {
+                width: 100%;
+            }
+        }
+
+        @@media (max-width: 380px) {
+            .metric-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .kpi-card {
+                min-height: 128px;
             }
         }
     </style>
 }
 
-<div class="ana-hero">
-    <h1 class="ana-title">Báo cáo hiệu suất dự án</h1>
-
-    <p class="ana-subtitle">
-        Theo dõi hiệu quả dự án được Admin phân quyền: lượt xem dự án, lượt xem tin rao, khách tiềm năng, lịch hẹn và yêu cầu hỗ trợ.
-    </p>
-
-    <div class="ana-business">
-        <i class="bi bi-patch-check-fill"></i>
-        @businessName
-    </div>
-</div>
-
-<div class="ana-stat-grid">
-    <div class="ana-stat grad-blue">
-        <div class="ana-stat-label">Tổng dự án</div>
-        <div class="ana-stat-value">@totalProjects.ToString("N0")</div>
-        <div class="ana-stat-note">Dự án quản lý</div>
-    </div>
-
-    <div class="ana-stat grad-green">
-        <div class="ana-stat-label">Tổng lượt tiếp cận</div>
-        <div class="ana-stat-value">@totalViews.ToString("N0")</div>
-        <div class="ana-stat-note">@totalProjectViews.ToString("N0") lượt xem dự án · @totalPropertyViews.ToString("N0") lượt xem tin rao</div>
-    </div>
-
-    <div class="ana-stat grad-amber">
-        <div class="ana-stat-label">Khách tiềm năng</div>
-        <div class="ana-stat-value">@totalLeads.ToString("N0")</div>
-        <div class="ana-stat-note">@newLeads.ToString("N0") khách mới cần xử lý</div>
-    </div>
-
-    <div class="ana-stat grad-indigo">
-        <div class="ana-stat-label">Lịch hẹn</div>
-        <div class="ana-stat-value">@totalAppointments.ToString("N0")</div>
-        <div class="ana-stat-note">@confirmedAppointments.ToString("N0") lịch đã xác nhận</div>
-    </div>
-</div>
-
-<div class="row g-4 mb-4">
-    <div class="col-xl-4">
-        <div class="ana-card">
-            <h5 class="ana-card-title">
-                <i class="bi bi-funnel-fill text-primary me-1"></i>
-                Phễu khách hàng
-            </h5>
-
-            <div class="ana-row">
-                <span>Mới</span>
-                <strong>@newLeads.ToString("N0")</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Đã liên hệ</span>
-                <strong>@contactedLeads.ToString("N0")</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Đã chốt</span>
-                <strong>@resolvedLeads.ToString("N0")</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Không hợp lệ</span>
-                <strong>@invalidLeads.ToString("N0")</strong>
-            </div>
-
-            <div class="mt-3">
-                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
-                    <span>Tỷ lệ chốt lead</span>
-                    <span>@leadConversionRate%</span>
+<div class="report-page animate__animated animate__fadeIn">
+    <section class="report-hero">
+        <div class="report-hero-inner">
+            <div>
+                <div class="report-eyebrow">
+                    <i class="bi bi-speedometer2"></i>
+                    Dashboard chủ đầu tư
                 </div>
+                <h1 class="report-title">Báo cáo hiệu suất dự án</h1>
+                <p class="report-subtitle">
+                    Theo dõi toàn bộ phễu vận hành: lượt xem, lead, lịch hẹn, khách chờ đặt cọc, khách đã chốt và hiệu suất từng dự án. Giao diện dạng card nên dùng tốt trên mobile và desktop, không cần thanh cuộn ngang.
+                </p>
+            </div>
 
-                <div class="ana-progress">
-                    <div class="bar-green" style="width:@leadConversionRate%"></div>
-                </div>
+            <div class="business-mini">
+                <span>Đơn vị quản lý</span>
+                <strong><i class="bi bi-patch-check-fill"></i> @businessName</strong>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="col-xl-4">
-        <div class="ana-card">
-            <h5 class="ana-card-title">
-                <i class="bi bi-calendar-check-fill text-success me-1"></i>
-                Lịch hẹn dự án
-            </h5>
-
-            <div class="ana-row">
-                <span>Chờ xác nhận / dời lịch</span>
-                <strong>@pendingAppointments.ToString("N0")</strong>
+    <section class="kpi-grid">
+        <div class="kpi-card g-blue">
+            <div class="kpi-top">
+                <div class="kpi-label">Tổng lượt xem</div>
+                <div class="kpi-icon"><i class="bi bi-eye-fill"></i></div>
             </div>
+            <div class="kpi-value">@totalViews.ToString("N0")</div>
+            <div class="kpi-note">@totalProjectViews.ToString("N0") dự án · @totalPropertyViews.ToString("N0") căn/tin thuộc dự án</div>
+        </div>
 
-            <div class="ana-row">
-                <span>Đã xác nhận</span>
-                <strong>@confirmedAppointments.ToString("N0")</strong>
+        <div class="kpi-card g-green">
+            <div class="kpi-top">
+                <div class="kpi-label">Lead khách hàng</div>
+                <div class="kpi-icon"><i class="bi bi-people-fill"></i></div>
             </div>
+            <div class="kpi-value">@totalLeads.ToString("N0")</div>
+            <div class="kpi-note">@newLeads.ToString("N0") mới · @contactedLeads.ToString("N0") đang chăm sóc</div>
+        </div>
 
-            <div class="ana-row">
-                <span>Đã hoàn tất</span>
-                <strong>@completedAppointments.ToString("N0")</strong>
+        <div class="kpi-card g-orange">
+            <div class="kpi-top">
+                <div class="kpi-label">Đã chốt / chờ cọc</div>
+                <div class="kpi-icon"><i class="bi bi-trophy-fill"></i></div>
             </div>
+            <div class="kpi-value">@totalClosedDeals.ToString("N0")</div>
+            <div class="kpi-note">@resolvedLeads.ToString("N0") chốt CRM · @depositPendingAppointments.ToString("N0") chờ đặt cọc</div>
+        </div>
 
-            <div class="ana-row">
-                <span>Đã hủy / không đến</span>
-                <strong>@cancelledAppointments.ToString("N0")</strong>
+        <div class="kpi-card g-pink">
+            <div class="kpi-top">
+                <div class="kpi-label">Lịch hẹn dự án</div>
+                <div class="kpi-icon"><i class="bi bi-calendar2-check-fill"></i></div>
             </div>
+            <div class="kpi-value">@totalAppointments.ToString("N0")</div>
+            <div class="kpi-note">@pendingAppointments.ToString("N0") chờ xử lý · @completedAppointments.ToString("N0") hoàn tất</div>
+        </div>
+    </section>
 
-            <div class="mt-3">
-                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
-                    <span>Tỷ lệ hoàn tất lịch</span>
-                    <span>@appointmentCompletionRate%</span>
+    <section class="panel-grid">
+        <div class="panel">
+            <div class="panel-head">
+                <div class="panel-icon green"><i class="bi bi-funnel-fill"></i></div>
+                <div>
+                    <h5 class="panel-title">Phễu khách hàng</h5>
+                    <div class="panel-sub">Từ lead đến cơ hội chốt</div>
                 </div>
-
-                <div class="ana-progress">
-                    <div class="bar-blue" style="width:@appointmentCompletionRate%"></div>
-                </div>
+            </div>
+            <div class="data-row"><span>Khách mới</span><strong>@newLeads.ToString("N0")</strong></div>
+            <div class="data-row"><span>Đang chăm sóc</span><strong>@contactedLeads.ToString("N0")</strong></div>
+            <div class="data-row"><span>Đã chốt CRM</span><strong>@resolvedLeads.ToString("N0")</strong></div>
+            <div class="data-row"><span>Không hợp lệ</span><strong>@invalidLeads.ToString("N0")</strong></div>
+            <div class="progress-box">
+                <div class="progress-meta"><span>Tỷ lệ chốt trên lead</span><strong>@closeRate%</strong></div>
+                <div class="progress-track"><div class="progress-fill green" style="width:@closeRateCss%"></div></div>
             </div>
         </div>
-    </div>
 
-    <div class="col-xl-4">
-        <div class="ana-card">
-            <h5 class="ana-card-title">
-                <i class="bi bi-speedometer2 text-warning me-1"></i>
-                Chỉ số tương tác
-            </h5>
-
-            <div class="ana-row">
-                <span>Tỷ lệ lead / lượt tiếp cận</span>
-                <strong>@viewToLeadRate%</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Tổng tương tác</span>
-                <strong>@totalInteractions.ToString("N0")</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Tin rao thuộc dự án</span>
-                <strong>@totalProperties.ToString("N0")</strong>
-            </div>
-
-            <div class="ana-row">
-                <span>Hỗ trợ đang mở</span>
-                <strong>@openSupportTickets.ToString("N0")</strong>
-            </div>
-
-            <div class="mt-3">
-                <div class="d-flex justify-content-between small fw-bold text-muted mb-2">
-                    <span>Tỷ trọng tương tác</span>
-                    <span>@(totalInteractions > 0 ? "Có dữ liệu" : "Chưa có")</span>
-                </div>
-
-                <div class="ana-progress">
-                    <div class="bar-amber" style="width:@(totalInteractions > 0 ? 100 : 0)%"></div>
+        <div class="panel">
+            <div class="panel-head">
+                <div class="panel-icon orange"><i class="bi bi-calendar-week-fill"></i></div>
+                <div>
+                    <h5 class="panel-title">Hiệu quả lịch hẹn</h5>
+                    <div class="panel-sub">Tình trạng xử lý lịch xem dự án</div>
                 </div>
             </div>
+            <div class="data-row"><span>Chờ xác nhận / dời lịch</span><strong>@pendingAppointments.ToString("N0")</strong></div>
+            <div class="data-row"><span>Đã xác nhận</span><strong>@confirmedAppointments.ToString("N0")</strong></div>
+            <div class="data-row"><span>Đã hoàn tất</span><strong>@completedAppointments.ToString("N0")</strong></div>
+            <div class="data-row"><span>Đã hủy / không đến</span><strong>@cancelledAppointments.ToString("N0")</strong></div>
+            <div class="progress-box">
+                <div class="progress-meta"><span>Tỷ lệ hoàn tất lịch hẹn</span><strong>@appointmentRate%</strong></div>
+                <div class="progress-track"><div class="progress-fill orange" style="width:@appointmentRateCss%"></div></div>
+            </div>
         </div>
-    </div>
-</div>
 
-<div class="ana-table-card">
-    <div class="ana-table-head">
-        <h5 class="ana-table-title">Hiệu suất theo từng dự án</h5>
-        <div class="ana-table-sub">
-            So sánh lead, lịch hẹn, lượt xem dự án, lượt xem tin rao, số tin rao và yêu cầu hỗ trợ.
+        <div class="panel">
+            <div class="panel-head">
+                <div class="panel-icon pink"><i class="bi bi-activity"></i></div>
+                <div>
+                    <h5 class="panel-title">Chỉ số vận hành</h5>
+                    <div class="panel-sub">Dữ liệu tổng hợp hệ thống</div>
+                </div>
+            </div>
+            <div class="data-row"><span>Dự án đang quản lý</span><strong>@totalProjects.ToString("N0")</strong></div>
+            <div class="data-row"><span>Căn/tin thuộc dự án</span><strong>@totalProperties.ToString("N0")</strong></div>
+            <div class="data-row"><span>Tổng tương tác</span><strong>@totalInteractions.ToString("N0")</strong></div>
+            <div class="data-row"><span>Hỗ trợ đang mở</span><strong>@openSupportTickets.ToString("N0") / @totalSupportTickets.ToString("N0")</strong></div>
+            <div class="progress-box">
+                <div class="progress-meta"><span>Tỷ lệ lead / lượt xem</span><strong>@viewToLeadRate%</strong></div>
+                <div class="progress-track"><div class="progress-fill" style="width:@viewToLeadRateCss%"></div></div>
+            </div>
         </div>
-    </div>
 
-    <div class="desktop-table-wrap table-responsive">
-        <table class="table ana-table align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Dự án</th>
-                    <th class="text-center">Lead</th>
-                    <th class="text-center">Lead mới</th>
-                    <th class="text-center">Lịch hẹn</th>
-                    <th class="text-center">Xem dự án</th>
-                    <th class="text-center">Xem tin rao</th>
-                    <th class="text-center">Tin rao</th>
-                    <th class="text-center">Hỗ trợ</th>
-                    <th>Trạng thái</th>
-                    <th class="text-end">Thao tác</th>
-                </tr>
-            </thead>
+        <div class="panel chart-card">
+            <div class="panel-head">
+                <div class="panel-icon"><i class="bi bi-bar-chart-fill"></i></div>
+                <div>
+                    <h5 class="panel-title">Biểu đồ tổng quan</h5>
+                    <div class="panel-sub">So sánh nhanh dữ liệu lead, lịch hẹn và chốt</div>
+                </div>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
 
-            <tbody>
-                @if (Model != null && Model.Any())
-                {
-                    foreach (var item in Model)
-                    {
-                        int leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
-                        int newLeadCount = newLeadMap.ContainsKey(item.ProjectID) ? newLeadMap[item.ProjectID] : 0;
-                        int appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
-                        int projectViewCount = projectViewMap.ContainsKey(item.ProjectID) ? projectViewMap[item.ProjectID] : item.Views;
-                        int propertyViewCount = propertyViewMap.ContainsKey(item.ProjectID) ? propertyViewMap[item.ProjectID] : 0;
-                        int propertyCount = propertyCountMap.ContainsKey(item.ProjectID) ? propertyCountMap[item.ProjectID] : 0;
-                        int supportCount = supportMap.ContainsKey(item.ProjectID) ? supportMap[item.ProjectID] : 0;
+        <div class="panel">
+            <div class="panel-head">
+                <div class="panel-icon green"><i class="bi bi-stars"></i></div>
+                <div>
+                    <h5 class="panel-title">Top dự án nổi bật</h5>
+                    <div class="panel-sub">Ưu tiên theo chốt, lead và lượt xem</div>
+                </div>
+            </div>
 
-                        <tr>
-                            <td>
-                                <div class="ana-project-name">@item.ProjectName</div>
-                                <div class="ana-project-meta">
-                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>
-                                    @(item.Ward?.WardName ?? "Chưa có phường/xã"), @(item.Area?.AreaName ?? "Chưa có khu vực")
-                                </div>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill">@leadCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill amber">@newLeadCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill">@appointmentCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill green">@projectViewCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill">@propertyViewCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill gray">@propertyCount.ToString("N0")</span>
-                            </td>
-
-                            <td class="text-center">
-                                <span class="ana-number-pill gray">@supportCount.ToString("N0")</span>
-                            </td>
-
-                            <td>
-                                <span class="ana-status @(item.ProjectStatus == "Đang mở bán" ? "ana-status-green" : "ana-status-gray")">
-                                    <i class="bi bi-circle-fill" style="font-size:.45rem;"></i>
-                                    @(string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Chưa cập nhật" : item.ProjectStatus)
-                                </span>
-                            </td>
-
-                            <td class="text-end">
-                                <div class="d-inline-flex gap-2">
-                                    <a href="/MemberProject/Index?projectId=@item.ProjectID"
-                                       class="btn btn-sm btn-outline-primary rounded-pill fw-bold">
-                                        <i class="bi bi-funnel-fill me-1"></i>
-                                        CRM
-                                    </a>
-
-                                    <a href="/Project/Details/@item.ProjectID"
-                                       target="_blank"
-                                       class="btn btn-sm btn-light border rounded-pill fw-bold">
-                                        <i class="bi bi-eye-fill me-1"></i>
-                                        Xem
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                }
-                else
-                {
-                    <tr>
-                        <td colspan="10">
-                            <div class="ana-empty">
-                                <i class="bi bi-bar-chart display-1 text-muted opacity-25 d-block mb-3"></i>
-                                <h5 class="fw-bold text-dark">Chưa có dữ liệu thống kê</h5>
-                                <div class="text-muted">
-                                    Khi Admin gán dự án cho tài khoản này, báo cáo hiệu suất sẽ hiển thị tại đây.
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    <div class="ana-mobile-list">
-        @if (Model != null && Model.Any())
-        {
-            foreach (var item in Model)
+            @if (hotProjects.Any())
             {
-                int leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
-                int newLeadCount = newLeadMap.ContainsKey(item.ProjectID) ? newLeadMap[item.ProjectID] : 0;
-                int appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
-                int projectViewCount = projectViewMap.ContainsKey(item.ProjectID) ? projectViewMap[item.ProjectID] : item.Views;
-                int propertyViewCount = propertyViewMap.ContainsKey(item.ProjectID) ? propertyViewMap[item.ProjectID] : 0;
-                int propertyCount = propertyCountMap.ContainsKey(item.ProjectID) ? propertyCountMap[item.ProjectID] : 0;
-                int supportCount = supportMap.ContainsKey(item.ProjectID) ? supportMap[item.ProjectID] : 0;
-
-                <div class="ana-mobile-card">
-                    <div class="ana-project-name">@item.ProjectName</div>
-                    <div class="ana-project-meta">
-                        <i class="bi bi-geo-alt-fill text-danger me-1"></i>
-                        @(item.Ward?.WardName ?? "Chưa có phường/xã"), @(item.Area?.AreaName ?? "Chưa có khu vực")
+                foreach (var p in hotProjects)
+                {
+                    <div class="data-row">
+                        <span>
+                            <strong style="display:block;color:#172033;white-space:normal;">@p.ProjectName</strong>
+                            <small>@p.LocationName · @p.Views.ToString("N0") lượt xem</small>
+                        </span>
+                        <strong>@p.Closed.ToString("N0") chốt</strong>
                     </div>
-
-                    <div class="ana-mobile-grid">
-                        <div class="ana-mobile-box">
-                            <strong>@leadCount.ToString("N0")</strong>
-                            <span>Lead</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@newLeadCount.ToString("N0")</strong>
-                            <span>Lead mới</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@appointmentCount.ToString("N0")</strong>
-                            <span>Lịch hẹn</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@projectViewCount.ToString("N0")</strong>
-                            <span>Xem dự án</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@propertyViewCount.ToString("N0")</strong>
-                            <span>Xem tin rao</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@propertyCount.ToString("N0")</strong>
-                            <span>Tin rao</span>
-                        </div>
-
-                        <div class="ana-mobile-box">
-                            <strong>@supportCount.ToString("N0")</strong>
-                            <span>Hỗ trợ</span>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2 mt-3">
-                        <a href="/MemberProject/Index?projectId=@item.ProjectID"
-                           class="btn btn-outline-primary fw-bold rounded-pill">
-                            <i class="bi bi-funnel-fill me-1"></i>
-                            Mở CRM
-                        </a>
-
-                        <a href="/Project/Details/@item.ProjectID"
-                           target="_blank"
-                           class="btn btn-light border fw-bold rounded-pill">
-                            <i class="bi bi-eye-fill me-1"></i>
-                            Xem dự án
-                        </a>
-                    </div>
+                }
+            }
+            else
+            {
+                <div class="empty-box">
+                    <i class="bi bi-clipboard-data"></i>
+                    <div>Chưa có dữ liệu để xếp hạng.</div>
                 </div>
             }
-        }
-        else
-        {
-            <div class="ana-empty">
-                <i class="bi bi-bar-chart display-1 text-muted opacity-25 d-block mb-3"></i>
-                <h5 class="fw-bold text-dark">Chưa có dữ liệu thống kê</h5>
-                <div class="text-muted">
-                    Khi Admin gán dự án cho tài khoản này, báo cáo sẽ hiển thị tại đây.
+        </div>
+    </section>
+
+    <section class="project-section">
+        <div class="section-head">
+            <div>
+                <h5 class="section-title">Căn / khách đã chốt gần đây</h5>
+                <div class="section-sub">
+                    Hiển thị các giao dịch/cơ hội đã chốt từ CRM và lịch hẹn có kết quả “Chờ đặt cọc”. Nếu lịch hẹn gắn với căn cụ thể, hệ thống sẽ hiện đúng tên căn.
                 </div>
             </div>
-        }
-    </div>
+            <div class="section-pill"><i class="bi bi-trophy-fill"></i> @closedDealRows.Count.ToString("N0") dòng mới nhất</div>
+        </div>
+
+        <div style="padding:16px;background:#f8fafc;">
+            @if (closedDealRows.Any())
+            {
+                <div class="closed-list">
+                    @foreach (var row in closedDealRows)
+                    {
+                        string detailUrl = row.PropertyID.HasValue && row.PropertyID.Value > 0
+                        ? $"/Property/Details/{row.PropertyID.Value}"
+                        : $"/Project/Details/{row.ProjectID}";
+
+                        <article class="closed-item">
+                            <div class="closed-icon"><i class="bi bi-house-check-fill"></i></div>
+                            <div class="min-w-0">
+                                <a href="@detailUrl" target="_blank" class="closed-name text-decoration-none">@row.PropertyName</a>
+                                <div class="closed-meta">
+                                    <i class="bi bi-buildings me-1"></i>@row.ProjectName
+                                    <span class="mx-1">·</span>
+                                    <i class="bi bi-person-fill me-1"></i>@row.CustomerName
+                                    @if (!string.IsNullOrWhiteSpace(row.CustomerPhone))
+                                    {
+                                        <span class="mx-1">·</span>
+                                        <i class="bi bi-telephone-fill me-1"></i>
+
+                                        @row.CustomerPhone
+                                    }
+                                    @if (row.ClosedAt.HasValue)
+                                    {
+                                        <span class="mx-1">·</span>
+                                        <i class="bi bi-clock-fill me-1"></i>
+
+                                        @row.ClosedAt.Value.ToString("dd/MM/yyyy HH:mm", vi)
+                                    }
+                                </div>
+                            </div>
+                            <span class="tag @(row.SourceType == "CRM" ? "tag-green" : "tag-orange")">@row.SourceType · @row.StatusText</span>
+                        </article>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-box">
+                    <i class="bi bi-house-check"></i>
+                    <h5>Chưa có căn/khách đã chốt</h5>
+                    <div>Khi lead chuyển sang “Đã chốt” hoặc lịch hẹn hoàn tất với kết quả “Chờ đặt cọc”, dữ liệu sẽ xuất hiện tại đây.</div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="project-section">
+        <div class="section-head">
+            <div>
+                <h5 class="section-title">Hiệu suất theo từng dự án</h5>
+                <div class="section-sub">
+                    Mỗi dự án được trình bày dạng card gọn, dễ đọc với người Việt, màu sắc hài hòa và không phát sinh thanh cuộn ngang trên điện thoại.
+                </div>
+            </div>
+            <div class="section-pill"><i class="bi bi-buildings"></i> @totalProjects.ToString("N0") dự án</div>
+        </div>
+
+        <div class="project-grid">
+            @if (Model != null && Model.Any())
+            {
+                foreach (var item in Model)
+                {
+                    int leadCount = leadMap.ContainsKey(item.ProjectID) ? leadMap[item.ProjectID] : 0;
+                    int newLeadCount = newLeadMap.ContainsKey(item.ProjectID) ? newLeadMap[item.ProjectID] : 0;
+                    int contactedLeadCount = contactedLeadMap.ContainsKey(item.ProjectID) ? contactedLeadMap[item.ProjectID] : 0;
+                    int resolvedLeadCount = resolvedLeadMap.ContainsKey(item.ProjectID) ? resolvedLeadMap[item.ProjectID] : 0;
+                    int invalidLeadCount = invalidLeadMap.ContainsKey(item.ProjectID) ? invalidLeadMap[item.ProjectID] : 0;
+                    int appointmentCount = appointmentMap.ContainsKey(item.ProjectID) ? appointmentMap[item.ProjectID] : 0;
+                    int completedAppointmentCount = completedAppointmentMap.ContainsKey(item.ProjectID) ? completedAppointmentMap[item.ProjectID] : 0;
+                    int depositCount = depositPendingAppointmentMap.ContainsKey(item.ProjectID) ? depositPendingAppointmentMap[item.ProjectID] : 0;
+                    int viewCount = totalViewMap.ContainsKey(item.ProjectID) ? totalViewMap[item.ProjectID] : item.Views;
+                    int propertyCount = propertyCountMap.ContainsKey(item.ProjectID) ? propertyCountMap[item.ProjectID] : 0;
+                    int supportCount = supportMap.ContainsKey(item.ProjectID) ? supportMap[item.ProjectID] : 0;
+                    int closedCount = resolvedLeadCount + depositCount;
+                    decimal projectCloseRate = leadCount > 0 ? Math.Round((decimal)closedCount * 100 / leadCount, 1) : 0;
+                    string statusText = string.IsNullOrWhiteSpace(item.ProjectStatus) ? "Chưa cập nhật" : item.ProjectStatus;
+                    bool isOpening = statusText == "Đang mở bán";
+
+                    <article class="project-card">
+                        <div class="project-top">
+                            <div class="min-w-0">
+                                <div class="project-name">@item.ProjectName</div>
+                                <div class="project-meta">
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                                    @(item.Ward?.WardName ?? item.Area?.AreaName ?? "Chưa có khu vực")
+                                </div>
+                            </div>
+                            <span class="tag @(isOpening ? "tag-green" : "tag-gray")"><i class="bi bi-circle-fill"></i> @statusText</span>
+                        </div>
+
+                        <div class="metric-grid">
+                            <div class="metric-box"><strong>@leadCount.ToString("N0")</strong><span>Lead</span></div>
+                            <div class="metric-box"><strong>@newLeadCount.ToString("N0")</strong><span>Mới</span></div>
+                            <div class="metric-box"><strong>@contactedLeadCount.ToString("N0")</strong><span>Chăm sóc</span></div>
+                            <div class="metric-box"><strong>@closedCount.ToString("N0")</strong><span>Đã chốt</span></div>
+                            <div class="metric-box"><strong>@appointmentCount.ToString("N0")</strong><span>Lịch hẹn</span></div>
+                            <div class="metric-box"><strong>@completedAppointmentCount.ToString("N0")</strong><span>Hoàn tất</span></div>
+                            <div class="metric-box"><strong>@propertyCount.ToString("N0")</strong><span>Căn/tin</span></div>
+                            <div class="metric-box"><strong>@viewCount.ToString("N0")</strong><span>Lượt xem</span></div>
+                        </div>
+
+                        <div class="progress-box">
+                            <div class="progress-meta"><span>Tỷ lệ chốt dự án</span><strong>@projectCloseRate%</strong></div>
+                            <div class="progress-track"><div class="progress-fill green" style="width:@Math.Min(100, projectCloseRate).ToString(CultureInfo.InvariantCulture)%"></div></div>
+                        </div>
+
+                        <div class="project-actions">
+                            <a href="/MemberProject/Index?projectId=@item.ProjectID" class="rp-btn rp-btn-primary"><i class="bi bi-funnel-fill"></i> Mở CRM</a>
+                            <a href="/Appointments/Index?mode=DoanhNghiep&keyword=@Uri.EscapeDataString(item.ProjectName ?? "")" class="rp-btn rp-btn-green"><i class="bi bi-calendar-check-fill"></i> Lịch hẹn</a>
+                            <a href="/Project/Details/@item.ProjectID" target="_blank" class="rp-btn rp-btn-light"><i class="bi bi-eye-fill"></i> Xem dự án</a>
+                        </div>
+                    </article>
+                }
+            }
+            else
+            {
+                <div class="empty-box" style="grid-column:1 / -1;">
+                    <i class="bi bi-bar-chart"></i>
+                    <h5>Chưa có dữ liệu thống kê</h5>
+                    <div>Khi Admin gán dự án cho tài khoản này, báo cáo hiệu suất sẽ hiển thị tại đây.</div>
+                </div>
+            }
+        </div>
+    </section>
 </div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        (() => {
+            const canvas = document.getElementById('performanceChart');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: ['Lead mới', 'Đang chăm sóc', 'Đã chốt CRM', 'Chờ đặt cọc', 'Lịch hoàn tất', 'Hỗ trợ mở'],
+                    datasets: [{
+                        label: 'Số lượng',
+                        data: @Html.Raw(JsonNumberList(new[] { newLeads, contactedLeads, resolvedLeads, depositPendingAppointments, completedAppointments, openSupportTickets })),
+                        borderWidth: 0,
+                        borderRadius: 14,
+                        backgroundColor: ['#22c55e', '#2563eb', '#f97316', '#db2777', '#7c3aed', '#06b6d4']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { family: 'Inter, system-ui, Segoe UI, Arial', weight: '800' },
+                            bodyFont: { family: 'Inter, system-ui, Segoe UI, Arial', weight: '700' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#475569', font: { weight: 800 } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0, color: '#64748b', font: { weight: 700 } },
+                            grid: { color: 'rgba(148, 163, 184, .22)' }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+}
